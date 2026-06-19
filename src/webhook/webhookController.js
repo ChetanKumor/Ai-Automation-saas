@@ -1,10 +1,10 @@
-const db              = require('../db/db');
-const tenantService   = require('../modules/tenant/tenantService');
-const customerService = require('../modules/customer/customerService');
-const aiService       = require('../modules/ai/aiService');
-const whatsappService = require('../modules/whatsapp/whatsappService');
+const db                  = require('../db/db');
+const tenantService       = require('../modules/tenant/tenantService');
+const customerService     = require('../modules/customer/customerService');
+const conversationService = require('../modules/conversation/conversationService');
+const aiService           = require('../modules/ai/aiService');
+const whatsappService     = require('../modules/whatsapp/whatsappService');
 
-// Webhook verification (Meta calls this once when you register URL)
 const verify = (req, res) => {
   const mode      = req.query['hub.mode'];
   const token     = req.query['hub.verify_token'];
@@ -18,83 +18,92 @@ const verify = (req, res) => {
   res.sendStatus(403);
 };
 
-
-
-// Incoming message handler
 const handle = async (req, res) => {
-    console.log("Webhook hit:", JSON.stringify(req.body, null, 2));
-  // Always respond 200 to Meta immediately — prevent retries
+  console.log('Webhook hit:', JSON.stringify(req.body, null, 2));
+  // Respond immediately — prevents Meta from retrying on slow processing
   res.sendStatus(200);
 
   try {
     const value = req.body?.entry?.[0]?.changes?.[0]?.value;
-
-    // Ignore delivery receipts and read events — only process messages
     if (!value?.messages?.[0]) return;
 
     const phoneNumberId = value.metadata?.phone_number_id;
     const msg           = value.messages[0];
     const { id: wamid, from, type } = msg;
 
-    // ── 1. IDEMPOTENCY — skip if already processed ──────────────────
-    try {
-      await db.query(
-        `INSERT INTO messages (wamid, tenant_id, customer_id, role, content)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (wamid) DO NOTHING`,
-        // We'll do a real insert below; this is just a conflict guard
-        // Use a separate small table approach instead:
-        [wamid, '00000000-0000-0000-0000-000000000000',
-                '00000000-0000-0000-0000-000000000000', 'user', '_check']
-      );
-    } catch (_) {}
-
-    // Check if wamid already exists properly
-    const { rows: dup } = await db.query(
-      `SELECT id FROM messages WHERE wamid = $1`, [wamid]
-    );
-    if (dup[0]) return; // Already processed
-
-    // ── 2. NON-TEXT — skip for now ───────────────────────────────────
+    // Only handle text messages for now
     if (type !== 'text' || !msg.text?.body) return;
 
     const userText = msg.text.body;
 
-    // ── 3. RESOLVE TENANT ────────────────────────────────────────────
+    // ── 1. RESOLVE TENANT ────────────────────────────────────────────
     const tenant = await tenantService.getByPhoneNumberId(phoneNumberId);
     if (!tenant) {
-      console.warn(`No tenant found for phone_number_id: ${phoneNumberId}`);
+      console.warn(`No tenant for phone_number_id: ${phoneNumberId}`);
       return;
     }
 
-    // ── 4. UPSERT CUSTOMER ───────────────────────────────────────────
+    // ── 2. UPSERT CUSTOMER — stamps last_seen_at ─────────────────────
     const customer = await customerService.findOrCreate(tenant.id, from);
 
-    // ── 5. SAVE INCOMING MESSAGE ─────────────────────────────────────
-    await db.query(
-      `INSERT INTO messages (tenant_id, customer_id, wamid, role, content)
-       VALUES ($1, $2, $3, 'user', $4)`,
-      [tenant.id, customer.id, wamid, userText]
+    // ── 3. GET OR CREATE OPEN CONVERSATION ───────────────────────────
+    const conversation = await conversationService.getOrCreateOpenConversation(
+      tenant.id, customer.id
     );
+
+    // ── 4. STORE INBOUND MESSAGE — idempotency via ON CONFLICT ───────
+    // rowCount === 0 means wamid already exists → duplicate delivery from Meta
+    const { rowCount } = await db.query(
+      `INSERT INTO messages
+         (tenant_id, conversation_id, customer_id, wamid, direction, sender, content)
+       VALUES ($1, $2, $3, $4, 'inbound', 'customer', $5)
+       ON CONFLICT (wamid) DO NOTHING`,
+      [tenant.id, conversation.id, customer.id, wamid, userText]
+    );
+
+    if (rowCount === 0) {
+      console.log(`Duplicate wamid ${wamid} — skipping`);
+      return;
+    }
+
+    await db.query(
+      `UPDATE conversations SET last_message_at = NOW() WHERE id = $1 AND tenant_id = $2`,
+      [conversation.id, tenant.id]
+    );
+
+    // ── 5. HUMAN HANDOFF / AI-DISABLED CHECK ─────────────────────────
+    // Re-read mode from DB to avoid race condition where agent took over
+    // between getOrCreate and here
+    const { rows: [freshConv] } = await db.query(
+      `SELECT mode FROM conversations WHERE id = $1 AND tenant_id = $2`,
+      [conversation.id, tenant.id]
+    );
+    if (!freshConv || freshConv.mode === 'human' || !tenant.ai_enabled) {
+      console.log(`[${tenant.business_name}] Skipping AI (mode=${freshConv?.mode}, ai_enabled=${tenant.ai_enabled})`);
+      return;
+    }
 
     // ── 6. FETCH HISTORY + GENERATE AI REPLY ────────────────────────
-    const history = await customerService.getRecentMessages(customer.id);
-    const reply   = await aiService.generateReply(tenant, customer, userText, history);
-
-    // ── 7. SAVE AI REPLY ─────────────────────────────────────────────
-    await db.query(
-      `INSERT INTO messages (tenant_id, customer_id, role, content)
-       VALUES ($1, $2, 'ai', $3)`,
-      [tenant.id, customer.id, reply]
+    const history = await customerService.getRecentMessages(tenant.id, conversation.id);
+    const reply   = await aiService.generateReply(
+      tenant, customer, conversation, userText, history
     );
 
-    // ── 8. SEND REPLY ────────────────────────────────────────────────
+    // ── 7. STORE OUTBOUND AI MESSAGE ─────────────────────────────────
+    await db.query(
+      `INSERT INTO messages
+         (tenant_id, conversation_id, customer_id, direction, sender, content)
+       VALUES ($1, $2, $3, 'outbound', 'ai', $4)`,
+      [tenant.id, conversation.id, customer.id, reply]
+    );
+
+    // ── 8. SEND VIA WHATSAPP ─────────────────────────────────────────
     await whatsappService.sendMessage(tenant, from, reply);
 
     console.log(`[${tenant.business_name}] ${from}: "${userText}" → "${reply}"`);
 
   } catch (err) {
-    console.error('Webhook error:', err.message);
+    console.error('Webhook error:', err);
   }
 };
 

@@ -1,35 +1,25 @@
 const db = require('../../db/db');
 
 const findOrCreate = async (tenantId, phone) => {
-  // Try to find first
-  const { rows: existing } = await db.query(
-    `SELECT * FROM customers WHERE tenant_id = $1 AND phone = $2`,
-    [tenantId, phone]
-  );
-
-  if (existing[0]) return existing[0];
-
-  // Create new customer
   const { rows } = await db.query(
-    `INSERT INTO customers (tenant_id, phone)
-     VALUES ($1, $2)
-     ON CONFLICT (tenant_id, phone) DO UPDATE SET phone = EXCLUDED.phone
+    `INSERT INTO customers (tenant_id, phone, last_seen_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (tenant_id, phone) DO UPDATE SET last_seen_at = NOW()
      RETURNING *`,
     [tenantId, phone]
   );
-
   return rows[0];
 };
 
-const getRecentMessages = async (customerId, limit = 10) => {
+const getRecentMessages = async (tenantId, conversationId, limit = 10) => {
   const { rows } = await db.query(
-    `SELECT role, content FROM messages
-     WHERE customer_id = $1
+    `SELECT sender, content FROM messages
+     WHERE tenant_id = $1 AND conversation_id = $2
      ORDER BY created_at DESC
-     LIMIT $2`,
-    [customerId, limit]
+     OFFSET 1
+     LIMIT $3`,
+    [tenantId, conversationId, limit]
   );
-
   return rows.reverse(); // oldest first for AI context
 };
 
