@@ -56,4 +56,7 @@ Configured via `.env` (gitignored). Required:
 - `DATABASE_URL` — PostgreSQL connection string
 - `GEMINI_API_KEY` — Google Generative AI key
 - `WEBHOOK_VERIFY_TOKEN` — Meta webhook verification token
+- `META_APP_SECRET` — Meta app secret for webhook signature verification
+- `ENCRYPTION_KEY` — 32-byte hex key for AES-256-GCM encryption of wa_token
+- `ADMIN_PASSWORD` — single admin password for the `/admin` dashboard
 - Tenant-level: `phone_number_id` and `wa_token` are stored per-tenant in the DB, not in env vars.

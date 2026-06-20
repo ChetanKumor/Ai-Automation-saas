@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tenants — WhatsApp CRM Admin</title>
+  <link rel="stylesheet" href="/admin/style.css">
+</head>
+<body>
+  <nav>
+    <a href="/admin/tenants.html" class="brand">WhatsApp CRM</a>
+    <a href="/admin/logout">Logout</a>
+  </nav>
+
+  <div class="container">
+    <div class="flex-between mb-20" style="margin-top:20px;">
+      <h2>Tenants</h2>
+      <a href="/admin/tenant-new.html" class="btn btn-primary">+ Add New</a>
+    </div>
+
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Business Name</th>
+            <th class="hide-mobile">Phone Number ID</th>
+            <th>Status</th>
+            <th class="hide-mobile">Created</th>
+          </tr>
+        </thead>
+        <tbody id="tenantList">
+          <tr><td colspan="4" class="text-muted" style="text-align:center; padding:24px;">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    async function load() {
+      const res = await fetch('/admin/api/tenants');
+      if (res.status === 401) return window.location.href = '/admin';
+      const tenants = await res.json();
+      const tbody = document.getElementById('tenantList');
+
+      if (!tenants.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-muted" style="text-align:center; padding:24px;">No tenants yet. Click "+ Add New" to create one.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = tenants.map(t => `
+        <tr>
+          <td><strong>${esc(t.business_name)}</strong></td>
+          <td class="hide-mobile"><code>${esc(t.phone_number_id || '—')}</code></td>
+          <td>
+            <span class="badge ${t.active ? 'badge-green' : 'badge-red'}">
+              ${t.active ? 'Active' : 'Inactive'}
+            </span>
+          </td>
+          <td class="hide-mobile">${new Date(t.created_at).toLocaleDateString()}</td>
+        </tr>
+      `).join('');
+    }
+
+    function esc(s) {
+      if (!s) return '';
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    load();
+  </script>
+</body>
+</html>

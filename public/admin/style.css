@@ -1,0 +1,95 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f5f5f5;
+  color: #333;
+  line-height: 1.5;
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* ── Nav ──────────────────────────────────────────── */
+nav {
+  background: #1a1a2e;
+  color: #fff;
+  padding: 12px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+nav a { color: #ccc; text-decoration: none; font-size: 14px; }
+nav a:hover { color: #fff; }
+nav .brand { font-weight: 700; font-size: 18px; color: #fff; text-decoration: none; }
+
+/* ── Cards / Panels ───────────────────────────────── */
+.card {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  padding: 24px;
+  margin-bottom: 20px;
+}
+
+/* ── Tables ───────────────────────────────────────── */
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #eee; }
+th { background: #fafafa; font-weight: 600; font-size: 13px; text-transform: uppercase; color: #666; }
+td { font-size: 14px; }
+tr:hover { background: #f9f9f9; }
+
+/* ── Badges ───────────────────────────────────────── */
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 12px;
+  font-size: 12px; font-weight: 600;
+}
+.badge-green { background: #d4edda; color: #155724; }
+.badge-red   { background: #f8d7da; color: #721c24; }
+
+/* ── Buttons ──────────────────────────────────────── */
+.btn {
+  display: inline-block; padding: 8px 16px; border: none; border-radius: 6px;
+  font-size: 14px; cursor: pointer; text-decoration: none; font-weight: 500;
+}
+.btn-primary { background: #4361ee; color: #fff; }
+.btn-primary:hover { background: #3a56d4; }
+.btn-danger  { background: #e63946; color: #fff; }
+.btn-danger:hover  { background: #d32f3f; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+
+/* ── Forms ────────────────────────────────────────── */
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 14px; }
+.form-group input,
+.form-group textarea,
+.form-group select {
+  width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px;
+  font-size: 14px; font-family: inherit;
+}
+.form-group textarea { resize: vertical; min-height: 80px; }
+
+/* ── Login ────────────────────────────────────────── */
+.login-wrapper {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh;
+}
+.login-card { width: 100%; max-width: 360px; }
+
+/* ── Utilities ────────────────────────────────────── */
+.mt-10 { margin-top: 10px; }
+.mb-20 { margin-bottom: 20px; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+.text-muted { color: #888; font-size: 13px; }
+.error { color: #e63946; font-size: 13px; margin-top: 6px; }
+
+/* ── Responsive ───────────────────────────────────── */
+@media (max-width: 640px) {
+  .container { padding: 12px; }
+  table { font-size: 13px; }
+  th, td { padding: 8px 6px; }
+  .hide-mobile { display: none; }
+}

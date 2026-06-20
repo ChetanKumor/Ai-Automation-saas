@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Login — WhatsApp CRM</title>
+  <link rel="stylesheet" href="/admin/style.css">
+</head>
+<body>
+  <div class="login-wrapper">
+    <div class="card login-card">
+      <h2 style="margin-bottom: 20px; text-align: center;">WhatsApp CRM Admin</h2>
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="password">Admin Password</label>
+          <input type="password" id="password" placeholder="Enter password" autofocus required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%">Login</button>
+        <div id="error" class="error" style="display:none; text-align:center;"></div>
+      </form>
+    </div>
+  </div>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('error');
+      errEl.style.display = 'none';
+      const res = await fetch('/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: document.getElementById('password').value })
+      });
+      if (res.ok) {
+        window.location.href = '/admin/tenants.html';
+      } else {
+        errEl.textContent = 'Wrong password';
+        errEl.style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,5 +1,7 @@
 require('dotenv').config();
 const express = require('express');
+const session = require('express-session');
+const path    = require('path');
 
 const app = express();
 
@@ -8,6 +10,20 @@ app.use('/webhook', express.raw({ type: 'application/json' }), require('./src/we
 
 // JSON parsing for all other routes
 app.use(express.json());
+
+// Sessions (admin dashboard)
+app.use(session({
+  secret: process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || 'dev-fallback',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 24 * 60 * 60 * 1000 }
+}));
+
+// Static files
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Admin dashboard
+app.use('/admin', require('./src/admin/adminRoutes'));
 
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
