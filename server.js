@@ -21,10 +21,6 @@ app.use(session({
 
 // Admin dashboard
 const adminRoutes = require('./src/admin/adminRoutes');
-app.get('/admin', (req, res) => {
-  if (req.session && req.session.admin) return res.redirect('/admin/tenants.html');
-  res.sendFile(path.join(__dirname, 'public/admin/login.html'));
-});
 app.use('/admin', adminRoutes);
 
 // Static files (for non-admin assets)

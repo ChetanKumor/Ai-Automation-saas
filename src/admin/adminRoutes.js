@@ -11,9 +11,6 @@ function requireAuth(req, res, next) {
   res.status(401).json({ error: 'Unauthorized' });
 }
 
-// ── Serve admin static files (CSS, JS, HTML pages) ───────────
-router.use(express.static(ADMIN_PUBLIC));
-
 // ── Pages ────────────────────────────────────────────────────
 router.get('/', (req, res) => {
   if (req.session && req.session.admin) {
@@ -21,6 +18,9 @@ router.get('/', (req, res) => {
   }
   res.sendFile(path.join(ADMIN_PUBLIC, 'login.html'));
 });
+
+// ── Serve admin static files (CSS, JS, HTML pages) ───────────
+router.use(express.static(ADMIN_PUBLIC));
 
 // ── Auth endpoints ───────────────────────────────────────────
 router.post('/login', express.json(), (req, res) => {
