@@ -19,13 +19,16 @@ app.use(session({
   cookie: { maxAge: 24 * 60 * 60 * 1000 }
 }));
 
-// Static files
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Admin dashboard — double-mount so both /admin and /admin/ work in Express 5
+// Admin dashboard
 const adminRoutes = require('./src/admin/adminRoutes');
-app.use('/admin/', adminRoutes);
+app.get('/admin', (req, res) => {
+  if (req.session && req.session.admin) return res.redirect('/admin/tenants.html');
+  res.sendFile(path.join(__dirname, 'public/admin/login.html'));
+});
 app.use('/admin', adminRoutes);
+
+// Static files (for non-admin assets)
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
