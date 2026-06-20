@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Add Tenant — WhatsApp CRM Admin</title>
+  <link rel="stylesheet" href="/admin/style.css">
+</head>
+<body>
+  <nav>
+    <a href="/admin/tenants.html" class="brand">WhatsApp CRM</a>
+    <a href="/admin/logout">Logout</a>
+  </nav>
+
+  <div class="container">
+    <h2 style="margin-top:20px; margin-bottom:20px;">Add New Tenant</h2>
+
+    <div class="card">
+      <form id="tenantForm">
+        <div class="form-group">
+          <label>Business Name *</label>
+          <input type="text" name="business_name" required>
+        </div>
+        <div class="form-group">
+          <label>Phone Number ID</label>
+          <input type="text" name="phone_number_id" placeholder="Meta WhatsApp phone number ID">
+        </div>
+        <div class="form-group">
+          <label>WhatsApp Access Token</label>
+          <input type="password" name="wa_token" placeholder="Meta access token (stored encrypted)">
+        </div>
+        <div class="form-group">
+          <label>WABA ID</label>
+          <input type="text" name="waba_id" placeholder="WhatsApp Business Account ID (optional)">
+        </div>
+        <div class="form-group">
+          <label>AI System Prompt</label>
+          <textarea name="ai_prompt" placeholder="Custom system prompt for this tenant's AI agent"></textarea>
+        </div>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" name="ai_enabled" checked style="width:auto; margin-right:6px;">
+            AI Enabled
+          </label>
+        </div>
+
+        <div id="error" class="error" style="display:none;"></div>
+
+        <div class="flex-between" style="margin-top:20px;">
+          <a href="/admin/tenants.html" class="btn" style="background:#eee; color:#333;">Cancel</a>
+          <button type="submit" class="btn btn-primary">Create Tenant</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('tenantForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const errEl = document.getElementById('error');
+      errEl.style.display = 'none';
+
+      const body = {
+        business_name:   form.business_name.value.trim(),
+        phone_number_id: form.phone_number_id.value.trim() || null,
+        wa_token:        form.wa_token.value.trim() || null,
+        waba_id:         form.waba_id.value.trim() || null,
+        ai_prompt:       form.ai_prompt.value.trim() || null,
+        ai_enabled:      form.ai_enabled.checked,
+      };
+
+      if (!body.business_name) {
+        errEl.textContent = 'Business name is required.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      const res = await fetch('/admin/api/tenants', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (res.status === 401) return window.location.href = '/admin';
+
+      const data = await res.json();
+      if (!res.ok) {
+        errEl.textContent = data.error || 'Failed to create tenant.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      window.location.href = '/admin/tenants.html';
+    });
+  </script>
+</body>
+</html>

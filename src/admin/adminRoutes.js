@@ -1,7 +1,8 @@
-const express = require('express');
-const path    = require('path');
-const db      = require('../db/db');
-const router  = express.Router();
+const express    = require('express');
+const path       = require('path');
+const db         = require('../db/db');
+const { encrypt } = require('../utils/encryption');
+const router     = express.Router();
 
 const ADMIN_PUBLIC = path.join(__dirname, '../../public/admin');
 
@@ -43,6 +44,21 @@ router.get('/api/tenants', requireAuth, async (req, res) => {
      FROM tenants ORDER BY created_at DESC`
   );
   res.json(rows);
+});
+
+router.post('/api/tenants', requireAuth, async (req, res) => {
+  const { business_name, phone_number_id, wa_token, waba_id, ai_prompt, ai_enabled } = req.body;
+  if (!business_name) return res.status(400).json({ error: 'Business name is required' });
+
+  const encryptedToken = wa_token ? encrypt(wa_token) : null;
+
+  const { rows } = await db.query(
+    `INSERT INTO tenants (business_name, phone_number_id, wa_token, waba_id, ai_prompt, ai_enabled)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id, business_name, created_at`,
+    [business_name, phone_number_id || null, encryptedToken, waba_id || null, ai_prompt || null, ai_enabled !== false]
+  );
+  res.status(201).json(rows[0]);
 });
 
 module.exports = router;
