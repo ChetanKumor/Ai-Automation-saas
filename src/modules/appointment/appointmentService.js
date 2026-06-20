@@ -95,8 +95,15 @@ async function bookAppointment(tenantId, customerId, doctorName, appointmentTime
   const dayName = dayNames[dayOfWeekIST(dateStr)];
 
   const schedules = await getSchedules(tenantId);
-  const sched = schedules.find(s => s.doctor === doctorName);
-  if (!sched) return { success: false, error: `Doctor "${doctorName}" not found.` };
+  const nameLC = doctorName.toLowerCase();
+  const sched = schedules.find(s => s.doctor === doctorName)
+    || schedules.find(s => nameLC.includes(s.doctor.toLowerCase().replace('dr. ', '')))
+    || schedules.find(s => s.doctor.toLowerCase().includes(nameLC.replace('dr. ', '')));
+  if (!sched) {
+    const available = schedules.map(s => s.doctor).join(', ');
+    return { success: false, error: `Doctor "${doctorName}" not found. Available: ${available}` };
+  }
+  doctorName = sched.doctor;
   if (!sched.days.includes(dayName)) return { success: false, error: `${doctorName} does not work on ${dayName}.` };
 
   const slotTime = apptDate.toLocaleTimeString('en-GB', { timeZone: IST, hour: '2-digit', minute: '2-digit' });

@@ -25,14 +25,20 @@ const handle = async (req, res) => {
 
   try {
     const value = req.body?.entry?.[0]?.changes?.[0]?.value;
-    if (!value?.messages?.[0]) return;
+    if (!value?.messages?.[0]) {
+      if (value?.statuses) console.log(`[Webhook] Status update: ${value.statuses[0]?.status} for ${value.statuses[0]?.recipient_id}`);
+      return;
+    }
 
     const phoneNumberId = value.metadata?.phone_number_id;
     const msg           = value.messages[0];
     const { id: wamid, from, type } = msg;
 
     // Only handle text messages for now
-    if (type !== 'text' || !msg.text?.body) return;
+    if (type !== 'text' || !msg.text?.body) {
+      console.log(`[Webhook] Non-text message (${type}) from ${from} — skipping`);
+      return;
+    }
 
     const userText = msg.text.body;
 
