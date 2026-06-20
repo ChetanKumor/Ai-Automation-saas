@@ -47,18 +47,23 @@ router.get('/api/tenants', requireAuth, async (req, res) => {
 });
 
 router.post('/api/tenants', requireAuth, async (req, res) => {
-  const { business_name, phone_number_id, wa_token, waba_id, ai_prompt, ai_enabled } = req.body;
-  if (!business_name) return res.status(400).json({ error: 'Business name is required' });
+  try {
+    const { business_name, phone_number_id, wa_token, waba_id, ai_prompt, ai_enabled } = req.body;
+    if (!business_name) return res.status(400).json({ error: 'Business name is required' });
 
-  const encryptedToken = wa_token ? encrypt(wa_token) : null;
+    const encryptedToken = wa_token ? encrypt(wa_token) : null;
 
-  const { rows } = await db.query(
-    `INSERT INTO tenants (business_name, phone_number_id, wa_token, waba_id, ai_prompt, ai_enabled)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING id, business_name, created_at`,
-    [business_name, phone_number_id || null, encryptedToken, waba_id || null, ai_prompt || null, ai_enabled !== false]
-  );
-  res.status(201).json(rows[0]);
+    const { rows } = await db.query(
+      `INSERT INTO tenants (business_name, phone_number_id, wa_token, waba_id, ai_prompt, ai_enabled)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, business_name, created_at`,
+      [business_name, phone_number_id || null, encryptedToken, waba_id || null, ai_prompt || null, ai_enabled !== false]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('Create tenant error:', err.message);
+    res.status(500).json({ error: 'Failed to create tenant' });
+  }
 });
 
 module.exports = router;
