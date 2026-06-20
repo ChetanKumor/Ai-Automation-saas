@@ -1,4 +1,5 @@
 const db = require('../../db/db');
+const { decrypt } = require('../../utils/encryption');
 
 // Simple in-memory cache — avoids DB hit on every message
 const cache = new Map();
@@ -14,7 +15,9 @@ const getByPhoneNumberId = async (phoneNumberId) => {
 
   if (!rows[0]) return null;
 
-  // Cache for 5 minutes
+  rows[0].wa_token = decrypt(rows[0].wa_token);
+
+  // Cache for 5 minutes (caches decrypted token — avoids repeated decryption)
   cache.set(phoneNumberId, rows[0]);
   setTimeout(() => cache.delete(phoneNumberId), 5 * 60 * 1000);
 

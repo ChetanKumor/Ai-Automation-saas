@@ -2,10 +2,12 @@ require('dotenv').config();
 const express = require('express');
 
 const app = express();
-app.use(express.json());
 
-// Routes
-app.use('/webhook', require('./src/webhook/webhookRoutes'));
+// Webhook needs raw body for signature verification — mount before express.json()
+app.use('/webhook', express.raw({ type: 'application/json' }), require('./src/webhook/webhookRoutes'));
+
+// JSON parsing for all other routes
+app.use(express.json());
 
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
