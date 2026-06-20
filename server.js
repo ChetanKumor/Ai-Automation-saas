@@ -1,4 +1,10 @@
 require('dotenv').config();
+
+const REQUIRED_ENV = ['DATABASE_URL', 'GEMINI_API_KEY', 'WEBHOOK_VERIFY_TOKEN', 'META_APP_SECRET', 'ENCRYPTION_KEY', 'ADMIN_PASSWORD'];
+for (const key of REQUIRED_ENV) {
+  if (!process.env[key]) { console.error(`Missing required env var: ${key}`); process.exit(1); }
+}
+
 const express = require('express');
 const session = require('express-session');
 const path    = require('path');

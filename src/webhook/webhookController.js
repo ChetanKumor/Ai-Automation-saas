@@ -20,7 +20,6 @@ const verify = (req, res) => {
 };
 
 const handle = async (req, res) => {
-  console.log('Webhook hit:', JSON.stringify(req.body, null, 2));
   // Respond immediately — prevents Meta from retrying on slow processing
   res.sendStatus(200);
 
@@ -85,26 +84,40 @@ const handle = async (req, res) => {
     }
 
     // ── 6. RAG — retrieve relevant business knowledge ─────────────
-    const knowledgeChunks = await knowledgeService.getRelevantChunks(
-      tenant.id, userText, 3
-    );
+    let knowledgeChunks = [];
+    try {
+      knowledgeChunks = await knowledgeService.getRelevantChunks(tenant.id, userText, 3);
+    } catch (ragErr) {
+      console.error(`[${tenant.business_name}] RAG retrieval failed (continuing without):`, ragErr.message);
+    }
 
     // ── 7. FETCH HISTORY + GENERATE AI REPLY ────────────────────────
-    const history = await customerService.getRecentMessages(tenant.id, conversation.id);
-    const reply   = await aiService.generateReply(
-      tenant, customer, conversation, userText, history, knowledgeChunks
-    );
+    let reply;
+    try {
+      const history = await customerService.getRecentMessages(tenant.id, conversation.id);
+      reply = await aiService.generateReply(
+        tenant, customer, conversation, userText, history, knowledgeChunks
+      );
+    } catch (aiErr) {
+      console.error(`[${tenant.business_name}] AI generation failed:`, aiErr.message);
+      return;
+    }
 
-    // ── 8. STORE OUTBOUND AI MESSAGE ─────────────────────────────────
+    // ── 8. SEND VIA WHATSAPP ─────────────────────────────────────────
+    try {
+      await whatsappService.sendMessage(tenant, from, reply);
+    } catch (sendErr) {
+      console.error(`[${tenant.business_name}] WhatsApp send failed:`, sendErr.message);
+      return;
+    }
+
+    // ── 9. STORE OUTBOUND AI MESSAGE (only after successful send) ────
     await db.query(
       `INSERT INTO messages
          (tenant_id, conversation_id, customer_id, direction, sender, content)
        VALUES ($1, $2, $3, 'outbound', 'ai', $4)`,
       [tenant.id, conversation.id, customer.id, reply]
     );
-
-    // ── 9. SEND VIA WHATSAPP ─────────────────────────────────────────
-    await whatsappService.sendMessage(tenant, from, reply);
 
     console.log(`[${tenant.business_name}] ${from}: "${userText}" → "${reply}"`);
 
