@@ -22,9 +22,10 @@ app.use(session({
 // Static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Admin dashboard — Express 5 doesn't auto-redirect /admin → /admin/
-app.get('/admin', (req, res) => res.redirect('/admin/'));
-app.use('/admin', require('./src/admin/adminRoutes'));
+// Admin dashboard — double-mount so both /admin and /admin/ work in Express 5
+const adminRoutes = require('./src/admin/adminRoutes');
+app.use('/admin/', adminRoutes);
+app.use('/admin', adminRoutes);
 
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
