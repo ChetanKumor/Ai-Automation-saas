@@ -3,6 +3,7 @@ const tenantService       = require('../modules/tenant/tenantService');
 const customerService     = require('../modules/customer/customerService');
 const conversationService = require('../modules/conversation/conversationService');
 const aiService           = require('../modules/ai/aiService');
+const knowledgeService    = require('../modules/knowledge/knowledgeService');
 const whatsappService     = require('../modules/whatsapp/whatsappService');
 
 const verify = (req, res) => {
@@ -83,13 +84,18 @@ const handle = async (req, res) => {
       return;
     }
 
-    // ── 6. FETCH HISTORY + GENERATE AI REPLY ────────────────────────
-    const history = await customerService.getRecentMessages(tenant.id, conversation.id);
-    const reply   = await aiService.generateReply(
-      tenant, customer, conversation, userText, history
+    // ── 6. RAG — retrieve relevant business knowledge ─────────────
+    const knowledgeChunks = await knowledgeService.getRelevantChunks(
+      tenant.id, userText, 3
     );
 
-    // ── 7. STORE OUTBOUND AI MESSAGE ─────────────────────────────────
+    // ── 7. FETCH HISTORY + GENERATE AI REPLY ────────────────────────
+    const history = await customerService.getRecentMessages(tenant.id, conversation.id);
+    const reply   = await aiService.generateReply(
+      tenant, customer, conversation, userText, history, knowledgeChunks
+    );
+
+    // ── 8. STORE OUTBOUND AI MESSAGE ─────────────────────────────────
     await db.query(
       `INSERT INTO messages
          (tenant_id, conversation_id, customer_id, direction, sender, content)
@@ -97,7 +103,7 @@ const handle = async (req, res) => {
       [tenant.id, conversation.id, customer.id, reply]
     );
 
-    // ── 8. SEND VIA WHATSAPP ─────────────────────────────────────────
+    // ── 9. SEND VIA WHATSAPP ─────────────────────────────────────────
     await whatsappService.sendMessage(tenant, from, reply);
 
     console.log(`[${tenant.business_name}] ${from}: "${userText}" → "${reply}"`);

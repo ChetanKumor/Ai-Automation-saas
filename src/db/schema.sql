@@ -231,6 +231,24 @@ CREATE TRIGGER trg_customer_memory_updated BEFORE UPDATE ON customer_memory
 
 
 -- ============================================================
+--  8. KNOWLEDGE_CHUNKS  — RAG: tenant-scoped business knowledge
+--     Chunked text + vector embedding for semantic retrieval.
+-- ============================================================
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE knowledge_chunks (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  content     TEXT NOT NULL,
+  embedding   vector(768),         -- Google text-embedding-004 output dimension
+  source      TEXT,                -- filename or label for traceability
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_knowledge_chunks_tenant ON knowledge_chunks(tenant_id);
+
+
+-- ============================================================
 --  SAMPLE DATA (optional) — create your first business to test.
 --  Fill in your real Meta values, then uncomment and run.
 -- ============================================================

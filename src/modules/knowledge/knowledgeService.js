@@ -1,0 +1,59 @@
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const db = require('../../db/db');
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const embeddingModel = genAI.getGenerativeModel({ model: 'text-embedding-004' });
+
+async function embed(text) {
+  const result = await embeddingModel.embedContent(text);
+  return result.embedding.values;
+}
+
+async function storeChunks(tenantId, chunks, source) {
+  for (const chunk of chunks) {
+    const embedding = await embed(chunk);
+    await db.query(
+      `INSERT INTO knowledge_chunks (tenant_id, content, embedding, source)
+       VALUES ($1, $2, $3::vector, $4)`,
+      [tenantId, chunk, `[${embedding.join(',')}]`, source]
+    );
+  }
+  return chunks.length;
+}
+
+async function getRelevantChunks(tenantId, query, topK = 3) {
+  const queryEmbedding = await embed(query);
+  const { rows } = await db.query(
+    `SELECT content, 1 - (embedding <=> $2::vector) AS similarity
+     FROM knowledge_chunks
+     WHERE tenant_id = $1
+     ORDER BY embedding <=> $2::vector
+     LIMIT $3`,
+    [tenantId, `[${queryEmbedding.join(',')}]`, topK]
+  );
+  return rows;
+}
+
+function chunkText(text, maxLen = 500, overlap = 50) {
+  const paragraphs = text.split(/\n\s*\n/);
+  const chunks = [];
+  let current = '';
+
+  for (const para of paragraphs) {
+    const trimmed = para.trim();
+    if (!trimmed) continue;
+
+    if (current && (current.length + trimmed.length + 1) > maxLen) {
+      chunks.push(current.trim());
+      // Keep tail of previous chunk as overlap
+      current = current.slice(-overlap) + ' ' + trimmed;
+    } else {
+      current = current ? current + '\n' + trimmed : trimmed;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+
+  return chunks;
+}
+
+module.exports = { embed, storeChunks, getRelevantChunks, chunkText };
