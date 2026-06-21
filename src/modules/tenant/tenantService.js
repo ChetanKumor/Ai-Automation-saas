@@ -8,7 +8,7 @@ const getByPhoneNumberId = async (phoneNumberId) => {
   if (cache.has(phoneNumberId)) return cache.get(phoneNumberId);
 
   const { rows } = await db.query(
-    `SELECT id, business_name, phone_number_id, wa_token, ai_prompt, ai_enabled, owner_notify_phone
+    `SELECT id, business_name, phone_number_id, wa_token, ai_prompt, ai_enabled, owner_notify_phone, active_handoff_customer
      FROM tenants WHERE phone_number_id = $1 AND active = true LIMIT 1`,
     [phoneNumberId]
   );

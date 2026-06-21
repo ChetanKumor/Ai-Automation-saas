@@ -5,6 +5,7 @@ const conversationService = require('../modules/conversation/conversationService
 const aiService           = require('../modules/ai/aiService');
 const knowledgeService    = require('../modules/knowledge/knowledgeService');
 const whatsappService     = require('../modules/whatsapp/whatsappService');
+const ownerCommandHandler = require('../modules/owner/ownerCommandHandler');
 
 const verify = (req, res) => {
   const mode      = req.query['hub.mode'];
@@ -48,6 +49,15 @@ const handle = async (req, res) => {
     console.timeEnd(`${timerLabel} tenant`);
     if (!tenant) {
       console.warn(`No tenant for phone_number_id: ${phoneNumberId}`);
+      return;
+    }
+
+    // ── OWNER DETECTION ─────────────────────────────────────────────
+    const ownerPhone = tenant.owner_notify_phone?.replace(/\D/g, '');
+    const senderNorm = from.replace(/\D/g, '');
+    if (ownerPhone && senderNorm === ownerPhone) {
+      console.log(`[${tenant.business_name}] Owner message detected from ${from}`);
+      await ownerCommandHandler.handle(tenant, from, userText, wamid);
       return;
     }
 

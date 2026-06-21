@@ -57,6 +57,9 @@ CREATE TABLE tenants (
   -- Booking notifications
   owner_notify_phone TEXT,              -- clinic's WhatsApp number for alerts
 
+  -- Human handoff
+  active_handoff_customer TEXT,            -- phone of customer owner is currently handling (null = none)
+
   -- Appointment reminders
   reminder_hours_before INTEGER NOT NULL DEFAULT 24,
   reminders_enabled     BOOLEAN NOT NULL DEFAULT TRUE,
