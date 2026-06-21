@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notifications — WhatsApp CRM Admin</title>
+  <link rel="stylesheet" href="/admin/style.css">
+</head>
+<body>
+  <nav>
+    <a href="/admin/tenants.html" class="brand">WhatsApp CRM</a>
+    <a href="/admin/notifications.html" style="font-weight:bold;">Notifications</a>
+    <a href="/admin/logout">Logout</a>
+  </nav>
+
+  <div class="container">
+    <h2 style="margin-top:20px;">Notifications & Reminders</h2>
+
+    <div class="card" style="padding:16px; margin-bottom:20px;">
+      <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:end;">
+        <div>
+          <label style="display:block; font-size:12px; margin-bottom:4px;">Type</label>
+          <select id="filterType" style="padding:6px 10px; border-radius:4px; border:1px solid #ddd;">
+            <option value="">All</option>
+            <option value="reminder">Reminders</option>
+            <option value="appointment_booked">Booking alerts</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block; font-size:12px; margin-bottom:4px;">Status</label>
+          <select id="filterStatus" style="padding:6px 10px; border-radius:4px; border:1px solid #ddd;">
+            <option value="">All</option>
+            <option value="sent">Sent</option>
+            <option value="needs_template">Needs template</option>
+            <option value="failed">Failed</option>
+            <option value="failed_window">Failed (window)</option>
+          </select>
+        </div>
+        <button onclick="load()" class="btn btn-primary" style="padding:6px 16px;">Filter</button>
+      </div>
+    </div>
+
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Tenant</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Content</th>
+          </tr>
+        </thead>
+        <tbody id="notifList">
+          <tr><td colspan="5" class="text-muted" style="text-align:center; padding:24px;">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    async function load() {
+      const type = document.getElementById('filterType').value;
+      const status = document.getElementById('filterStatus').value;
+      const params = new URLSearchParams();
+      if (type) params.set('type', type);
+      if (status) params.set('status', status);
+      params.set('limit', '100');
+
+      const res = await fetch('/admin/api/notifications?' + params);
+      if (res.status === 401) return window.location.href = '/admin';
+      const notifs = await res.json();
+      const tbody = document.getElementById('notifList');
+
+      if (!notifs.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-muted" style="text-align:center; padding:24px;">No notifications found.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = notifs.map(n => `
+        <tr>
+          <td style="white-space:nowrap;">${new Date(n.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</td>
+          <td>${esc(n.business_name)}</td>
+          <td><span class="badge ${n.type === 'reminder' ? 'badge-blue' : 'badge-green'}">${esc(n.type)}</span></td>
+          <td><span class="badge ${statusBadge(n.sent_status)}">${esc(n.sent_status)}</span></td>
+          <td style="max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${esc(n.content)}">${esc(n.content)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function statusBadge(s) {
+      if (s === 'sent' || s === 'sent_template') return 'badge-green';
+      if (s === 'needs_template') return 'badge-yellow';
+      if (s.startsWith('failed')) return 'badge-red';
+      return '';
+    }
+
+    function esc(s) {
+      if (!s) return '';
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    load();
+  </script>
+</body>
+</html>

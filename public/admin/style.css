@@ -47,8 +47,10 @@ tr:hover { background: #f9f9f9; }
   display: inline-block; padding: 2px 8px; border-radius: 12px;
   font-size: 12px; font-weight: 600;
 }
-.badge-green { background: #d4edda; color: #155724; }
-.badge-red   { background: #f8d7da; color: #721c24; }
+.badge-green  { background: #d4edda; color: #155724; }
+.badge-red    { background: #f8d7da; color: #721c24; }
+.badge-blue   { background: #d1ecf1; color: #0c5460; }
+.badge-yellow { background: #fff3cd; color: #856404; }
 
 /* ── Buttons ──────────────────────────────────────── */
 .btn {

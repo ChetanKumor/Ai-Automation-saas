@@ -66,4 +66,65 @@ router.post('/api/tenants', requireAuth, async (req, res) => {
   }
 });
 
+// ── API: Notifications / Reminders log ──────────────────────
+router.get('/api/notifications', requireAuth, async (req, res) => {
+  const { tenant_id, type, status, limit = 50 } = req.query;
+  let sql = `SELECT n.id, n.tenant_id, t.business_name, n.type, n.content, n.sent_status, n.created_at
+             FROM notifications n
+             JOIN tenants t ON t.id = n.tenant_id
+             WHERE 1=1`;
+  const params = [];
+
+  if (tenant_id) { params.push(tenant_id); sql += ` AND n.tenant_id = $${params.length}`; }
+  if (type) { params.push(type); sql += ` AND n.type = $${params.length}`; }
+  if (status) { params.push(status); sql += ` AND n.sent_status = $${params.length}`; }
+
+  params.push(Math.min(Number(limit) || 50, 200));
+  sql += ` ORDER BY n.created_at DESC LIMIT $${params.length}`;
+
+  const { rows } = await db.query(sql, params);
+  res.json(rows);
+});
+
+// ── API: Toggle tenant reminders ────────────────────────────
+router.patch('/api/tenants/:id/reminders', requireAuth, async (req, res) => {
+  const { id } = req.params;
+  const { enabled, hours_before } = req.body;
+
+  const updates = [];
+  const params = [id];
+
+  if (typeof enabled === 'boolean') {
+    params.push(enabled);
+    updates.push(`reminders_enabled = $${params.length}`);
+  }
+  if (hours_before !== undefined) {
+    const h = Math.max(1, Math.min(72, Number(hours_before) || 24));
+    params.push(h);
+    updates.push(`reminder_hours_before = $${params.length}`);
+  }
+
+  if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });
+
+  const { rows } = await db.query(
+    `UPDATE tenants SET ${updates.join(', ')} WHERE id = $1
+     RETURNING id, business_name, reminders_enabled, reminder_hours_before`,
+    params
+  );
+
+  if (!rows[0]) return res.status(404).json({ error: 'Tenant not found' });
+  res.json(rows[0]);
+});
+
+// ── API: Get tenant reminder settings ───────────────────────
+router.get('/api/tenants/:id/reminders', requireAuth, async (req, res) => {
+  const { rows } = await db.query(
+    `SELECT id, business_name, reminders_enabled, reminder_hours_before, reminder_template_id
+     FROM tenants WHERE id = $1`,
+    [req.params.id]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Tenant not found' });
+  res.json(rows[0]);
+});
+
 module.exports = router;
