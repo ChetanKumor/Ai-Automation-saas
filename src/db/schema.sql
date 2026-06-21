@@ -57,6 +57,11 @@ CREATE TABLE tenants (
   -- Booking notifications
   owner_notify_phone TEXT,              -- clinic's WhatsApp number for alerts
 
+  -- Appointment reminders
+  reminder_hours_before INTEGER NOT NULL DEFAULT 24,
+  reminders_enabled     BOOLEAN NOT NULL DEFAULT TRUE,
+  reminder_template_id  TEXT,           -- Meta-approved template ID (null = free-text only)
+
   active           BOOLEAN NOT NULL DEFAULT TRUE,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -276,6 +281,8 @@ CREATE TABLE appointments (
   appointment_time TIMESTAMPTZ NOT NULL,
   status           TEXT NOT NULL DEFAULT 'booked'
                      CHECK (status IN ('booked', 'cancelled')),
+  reminder_sent    BOOLEAN NOT NULL DEFAULT FALSE,
+  reminder_sent_at TIMESTAMPTZ,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
