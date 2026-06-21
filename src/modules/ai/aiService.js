@@ -1,6 +1,6 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const db = require('../../db/db');
 const appointmentService = require('../appointment/appointmentService');
+const notificationService = require('../notification/notificationService');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -36,25 +36,27 @@ const TOOLS = [{
   ]
 }];
 
-async function executeTool(name, args, tenantId, customerId) {
+async function executeTool(name, args, tenant, customerId) {
   switch (name) {
     case 'check_availability':
-      return await appointmentService.checkAvailability(tenantId, args.date);
-    case 'book_appointment':
-      return await appointmentService.bookAppointment(
-        tenantId, customerId, args.doctor_name, args.appointment_time, args.patient_name
+      return await appointmentService.checkAvailability(tenant.id, args.date);
+    case 'book_appointment': {
+      const result = await appointmentService.bookAppointment(
+        tenant.id, customerId, args.doctor_name, args.appointment_time, args.patient_name
       );
+      if (result.success) {
+        notificationService.notifyOwnerOfBooking(tenant, result).catch(err =>
+          console.error('[Notification] Unexpected error:', err.message)
+        );
+      }
+      return result;
+    }
     default:
       return { error: `Unknown tool: ${name}` };
   }
 }
 
-const generateReply = async (tenant, customer, conversation, userMessage, history, knowledgeChunks = []) => {
-  const { rows: facts } = await db.query(
-    `SELECT key, value FROM customer_memory WHERE tenant_id = $1 AND customer_id = $2 ORDER BY key`,
-    [tenant.id, customer.id]
-  );
-
+const generateReply = async (tenant, customer, conversation, userMessage, history, knowledgeChunks = [], facts = []) => {
   const model = genAI.getGenerativeModel({
     model: 'gemini-3-flash-preview',
     systemInstruction: buildSystemPrompt(tenant, customer, conversation, facts, knowledgeChunks),
@@ -69,7 +71,7 @@ const generateReply = async (tenant, customer, conversation, userMessage, histor
   const chat = model.startChat({
     history: chatHistory,
     generationConfig: {
-      maxOutputTokens: 300,
+      maxOutputTokens: 250,
       temperature: 0.7
     }
   });
@@ -83,7 +85,7 @@ const generateReply = async (tenant, customer, conversation, userMessage, histor
 
     for (const call of calls) {
       console.log(`  [tool] ${call.name}(${JSON.stringify(call.args)})`);
-      const output = await executeTool(call.name, call.args, tenant.id, customer.id);
+      const output = await executeTool(call.name, call.args, tenant, customer.id);
       console.log(`  [tool] → ${JSON.stringify(output).substring(0, 200)}`);
       responses.push({ functionResponse: { name: call.name, response: output } });
     }
