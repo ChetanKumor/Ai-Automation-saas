@@ -243,7 +243,7 @@ CREATE TABLE knowledge_chunks (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   content     TEXT NOT NULL,
-  embedding   vector(3072),        -- Google gemini-embedding-001 output dimension
+  embedding   vector(768),         -- Google text-embedding-004 output dimension
   source      TEXT,                -- filename or label for traceability
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
