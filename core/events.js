@@ -5,15 +5,15 @@ const bus = new EventEmitter();
 bus.setMaxListeners(100);
 
 function emit(type, payload, meta = {}) {
-  const envelope = {
+  const envelope = Object.freeze({
     type,
-    payload,
+    payload: Object.freeze({ ...payload }),
     tenant_id: payload.tenant_id ?? meta.tenant_id ?? null,
     event_id: randomUUID(),
     depth: meta.depth ?? 0,
     causation_id: meta.causation_id ?? null,
     ts: Date.now(),
-  };
+  });
 
   setImmediate(() => {
     bus.emit(type, envelope);
@@ -40,4 +40,4 @@ function on(type, handler) {
   return () => bus.removeListener(type, safe);
 }
 
-module.exports = { emit, on, bus };
+module.exports = { emit, on };
