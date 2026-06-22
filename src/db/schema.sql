@@ -313,6 +313,24 @@ CREATE INDEX idx_notifications_tenant ON notifications(tenant_id);
 
 
 -- ============================================================
+--  12. HANDOFF_SESSIONS  — log of owner interventions
+-- ============================================================
+CREATE TABLE handoff_sessions (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id      UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  customer_id    UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  started_by     TEXT NOT NULL,            -- owner phone who initiated
+  message_count  INTEGER NOT NULL DEFAULT 0,
+  started_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ended_at       TIMESTAMPTZ
+);
+
+CREATE INDEX idx_handoff_sessions_tenant ON handoff_sessions(tenant_id);
+CREATE UNIQUE INDEX idx_handoff_sessions_active ON handoff_sessions(tenant_id, customer_id)
+  WHERE ended_at IS NULL;
+
+
+-- ============================================================
 --  SAMPLE DATA (optional) — create your first business to test.
 --  Fill in your real Meta values, then uncomment and run.
 -- ============================================================

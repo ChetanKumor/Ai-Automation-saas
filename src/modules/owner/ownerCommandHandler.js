@@ -64,8 +64,9 @@ async function handleTakeover(tenant, ownerPhone, text) {
       );
       if (prevConv) {
         await conversationService.setMode(tenant.id, prevConv.id, 'ai');
-        console.log(`[${tenant.business_name}] Auto-released previous handoff for ${previousPhone}`);
       }
+      await closeHandoffSession(tenant.id, prevCust.id);
+      console.log(`[${tenant.business_name}] Auto-released previous handoff for ${previousPhone}`);
     }
   }
 
@@ -90,6 +91,14 @@ async function handleTakeover(tenant, ownerPhone, text) {
   await db.query(
     `UPDATE tenants SET active_handoff_customer = $1 WHERE id = $2`,
     [customerPhone, tenant.id]
+  );
+
+  await db.query(
+    `INSERT INTO handoff_sessions (tenant_id, customer_id, started_by)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (tenant_id, customer_id) WHERE ended_at IS NULL
+     DO UPDATE SET started_by = EXCLUDED.started_by, started_at = NOW(), message_count = 0`,
+    [tenant.id, customer.id, ownerPhone]
   );
 
   await reply(tenant, ownerPhone,
@@ -135,6 +144,12 @@ async function handleMsg(tenant, ownerPhone, text) {
     [tenant.id, conv.id, customer.id, msgBody]
   );
 
+  await db.query(
+    `UPDATE handoff_sessions SET message_count = message_count + 1
+     WHERE tenant_id = $1 AND customer_id = $2 AND ended_at IS NULL`,
+    [tenant.id, customer.id]
+  );
+
   await reply(tenant, ownerPhone, '✅ Sent');
   console.log(`[${tenant.business_name}] MSG → ${activePhone}: "${msgBody}"`);
 }
@@ -160,6 +175,7 @@ async function handleDone(tenant, ownerPhone) {
     if (conv) {
       await conversationService.setMode(tenant.id, conv.id, 'ai');
     }
+    await closeHandoffSession(tenant.id, customer.id);
   }
 
   await db.query(
@@ -198,6 +214,14 @@ async function handleStatus(tenant, ownerPhone) {
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────
+
+async function closeHandoffSession(tenantId, customerId) {
+  await db.query(
+    `UPDATE handoff_sessions SET ended_at = NOW()
+     WHERE tenant_id = $1 AND customer_id = $2 AND ended_at IS NULL`,
+    [tenantId, customerId]
+  );
+}
 
 async function getActiveHandoff(tenantId) {
   const { rows: [t] } = await db.query(
