@@ -27,7 +27,8 @@ function parseExtraction(raw) {
       budget:       typeof parsed.budget === 'string' ? parsed.budget : null,
       intent_level: allowed.includes(parsed.intent_level) ? parsed.intent_level : null,
     };
-  } catch {
+  } catch (err) {
+    console.warn('[CRM] parseExtraction failed:', err.message);
     return null;
   }
 }
@@ -75,6 +76,10 @@ function init() {
         tenant_id,
         customer_id,
         lead_id: lead.id,
+        name: lead.name,
+        requirement: lead.requirement,
+        budget: lead.budget,
+        intent_level: lead.intent_level,
         stage: lead.stage,
       });
 
