@@ -6,6 +6,7 @@ const aiService           = require('../modules/ai/aiService');
 const knowledgeService    = require('../modules/knowledge/knowledgeService');
 const whatsappService     = require('../modules/whatsapp/whatsappService');
 const ownerCommandHandler = require('../modules/owner/ownerCommandHandler');
+const eventBus            = require('../../core/events');
 
 const recentOwnerWamids = new Set();
 
@@ -94,6 +95,8 @@ const handle = async (req, res) => {
       console.log(`Duplicate wamid ${wamid} — skipping`);
       return;
     }
+
+    eventBus.emit('message_received', { tenant_id: tenant.id, customer_id: customer.id, conversation_id: conversation.id, message_id: wamid, text: userText, mode: conversation.mode });
 
     // ── 5. PARALLEL: mode check + last_message_at update ─────────────
     const [{ rows: [freshConv] }] = await Promise.all([
