@@ -58,7 +58,7 @@ async function executeTool(name, args, tenant, customerId) {
 
 const generateReply = async (tenant, customer, conversation, userMessage, history, knowledgeChunks = [], facts = []) => {
   const model = genAI.getGenerativeModel({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-2.5-flash',
     systemInstruction: buildSystemPrompt(tenant, customer, conversation, facts, knowledgeChunks),
     tools: TOOLS
   });
