@@ -103,6 +103,21 @@ const handle = async (req, res) => {
 
     if (!freshConv || freshConv.mode === 'human' || !tenant.ai_enabled) {
       console.log(`[${tenant.business_name}] Skipping AI (mode=${freshConv?.mode}, ai_enabled=${tenant.ai_enabled})`);
+
+      if (freshConv?.mode === 'human' && tenant.owner_notify_phone) {
+        const preview = userText.length > 100 ? userText.slice(0, 97) + '...' : userText;
+        try {
+          await whatsappService.sendMessage(
+            tenant,
+            tenant.owner_notify_phone,
+            `💬 Message from +${from}:\n${preview}`
+          );
+          console.log(`[${tenant.business_name}] HUMAN MODE — forwarded to owner (${preview.length} chars)`);
+        } catch (fwdErr) {
+          console.error(`[${tenant.business_name}] Failed to forward to owner:`, fwdErr.message);
+        }
+      }
+
       return;
     }
 
