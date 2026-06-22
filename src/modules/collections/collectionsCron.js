@@ -79,33 +79,51 @@ async function reapStuck(client) {
   }
 }
 
-async function processDue(client) {
-  const { rows: due } = await client.query(
-    `SELECT ps.id, ps.tenant_id, ps.customer_id, ps.amount, ps.currency,
-            ps.due_date, ps.attempts,
-            c.phone AS customer_phone, c.name AS customer_name,
-            t.phone_number_id, t.business_name
-     FROM payment_schedules ps
-     JOIN customers c ON c.id = ps.customer_id
-     JOIN tenants t ON t.id = ps.tenant_id
-     WHERE ps.status = 'pending'
-       AND ps.reminder_send_at <= NOW()
-     ORDER BY ps.reminder_send_at ASC
-     FOR UPDATE OF ps SKIP LOCKED`
-  );
+async function claimDueRows() {
+  const claimClient = await db.getClient();
+  try {
+    await claimClient.query('BEGIN');
+    const { rows: due } = await claimClient.query(
+      `SELECT ps.id, ps.tenant_id, ps.customer_id, ps.amount, ps.currency,
+              ps.due_date, ps.attempts,
+              c.phone AS customer_phone, c.name AS customer_name,
+              t.phone_number_id, t.business_name
+       FROM payment_schedules ps
+       JOIN customers c ON c.id = ps.customer_id
+       JOIN tenants t ON t.id = ps.tenant_id
+       WHERE ps.status = 'pending'
+         AND ps.reminder_send_at <= NOW()
+       ORDER BY ps.reminder_send_at ASC
+       FOR UPDATE OF ps SKIP LOCKED`
+    );
 
+    if (due.length > 0) {
+      const ids = due.map(r => r.id);
+      await claimClient.query(
+        `UPDATE payment_schedules
+         SET status = 'sending', attempts = attempts + 1, last_attempt_at = NOW(), sent_at = NULL
+         WHERE id = ANY($1::uuid[])`,
+        [ids]
+      );
+    }
+
+    await claimClient.query('COMMIT');
+    return due;
+  } catch (err) {
+    await claimClient.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    claimClient.release();
+  }
+}
+
+async function processDue(client) {
+  const due = await claimDueRows();
   if (!due.length) return;
   console.log(`[Collections] Processing ${due.length} due reminder(s)`);
 
   for (const row of due) {
     try {
-      await client.query(
-        `UPDATE payment_schedules
-         SET status = 'sending', last_attempt_at = NOW(), sent_at = NULL
-         WHERE id = $1`,
-        [row.id]
-      );
-
       const withinWindow = await isWithinWindow(client, row.tenant_id, row.customer_id);
 
       if (!withinWindow) {
@@ -121,7 +139,7 @@ async function processDue(client) {
       if (!tenant) {
         console.error(`[Collections] Tenant not found for phone_number_id: ${row.phone_number_id}`);
         await client.query(
-          `UPDATE payment_schedules SET status = 'failed', attempts = attempts + 1 WHERE id = $1`,
+          `UPDATE payment_schedules SET status = 'failed' WHERE id = $1`,
           [row.id]
         );
         continue;
@@ -139,7 +157,7 @@ async function processDue(client) {
       );
 
       await client.query(
-        `UPDATE payment_schedules SET status = 'sent', attempts = attempts + 1
+        `UPDATE payment_schedules SET status = 'sent'
          WHERE id = $1 AND status = 'sending'`,
         [row.id]
       );
@@ -156,7 +174,7 @@ async function processDue(client) {
     } catch (err) {
       console.error(`[Collections] Send failed for schedule=${row.id}:`, err.message);
       await client.query(
-        `UPDATE payment_schedules SET status = 'failed', attempts = attempts + 1 WHERE id = $1`,
+        `UPDATE payment_schedules SET status = 'failed' WHERE id = $1`,
         [row.id]
       ).catch(dbErr => console.error(`[Collections] Failed to mark failed: schedule=${row.id}`, dbErr.message));
     }
