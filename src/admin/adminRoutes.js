@@ -161,4 +161,39 @@ router.get('/api/leads', requireAuth, async (req, res) => {
   }
 });
 
+// ── API: Collections / Payment Schedules ────────────────────
+router.get('/api/collections', requireAuth, async (req, res) => {
+  try {
+    const { tenant_id, status, limit = 50 } = req.query;
+
+    const VALID = ['pending', 'sending', 'sent', 'paid', 'overdue', 'failed', 'needs_template'];
+    if (status && !VALID.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status filter' });
+    }
+
+    let sql = `SELECT ps.id, ps.tenant_id, t.business_name, ps.customer_id,
+                      ps.amount, ps.currency, ps.due_date, ps.reminder_send_at,
+                      ps.status, ps.attempts, ps.last_attempt_at,
+                      ps.created_at, ps.updated_at,
+                      c.phone AS customer_phone, c.name AS customer_name
+               FROM payment_schedules ps
+               JOIN tenants t ON t.id = ps.tenant_id
+               JOIN customers c ON c.id = ps.customer_id
+               WHERE 1=1`;
+    const params = [];
+
+    if (tenant_id) { params.push(tenant_id); sql += ` AND ps.tenant_id = $${params.length}`; }
+    if (status)    { params.push(status);    sql += ` AND ps.status = $${params.length}`; }
+
+    params.push(Math.min(Number(limit) || 50, 200));
+    sql += ` ORDER BY ps.due_date ASC LIMIT $${params.length}`;
+
+    const { rows } = await db.query(sql, params);
+    res.json(rows);
+  } catch (err) {
+    console.error('[Admin] Failed to fetch collections:', err.message);
+    res.status(500).json({ error: 'Failed to fetch collections' });
+  }
+});
+
 module.exports = router;

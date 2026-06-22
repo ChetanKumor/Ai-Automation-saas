@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Collections — WhatsApp CRM Admin</title>
+  <link rel="stylesheet" href="/admin/style.css">
+</head>
+<body>
+  <nav>
+    <a href="/admin/tenants.html" class="brand">WhatsApp CRM</a>
+    <a href="/admin/leads.html">Leads</a>
+    <a href="/admin/collections.html">Collections</a>
+    <a href="/admin/notifications.html">Notifications</a>
+    <a href="/admin/logout">Logout</a>
+  </nav>
+
+  <div class="container">
+    <div class="flex-between mb-20" style="margin-top:20px;">
+      <h2>Collections</h2>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="tenantFilter" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+          <option value="">All tenants</option>
+        </select>
+        <select id="statusFilter" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+          <option value="">All statuses</option>
+          <option value="pending">Pending</option>
+          <option value="sending">Sending</option>
+          <option value="sent">Sent</option>
+          <option value="paid">Paid</option>
+          <option value="overdue">Overdue</option>
+          <option value="failed">Failed</option>
+          <option value="needs_template">Needs Template</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th>Amount</th>
+            <th>Due Date</th>
+            <th>Reminder At</th>
+            <th>Status</th>
+            <th class="hide-mobile">Attempts</th>
+            <th class="hide-mobile">Business</th>
+          </tr>
+        </thead>
+        <tbody id="collectionsList">
+          <tr><td colspan="7" class="text-muted" style="text-align:center; padding:24px;">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const STATUS_BADGE = {
+      pending:        'badge-blue',
+      sending:        'badge-yellow',
+      sent:           'badge-green',
+      paid:           'badge-green',
+      overdue:        'badge-red',
+      failed:         'badge-red',
+      needs_template: 'badge-yellow',
+    };
+
+    async function loadTenants() {
+      const res = await fetch('/admin/api/tenants');
+      if (res.status === 401) return window.location.href = '/admin';
+      const tenants = await res.json();
+      const sel = document.getElementById('tenantFilter');
+      tenants.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = t.business_name;
+        sel.appendChild(opt);
+      });
+    }
+
+    async function loadCollections() {
+      const tenant = document.getElementById('tenantFilter').value;
+      const status = document.getElementById('statusFilter').value;
+      const params = new URLSearchParams();
+      if (tenant) params.set('tenant_id', tenant);
+      if (status) params.set('status', status);
+
+      const res = await fetch('/admin/api/collections?' + params);
+      if (res.status === 401) return window.location.href = '/admin';
+      const rows = await res.json();
+      const tbody = document.getElementById('collectionsList');
+
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-muted" style="text-align:center; padding:24px;">No payment schedules found.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = rows.map(r => `
+        <tr>
+          <td><strong>${esc(r.customer_name || '—')}</strong><br><code style="font-size:12px;">${esc(r.customer_phone)}</code></td>
+          <td><strong>${esc(r.currency)} ${Number(r.amount).toLocaleString('en-IN')}</strong></td>
+          <td>${new Date(r.due_date).toLocaleDateString('en-IN')}</td>
+          <td>${new Date(r.reminder_send_at).toLocaleString('en-IN', {timeZone:'Asia/Kolkata'})}</td>
+          <td><span class="badge ${STATUS_BADGE[r.status] || ''}">${esc(r.status)}</span></td>
+          <td class="hide-mobile">${r.attempts}</td>
+          <td class="hide-mobile">${esc(r.business_name)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function esc(s) {
+      if (!s) return '';
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    document.getElementById('tenantFilter').addEventListener('change', loadCollections);
+    document.getElementById('statusFilter').addEventListener('change', loadCollections);
+
+    loadTenants();
+    loadCollections();
+  </script>
+</body>
+</html>
