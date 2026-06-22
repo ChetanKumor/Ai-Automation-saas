@@ -3,17 +3,52 @@ const db = require('../db/db');
 const tenantService = require('../modules/tenant/tenantService');
 const whatsappService = require('../modules/whatsapp/whatsappService');
 
-let running = false;
+const LOCK_KEY = 770_202;
 
 async function tick() {
-  if (running) {
-    console.log('[Reminder] Previous tick still running — skipping');
-    return;
-  }
-  running = true;
+  let client;
+  let lockAcquired = false;
 
   try {
-    const { rows: due } = await db.query(`
+    client = await db.getClient();
+
+    const { rows: [{ acquired }] } = await client.query(
+      `SELECT pg_try_advisory_lock($1) AS acquired`, [LOCK_KEY]
+    );
+    if (!acquired) {
+      console.log('[Reminder] Advisory lock held by another process — skipping');
+      return;
+    }
+    lockAcquired = true;
+
+    const due = await claimDueAppointments();
+    if (due.length > 0) {
+      console.log(`[Reminder] Found ${due.length} appointment(s) due for reminder`);
+    }
+
+    for (const appt of due) {
+      try {
+        await processReminder(appt);
+      } catch (err) {
+        console.error(`[Reminder] Error processing appointment ${appt.appointment_id}:`, err.message);
+      }
+    }
+  } catch (err) {
+    console.error('[Reminder] Tick failed:', err.message);
+  } finally {
+    if (lockAcquired && client) {
+      await client.query(`SELECT pg_advisory_unlock($1)`, [LOCK_KEY])
+        .catch(err => console.error('[Reminder] Advisory unlock failed:', err.message));
+    }
+    if (client) client.release();
+  }
+}
+
+async function claimDueAppointments() {
+  const claimClient = await db.getClient();
+  try {
+    await claimClient.query('BEGIN');
+    const { rows: due } = await claimClient.query(`
       SELECT a.id AS appointment_id, a.appointment_time, a.doctor_name,
              a.customer_id, a.tenant_id,
              c.phone AS customer_phone, c.name AS customer_name,
@@ -31,23 +66,25 @@ async function tick() {
         AND t.reminders_enabled = true
         AND a.appointment_time > NOW()
         AND a.appointment_time <= NOW() + (t.reminder_hours_before || ' hours')::interval
+      FOR UPDATE OF a SKIP LOCKED
     `);
 
     if (due.length > 0) {
-      console.log(`[Reminder] Found ${due.length} appointment(s) due for reminder`);
+      const ids = due.map(r => r.appointment_id);
+      await claimClient.query(
+        `UPDATE appointments SET reminder_sent = true, reminder_sent_at = NOW()
+         WHERE id = ANY($1::uuid[])`,
+        [ids]
+      );
     }
 
-    for (const appt of due) {
-      try {
-        await processReminder(appt);
-      } catch (err) {
-        console.error(`[Reminder] Error processing appointment ${appt.appointment_id}:`, err.message);
-      }
-    }
+    await claimClient.query('COMMIT');
+    return due;
   } catch (err) {
-    console.error('[Reminder] Tick failed:', err.message);
+    await claimClient.query('ROLLBACK').catch(() => {});
+    throw err;
   } finally {
-    running = false;
+    claimClient.release();
   }
 }
 
@@ -69,10 +106,6 @@ async function processReminder(appt) {
       `INSERT INTO notifications (tenant_id, type, content, sent_status)
        VALUES ($1, 'reminder', $2, 'needs_template')`,
       [appt.tenant_id, reminderText]
-    );
-    await db.query(
-      `UPDATE appointments SET reminder_sent = true, reminder_sent_at = NOW() WHERE id = $1`,
-      [appt.appointment_id]
     );
     console.log(
       `[Reminder] SKIPPED (outside 24h window, no template) → ${appt.customer_phone} | ` +
@@ -118,12 +151,6 @@ async function processReminder(appt) {
     `INSERT INTO notifications (tenant_id, type, content, sent_status)
      VALUES ($1, 'reminder', $2, $3)`,
     [appt.tenant_id, reminderText, sentStatus]
-  );
-
-  // Mark appointment as reminded (idempotency)
-  await db.query(
-    `UPDATE appointments SET reminder_sent = true, reminder_sent_at = NOW() WHERE id = $1`,
-    [appt.appointment_id]
   );
 }
 
