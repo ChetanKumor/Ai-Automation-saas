@@ -127,4 +127,38 @@ router.get('/api/tenants/:id/reminders', requireAuth, async (req, res) => {
   res.json(rows[0]);
 });
 
+// ── API: CRM Leads ──────────────────────────────────────────
+router.get('/api/leads', requireAuth, async (req, res) => {
+  try {
+    const { tenant_id, stage, limit = 50 } = req.query;
+
+    const VALID_STAGES = ['new', 'contacted', 'converted', 'lost'];
+    if (stage && !VALID_STAGES.includes(stage)) {
+      return res.status(400).json({ error: 'Invalid stage filter' });
+    }
+
+    let sql = `SELECT l.id, l.tenant_id, t.business_name, l.customer_id,
+                      l.name, l.phone, l.requirement, l.budget, l.intent_level,
+                      l.stage, l.source, l.notes, l.created_at, l.updated_at,
+                      c.phone AS customer_phone, c.name AS customer_name
+               FROM leads l
+               JOIN tenants t ON t.id = l.tenant_id
+               JOIN customers c ON c.id = l.customer_id
+               WHERE 1=1`;
+    const params = [];
+
+    if (tenant_id) { params.push(tenant_id); sql += ` AND l.tenant_id = $${params.length}`; }
+    if (stage)     { params.push(stage);     sql += ` AND l.stage = $${params.length}`; }
+
+    params.push(Math.min(Number(limit) || 50, 200));
+    sql += ` ORDER BY l.updated_at DESC LIMIT $${params.length}`;
+
+    const { rows } = await db.query(sql, params);
+    res.json(rows);
+  } catch (err) {
+    console.error('[Admin] Failed to fetch leads:', err.message);
+    res.status(500).json({ error: 'Failed to fetch leads' });
+  }
+});
+
 module.exports = router;

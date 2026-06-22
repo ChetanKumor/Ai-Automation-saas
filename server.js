@@ -36,6 +36,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 
 const reminderCron = require('./src/scheduler/reminderCron');
+const crmModule    = require('./src/modules/crm');
+crmModule.init();
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

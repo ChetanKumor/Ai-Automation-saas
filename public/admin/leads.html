@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leads — WhatsApp CRM Admin</title>
+  <link rel="stylesheet" href="/admin/style.css">
+</head>
+<body>
+  <nav>
+    <a href="/admin/tenants.html" class="brand">WhatsApp CRM</a>
+    <a href="/admin/leads.html">Leads</a>
+    <a href="/admin/notifications.html">Notifications</a>
+    <a href="/admin/logout">Logout</a>
+  </nav>
+
+  <div class="container">
+    <div class="flex-between mb-20" style="margin-top:20px;">
+      <h2>Leads</h2>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="tenantFilter" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+          <option value="">All tenants</option>
+        </select>
+        <select id="stageFilter" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+          <option value="">All stages</option>
+          <option value="new">New</option>
+          <option value="contacted">Contacted</option>
+          <option value="converted">Converted</option>
+          <option value="lost">Lost</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Requirement</th>
+            <th class="hide-mobile">Budget</th>
+            <th>Intent</th>
+            <th>Stage</th>
+            <th class="hide-mobile">Business</th>
+            <th class="hide-mobile">Updated</th>
+          </tr>
+        </thead>
+        <tbody id="leadList">
+          <tr><td colspan="8" class="text-muted" style="text-align:center; padding:24px;">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const STAGE_BADGE = {
+      new:       'badge-blue',
+      contacted: 'badge-yellow',
+      converted: 'badge-green',
+      lost:      'badge-red',
+    };
+
+    const INTENT_BADGE = {
+      low:    'badge-yellow',
+      medium: 'badge-blue',
+      high:   'badge-green',
+    };
+
+    async function loadTenants() {
+      const res = await fetch('/admin/api/tenants');
+      if (res.status === 401) return window.location.href = '/admin';
+      const tenants = await res.json();
+      const sel = document.getElementById('tenantFilter');
+      tenants.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = t.business_name;
+        sel.appendChild(opt);
+      });
+    }
+
+    async function loadLeads() {
+      const tenant = document.getElementById('tenantFilter').value;
+      const stage  = document.getElementById('stageFilter').value;
+      const params = new URLSearchParams();
+      if (tenant) params.set('tenant_id', tenant);
+      if (stage)  params.set('stage', stage);
+
+      const res = await fetch('/admin/api/leads?' + params);
+      if (res.status === 401) return window.location.href = '/admin';
+      const leads = await res.json();
+      const tbody = document.getElementById('leadList');
+
+      if (!leads.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-muted" style="text-align:center; padding:24px;">No leads found.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = leads.map(l => `
+        <tr>
+          <td><strong>${esc(l.name || l.customer_name || '—')}</strong></td>
+          <td><code>${esc(l.phone || l.customer_phone || '—')}</code></td>
+          <td>${esc(l.requirement || '—')}</td>
+          <td class="hide-mobile">${esc(l.budget || '—')}</td>
+          <td><span class="badge ${INTENT_BADGE[l.intent_level] || ''}">${esc(l.intent_level)}</span></td>
+          <td><span class="badge ${STAGE_BADGE[l.stage] || ''}">${esc(l.stage)}</span></td>
+          <td class="hide-mobile">${esc(l.business_name)}</td>
+          <td class="hide-mobile">${new Date(l.updated_at).toLocaleDateString()}</td>
+        </tr>
+      `).join('');
+    }
+
+    function esc(s) {
+      if (!s) return '';
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    document.getElementById('tenantFilter').addEventListener('change', loadLeads);
+    document.getElementById('stageFilter').addEventListener('change', loadLeads);
+
+    loadTenants();
+    loadLeads();
+  </script>
+</body>
+</html>

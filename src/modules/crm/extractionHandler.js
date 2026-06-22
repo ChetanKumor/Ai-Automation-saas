@@ -1,0 +1,90 @@
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const eventBus   = require('../../../core/events');
+const crmService = require('./crmService');
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+const EXTRACTION_PROMPT = `You are a lead extraction system. Analyze the customer message and extract structured data.
+Return STRICT JSON only — no markdown, no code fences, no explanation.
+Schema: {"name": string|null, "requirement": string|null, "budget": string|null, "intent_level": "low"|"medium"|"high"|null}
+Rules:
+- "name" — the customer's name if they mention it, else null.
+- "requirement" — what the customer wants/needs, summarized in one short phrase, else null.
+- "budget" — any mentioned budget or price range as a string, else null.
+- "intent_level" — "high" if they want to buy/book now, "medium" if interested/asking questions, "low" if casual/browsing, null if unclear.
+- If the message is a greeting or contains no lead signals, return all nulls: {"name":null,"requirement":null,"budget":null,"intent_level":null}`;
+
+function parseExtraction(raw) {
+  try {
+    const text = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    const parsed = JSON.parse(text);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+
+    const allowed = ['low', 'medium', 'high'];
+    return {
+      name:         typeof parsed.name === 'string' ? parsed.name : null,
+      requirement:  typeof parsed.requirement === 'string' ? parsed.requirement : null,
+      budget:       typeof parsed.budget === 'string' ? parsed.budget : null,
+      intent_level: allowed.includes(parsed.intent_level) ? parsed.intent_level : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function hasSignal(data) {
+  return data && (data.name || data.requirement || data.budget || data.intent_level);
+}
+
+function init() {
+  eventBus.on('message_received', async (envelope) => {
+    const { tenant_id, customer_id, conversation_id, text, mode } = envelope.payload;
+
+    if (mode === 'human') return;
+
+    try {
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: `Customer message: "${text}"` }] }],
+        systemInstruction: EXTRACTION_PROMPT,
+        generationConfig: { temperature: 0, maxOutputTokens: 200 },
+      });
+
+      const raw = result.response.text().trim();
+      const data = parseExtraction(raw);
+
+      if (!data) {
+        console.warn('[CRM] LLM returned unparseable extraction output:', raw.slice(0, 200));
+        return;
+      }
+      if (!hasSignal(data)) return;
+
+      const lead = await crmService.upsertLead(tenant_id, customer_id, {
+        conversation_id,
+        name: data.name,
+        requirement: data.requirement,
+        budget: data.budget,
+        intent_level: data.intent_level,
+        source: 'whatsapp',
+      });
+
+      if (!lead) return;
+
+      const eventType = lead.is_new ? 'lead_created' : 'lead_updated';
+      eventBus.emit(eventType, {
+        tenant_id,
+        customer_id,
+        lead_id: lead.id,
+        stage: lead.stage,
+      });
+
+      console.log(`[CRM] ${eventType}: lead=${lead.id} customer=${customer_id} intent=${data.intent_level}`);
+    } catch (err) {
+      console.error('[CRM] Extraction failed (non-fatal):', err.message);
+    }
+  });
+
+  console.log('[CRM] Lead extraction handler initialized');
+}
+
+module.exports = { init };
