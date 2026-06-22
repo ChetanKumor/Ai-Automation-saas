@@ -39,11 +39,25 @@ async function tick() {
 }
 
 async function reapStuck(client) {
-  // Permanently fail rows that exceeded max attempts
+  // Rows where the WhatsApp send succeeded but DB update to 'sent' failed —
+  // mark them 'sent' to prevent double-send.
+  const { rowCount: recoveredCount } = await client.query(
+    `UPDATE payment_schedules
+     SET status = 'sent'
+     WHERE status = 'sending'
+       AND sent_at IS NOT NULL
+       AND last_attempt_at < NOW() - INTERVAL '10 minutes'`
+  );
+  if (recoveredCount > 0) {
+    console.log(`[Collections] Recovered ${recoveredCount} sent-but-unmarked row(s)`);
+  }
+
+  // Permanently fail rows that exceeded max attempts (send never completed)
   const { rowCount: failedCount } = await client.query(
     `UPDATE payment_schedules
      SET status = 'failed'
      WHERE status = 'sending'
+       AND sent_at IS NULL
        AND attempts >= $1
        AND last_attempt_at < NOW() - INTERVAL '10 minutes'`,
     [MAX_ATTEMPTS]
@@ -52,11 +66,12 @@ async function reapStuck(client) {
     console.log(`[Collections] Permanently failed ${failedCount} row(s) exceeding ${MAX_ATTEMPTS} attempts`);
   }
 
-  // Reset remaining stuck rows to pending for retry
+  // Reset remaining stuck rows where send never happened — safe to retry
   const { rowCount } = await client.query(
     `UPDATE payment_schedules
      SET status = 'pending', attempts = attempts + 1
      WHERE status = 'sending'
+       AND sent_at IS NULL
        AND last_attempt_at < NOW() - INTERVAL '10 minutes'`
   );
   if (rowCount > 0) {
@@ -85,7 +100,9 @@ async function processDue(client) {
   for (const row of due) {
     try {
       await client.query(
-        `UPDATE payment_schedules SET status = 'sending', last_attempt_at = NOW() WHERE id = $1`,
+        `UPDATE payment_schedules
+         SET status = 'sending', last_attempt_at = NOW(), sent_at = NULL
+         WHERE id = $1`,
         [row.id]
       );
 
@@ -113,24 +130,19 @@ async function processDue(client) {
       const text = buildReminderText(row);
       await whatsappService.sendMessage(tenant, row.customer_phone, text);
 
-      // Message accepted by Meta — marking 'sent' is critical; retry if DB hiccups
-      let marked = false;
-      for (let i = 0; i < 3; i++) {
-        try {
-          await client.query(
-            `UPDATE payment_schedules SET status = 'sent', attempts = attempts + 1 WHERE id = $1`,
-            [row.id]
-          );
-          marked = true;
-          break;
-        } catch (dbErr) {
-          console.error(`[Collections] Retry ${i + 1}/3 marking sent for schedule=${row.id}:`, dbErr.message);
-        }
-      }
-      if (!marked) {
-        console.error(`[Collections] CRITICAL: message sent but failed to mark sent — schedule=${row.id}. Row stays in 'sending' to prevent resend.`);
-        continue;
-      }
+      // Mark that WhatsApp accepted the message — this is the point of no return.
+      // Even if the 'sent' update below fails, the reaper will see sent_at IS NOT NULL
+      // and mark the row 'sent' instead of resetting to 'pending'.
+      await client.query(
+        `UPDATE payment_schedules SET sent_at = NOW() WHERE id = $1`,
+        [row.id]
+      );
+
+      await client.query(
+        `UPDATE payment_schedules SET status = 'sent', attempts = attempts + 1
+         WHERE id = $1 AND status = 'sending'`,
+        [row.id]
+      );
 
       eventBus.emit('payment_reminder_sent', {
         tenant_id: row.tenant_id,
