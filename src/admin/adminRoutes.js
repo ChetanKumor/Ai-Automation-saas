@@ -231,4 +231,37 @@ router.get('/api/appointments', requireAuth, async (req, res) => {
   }
 });
 
+// ── API: Workflow Executions ────────────────────────────────
+router.get('/api/workflow-executions', requireAuth, async (req, res) => {
+  try {
+    const { tenant_id, status, limit = 50 } = req.query;
+
+    const VALID = ['running', 'success', 'failed', 'skipped'];
+    if (status && !VALID.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status filter' });
+    }
+
+    let sql = `SELECT we.id, we.tenant_id, t.business_name,
+                      wr.name AS rule_name, wr.action, we.event_type,
+                      we.status, we.error, we.created_at
+               FROM workflow_executions we
+               JOIN workflow_rules wr ON wr.id = we.rule_id
+               JOIN tenants t ON t.id = we.tenant_id
+               WHERE 1=1`;
+    const params = [];
+
+    if (tenant_id) { params.push(tenant_id); sql += ` AND we.tenant_id = $${params.length}`; }
+    if (status)    { params.push(status);    sql += ` AND we.status = $${params.length}`; }
+
+    params.push(Math.min(Number(limit) || 50, 200));
+    sql += ` ORDER BY we.created_at DESC LIMIT $${params.length}`;
+
+    const { rows } = await db.query(sql, params);
+    res.json(rows);
+  } catch (err) {
+    console.error('[Admin] Failed to fetch workflow executions:', err.message);
+    res.status(500).json({ error: 'Failed to fetch workflow executions' });
+  }
+});
+
 module.exports = router;

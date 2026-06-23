@@ -422,7 +422,8 @@ CREATE TABLE workflow_rules (
   action         TEXT NOT NULL,
   action_params  JSONB NOT NULL DEFAULT '{}',
   enabled        BOOLEAN NOT NULL DEFAULT true,
-  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(tenant_id, name)
 );
 
 CREATE INDEX idx_workflow_rules_tenant_event
