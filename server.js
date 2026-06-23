@@ -39,9 +39,11 @@ const reminderCron = require('./src/scheduler/reminderCron');
 const coreActions       = require('./core/coreActions');
 const crmModule         = require('./src/modules/crm');
 const collectionsModule = require('./src/modules/collections');
+const workflowEngine    = require('./src/modules/workflow/workflowEngine');
 coreActions.init();
 crmModule.init();
 collectionsModule.init();
+workflowEngine.init();
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
