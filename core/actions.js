@@ -10,7 +10,12 @@ async function execute(name, params, ctx) {
     console.warn(`[Actions] Unknown action "${name}" — skipped`);
     return { skipped: true };
   }
-  return handler(params, ctx);
+  try {
+    return await handler(params, ctx);
+  } catch (err) {
+    console.error(`[Actions] Action "${name}" threw:`, err.message);
+    return { error: err.message };
+  }
 }
 
 module.exports = { register, execute };

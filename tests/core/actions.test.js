@@ -13,4 +13,10 @@ describe('ActionRegistry', () => {
     const result = await execute('nonexistent', {});
     assert.deepEqual(result, { skipped: true });
   });
+
+  it('catches handler errors and returns {error} instead of throwing', async () => {
+    register('boom', () => { throw new Error('kaboom'); });
+    const result = await execute('boom', {});
+    assert.equal(result.error, 'kaboom');
+  });
 });

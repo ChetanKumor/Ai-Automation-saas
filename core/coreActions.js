@@ -12,10 +12,11 @@ function init() {
     }
 
     const { rows: [tenant] } = await db.query(
-      `SELECT id, phone_number_id, owner_notify_phone FROM tenants WHERE id = $1`,
+      `SELECT id, phone_number_id, owner_notify_phone
+       FROM tenants WHERE id = $1 AND active = true`,
       [tenantId]
     );
-    if (!tenant) return { error: 'Tenant not found' };
+    if (!tenant) return { error: 'Tenant not found or inactive' };
     if (!tenant.owner_notify_phone) {
       console.log(`[CoreActions] notify_owner: no owner_notify_phone for tenant ${tenantId}`);
       return { skipped: true, reason: 'no_owner_phone' };
@@ -24,7 +25,12 @@ function init() {
     const fullTenant = await tenantService.getByPhoneNumberId(tenant.phone_number_id);
     if (!fullTenant) return { error: 'Tenant credentials not found' };
 
-    await whatsappService.sendMessage(fullTenant, tenant.owner_notify_phone, params.text);
+    try {
+      await whatsappService.sendMessage(fullTenant, tenant.owner_notify_phone, params.text);
+    } catch (err) {
+      console.error(`[CoreActions] notify_owner: send failed (tenant=${tenantId}):`, err.message);
+      return { error: 'send_failed' };
+    }
     return { sent: true };
   });
 
@@ -41,9 +47,9 @@ function init() {
       [params.customer_id, tenantId]
     );
 
-    if (conv && conv.mode === 'human') {
-      console.log(`[CoreActions] send_whatsapp_message: skipped — conversation is in human mode (tenant=${tenantId} customer=${params.customer_id})`);
-      return { skipped: true, reason: 'human_mode' };
+    if (!conv || conv.mode === 'human') {
+      console.log(`[CoreActions] send_whatsapp_message: skipped — ${!conv ? 'no open conversation' : 'human mode'} (tenant=${tenantId} customer=${params.customer_id})`);
+      return { skipped: true, reason: !conv ? 'no_open_conversation' : 'human_mode' };
     }
 
     const { rows: [customer] } = await db.query(
@@ -53,15 +59,20 @@ function init() {
     if (!customer) return { error: 'Customer not found for this tenant' };
 
     const { rows: [tenant] } = await db.query(
-      `SELECT phone_number_id FROM tenants WHERE id = $1`,
+      `SELECT phone_number_id FROM tenants WHERE id = $1 AND active = true`,
       [tenantId]
     );
-    if (!tenant) return { error: 'Tenant not found' };
+    if (!tenant) return { error: 'Tenant not found or inactive' };
 
     const fullTenant = await tenantService.getByPhoneNumberId(tenant.phone_number_id);
     if (!fullTenant) return { error: 'Tenant credentials not found' };
 
-    await whatsappService.sendMessage(fullTenant, customer.phone, params.text);
+    try {
+      await whatsappService.sendMessage(fullTenant, customer.phone, params.text);
+    } catch (err) {
+      console.error(`[CoreActions] send_whatsapp_message: send failed (tenant=${tenantId} customer=${params.customer_id}):`, err.message);
+      return { error: 'send_failed' };
+    }
     return { sent: true };
   });
 
