@@ -25,7 +25,7 @@ function init() {
       console.warn('[Collections] mark_payment_received: missing schedule_id');
       return { skipped: true };
     }
-    return collectionsService.markPaid(ctx.tenant_id, params.schedule_id);
+    return collectionsService.markPaid(ctx.tenant_id, params.schedule_id, ctx);
   });
 
   collectionsCron.start();

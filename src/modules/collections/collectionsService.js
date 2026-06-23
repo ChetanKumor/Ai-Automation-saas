@@ -17,7 +17,7 @@ async function schedulePayment(tenantId, customerId, { amount, currency, due_dat
   return rows[0];
 }
 
-async function markPaid(tenantId, scheduleId) {
+async function markPaid(tenantId, scheduleId, ctx) {
   const { rows: [row] } = await db.query(
     `UPDATE payment_schedules
      SET status = 'paid'
@@ -34,6 +34,9 @@ async function markPaid(tenantId, scheduleId) {
     schedule_id: row.id,
     amount: row.amount,
     currency: row.currency,
+  }, {
+    depth: ctx?.depth ?? 0,
+    causation_id: ctx?.causation_id ?? null,
   });
 
   console.log(`[Collections] payment_received: schedule=${row.id} amount=${row.amount}`);
