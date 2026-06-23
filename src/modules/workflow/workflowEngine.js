@@ -115,7 +115,11 @@ async function onEvent(event) {
 //   outbox + worker and a reaper for stuck 'running' rows. Out of scope
 //   by design.
 
+let initialized = false;
+
 function init() {
+  if (initialized) return;
+  initialized = true;
   events.on('*', onEvent);
   console.log('[Workflow] Engine initialized');
 }

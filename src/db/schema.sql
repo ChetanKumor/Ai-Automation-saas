@@ -439,7 +439,7 @@ CREATE TABLE workflow_executions (
   rule_id     UUID NOT NULL REFERENCES workflow_rules(id) ON DELETE CASCADE,
   event_id    TEXT NOT NULL,
   event_type  TEXT NOT NULL,
-  status      TEXT NOT NULL CHECK (status IN ('success', 'failed', 'skipped')),
+  status      TEXT NOT NULL CHECK (status IN ('running', 'success', 'failed', 'skipped')),
   error       TEXT,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(rule_id, event_id)
