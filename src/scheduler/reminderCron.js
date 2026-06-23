@@ -63,10 +63,12 @@ async function reapStuck(client) {
 
   const { rowCount } = await client.query(
     `UPDATE appointments
-     SET reminder_status = 'pending', reminder_attempts = reminder_attempts + 1
+     SET reminder_status = 'pending'
      WHERE reminder_status = 'sending'
        AND reminder_sent_at IS NULL
-       AND last_attempt_at < NOW() - INTERVAL '10 minutes'`
+       AND reminder_attempts < $1
+       AND last_attempt_at < NOW() - INTERVAL '10 minutes'`,
+    [MAX_ATTEMPTS]
   );
   if (rowCount > 0) {
     console.log(`[Reminder] Reaped ${rowCount} stuck sending row(s)`);
@@ -256,7 +258,8 @@ async function sendTemplateMessage(tenant, appt) {
       headers: {
         Authorization: `Bearer ${tenant.wa_token}`,
         'Content-Type': 'application/json'
-      }
+      },
+      timeout: 30_000,
     }
   );
 }

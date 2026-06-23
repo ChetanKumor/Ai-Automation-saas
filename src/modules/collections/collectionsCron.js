@@ -69,10 +69,12 @@ async function reapStuck(client) {
   // Reset remaining stuck rows where send never happened — safe to retry
   const { rowCount } = await client.query(
     `UPDATE payment_schedules
-     SET status = 'pending', attempts = attempts + 1
+     SET status = 'pending'
      WHERE status = 'sending'
        AND sent_at IS NULL
-       AND last_attempt_at < NOW() - INTERVAL '10 minutes'`
+       AND attempts < $1
+       AND last_attempt_at < NOW() - INTERVAL '10 minutes'`,
+    [MAX_ATTEMPTS]
   );
   if (rowCount > 0) {
     console.log(`[Collections] Reaped ${rowCount} stuck sending row(s)`);
