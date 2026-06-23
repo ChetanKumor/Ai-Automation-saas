@@ -36,8 +36,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 
 const reminderCron = require('./src/scheduler/reminderCron');
+const coreActions       = require('./core/coreActions');
 const crmModule         = require('./src/modules/crm');
 const collectionsModule = require('./src/modules/collections');
+coreActions.init();
 crmModule.init();
 collectionsModule.init();
 
