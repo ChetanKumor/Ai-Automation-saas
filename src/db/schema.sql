@@ -286,6 +286,10 @@ CREATE TABLE appointments (
                      CHECK (status IN ('booked', 'cancelled')),
   reminder_sent    BOOLEAN NOT NULL DEFAULT FALSE,
   reminder_sent_at TIMESTAMPTZ,
+  reminder_status  TEXT NOT NULL DEFAULT 'pending'
+                     CHECK (reminder_status IN ('pending', 'sending', 'sent', 'failed')),
+  reminder_attempts INTEGER NOT NULL DEFAULT 0,
+  last_attempt_at  TIMESTAMPTZ,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -295,6 +299,10 @@ CREATE INDEX idx_appointments_tenant_time ON appointments(tenant_id, appointment
 CREATE UNIQUE INDEX uniq_doctor_slot
   ON appointments(tenant_id, doctor_name, appointment_time)
   WHERE status = 'booked';
+
+CREATE INDEX idx_appointments_reminder_due
+  ON appointments(reminder_status, appointment_time)
+  WHERE reminder_status = 'pending';
 
 
 -- ============================================================

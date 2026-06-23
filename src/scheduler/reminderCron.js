@@ -4,6 +4,8 @@ const tenantService = require('../modules/tenant/tenantService');
 const whatsappService = require('../modules/whatsapp/whatsappService');
 
 const LOCK_KEY = 770_202;
+const WINDOW_MS = 24 * 60 * 60 * 1000;
+const MAX_ATTEMPTS = 3;
 
 async function tick() {
   let client;
@@ -21,18 +23,8 @@ async function tick() {
     }
     lockAcquired = true;
 
-    const due = await claimDueAppointments();
-    if (due.length > 0) {
-      console.log(`[Reminder] Found ${due.length} appointment(s) due for reminder`);
-    }
-
-    for (const appt of due) {
-      try {
-        await processReminder(appt);
-      } catch (err) {
-        console.error(`[Reminder] Error processing appointment ${appt.appointment_id}:`, err.message);
-      }
-    }
+    await reapStuck(client);
+    await processDue(client);
   } catch (err) {
     console.error('[Reminder] Tick failed:', err.message);
   } finally {
@@ -41,6 +33,43 @@ async function tick() {
         .catch(err => console.error('[Reminder] Advisory unlock failed:', err.message));
     }
     if (client) client.release();
+  }
+}
+
+async function reapStuck(client) {
+  const { rowCount: recoveredCount } = await client.query(
+    `UPDATE appointments
+     SET reminder_status = 'sent'
+     WHERE reminder_status = 'sending'
+       AND reminder_sent_at IS NOT NULL
+       AND last_attempt_at < NOW() - INTERVAL '10 minutes'`
+  );
+  if (recoveredCount > 0) {
+    console.log(`[Reminder] Recovered ${recoveredCount} sent-but-unmarked row(s)`);
+  }
+
+  const { rowCount: failedCount } = await client.query(
+    `UPDATE appointments
+     SET reminder_status = 'failed'
+     WHERE reminder_status = 'sending'
+       AND reminder_sent_at IS NULL
+       AND reminder_attempts >= $1
+       AND last_attempt_at < NOW() - INTERVAL '10 minutes'`,
+    [MAX_ATTEMPTS]
+  );
+  if (failedCount > 0) {
+    console.log(`[Reminder] Permanently failed ${failedCount} row(s) exceeding ${MAX_ATTEMPTS} attempts`);
+  }
+
+  const { rowCount } = await client.query(
+    `UPDATE appointments
+     SET reminder_status = 'pending', reminder_attempts = reminder_attempts + 1
+     WHERE reminder_status = 'sending'
+       AND reminder_sent_at IS NULL
+       AND last_attempt_at < NOW() - INTERVAL '10 minutes'`
+  );
+  if (rowCount > 0) {
+    console.log(`[Reminder] Reaped ${rowCount} stuck sending row(s)`);
   }
 }
 
@@ -61,8 +90,8 @@ async function claimDueAppointments() {
       FROM appointments a
       JOIN tenants t ON t.id = a.tenant_id
       JOIN customers c ON c.id = a.customer_id
-      WHERE a.status = 'booked'
-        AND a.reminder_sent = false
+      WHERE a.reminder_status = 'pending'
+        AND a.status = 'booked'
         AND t.reminders_enabled = true
         AND a.appointment_time > NOW()
         AND a.appointment_time <= NOW() + (t.reminder_hours_before || ' hours')::interval
@@ -72,7 +101,11 @@ async function claimDueAppointments() {
     if (due.length > 0) {
       const ids = due.map(r => r.appointment_id);
       await claimClient.query(
-        `UPDATE appointments SET reminder_sent = true, reminder_sent_at = NOW()
+        `UPDATE appointments
+         SET reminder_status = 'sending',
+             reminder_attempts = reminder_attempts + 1,
+             last_attempt_at = NOW(),
+             reminder_sent_at = NULL
          WHERE id = ANY($1::uuid[])`,
         [ids]
       );
@@ -88,7 +121,25 @@ async function claimDueAppointments() {
   }
 }
 
-async function processReminder(appt) {
+async function processDue(client) {
+  const due = await claimDueAppointments();
+  if (!due.length) return;
+  console.log(`[Reminder] Processing ${due.length} due reminder(s)`);
+
+  for (const appt of due) {
+    try {
+      await processReminder(client, appt);
+    } catch (err) {
+      console.error(`[Reminder] Error processing appointment ${appt.appointment_id}:`, err.message);
+      await client.query(
+        `UPDATE appointments SET reminder_status = 'failed' WHERE id = $1`,
+        [appt.appointment_id]
+      ).catch(dbErr => console.error(`[Reminder] Failed to mark failed: ${appt.appointment_id}`, dbErr.message));
+    }
+  }
+}
+
+async function processReminder(client, appt) {
   const timeIST = new Date(appt.appointment_time)
     .toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'full', timeStyle: 'short' });
 
@@ -96,12 +147,14 @@ async function processReminder(appt) {
     `Reminder: ${appt.customer_name || 'Hi'}, your appointment with ${appt.doctor_name} ` +
     `at ${appt.business_name} is on ${timeIST}. See you soon!`;
 
-  // Determine if customer is within 24h messaging window
   const withinWindow = appt.last_inbound_at &&
-    (Date.now() - new Date(appt.last_inbound_at).getTime()) < 24 * 60 * 60 * 1000;
+    (Date.now() - new Date(appt.last_inbound_at).getTime()) < WINDOW_MS;
 
   if (!withinWindow && !appt.reminder_template_id) {
-    // Outside window, no template configured — cannot send
+    await client.query(
+      `UPDATE appointments SET reminder_status = 'failed' WHERE id = $1`,
+      [appt.appointment_id]
+    );
     await db.query(
       `INSERT INTO notifications (tenant_id, type, content, sent_status)
        VALUES ($1, 'reminder', $2, 'needs_template')`,
@@ -114,17 +167,19 @@ async function processReminder(appt) {
     return;
   }
 
-  // Get full tenant object with decrypted wa_token
   const tenant = await tenantService.getByPhoneNumberId(appt.phone_number_id);
   if (!tenant) {
     console.error(`[Reminder] Tenant not found for phone_number_id: ${appt.phone_number_id}`);
+    await client.query(
+      `UPDATE appointments SET reminder_status = 'failed' WHERE id = $1`,
+      [appt.appointment_id]
+    );
     return;
   }
 
   let sentStatus = 'pending';
 
   if (withinWindow) {
-    // Within 24h window — send free-text
     try {
       await whatsappService.sendMessage(tenant, appt.customer_phone, reminderText);
       sentStatus = 'sent';
@@ -135,7 +190,6 @@ async function processReminder(appt) {
       console.error(`[Reminder] Send failed to ${appt.customer_phone}:`, metaError?.message || err.message);
     }
   } else if (appt.reminder_template_id) {
-    // Outside window but template is configured — send template
     try {
       await sendTemplateMessage(tenant, appt);
       sentStatus = 'sent_template';
@@ -146,7 +200,26 @@ async function processReminder(appt) {
     }
   }
 
-  // Record notification
+  if (sentStatus === 'sent' || sentStatus === 'sent_template') {
+    // Point of no return — WhatsApp accepted the message.
+    // Stamp reminder_sent_at first so the reaper knows not to resend.
+    await client.query(
+      `UPDATE appointments SET reminder_sent_at = NOW(), reminder_sent = true WHERE id = $1`,
+      [appt.appointment_id]
+    );
+
+    await client.query(
+      `UPDATE appointments SET reminder_status = 'sent'
+       WHERE id = $1 AND reminder_status = 'sending'`,
+      [appt.appointment_id]
+    );
+  } else {
+    await client.query(
+      `UPDATE appointments SET reminder_status = 'failed' WHERE id = $1`,
+      [appt.appointment_id]
+    );
+  }
+
   await db.query(
     `INSERT INTO notifications (tenant_id, type, content, sent_status)
      VALUES ($1, 'reminder', $2, $3)`,
