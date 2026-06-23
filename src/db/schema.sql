@@ -287,7 +287,8 @@ CREATE TABLE appointments (
   reminder_sent    BOOLEAN NOT NULL DEFAULT FALSE,
   reminder_sent_at TIMESTAMPTZ,
   reminder_status  TEXT NOT NULL DEFAULT 'pending'
-                     CHECK (reminder_status IN ('pending', 'sending', 'sent', 'failed')),
+                     CHECK (reminder_status IN ('pending', 'sending', 'sent', 'failed',
+                                                'needs_template', 'needs_review')),
   reminder_attempts INTEGER NOT NULL DEFAULT 0,
   last_attempt_at  TIMESTAMPTZ,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -389,7 +390,7 @@ CREATE TABLE payment_schedules (
 
   status           TEXT NOT NULL DEFAULT 'pending'
                      CHECK (status IN ('pending', 'sending', 'sent', 'paid',
-                                       'overdue', 'failed', 'needs_template')),
+                                       'overdue', 'failed', 'needs_template', 'needs_review')),
   attempts         INTEGER NOT NULL DEFAULT 0,
   last_attempt_at  TIMESTAMPTZ,
   sent_at          TIMESTAMPTZ,

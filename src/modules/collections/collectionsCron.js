@@ -3,6 +3,7 @@ const db              = require('../../db/db');
 const tenantService   = require('../tenant/tenantService');
 const whatsappService = require('../whatsapp/whatsappService');
 const eventBus        = require('../../../core/events');
+const { classifySendError } = require('../../utils/classifySendError');
 
 const LOCK_KEY = 770_201;
 const WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -39,8 +40,6 @@ async function tick() {
 }
 
 async function reapStuck(client) {
-  // Rows where the WhatsApp send succeeded but DB update to 'sent' failed —
-  // mark them 'sent' to prevent double-send.
   const { rowCount: recoveredCount } = await client.query(
     `UPDATE payment_schedules
      SET status = 'sent'
@@ -52,7 +51,6 @@ async function reapStuck(client) {
     console.log(`[Collections] Recovered ${recoveredCount} sent-but-unmarked row(s)`);
   }
 
-  // Permanently fail rows that exceeded max attempts (send never completed)
   const { rowCount: failedCount } = await client.query(
     `UPDATE payment_schedules
      SET status = 'failed'
@@ -66,7 +64,6 @@ async function reapStuck(client) {
     console.log(`[Collections] Permanently failed ${failedCount} row(s) exceeding ${MAX_ATTEMPTS} attempts`);
   }
 
-  // Reset remaining stuck rows where send never happened — safe to retry
   const { rowCount } = await client.query(
     `UPDATE payment_schedules
      SET status = 'pending'
@@ -148,11 +145,36 @@ async function processDue(client) {
       }
 
       const text = buildReminderText(row);
-      await whatsappService.sendMessage(tenant, row.customer_phone, text);
 
-      // Mark that WhatsApp accepted the message — this is the point of no return.
-      // Even if the 'sent' update below fails, the reaper will see sent_at IS NOT NULL
-      // and mark the row 'sent' instead of resetting to 'pending'.
+      try {
+        await whatsappService.sendMessage(tenant, row.customer_phone, text);
+      } catch (sendErr) {
+        const disposition = classifySendError(sendErr);
+        const currentAttempts = row.attempts + 1;
+        const metaError = sendErr.response?.data?.error;
+
+        let nextStatus;
+        if (disposition === 'timeout') {
+          nextStatus = 'needs_review';
+          console.error(`[Collections] Timeout (ambiguous) for schedule=${row.id}: moved to needs_review`);
+        } else if (disposition === 'needs_template') {
+          nextStatus = 'needs_template';
+          console.log(`[Collections] needs_template: schedule=${row.id} (re-engagement error from Meta)`);
+        } else if (disposition === 'retryable' && currentAttempts < MAX_ATTEMPTS) {
+          nextStatus = 'pending';
+          console.warn(`[Collections] Retryable error for schedule=${row.id} (attempt ${currentAttempts}/${MAX_ATTEMPTS}): ${metaError?.message || sendErr.message}`);
+        } else {
+          nextStatus = 'failed';
+          console.error(`[Collections] Permanent failure for schedule=${row.id}: ${disposition} | status=${sendErr.response?.status} code=${metaError?.code} msg=${metaError?.message || sendErr.message}`);
+        }
+
+        await client.query(
+          `UPDATE payment_schedules SET status = $2 WHERE id = $1`,
+          [row.id, nextStatus]
+        );
+        continue;
+      }
+
       await client.query(
         `UPDATE payment_schedules SET sent_at = NOW() WHERE id = $1`,
         [row.id]

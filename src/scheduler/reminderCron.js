@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const db = require('../db/db');
 const tenantService = require('../modules/tenant/tenantService');
 const whatsappService = require('../modules/whatsapp/whatsappService');
+const { classifySendError } = require('../utils/classifySendError');
 
 const LOCK_KEY = 770_202;
 const WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -81,7 +82,7 @@ async function claimDueAppointments() {
     await claimClient.query('BEGIN');
     const { rows: due } = await claimClient.query(`
       SELECT a.id AS appointment_id, a.appointment_time, a.doctor_name,
-             a.customer_id, a.tenant_id,
+             a.customer_id, a.tenant_id, a.reminder_attempts,
              c.phone AS customer_phone, c.name AS customer_name,
              t.business_name, t.phone_number_id, t.reminder_hours_before,
              t.reminder_template_id,
@@ -154,7 +155,7 @@ async function processReminder(client, appt) {
 
   if (!withinWindow && !appt.reminder_template_id) {
     await client.query(
-      `UPDATE appointments SET reminder_status = 'failed' WHERE id = $1`,
+      `UPDATE appointments SET reminder_status = 'needs_template' WHERE id = $1`,
       [appt.appointment_id]
     );
     await db.query(
@@ -179,7 +180,8 @@ async function processReminder(client, appt) {
     return;
   }
 
-  let sentStatus = 'pending';
+  let sentStatus;
+  let sendErr = null;
 
   if (withinWindow) {
     try {
@@ -187,9 +189,7 @@ async function processReminder(client, appt) {
       sentStatus = 'sent';
       console.log(`[Reminder] Sent to ${appt.customer_phone}: ${reminderText}`);
     } catch (err) {
-      const metaError = err.response?.data?.error;
-      sentStatus = 'failed';
-      console.error(`[Reminder] Send failed to ${appt.customer_phone}:`, metaError?.message || err.message);
+      sendErr = err;
     }
   } else if (appt.reminder_template_id) {
     try {
@@ -197,30 +197,53 @@ async function processReminder(client, appt) {
       sentStatus = 'sent_template';
       console.log(`[Reminder] Template sent to ${appt.customer_phone}`);
     } catch (err) {
-      sentStatus = 'failed';
-      console.error(`[Reminder] Template send failed to ${appt.customer_phone}:`, err.message);
+      sendErr = err;
     }
   }
 
-  if (sentStatus === 'sent' || sentStatus === 'sent_template') {
-    // Point of no return — WhatsApp accepted the message.
-    // Stamp reminder_sent_at first so the reaper knows not to resend.
-    await client.query(
-      `UPDATE appointments SET reminder_sent_at = NOW(), reminder_sent = true WHERE id = $1`,
-      [appt.appointment_id]
-    );
+  if (sendErr) {
+    const disposition = classifySendError(sendErr);
+    const currentAttempts = appt.reminder_attempts + 1;
+    const metaError = sendErr.response?.data?.error;
+
+    let nextStatus;
+    if (disposition === 'timeout') {
+      nextStatus = 'needs_review';
+      console.error(`[Reminder] Timeout (ambiguous) for appointment=${appt.appointment_id}: moved to needs_review`);
+    } else if (disposition === 'needs_template') {
+      nextStatus = 'needs_template';
+      console.log(`[Reminder] needs_template: appointment=${appt.appointment_id} (re-engagement error from Meta)`);
+    } else if (disposition === 'retryable' && currentAttempts < MAX_ATTEMPTS) {
+      nextStatus = 'pending';
+      console.warn(`[Reminder] Retryable error for appointment=${appt.appointment_id} (attempt ${currentAttempts}/${MAX_ATTEMPTS}): ${metaError?.message || sendErr.message}`);
+    } else {
+      nextStatus = 'failed';
+      console.error(`[Reminder] Permanent failure for appointment=${appt.appointment_id}: ${disposition} | status=${sendErr.response?.status} code=${metaError?.code} msg=${metaError?.message || sendErr.message}`);
+    }
 
     await client.query(
-      `UPDATE appointments SET reminder_status = 'sent'
-       WHERE id = $1 AND reminder_status = 'sending'`,
-      [appt.appointment_id]
+      `UPDATE appointments SET reminder_status = $2 WHERE id = $1`,
+      [appt.appointment_id, nextStatus]
     );
-  } else {
-    await client.query(
-      `UPDATE appointments SET reminder_status = 'failed' WHERE id = $1`,
-      [appt.appointment_id]
+
+    await db.query(
+      `INSERT INTO notifications (tenant_id, type, content, sent_status)
+       VALUES ($1, 'reminder', $2, $3)`,
+      [appt.tenant_id, reminderText, nextStatus]
     );
+    return;
   }
+
+  await client.query(
+    `UPDATE appointments SET reminder_sent_at = NOW(), reminder_sent = true WHERE id = $1`,
+    [appt.appointment_id]
+  );
+
+  await client.query(
+    `UPDATE appointments SET reminder_status = 'sent'
+     WHERE id = $1 AND reminder_status = 'sending'`,
+    [appt.appointment_id]
+  );
 
   await db.query(
     `INSERT INTO notifications (tenant_id, type, content, sent_status)

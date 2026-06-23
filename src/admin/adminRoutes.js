@@ -166,7 +166,7 @@ router.get('/api/collections', requireAuth, async (req, res) => {
   try {
     const { tenant_id, status, limit = 50 } = req.query;
 
-    const VALID = ['pending', 'sending', 'sent', 'paid', 'overdue', 'failed', 'needs_template'];
+    const VALID = ['pending', 'sending', 'sent', 'paid', 'overdue', 'failed', 'needs_template', 'needs_review'];
     if (status && !VALID.includes(status)) {
       return res.status(400).json({ error: 'Invalid status filter' });
     }
@@ -193,6 +193,41 @@ router.get('/api/collections', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[Admin] Failed to fetch collections:', err.message);
     res.status(500).json({ error: 'Failed to fetch collections' });
+  }
+});
+
+// ── API: Appointments ───────────────────────────────────────
+router.get('/api/appointments', requireAuth, async (req, res) => {
+  try {
+    const { tenant_id, reminder_status, limit = 50 } = req.query;
+
+    const VALID_RS = ['pending', 'sending', 'sent', 'failed', 'needs_template', 'needs_review'];
+    if (reminder_status && !VALID_RS.includes(reminder_status)) {
+      return res.status(400).json({ error: 'Invalid reminder_status filter' });
+    }
+
+    let sql = `SELECT a.id, a.tenant_id, t.business_name, a.customer_id,
+                      a.doctor_name, a.appointment_time, a.status,
+                      a.reminder_status, a.reminder_attempts, a.reminder_sent_at,
+                      a.last_attempt_at, a.created_at,
+                      c.phone AS customer_phone, c.name AS customer_name
+               FROM appointments a
+               JOIN tenants t ON t.id = a.tenant_id
+               JOIN customers c ON c.id = a.customer_id
+               WHERE 1=1`;
+    const params = [];
+
+    if (tenant_id)       { params.push(tenant_id);       sql += ` AND a.tenant_id = $${params.length}`; }
+    if (reminder_status) { params.push(reminder_status); sql += ` AND a.reminder_status = $${params.length}`; }
+
+    params.push(Math.min(Number(limit) || 50, 200));
+    sql += ` ORDER BY a.appointment_time DESC LIMIT $${params.length}`;
+
+    const { rows } = await db.query(sql, params);
+    res.json(rows);
+  } catch (err) {
+    console.error('[Admin] Failed to fetch appointments:', err.message);
+    res.status(500).json({ error: 'Failed to fetch appointments' });
   }
 });
 

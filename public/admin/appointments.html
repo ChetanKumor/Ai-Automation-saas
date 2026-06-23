@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Collections — WhatsApp CRM Admin</title>
+  <title>Appointments — WhatsApp CRM Admin</title>
   <link rel="stylesheet" href="/admin/style.css">
 </head>
 <body>
@@ -18,18 +18,16 @@
 
   <div class="container">
     <div class="flex-between mb-20" style="margin-top:20px;">
-      <h2>Collections</h2>
+      <h2>Appointments</h2>
       <div style="display:flex;gap:8px;align-items:center;">
         <select id="tenantFilter" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
           <option value="">All tenants</option>
         </select>
         <select id="statusFilter" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
-          <option value="">All statuses</option>
+          <option value="">All reminder statuses</option>
           <option value="pending">Pending</option>
           <option value="sending">Sending</option>
           <option value="sent">Sent</option>
-          <option value="paid">Paid</option>
-          <option value="overdue">Overdue</option>
           <option value="failed">Failed</option>
           <option value="needs_template">Needs Template</option>
           <option value="needs_review">Needs Review</option>
@@ -42,16 +40,15 @@
         <thead>
           <tr>
             <th>Customer</th>
-            <th>Amount</th>
-            <th>Due Date</th>
-            <th>Reminder At</th>
-            <th>Status</th>
+            <th>Doctor</th>
+            <th>Appointment</th>
+            <th>Reminder Status</th>
             <th class="hide-mobile">Attempts</th>
             <th class="hide-mobile">Business</th>
           </tr>
         </thead>
-        <tbody id="collectionsList">
-          <tr><td colspan="7" class="text-muted" style="text-align:center; padding:24px;">Loading...</td></tr>
+        <tbody id="appointmentsList">
+          <tr><td colspan="6" class="text-muted" style="text-align:center; padding:24px;">Loading...</td></tr>
         </tbody>
       </table>
     </div>
@@ -62,8 +59,6 @@
       pending:        'badge-blue',
       sending:        'badge-yellow',
       sent:           'badge-green',
-      paid:           'badge-green',
-      overdue:        'badge-red',
       failed:         'badge-red',
       needs_template: 'badge-yellow',
       needs_review:   'badge-red',
@@ -82,31 +77,30 @@
       });
     }
 
-    async function loadCollections() {
+    async function loadAppointments() {
       const tenant = document.getElementById('tenantFilter').value;
       const status = document.getElementById('statusFilter').value;
       const params = new URLSearchParams();
       if (tenant) params.set('tenant_id', tenant);
-      if (status) params.set('status', status);
+      if (status) params.set('reminder_status', status);
 
-      const res = await fetch('/admin/api/collections?' + params);
+      const res = await fetch('/admin/api/appointments?' + params);
       if (res.status === 401) return window.location.href = '/admin';
       const rows = await res.json();
-      const tbody = document.getElementById('collectionsList');
+      const tbody = document.getElementById('appointmentsList');
 
       if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-muted" style="text-align:center; padding:24px;">No payment schedules found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-muted" style="text-align:center; padding:24px;">No appointments found.</td></tr>';
         return;
       }
 
       tbody.innerHTML = rows.map(r => `
         <tr>
           <td><strong>${esc(r.customer_name || '—')}</strong><br><code style="font-size:12px;">${esc(r.customer_phone)}</code></td>
-          <td><strong>${esc(r.currency)} ${Number(r.amount).toLocaleString('en-IN')}</strong></td>
-          <td>${new Date(r.due_date).toLocaleDateString('en-IN')}</td>
-          <td>${new Date(r.reminder_send_at).toLocaleString('en-IN', {timeZone:'Asia/Kolkata'})}</td>
-          <td><span class="badge ${STATUS_BADGE[r.status] || ''}">${esc(r.status)}</span></td>
-          <td class="hide-mobile">${r.attempts}</td>
+          <td>${esc(r.doctor_name)}</td>
+          <td>${new Date(r.appointment_time).toLocaleString('en-IN', {timeZone:'Asia/Kolkata'})}</td>
+          <td><span class="badge ${STATUS_BADGE[r.reminder_status] || ''}">${esc(r.reminder_status)}</span></td>
+          <td class="hide-mobile">${r.reminder_attempts}</td>
           <td class="hide-mobile">${esc(r.business_name)}</td>
         </tr>
       `).join('');
@@ -119,11 +113,11 @@
       return d.innerHTML;
     }
 
-    document.getElementById('tenantFilter').addEventListener('change', loadCollections);
-    document.getElementById('statusFilter').addEventListener('change', loadCollections);
+    document.getElementById('tenantFilter').addEventListener('change', loadAppointments);
+    document.getElementById('statusFilter').addEventListener('change', loadAppointments);
 
     loadTenants();
-    loadCollections();
+    loadAppointments();
   </script>
 </body>
 </html>
