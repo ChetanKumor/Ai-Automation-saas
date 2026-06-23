@@ -17,7 +17,8 @@ const sendMessage = async (tenant, toPhone, text) => {
         headers: {
           Authorization: `Bearer ${tenant.wa_token}`,
           'Content-Type': 'application/json'
-        }
+        },
+        timeout: 30_000,
       }
     );
     console.log(`[WhatsApp] Sent to ${toPhone}, message_id: ${res.data?.messages?.[0]?.id || 'unknown'}`);

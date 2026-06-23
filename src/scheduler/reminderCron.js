@@ -194,7 +194,7 @@ async function processReminder(client, appt) {
   } else if (appt.reminder_template_id) {
     try {
       await sendTemplateMessage(tenant, appt);
-      sentStatus = 'sent_template';
+      sentStatus = 'sent';
       console.log(`[Reminder] Template sent to ${appt.customer_phone}`);
     } catch (err) {
       sendErr = err;
