@@ -1,0 +1,168 @@
+/* Ported verbatim from design-reference/zyon-hero.html — NAV section */
+
+.nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  transition: background var(--ease-out) .3s, border-color var(--ease-out) .3s, backdrop-filter .3s;
+}
+
+.scrolled {
+  background: rgba(11, 12, 14, 0.72);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+
+.navInner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 1.0625rem;
+  letter-spacing: -0.02em;
+}
+
+.mark {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.mark rect {
+  fill: none;
+  stroke: var(--text-primary);
+  stroke-width: 1.6;
+}
+
+.mark circle {
+  fill: var(--text-primary);
+}
+
+.navLinks {
+  display: flex;
+  gap: 28px;
+  margin-left: 8px;
+}
+
+.navLinks a {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  transition: color var(--ease-out) .15s;
+}
+
+.navLinks a:hover {
+  color: var(--text-primary);
+}
+
+.navLinks a:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ink-900), 0 0 0 4px var(--accent);
+  border-radius: var(--r-sm);
+}
+
+.navCta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.menuBtn {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 8px;
+  margin-left: auto;
+}
+
+.menuBtn svg {
+  display: block;
+}
+
+.menuBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ink-900), 0 0 0 4px var(--accent);
+  border-radius: var(--r-sm);
+}
+
+.mobileMenu {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 24px 20px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(11, 12, 14, 0.95);
+  backdrop-filter: blur(14px);
+}
+
+.open {
+  display: flex;
+}
+
+.mobileMenu a {
+  padding: 12px 0;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.mobileMenu a:last-of-type {
+  border-bottom: none;
+}
+
+.mobileMenu a:hover {
+  color: var(--text-primary);
+}
+
+.mobileMenu a:focus-visible {
+  outline: none;
+  color: var(--accent);
+}
+
+/* —— RESPONSIVE —— */
+@media (max-width: 900px) {
+  .navLinks {
+    display: none;
+  }
+
+  .menuBtn {
+    display: block;
+  }
+
+  .navCta {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .navInner {
+    padding: 14px 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav {
+    transition: none !important;
+  }
+
+  .navLinks a {
+    transition: none !important;
+  }
+
+  .mobileMenu a {
+    transition: none !important;
+  }
+}

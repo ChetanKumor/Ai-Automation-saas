@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zyon — The Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink-900:#0B0C0E;--surface-1:#121317;--surface-2:#181A1F;--surface-3:#202329;
+    --border:rgba(255,255,255,0.08);--border-strong:rgba(255,255,255,0.14);
+    --text-primary:#F5F6F7;--text-secondary:#A2A6AD;--text-tertiary:#6C6F77;
+    --accent:#5C8DF0;--accent-glow:rgba(92,141,240,0.35);
+    --r-sm:4px;--r-md:8px;--r-lg:12px;--r-pill:999px;
+    --elev-2:0 24px 60px rgba(0,0,0,0.55);
+    --ease-out:cubic-bezier(0.16,1,0.3,1);
+    --font-sans:'Geist','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --font-mono:'Geist Mono','JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--ink-900);color:var(--text-primary);font-family:var(--font-sans);
+    -webkit-font-smoothing:antialiased;line-height:1.6}
+  .container{max-width:1180px;margin:0 auto;padding:0 24px}
+  .eyebrow{font-family:var(--font-mono);font-size:0.72rem;font-weight:500;letter-spacing:0.14em;
+    text-transform:uppercase;color:var(--text-tertiary);display:inline-flex;align-items:center;gap:9px}
+  .eyebrow .bar{width:18px;height:1px;background:var(--text-tertiary)}
+  .h2{font-size:clamp(2rem,4vw,3rem);font-weight:600;letter-spacing:-0.025em;line-height:1.1}
+  .sub{font-size:clamp(1.0625rem,1.6vw,1.1875rem);color:var(--text-secondary);line-height:1.6}
+
+  .ru{opacity:0;transform:translateY(18px);transition:opacity .7s var(--ease-out),transform .7s var(--ease-out)}
+  .ru.in{opacity:1;transform:none}
+
+  .platform{padding:clamp(80px,11vw,140px) 0}
+  .platform-head{max-width:680px;margin-bottom:56px}
+  .platform .h2{margin:20px 0 18px}
+
+  /* ——— PRODUCT GRID ——— */
+  .modules{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;
+    border:1px solid var(--border);border-radius:var(--r-lg) var(--r-lg) 0 0;
+    border-bottom:none;padding:14px;background:rgba(255,255,255,0.012)}
+  .mod{background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r-md);
+    padding:24px 22px;display:flex;flex-direction:column;position:relative;min-height:178px;
+    transition:border-color var(--ease-out) .25s,transform var(--ease-out) .25s,background var(--ease-out) .25s}
+  .mod:hover{border-color:var(--border-strong);transform:translateY(-3px);background:var(--surface-2)}
+  .mod-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px}
+  .mod-icon{color:var(--text-secondary);transition:color var(--ease-out) .25s}
+  .mod:hover .mod-icon{color:var(--text-primary)}
+  .mod-status{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);
+    font-size:0.66rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-tertiary)}
+  .mod-status .live{width:6px;height:6px;border-radius:var(--r-pill);background:var(--accent);
+    box-shadow:0 0 0 3px var(--accent-glow)}
+  .mod-name{font-size:1.125rem;font-weight:500;letter-spacing:-0.01em;margin-bottom:8px}
+  .mod-desc{font-size:0.9rem;color:var(--text-secondary);line-height:1.5}
+  .mod-tag{position:absolute;top:-1px;right:22px;transform:translateY(-50%);
+    font-family:var(--font-mono);font-size:0.62rem;letter-spacing:0.08em;text-transform:uppercase;
+    color:var(--ink-900);background:var(--text-primary);padding:3px 9px;border-radius:var(--r-pill)}
+  /* coming soon */
+  .mod.soon{border-style:dashed;background:transparent}
+  .mod.soon:hover{transform:none;background:transparent;border-color:var(--border)}
+  .mod.soon .mod-name,.mod.soon .mod-icon{color:var(--text-tertiary)}
+  .mod.soon .mod-status{color:var(--text-tertiary)}
+
+  /* ——— PLATFORM BASE ——— */
+  .base{border:1px solid var(--border-strong);border-radius:0 0 var(--r-lg) var(--r-lg);
+    background:var(--surface-1);padding:28px 26px;position:relative;overflow:hidden}
+  .base::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;
+    background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.5}
+  .base-inner{display:flex;align-items:center;gap:32px;flex-wrap:wrap}
+  .base-label{font-family:var(--font-mono);font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;
+    color:var(--text-tertiary);display:flex;align-items:center;gap:9px;flex-shrink:0}
+  .base-label .core{width:8px;height:8px;border-radius:2px;background:var(--accent);box-shadow:0 0 0 4px var(--accent-glow)}
+  .base-copy{font-size:0.975rem;color:var(--text-secondary);max-width:42ch;line-height:1.55}
+  .base-copy b{color:var(--text-primary);font-weight:500}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+  .chip{font-family:var(--font-mono);font-size:0.7rem;color:var(--text-secondary);
+    border:1px solid var(--border);border-radius:var(--r-sm);padding:6px 11px;background:var(--ink-900)}
+
+  .platform-cta{margin-top:36px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .btn{font-family:var(--font-sans);font-size:0.9rem;font-weight:500;padding:11px 20px;border-radius:var(--r-md);
+    cursor:pointer;border:1px solid transparent;transition:all var(--ease-out) .15s;display:inline-flex;align-items:center;gap:7px}
+  .btn-primary{background:var(--text-primary);color:var(--ink-900)}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:var(--elev-2)}
+  .btn-ghost{background:transparent;color:var(--text-secondary);padding:11px 4px}
+  .btn-ghost:hover{color:var(--text-primary)}
+  .btn:focus-visible{outline:none;box-shadow:0 0 0 2px var(--ink-900),0 0 0 4px var(--accent)}
+
+  @media(max-width:860px){
+    .modules{grid-template-columns:repeat(2,1fr)}
+    .chips{margin-left:0;width:100%}
+  }
+  @media(max-width:520px){
+    .modules{grid-template-columns:1fr}
+    .mod{min-height:auto}
+    .base-inner{gap:18px}
+  }
+  @media(prefers-reduced-motion:reduce){.ru{opacity:1;transform:none;transition:none}*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<section class="platform">
+  <div class="container">
+    <div class="platform-head ru">
+      <span class="eyebrow"><span class="bar"></span>The platform</span>
+      <h2 class="h2">One platform for your customer operations</h2>
+      <p class="sub">Five products on shared infrastructure, configured to your business. The AI receptionist is where most clinics start. The rest is already here when you need it.</p>
+    </div>
+
+    <div class="modules">
+      <div class="mod ru">
+        <span class="mod-tag">Most start here</span>
+        <div class="mod-top">
+          <svg class="mod-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/></svg>
+          <span class="mod-status"><span class="live"></span>Live</span>
+        </div>
+        <div class="mod-name">AI WhatsApp Receptionist</div>
+        <p class="mod-desc">Answers enquiries, qualifies leads, and books appointments on WhatsApp, 24/7.</p>
+      </div>
+
+      <div class="mod ru" style="transition-delay:.06s">
+        <div class="mod-top">
+          <svg class="mod-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+          <span class="mod-status"><span class="live"></span>Live</span>
+        </div>
+        <div class="mod-name">Workflow Automation</div>
+        <p class="mod-desc">Turn an incoming message into actions — reminders, follow-ups, handoffs, record updates — by your rules.</p>
+      </div>
+
+      <div class="mod ru" style="transition-delay:.12s">
+        <div class="mod-top">
+          <svg class="mod-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3l1.9 5.8L20 10l-5.8 1.9L12 18l-1.9-5.8L4 10l5.8-1.9z"/></svg>
+          <span class="mod-status"><span class="live"></span>Live</span>
+        </div>
+        <div class="mod-name">AI Agents</div>
+        <p class="mod-desc">Task-specific agents that handle work end to end, grounded in your business's own information.</p>
+      </div>
+
+      <div class="mod ru" style="transition-delay:.06s">
+        <div class="mod-top">
+          <svg class="mod-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span class="mod-status"><span class="live"></span>Live</span>
+        </div>
+        <div class="mod-name">CRM</div>
+        <p class="mod-desc">Every contact, conversation, and lead in one place, updated automatically as people message you.</p>
+      </div>
+
+      <div class="mod ru" style="transition-delay:.12s">
+        <div class="mod-top">
+          <svg class="mod-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span class="mod-status"><span class="live"></span>Live</span>
+        </div>
+        <div class="mod-name">Appointment Management</div>
+        <p class="mod-desc">Booking, confirmations, and reminders, kept in sync without manual entry.</p>
+      </div>
+
+      <div class="mod soon ru" style="transition-delay:.18s">
+        <div class="mod-top">
+          <svg class="mod-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          <span class="mod-status">Coming soon</span>
+        </div>
+        <div class="mod-name">AI Voice Calling</div>
+        <p class="mod-desc">AI that answers and places calls in your business's voice.</p>
+      </div>
+    </div>
+
+    <div class="base ru" style="transition-delay:.1s">
+      <div class="base-inner">
+        <span class="base-label"><span class="core"></span>One platform underneath</span>
+        <p class="base-copy"><b>One system underneath all of it.</b> Add a product when you're ready — nothing to re-integrate.</p>
+        <div class="chips">
+          <span class="chip">Multi-tenant routing</span>
+          <span class="chip">Shared AI engine</span>
+          <span class="chip">One data layer</span>
+          <span class="chip">Per-business isolation</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="platform-cta ru" style="transition-delay:.15s">
+      <button class="btn btn-primary">Explore the platform</button>
+      <button class="btn btn-ghost">Book a demo →</button>
+    </div>
+  </div>
+</section>
+
+<script>
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+  },{threshold:.16,rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.ru').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+/* Ported verbatim from design-reference/zyon-hero.html (.btn, .btn-primary, .btn-secondary)
+   and design-reference/zyon-section-cta.html (.btn-lg) */
+
+.btn {
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 9px 17px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all var(--ease-out) .15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.primary {
+  background: var(--text-primary);
+  color: var(--ink-900);
+}
+
+.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--elev-2);
+}
+
+.secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.secondary:hover {
+  background: var(--surface-2);
+  border-color: var(--text-tertiary);
+  transform: translateY(-2px);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: transparent;
+}
+
+.ghost:hover {
+  color: var(--text-primary);
+}
+
+.large {
+  font-size: 1.0625rem;
+  padding: 15px 34px;
+  gap: 9px;
+  transition: all var(--ease-out) .18s;
+}
+
+.large:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--elev-2);
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ink-900), 0 0 0 4px var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn {
+    transition: none !important;
+  }
+}

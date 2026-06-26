@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zyon — Footer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink-900:#0B0C0E;--surface-1:#121317;--surface-2:#181A1F;--surface-3:#202329;
+    --border:rgba(255,255,255,0.08);--border-strong:rgba(255,255,255,0.14);
+    --text-primary:#F5F6F7;--text-secondary:#A2A6AD;--text-tertiary:#6C6F77;
+    --accent:#5C8DF0;--accent-glow:rgba(92,141,240,0.35);
+    --r-sm:4px;--r-md:8px;--r-lg:12px;--r-pill:999px;
+    --ease-out:cubic-bezier(0.16,1,0.3,1);
+    --font-sans:'Geist','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --font-mono:'Geist Mono','JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--ink-900);color:var(--text-primary);font-family:var(--font-sans);
+    -webkit-font-smoothing:antialiased;line-height:1.6}
+  a{color:inherit;text-decoration:none}
+  .container{max-width:1180px;margin:0 auto;padding:0 24px}
+
+  .footer{border-top:1px solid var(--border);padding:clamp(56px,8vw,80px) 0 32px}
+
+  /* ——— MAIN ——— */
+  .footer-main{display:grid;grid-template-columns:minmax(220px,1fr) 2.7fr;gap:56px}
+
+  .footer-brand{max-width:300px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:1.0625rem;letter-spacing:-0.02em;margin-bottom:16px}
+  .brand .mark{width:22px;height:22px;flex-shrink:0}
+  .brand .mark rect{fill:none;stroke:var(--text-primary);stroke-width:1.6}
+  .brand .mark circle{fill:var(--text-primary)}
+  .footer-tag{font-size:0.9rem;color:var(--text-secondary);line-height:1.55;margin-bottom:22px}
+  .socials{display:flex;gap:10px}
+  .social{width:34px;height:34px;border-radius:var(--r-md);border:1px solid var(--border);
+    display:flex;align-items:center;justify-content:center;color:var(--text-tertiary);
+    transition:color var(--ease-out) .2s,border-color var(--ease-out) .2s}
+  .social:hover{color:var(--text-primary);border-color:var(--border-strong)}
+  .social:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-glow)}
+
+  .footer-cols{display:grid;grid-template-columns:repeat(5,1fr);gap:32px 24px}
+  .fcol-title{font-family:var(--font-mono);font-size:0.68rem;font-weight:500;letter-spacing:0.12em;
+    text-transform:uppercase;color:var(--text-tertiary);margin-bottom:16px}
+  .fcol a{display:block;font-size:0.875rem;color:var(--text-secondary);padding:5px 0;
+    transition:color var(--ease-out) .18s}
+  .fcol a:hover{color:var(--text-primary)}
+  .fcol a:focus-visible{outline:none;color:var(--accent)}
+  .soon{font-family:var(--font-mono);font-size:0.6rem;letter-spacing:0.06em;text-transform:uppercase;
+    color:var(--text-tertiary);border:1px solid var(--border);border-radius:var(--r-pill);
+    padding:1px 7px;margin-left:7px;vertical-align:middle}
+
+  /* ——— BOTTOM ——— */
+  .footer-bottom{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;
+    margin-top:clamp(48px,7vw,72px);padding-top:26px;border-top:1px solid var(--border)}
+  .copy{font-size:0.82rem;color:var(--text-tertiary)}
+  .copy b{color:var(--text-secondary);font-weight:500}
+  .trademark{font-size:0.78rem;color:var(--text-tertiary);line-height:1.5;max-width:52ch;text-align:right}
+
+  @media(max-width:900px){
+    .footer-main{grid-template-columns:1fr;gap:44px}
+    .footer-cols{grid-template-columns:repeat(3,1fr)}
+  }
+  @media(max-width:560px){
+    .footer-cols{grid-template-columns:repeat(2,1fr)}
+    .footer-bottom{flex-direction:column;align-items:flex-start}
+    .trademark{text-align:left}
+  }
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-main">
+      <div class="footer-brand">
+        <a href="#" class="brand" aria-label="Zyon home">
+          <svg class="mark" viewBox="0 0 22 22" aria-hidden="true">
+            <rect x="2" y="2" width="18" height="18" rx="5"/>
+            <circle cx="7.5" cy="11" r="1.5"/><circle cx="11" cy="11" r="1.5"/><circle cx="14.5" cy="11" r="1.5"/>
+          </svg>
+          Zyon
+        </a>
+        <p class="footer-tag">AI infrastructure for businesses that run on WhatsApp.</p>
+        <!-- Placeholder social links — replace with real profiles before launch -->
+        <div class="socials">
+          <a href="#" class="social" aria-label="Zyon on X">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          </a>
+          <a href="#" class="social" aria-label="Zyon on LinkedIn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+          </a>
+        </div>
+      </div>
+
+      <div class="footer-cols">
+        <div class="fcol">
+          <div class="fcol-title">Product</div>
+          <a href="#">AI WhatsApp Receptionist</a>
+          <a href="#">Workflow Automation</a>
+          <a href="#">AI Agents</a>
+          <a href="#">CRM</a>
+          <a href="#">Appointment Management</a>
+          <a href="#">AI Voice Calling <span class="soon">Soon</span></a>
+        </div>
+        <div class="fcol">
+          <div class="fcol-title">Solutions</div>
+          <a href="#">Clinics &amp; Healthcare</a>
+          <a href="#">Real Estate</a>
+          <a href="#">Finance</a>
+          <a href="#">All industries</a>
+        </div>
+        <div class="fcol">
+          <div class="fcol-title">Company</div>
+          <a href="#">About</a>
+          <a href="#">Contact</a>
+          <a href="#">Pricing</a>
+        </div>
+        <div class="fcol">
+          <div class="fcol-title">Resources</div>
+          <a href="#">Blog</a>
+          <a href="#">Guides</a>
+        </div>
+        <div class="fcol">
+          <div class="fcol-title">Legal</div>
+          <a href="/privacy">Privacy Policy</a>
+          <a href="/terms">Terms of Service</a>
+          <a href="/data-deletion">Data Deletion</a>
+          <a href="/acceptable-use">Acceptable Use</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <!-- Replace "Zyon" with your registered legal entity name before Meta submission — it must match exactly -->
+      <div class="copy">© 2026 <b>Zyon</b> · India</div>
+      <p class="trademark">Zyon is built on the WhatsApp Business Platform. WhatsApp is a trademark of Meta Platforms, Inc., used for identification only.</p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

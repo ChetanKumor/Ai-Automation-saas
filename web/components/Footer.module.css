@@ -1,0 +1,195 @@
+/* Ported verbatim from design-reference/zyon-section-footer.html */
+
+.footer {
+  border-top: 1px solid var(--border);
+  padding: clamp(56px, 8vw, 80px) 0 32px;
+}
+
+.container {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ——— MAIN ——— */
+.footerMain {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 2.7fr;
+  gap: 56px;
+}
+
+.footerBrand {
+  max-width: 300px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 1.0625rem;
+  letter-spacing: -0.02em;
+  margin-bottom: 16px;
+}
+
+.mark {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.mark rect {
+  fill: none;
+  stroke: var(--text-primary);
+  stroke-width: 1.6;
+}
+
+.mark circle {
+  fill: var(--text-primary);
+}
+
+.footerTag {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin-bottom: 22px;
+}
+
+.socials {
+  display: flex;
+  gap: 10px;
+}
+
+.social {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  transition: color var(--ease-out) .2s, border-color var(--ease-out) .2s;
+}
+
+.social:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.social:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.footerCols {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 32px 24px;
+}
+
+.fcolTitle {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 16px;
+}
+
+.fcol a {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  padding: 5px 0;
+  transition: color var(--ease-out) .18s;
+}
+
+.fcol a:hover {
+  color: var(--text-primary);
+}
+
+.fcol a:focus-visible {
+  outline: none;
+  color: var(--accent);
+}
+
+.soon {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  padding: 1px 7px;
+  margin-left: 7px;
+  vertical-align: middle;
+}
+
+/* ——— BOTTOM ——— */
+.footerBottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: clamp(48px, 7vw, 72px);
+  padding-top: 26px;
+  border-top: 1px solid var(--border);
+}
+
+.copy {
+  font-size: 0.82rem;
+  color: var(--text-tertiary);
+}
+
+.copyEntity {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.trademark {
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+  line-height: 1.5;
+  max-width: 52ch;
+  text-align: right;
+}
+
+@media (max-width: 900px) {
+  .footerMain {
+    grid-template-columns: 1fr;
+    gap: 44px;
+  }
+
+  .footerCols {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .footerCols {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .footerBottom {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .trademark {
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .social {
+    transition: none !important;
+  }
+
+  .fcol a {
+    transition: none !important;
+  }
+}

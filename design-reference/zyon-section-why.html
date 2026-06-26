@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zyon — Why Zyon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink-900:#0B0C0E;--surface-1:#121317;--surface-2:#181A1F;--surface-3:#202329;
+    --border:rgba(255,255,255,0.08);--border-strong:rgba(255,255,255,0.14);
+    --text-primary:#F5F6F7;--text-secondary:#A2A6AD;--text-tertiary:#6C6F77;
+    --accent:#5C8DF0;--accent-glow:rgba(92,141,240,0.35);
+    --r-sm:4px;--r-md:8px;--r-lg:12px;--r-pill:999px;
+    --ease-out:cubic-bezier(0.16,1,0.3,1);
+    --font-sans:'Geist','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --font-mono:'Geist Mono','JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--ink-900);color:var(--text-primary);font-family:var(--font-sans);
+    -webkit-font-smoothing:antialiased;line-height:1.6}
+  .container{max-width:1180px;margin:0 auto;padding:0 24px}
+  .eyebrow{font-family:var(--font-mono);font-size:0.72rem;font-weight:500;letter-spacing:0.14em;
+    text-transform:uppercase;color:var(--text-tertiary);display:inline-flex;align-items:center;gap:9px}
+  .eyebrow .bar{width:18px;height:1px;background:var(--text-tertiary)}
+  .h2{font-size:clamp(2rem,4vw,2.875rem);font-weight:600;letter-spacing:-0.025em;line-height:1.1}
+
+  .ru{opacity:0;transform:translateY(18px);transition:opacity .7s var(--ease-out),transform .7s var(--ease-out)}
+  .ru.in{opacity:1;transform:none}
+
+  .why{padding:clamp(80px,11vw,140px) 0;border-top:1px solid var(--border)}
+  .why-grid{display:grid;grid-template-columns:0.82fr 1.4fr;gap:56px}
+
+  .why-head{position:sticky;top:110px;align-self:start}
+  .why-head .h2{margin:20px 0 18px}
+  .why-head p{color:var(--text-secondary);font-size:1.0625rem;line-height:1.6;max-width:34ch}
+
+  /* ——— PILLARS ——— */
+  .pillar{display:grid;grid-template-columns:28px 1fr auto;gap:22px;align-items:start;
+    padding:30px 0;border-top:1px solid var(--border)}
+  .pillar:first-child{border-top:none;padding-top:0}
+  .pillar:last-child{padding-bottom:0}
+  .pillar-icon{color:var(--text-secondary);padding-top:2px}
+  .pillar-title{font-size:1.1875rem;font-weight:500;letter-spacing:-0.01em;margin-bottom:9px}
+  .pillar-desc{font-size:0.9375rem;color:var(--text-secondary);line-height:1.55;max-width:42ch}
+
+  /* micro-proofs */
+  .mp{min-width:172px;display:flex;flex-direction:column;gap:7px;align-items:flex-start;padding-top:2px}
+  .mp-line{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:0.74rem}
+  .mp-good{color:var(--text-primary)}
+  .mp-good .ic{color:var(--accent)}
+  .mp-bad{color:var(--text-tertiary)}
+  .mp-bad .txt{text-decoration:line-through;text-decoration-color:var(--text-tertiary)}
+  .mp-bad .ic{color:var(--text-tertiary)}
+
+  .mp-thread{display:flex;align-items:center;gap:8px}
+  .mp-pill{font-family:var(--font-mono);font-size:0.7rem;padding:4px 11px;border-radius:var(--r-pill);
+    border:1px solid var(--border-strong);color:var(--text-tertiary)}
+  .mp-pill.solid{color:var(--wa-text,#E9EDEF);background:var(--surface-3);border-color:var(--surface-3);color:var(--text-primary)}
+  .mp-swap{color:var(--text-tertiary);font-size:0.85rem}
+  .mp-note{font-family:var(--font-mono);font-size:0.68rem;color:var(--text-tertiary)}
+
+  .mp-iso{display:flex;align-items:center;gap:5px}
+  .mp-box{width:26px;height:26px;border-radius:var(--r-sm);border:1px dashed var(--border);opacity:.5}
+  .mp-box.you{opacity:1;border-style:solid;border-color:var(--border-strong);display:flex;align-items:center;justify-content:center;color:var(--text-secondary)}
+
+  .mp-toggle{display:flex;align-items:center;gap:9px}
+  .toggle{width:34px;height:19px;border-radius:var(--r-pill);background:var(--surface-3);
+    border:1px solid var(--border-strong);position:relative;flex-shrink:0}
+  .toggle::after{content:"";position:absolute;top:2px;right:2px;width:13px;height:13px;border-radius:var(--r-pill);background:var(--text-primary)}
+
+  @media(max-width:860px){
+    .why-grid{grid-template-columns:1fr;gap:40px}
+    .why-head{position:static}
+    .why-head p{max-width:100%}
+    .pillar{grid-template-columns:28px 1fr;gap:18px 18px}
+    .mp{grid-column:1 / -1;flex-direction:row;flex-wrap:wrap;gap:14px;min-width:0;padding-top:6px;
+      padding-left:46px;align-items:center}
+  }
+  @media(max-width:480px){
+    .pillar{grid-template-columns:1fr}
+    .pillar-icon{display:none}
+    .mp{padding-left:0}
+  }
+  @media(prefers-reduced-motion:reduce){.ru{opacity:1;transform:none;transition:none}*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<section class="why">
+  <div class="container">
+    <div class="why-grid">
+      <div class="why-head ru">
+        <span class="eyebrow"><span class="bar"></span>Why Zyon</span>
+        <h2 class="h2">The difference is in the architecture</h2>
+        <p>Anyone can bolt a chatbot onto WhatsApp. What you build it on is what decides whether it's safe, private, and yours.</p>
+      </div>
+
+      <div class="pillars">
+        <div class="pillar ru">
+          <svg class="pillar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 9v3a3 3 0 0 0 3 3h6"/><path d="M15 9h3a3 3 0 0 1 0 6"/></svg>
+          <div>
+            <div class="pillar-title">AI and humans, together</div>
+            <p class="pillar-desc">The AI handles volume. Your team handles the moments that matter. Same conversation, no second tool to check.</p>
+          </div>
+          <div class="mp">
+            <div class="mp-thread"><span class="mp-pill">AI</span><span class="mp-swap">⇄</span><span class="mp-pill solid">You</span></div>
+            <span class="mp-note">one thread</span>
+          </div>
+        </div>
+
+        <div class="pillar ru" style="transition-delay:.08s">
+          <svg class="pillar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+          <div>
+            <div class="pillar-title">The official WhatsApp Business Platform</div>
+            <p class="pillar-desc">Your messages run on Meta's official WhatsApp Cloud API — not an unofficial workaround that can get your number blocked.</p>
+          </div>
+          <div class="mp">
+            <div class="mp-line mp-good"><span class="ic">✓</span>Official Cloud API</div>
+            <div class="mp-line mp-bad"><span class="ic">✕</span><span class="txt">Unofficial bot</span> · banned</div>
+          </div>
+        </div>
+
+        <div class="pillar ru" style="transition-delay:.16s">
+          <svg class="pillar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <div>
+            <div class="pillar-title">Your number, your data</div>
+            <p class="pillar-desc">Zyon works on your existing WhatsApp Business number. Every business is isolated; your conversations and contacts are never shared with anyone else on the platform.</p>
+          </div>
+          <div class="mp">
+            <div class="mp-iso">
+              <span class="mp-box"></span>
+              <span class="mp-box you"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+              <span class="mp-box"></span>
+            </div>
+            <span class="mp-note">isolated per business</span>
+          </div>
+        </div>
+
+        <div class="pillar ru" style="transition-delay:.24s">
+          <svg class="pillar-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          <div>
+            <div class="pillar-title">Configured, not coded</div>
+            <p class="pillar-desc">Your prompts, rules, and workflows are settings you change in the dashboard — not a developer ticket.</p>
+          </div>
+          <div class="mp">
+            <div class="mp-toggle"><span class="toggle"></span><span class="mp-note">in the dashboard</span></div>
+            <div class="mp-line mp-bad"><span class="ic">✕</span><span class="txt">dev ticket</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+  },{threshold:.16,rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.ru').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zyon — Design System v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* —— Ink / surface scale —— */
+    --ink-900:#0B0C0E;        /* page background */
+    --ink-850:#0F1013;
+    --surface-1:#121317;      /* raised card */
+    --surface-2:#181A1F;      /* hover / higher elevation */
+    --surface-3:#202329;      /* input fills, wells */
+
+    /* —— Hairline borders —— */
+    --border:rgba(255,255,255,0.08);
+    --border-strong:rgba(255,255,255,0.14);
+
+    /* —— Text —— */
+    --text-primary:#F5F6F7;   /* near-white, never pure */
+    --text-secondary:#A2A6AD;
+    --text-tertiary:#6C6F77;
+
+    /* —— Functional accent (links / focus / live dot only) —— */
+    --accent:#5C8DF0;
+    --accent-hover:#7CA4F4;
+    --accent-glow:rgba(92,141,240,0.35);
+
+    /* —— WhatsApp authentic palette — MOCKUP ONLY —— */
+    --wa-bg:#0B141A;
+    --wa-header:#202C33;
+    --wa-in:#202C33;          /* incoming bubble */
+    --wa-out:#005C4B;         /* outgoing bubble */
+    --wa-text:#E9EDEF;
+    --wa-meta:#8696A0;
+    --wa-tick:#53BDEB;
+    --wa-online:#25D366;
+
+    /* —— Radius —— */
+    --r-sm:4px;
+    --r-md:8px;
+    --r-lg:12px;
+    --r-pill:999px;           /* status dots / tags ONLY */
+
+    /* —— Elevation —— */
+    --elev-1:0 1px 2px rgba(0,0,0,0.45);
+    --elev-2:0 12px 32px rgba(0,0,0,0.45);
+
+    /* —— Motion —— */
+    --ease-out:cubic-bezier(0.16,1,0.3,1);
+    --ease-spring:cubic-bezier(0.34,1.56,0.64,1);
+    --dur-micro:150ms;
+    --dur-base:250ms;
+    --dur-enter:500ms;
+
+    /* —— Type families —— */
+    --font-sans:'Geist','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --font-mono:'Geist Mono','JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+
+  body{
+    background:var(--ink-900);
+    color:var(--text-primary);
+    font-family:var(--font-sans);
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    line-height:1.6;
+    padding:clamp(24px,5vw,64px);
+  }
+
+  .wrap{max-width:1080px;margin:0 auto}
+
+  /* —— Eyebrow / mono label —— */
+  .eyebrow{
+    font-family:var(--font-mono);
+    font-size:0.72rem;
+    font-weight:500;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--text-tertiary);
+  }
+
+  /* —— Document header —— */
+  .doc-head{
+    padding-bottom:40px;
+    margin-bottom:56px;
+    border-bottom:1px solid var(--border);
+  }
+  .doc-head h1{
+    font-size:clamp(2.25rem,5vw,3.25rem);
+    font-weight:600;
+    letter-spacing:-0.03em;
+    line-height:1.05;
+    margin:18px 0 14px;
+  }
+  .doc-head p{
+    color:var(--text-secondary);
+    max-width:52ch;
+    font-size:1.0625rem;
+  }
+  .status-dot{
+    display:inline-block;width:7px;height:7px;border-radius:var(--r-pill);
+    background:var(--accent);box-shadow:0 0 0 4px var(--accent-glow);
+    margin-right:9px;vertical-align:middle;
+  }
+
+  /* —— Section scaffolding —— */
+  .block{margin-bottom:72px}
+  .block-title{
+    display:flex;align-items:baseline;gap:14px;
+    margin-bottom:28px;padding-bottom:14px;
+    border-bottom:1px solid var(--border);
+  }
+  .block-title h2{
+    font-size:clamp(1.5rem,3vw,2rem);
+    font-weight:600;letter-spacing:-0.02em;line-height:1.1;
+  }
+  .block-note{color:var(--text-secondary);font-size:0.9rem;margin-left:auto}
+
+  /* —— Swatch grid —— */
+  .grid{display:grid;gap:14px}
+  .g-auto{grid-template-columns:repeat(auto-fill,minmax(168px,1fr))}
+
+  .swatch{
+    background:var(--surface-1);
+    border:1px solid var(--border);
+    border-radius:var(--r-lg);
+    overflow:hidden;
+    transition:transform var(--dur-micro) var(--ease-out),border-color var(--dur-micro) var(--ease-out);
+  }
+  .swatch:hover{transform:translateY(-2px);border-color:var(--border-strong)}
+  .swatch .chip{height:76px;border-bottom:1px solid var(--border)}
+  .swatch .meta{padding:12px 14px}
+  .swatch .name{font-size:0.86rem;font-weight:500;margin-bottom:3px}
+  .swatch .hex{font-family:var(--font-mono);font-size:0.74rem;color:var(--text-secondary)}
+  .swatch .use{font-size:0.72rem;color:var(--text-tertiary);margin-top:6px;line-height:1.4}
+
+  .border-chip{background:var(--surface-1);position:relative}
+  .border-chip::after{content:"";position:absolute;inset:18px;border-radius:var(--r-sm)}
+  .bc1::after{border:1px solid var(--border)}
+  .bc2::after{border:1px solid var(--border-strong)}
+
+  /* —— Type specimens —— */
+  .spec{
+    padding:22px 0;
+    border-bottom:1px solid var(--border);
+    display:grid;grid-template-columns:1fr;gap:10px;
+  }
+  .spec:last-child{border-bottom:none}
+  .spec .tag{
+    font-family:var(--font-mono);font-size:0.72rem;color:var(--text-tertiary);
+    letter-spacing:0.04em;
+  }
+  .t-display-xl{font-size:clamp(2.5rem,6vw,4.25rem);font-weight:600;letter-spacing:-0.035em;line-height:1.04}
+  .t-display-l{font-size:clamp(2rem,4vw,3rem);font-weight:600;letter-spacing:-0.025em;line-height:1.1}
+  .t-heading-m{font-size:clamp(1.25rem,2vw,1.5rem);font-weight:500;letter-spacing:-0.01em}
+  .t-body-l{font-size:1.1875rem;font-weight:400;color:var(--text-secondary);line-height:1.6;max-width:54ch}
+  .t-body-m{font-size:1rem;font-weight:400;line-height:1.6;max-width:60ch}
+  .t-label{font-family:var(--font-mono);font-size:0.72rem;font-weight:500;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-tertiary)}
+  .t-mono{font-family:var(--font-mono);font-size:0.85rem;color:var(--text-secondary)}
+
+  .pairing{display:flex;flex-wrap:wrap;gap:32px;margin-bottom:32px}
+  .pairing .face{flex:1;min-width:200px;background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r-lg);padding:22px}
+  .pairing .big{font-size:2.75rem;font-weight:600;letter-spacing:-0.02em;margin-bottom:8px}
+  .pairing .big.mono{font-family:var(--font-mono);font-weight:500}
+  .pairing .fname{font-size:0.9rem;font-weight:500}
+  .pairing .frole{font-size:0.78rem;color:var(--text-tertiary);margin-top:2px}
+
+  /* —— Spacing scale —— */
+  .space-row{display:flex;align-items:center;gap:16px;padding:7px 0}
+  .space-bar{height:14px;background:var(--accent);opacity:0.55;border-radius:2px}
+  .space-val{font-family:var(--font-mono);font-size:0.78rem;color:var(--text-secondary);width:56px}
+  .space-name{font-size:0.8rem;color:var(--text-tertiary)}
+
+  /* —— Radius samples —— */
+  .radius-row{display:flex;gap:16px;flex-wrap:wrap}
+  .radius-box{width:88px;height:88px;background:var(--surface-2);border:1px solid var(--border-strong);display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px}
+  .radius-box span{font-family:var(--font-mono);font-size:0.72rem;color:var(--text-tertiary)}
+
+  /* —— Components —— */
+  .comp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
+  .panel{background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r-lg);padding:24px}
+  .panel .plabel{font-family:var(--font-mono);font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:18px;display:block}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+
+  .btn{
+    font-family:var(--font-sans);font-size:0.9rem;font-weight:500;
+    padding:10px 18px;border-radius:var(--r-md);cursor:pointer;
+    border:1px solid transparent;transition:all var(--dur-micro) var(--ease-out);
+  }
+  .btn-primary{background:var(--text-primary);color:var(--ink-900)}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:var(--elev-2)}
+  .btn-secondary{background:transparent;color:var(--text-primary);border-color:var(--border-strong)}
+  .btn-secondary:hover{background:var(--surface-2);border-color:var(--text-tertiary)}
+  .btn-ghost{background:transparent;color:var(--text-secondary)}
+  .btn-ghost:hover{color:var(--text-primary)}
+  .btn:focus-visible{outline:none;box-shadow:0 0 0 2px var(--ink-900),0 0 0 4px var(--accent)}
+
+  .field{
+    width:100%;background:var(--surface-3);border:1px solid var(--border);
+    border-radius:var(--r-md);padding:11px 14px;color:var(--text-primary);
+    font-family:var(--font-sans);font-size:0.92rem;
+    transition:border-color var(--dur-micro) var(--ease-out),box-shadow var(--dur-micro) var(--ease-out);
+  }
+  .field::placeholder{color:var(--text-tertiary)}
+  .field:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+
+  .link-demo{color:var(--accent);text-decoration:none;font-size:0.92rem;border-bottom:1px solid transparent;transition:border-color var(--dur-micro)}
+  .link-demo:hover{border-bottom-color:var(--accent)}
+
+  .tag-pill{display:inline-flex;align-items:center;gap:7px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-pill);padding:5px 12px;font-size:0.76rem;color:var(--text-secondary)}
+  .tag-pill .live{width:6px;height:6px;border-radius:var(--r-pill);background:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+
+  /* —— Motion table —— */
+  .motion-table{width:100%;border-collapse:collapse;font-size:0.86rem}
+  .motion-table td{padding:11px 0;border-bottom:1px solid var(--border);vertical-align:top}
+  .motion-table tr:last-child td{border-bottom:none}
+  .motion-table .k{font-family:var(--font-mono);color:var(--text-primary);width:34%;font-size:0.8rem}
+  .motion-table .v{color:var(--text-secondary)}
+  .curve{display:inline-block;width:46px;height:24px;vertical-align:middle;margin-left:10px}
+  .curve path{fill:none;stroke:var(--accent);stroke-width:2}
+  .curve rect{fill:none;stroke:var(--border-strong);stroke-width:1}
+
+  /* —— WhatsApp demo —— */
+  .wa{
+    max-width:360px;background:var(--wa-bg);border:1px solid var(--border);
+    border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--elev-2);
+  }
+  .wa-head{background:var(--wa-header);padding:12px 16px;display:flex;align-items:center;gap:12px}
+  .wa-avatar{width:34px;height:34px;border-radius:var(--r-pill);background:linear-gradient(135deg,#2A3942,#3B4A54);flex-shrink:0}
+  .wa-name{font-size:0.92rem;font-weight:500;color:var(--wa-text);line-height:1.2}
+  .wa-status{font-size:0.72rem;color:var(--wa-online);display:flex;align-items:center;gap:5px;margin-top:1px}
+  .wa-status::before{content:"";width:6px;height:6px;border-radius:var(--r-pill);background:var(--wa-online)}
+  .wa-body{padding:16px 12px;display:flex;flex-direction:column;gap:8px;min-height:200px}
+  .bubble{max-width:78%;padding:8px 11px 6px;border-radius:8px;font-size:0.86rem;color:var(--wa-text);line-height:1.4;position:relative}
+  .bubble .time{display:block;text-align:right;font-size:0.64rem;color:var(--wa-meta);margin-top:3px}
+  .bubble.in{background:var(--wa-in);align-self:flex-start;border-top-left-radius:2px}
+  .bubble.out{background:var(--wa-out);align-self:flex-end;border-top-right-radius:2px}
+  .bubble.out .time::after{content:" ✓✓";color:var(--wa-tick)}
+  .wa-caption{font-size:0.78rem;color:var(--text-tertiary);margin-top:14px;max-width:360px;line-height:1.5}
+
+  /* —— Two-col helper —— */
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
+  @media(max-width:720px){.two{grid-template-columns:1fr}}
+
+  @media(prefers-reduced-motion:reduce){
+    *{transition:none!important;animation:none!important}
+    .swatch:hover,.btn-primary:hover{transform:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="doc-head">
+    <span class="eyebrow"><span class="status-dot"></span>Design System · v1 · Foundations</span>
+    <h1>Zyon design language</h1>
+    <p>Calm precision on deep ink. Brand chrome is achromatic — the only saturated color is authentic WhatsApp green, and it lives strictly inside the product mockups. Everything else earns its place through type, space, and hairline structure.</p>
+  </header>
+
+  <!-- COLOR -->
+  <section class="block">
+    <div class="block-title">
+      <span class="eyebrow">01</span>
+      <h2>Color</h2>
+      <span class="block-note">Achromatic brand · functional accent only</span>
+    </div>
+
+    <span class="t-label" style="display:block;margin-bottom:14px">Ink &amp; surface</span>
+    <div class="grid g-auto" style="margin-bottom:28px">
+      <div class="swatch"><div class="chip" style="background:#0B0C0E"></div><div class="meta"><div class="name">Ink 900</div><div class="hex">#0B0C0E</div><div class="use">Page background</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#0F1013"></div><div class="meta"><div class="name">Ink 850</div><div class="hex">#0F1013</div><div class="use">Alt sections</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#121317"></div><div class="meta"><div class="name">Surface 1</div><div class="hex">#121317</div><div class="use">Raised card</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#181A1F"></div><div class="meta"><div class="name">Surface 2</div><div class="hex">#181A1F</div><div class="use">Hover / elevated</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#202329"></div><div class="meta"><div class="name">Surface 3</div><div class="hex">#202329</div><div class="use">Input wells</div></div></div>
+    </div>
+
+    <span class="t-label" style="display:block;margin-bottom:14px">Text &amp; borders</span>
+    <div class="grid g-auto" style="margin-bottom:28px">
+      <div class="swatch"><div class="chip" style="background:#F5F6F7"></div><div class="meta"><div class="name">Text primary</div><div class="hex">#F5F6F7</div><div class="use">Headlines, body</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#A2A6AD"></div><div class="meta"><div class="name">Text secondary</div><div class="hex">#A2A6AD</div><div class="use">Subheads, support</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#6C6F77"></div><div class="meta"><div class="name">Text tertiary</div><div class="hex">#6C6F77</div><div class="use">Captions, labels</div></div></div>
+      <div class="swatch"><div class="chip border-chip bc1"></div><div class="meta"><div class="name">Border</div><div class="hex">rgba(255,255,255,.08)</div><div class="use">Default hairline</div></div></div>
+      <div class="swatch"><div class="chip border-chip bc2"></div><div class="meta"><div class="name">Border strong</div><div class="hex">rgba(255,255,255,.14)</div><div class="use">Emphasis edge</div></div></div>
+    </div>
+
+    <div class="two">
+      <div>
+        <span class="t-label" style="display:block;margin-bottom:14px">Functional accent — links · focus · live dots</span>
+        <div class="grid g-auto">
+          <div class="swatch"><div class="chip" style="background:#5C8DF0"></div><div class="meta"><div class="name">Accent</div><div class="hex">#5C8DF0</div><div class="use">Never a button fill</div></div></div>
+          <div class="swatch"><div class="chip" style="background:#7CA4F4"></div><div class="meta"><div class="name">Accent hover</div><div class="hex">#7CA4F4</div><div class="use">Interactive hover</div></div></div>
+        </div>
+      </div>
+      <div>
+        <span class="t-label" style="display:block;margin-bottom:14px">WhatsApp palette — mockup only</span>
+        <div class="grid g-auto">
+          <div class="swatch"><div class="chip" style="background:#005C4B"></div><div class="meta"><div class="name">Outgoing</div><div class="hex">#005C4B</div><div class="use">AI / sent bubble</div></div></div>
+          <div class="swatch"><div class="chip" style="background:#202C33"></div><div class="meta"><div class="name">Incoming</div><div class="hex">#202C33</div><div class="use">Customer bubble</div></div></div>
+          <div class="swatch"><div class="chip" style="background:#25D366"></div><div class="meta"><div class="name">Online</div><div class="hex">#25D366</div><div class="use">Status dot only</div></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TYPE -->
+  <section class="block">
+    <div class="block-title">
+      <span class="eyebrow">02</span>
+      <h2>Typography</h2>
+      <span class="block-note">Geist · Geist Mono</span>
+    </div>
+
+    <div class="pairing">
+      <div class="face">
+        <div class="big">Ag</div>
+        <div class="fname">Geist</div>
+        <div class="frole">Display &amp; UI — confident, neutral, engineered</div>
+      </div>
+      <div class="face">
+        <div class="big mono">Ag</div>
+        <div class="fname">Geist Mono</div>
+        <div class="frole">Labels, data, technical credibility</div>
+      </div>
+    </div>
+
+    <div class="spec">
+      <span class="tag">Display XL · h1 · 600 · -0.035em · clamp(2.5–4.25rem)</span>
+      <div class="t-display-xl">Infrastructure that responds</div>
+    </div>
+    <div class="spec">
+      <span class="tag">Display L · h2 · 600 · -0.025em · clamp(2–3rem)</span>
+      <div class="t-display-l">One platform for customer operations</div>
+    </div>
+    <div class="spec">
+      <span class="tag">Heading M · h3 · 500 · -0.01em</span>
+      <div class="t-heading-m">AI WhatsApp Receptionist</div>
+    </div>
+    <div class="spec">
+      <span class="tag">Body L · subhead · 400 · secondary</span>
+      <div class="t-body-l">An AI receptionist, workflow automation, agents, and a CRM — on the WhatsApp number your customers already use.</div>
+    </div>
+    <div class="spec">
+      <span class="tag">Body M · 400 · primary</span>
+      <div class="t-body-m">Enquiries arrive after hours and during appointments. A new lead waits unread until someone has a free minute.</div>
+    </div>
+    <div class="spec">
+      <span class="tag">Label / eyebrow · mono · 500 · 0.14em · uppercase</span>
+      <div class="t-label">Runs on the official WhatsApp Business Platform</div>
+    </div>
+    <div class="spec">
+      <span class="tag">Mono · captions &amp; data</span>
+      <div class="t-mono">phone_number_id · 770201 · 99.9% uptime</div>
+    </div>
+  </section>
+
+  <!-- SPACING + RADIUS -->
+  <section class="block">
+    <div class="block-title">
+      <span class="eyebrow">03</span>
+      <h2>Space &amp; radius</h2>
+      <span class="block-note">8pt base · low radius</span>
+    </div>
+    <div class="two">
+      <div>
+        <span class="t-label" style="display:block;margin-bottom:16px">Spacing scale</span>
+        <div class="space-row"><span class="space-val">4px</span><div class="space-bar" style="width:4px"></div><span class="space-name">hairline gaps</span></div>
+        <div class="space-row"><span class="space-val">8px</span><div class="space-bar" style="width:8px"></div><span class="space-name">tight</span></div>
+        <div class="space-row"><span class="space-val">16px</span><div class="space-bar" style="width:16px"></div><span class="space-name">base unit</span></div>
+        <div class="space-row"><span class="space-val">24px</span><div class="space-bar" style="width:24px"></div><span class="space-name">component pad</span></div>
+        <div class="space-row"><span class="space-val">48px</span><div class="space-bar" style="width:48px"></div><span class="space-name">group gap</span></div>
+        <div class="space-row"><span class="space-val">96px</span><div class="space-bar" style="width:96px"></div><span class="space-name">block gap</span></div>
+        <div class="space-row"><span class="space-val">160px</span><div class="space-bar" style="width:160px"></div><span class="space-name">section (max)</span></div>
+        <p class="t-mono" style="margin-top:14px;font-size:0.78rem">Section padding: clamp(80px, 12vw, 160px)</p>
+      </div>
+      <div>
+        <span class="t-label" style="display:block;margin-bottom:16px">Radius — no pill buttons</span>
+        <div class="radius-row">
+          <div class="radius-box" style="border-radius:4px"><span>4 · sm</span></div>
+          <div class="radius-box" style="border-radius:8px"><span>8 · md</span></div>
+          <div class="radius-box" style="border-radius:12px"><span>12 · lg</span></div>
+          <div class="radius-box" style="border-radius:999px;width:88px"><span>pill</span></div>
+        </div>
+        <p class="t-mono" style="margin-top:16px;font-size:0.78rem;line-height:1.6">sm — inputs, tags<br>md — buttons, controls<br>lg — cards, panels<br>pill — status dots &amp; tags only</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPONENTS -->
+  <section class="block">
+    <div class="block-title">
+      <span class="eyebrow">04</span>
+      <h2>Component primitives</h2>
+      <span class="block-note">tab to see focus states</span>
+    </div>
+    <div class="comp-grid">
+      <div class="panel">
+        <span class="plabel">Buttons</span>
+        <div class="row" style="margin-bottom:14px">
+          <button class="btn btn-primary">Book a demo</button>
+          <button class="btn btn-secondary">See how it works</button>
+        </div>
+        <div class="row">
+          <button class="btn btn-ghost">Explore the platform →</button>
+        </div>
+        <p style="color:var(--text-tertiary);font-size:0.76rem;margin-top:16px">Primary is near-white on ink. Accent is never a fill.</p>
+      </div>
+
+      <div class="panel">
+        <span class="plabel">Input</span>
+        <input class="field" type="text" placeholder="you@clinic.com" style="margin-bottom:12px">
+        <input class="field" type="text" value="Lakeview Dental" >
+        <p style="color:var(--text-tertiary);font-size:0.76rem;margin-top:14px">Focus ring uses the functional accent.</p>
+      </div>
+
+      <div class="panel">
+        <span class="plabel">Inline &amp; status</span>
+        <p class="t-body-m" style="font-size:0.92rem;margin-bottom:16px">Built on the <a href="#" class="link-demo">official WhatsApp Business Platform</a>, your number stays yours.</p>
+        <div class="row">
+          <span class="tag-pill"><span class="live"></span>5 products live</span>
+          <span class="tag-pill">AI Voice Calling · soon</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <span class="plabel">Hairline card</span>
+        <div style="border:1px solid var(--border);border-radius:var(--r-md);padding:18px;background:var(--ink-900)">
+          <div class="t-heading-m" style="font-size:1.1rem;margin-bottom:6px">Workflow Automation</div>
+          <p style="color:var(--text-secondary);font-size:0.88rem">Turn an incoming message into actions — reminders, follow-ups, record updates.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MOTION -->
+  <section class="block">
+    <div class="block-title">
+      <span class="eyebrow">05</span>
+      <h2>Motion</h2>
+      <span class="block-note">evidence of intelligence — things settle</span>
+    </div>
+    <table class="motion-table">
+      <tr><td class="k">--ease-out
+        <svg class="curve" viewBox="0 0 46 24"><rect x="1" y="1" width="44" height="22"/><path d="M1 23 C 8 1, 16 1, 45 1"/></svg>
+      </td><td class="v">cubic-bezier(0.16, 1, 0.3, 1) — the default. Fast out, gentle settle. Reveals, hovers, transitions.</td></tr>
+      <tr><td class="k">--ease-spring
+        <svg class="curve" viewBox="0 0 46 24"><rect x="1" y="1" width="44" height="22"/><path d="M1 23 C 14 -4, 20 0, 45 4"/></svg>
+      </td><td class="v">cubic-bezier(0.34, 1.56, 0.64, 1) — slight overshoot. Hero moments only, used sparingly.</td></tr>
+      <tr><td class="k">durations</td><td class="v">micro 150ms (hover, press) · base 250ms (transitions) · enter 500ms (reveals) · hero 700–900ms (orchestrated sequence)</td></tr>
+      <tr><td class="k">reveal pattern</td><td class="v">opacity 0→1 + translateY(12px→0), staggered 60–80ms on scroll-in. Transform &amp; opacity only — 60fps.</td></tr>
+      <tr><td class="k">reduced-motion</td><td class="v">All transforms disabled, opacity preserved. This document already respects it.</td></tr>
+    </table>
+  </section>
+
+  <!-- SIGNATURE PREVIEW -->
+  <section class="block" style="margin-bottom:24px">
+    <div class="block-title">
+      <span class="eyebrow">06</span>
+      <h2>Signature element — palette in context</h2>
+      <span class="block-note">the only color on the site</span>
+    </div>
+    <div class="two">
+      <div>
+        <div class="wa">
+          <div class="wa-head">
+            <div class="wa-avatar"></div>
+            <div>
+              <div class="wa-name">Lakeview Dental</div>
+              <div class="wa-status">online</div>
+            </div>
+          </div>
+          <div class="wa-body">
+            <div class="bubble in">Hi, do you have an appointment this week? Toothache since yesterday.<span class="time">9:14 AM</span></div>
+            <div class="bubble out">Yes. Dr. Rao has Thursday 11:00 AM or Friday 4:30 PM. Which suits you?<span class="time">9:14 AM</span></div>
+            <div class="bubble in">Thursday 11 works.<span class="time">9:15 AM</span></div>
+            <div class="bubble out">Booked. Thursday, 11:00 AM with Dr. Rao. I'll send a reminder the day before.<span class="time">9:15 AM</span></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <p class="t-body-m" style="margin-bottom:18px">This is where the whole site points. Authentic WhatsApp dark-mode colors live <em>only</em> here — the deep green outgoing bubble, the slate incoming bubble, the green online dot.</p>
+        <p class="t-body-m" style="color:var(--text-secondary);font-size:0.92rem">Because nothing else on the page is colored, the product reads as the proof. The mockup <em>is</em> the illustration, the hero, and the trust signal at once.</p>
+        <p class="wa-caption">Foundations locked. Next: the hero is built on exactly these tokens.</p>
+      </div>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>

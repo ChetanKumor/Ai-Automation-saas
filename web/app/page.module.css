@@ -1,0 +1,217 @@
+/* Temporary design-system check page — replaced in Phase 4/5 */
+
+.scaffold {
+  padding: clamp(96px, 12vw, 144px) 0 clamp(48px, 8vw, 96px);
+}
+
+.scaffoldBanner {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 48px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section {
+  margin-bottom: 56px;
+}
+
+.sectionTitle {
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin-bottom: 24px;
+}
+
+/* —— Color swatches —— */
+.swatchGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+}
+
+.swatch {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  transition: transform var(--dur-micro) var(--ease-out),
+              border-color var(--dur-micro) var(--ease-out);
+}
+
+.swatch:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-strong);
+}
+
+.chip {
+  height: 72px;
+  border-bottom: 1px solid var(--border);
+}
+
+.swatchMeta {
+  padding: 12px 14px;
+}
+
+.swatchName {
+  font-size: 0.86rem;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.swatchHex {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+}
+
+/* —— Type specimens —— */
+.typeStack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.typeRow {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.typeRow:last-child {
+  border-bottom: none;
+}
+
+.typeLabel {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
+.displayXl {
+  font-size: clamp(2.5rem, 6vw, 4.25rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.04;
+}
+
+.displayL {
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+
+.headingM {
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.bodyL {
+  font-size: 1.1875rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  max-width: 54ch;
+}
+
+.bodyM {
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.6;
+  max-width: 60ch;
+}
+
+.labelMono {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* —— Buttons —— */
+.buttonRow {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.btn {
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 10px 18px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all var(--dur-micro) var(--ease-out);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.btnPrimary {
+  composes: btn;
+  background: var(--text-primary);
+  color: var(--ink-900);
+}
+
+.btnPrimary:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--elev-2);
+}
+
+.btnSecondary {
+  composes: btn;
+  background: transparent;
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.btnSecondary:hover {
+  background: var(--surface-2);
+  border-color: var(--text-tertiary);
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ink-900), 0 0 0 4px var(--accent);
+}
+
+/* —— Reveal demo —— */
+.revealDemo {
+  margin-top: 24px;
+  padding: 32px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  text-align: center;
+}
+
+.revealLabel {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+  margin-bottom: 12px;
+}
+
+.revealContent {
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}

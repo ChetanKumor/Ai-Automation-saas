@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zyon — Security &amp; Trust</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink-900:#0B0C0E;--surface-1:#121317;--surface-2:#181A1F;--surface-3:#202329;
+    --border:rgba(255,255,255,0.08);--border-strong:rgba(255,255,255,0.14);
+    --text-primary:#F5F6F7;--text-secondary:#A2A6AD;--text-tertiary:#6C6F77;
+    --accent:#5C8DF0;--accent-glow:rgba(92,141,240,0.35);
+    --r-sm:4px;--r-md:8px;--r-lg:12px;--r-pill:999px;
+    --elev-2:0 24px 60px rgba(0,0,0,0.55);
+    --ease-out:cubic-bezier(0.16,1,0.3,1);
+    --font-sans:'Geist','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --font-mono:'Geist Mono','JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--ink-900);color:var(--text-primary);font-family:var(--font-sans);
+    -webkit-font-smoothing:antialiased;line-height:1.6}
+  .container{max-width:1180px;margin:0 auto;padding:0 24px}
+  .eyebrow{font-family:var(--font-mono);font-size:0.72rem;font-weight:500;letter-spacing:0.14em;
+    text-transform:uppercase;color:var(--text-tertiary);display:inline-flex;align-items:center;gap:9px}
+  .eyebrow .bar{width:18px;height:1px;background:var(--text-tertiary)}
+  .h2{font-size:clamp(2rem,4vw,3rem);font-weight:600;letter-spacing:-0.025em;line-height:1.1}
+
+  .ru{opacity:0;transform:translateY(18px);transition:opacity .7s var(--ease-out),transform .7s var(--ease-out)}
+  .ru.in{opacity:1;transform:none}
+
+  .sec{padding:clamp(80px,11vw,140px) 0;border-top:1px solid var(--border)}
+  .sec-head{max-width:680px;margin-bottom:52px}
+  .sec .h2{margin:20px 0 18px}
+  .sec-body{font-size:1.0625rem;color:var(--text-secondary);line-height:1.65;max-width:58ch}
+  .sec-body b{color:var(--text-primary);font-weight:500}
+
+  /* ——— COMMITMENTS ——— */
+  .commit{display:grid;grid-template-columns:repeat(4,1fr);gap:0;
+    border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+  .ci{padding:30px 26px 30px 0;border-left:1px solid var(--border)}
+  .ci:first-child{border-left:none;padding-left:0}
+  .ci-icon{color:var(--text-secondary);margin-bottom:16px}
+  .ci-title{font-size:1.0625rem;font-weight:500;letter-spacing:-0.01em;margin-bottom:8px}
+  .ci-desc{font-size:0.875rem;color:var(--text-secondary);line-height:1.5}
+
+  /* ——— LEGAL LINKS ——— */
+  .legal-label{font-family:var(--font-mono);font-size:0.7rem;letter-spacing:0.12em;text-transform:uppercase;
+    color:var(--text-tertiary);margin:48px 0 16px;display:block}
+  .legal{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .ll{display:flex;align-items:center;gap:16px;background:var(--surface-1);border:1px solid var(--border);
+    border-radius:var(--r-lg);padding:22px 24px;text-decoration:none;color:inherit;
+    transition:border-color var(--ease-out) .25s,transform var(--ease-out) .25s,background var(--ease-out) .25s}
+  .ll:hover{border-color:var(--border-strong);transform:translateY(-3px);background:var(--surface-2)}
+  .ll:focus-visible{outline:none;box-shadow:0 0 0 2px var(--ink-900),0 0 0 4px var(--accent)}
+  .ll-doc{color:var(--text-tertiary);flex-shrink:0}
+  .ll-text{flex:1;min-width:0}
+  .ll-name{font-size:1rem;font-weight:500;margin-bottom:3px}
+  .ll-desc{font-size:0.8125rem;color:var(--text-tertiary);line-height:1.4}
+  .ll-arrow{color:var(--text-tertiary);flex-shrink:0;transition:transform var(--ease-out) .25s,color var(--ease-out) .25s}
+  .ll:hover .ll-arrow{transform:translateX(3px);color:var(--text-primary)}
+
+  @media(max-width:860px){
+    .commit{grid-template-columns:repeat(2,1fr);border:none}
+    .ci{border-left:none;border-top:1px solid var(--border);padding:24px 0}
+    .ci:first-child,.ci:nth-child(2){border-top:1px solid var(--border)}
+    .legal{grid-template-columns:1fr}
+  }
+  @media(max-width:480px){.commit{grid-template-columns:1fr}}
+  @media(prefers-reduced-motion:reduce){.ru{opacity:1;transform:none;transition:none}*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<section class="sec">
+  <div class="container">
+    <div class="sec-head ru">
+      <span class="eyebrow"><span class="bar"></span>Trust &amp; data</span>
+      <h2 class="h2">Your data stays yours</h2>
+      <p class="sec-body">Conversations run on the <b>official WhatsApp Business Platform</b>. Each business's data is isolated from every other. We don't sell your data or your customers' data, and you can request an export or deletion at any time.</p>
+    </div>
+
+    <div class="commit ru">
+      <div class="ci">
+        <svg class="ci-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+        <div class="ci-title">Official platform</div>
+        <p class="ci-desc">Every conversation runs on Meta's official WhatsApp Business Platform.</p>
+      </div>
+      <div class="ci">
+        <svg class="ci-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+        <div class="ci-title">Isolated by default</div>
+        <p class="ci-desc">Each business's data is kept separate from every other on the platform.</p>
+      </div>
+      <div class="ci">
+        <svg class="ci-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>
+        <div class="ci-title">Never sold</div>
+        <p class="ci-desc">We don't sell your data, or your customers' data, to anyone.</p>
+      </div>
+      <div class="ci">
+        <svg class="ci-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <div class="ci-title">Yours to control</div>
+        <p class="ci-desc">Request an export or deletion of your data at any time.</p>
+      </div>
+    </div>
+
+    <span class="legal-label">Policies</span>
+    <div class="legal ru">
+      <a class="ll" href="/privacy">
+        <svg class="ll-doc" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <div class="ll-text"><div class="ll-name">Privacy Policy</div><div class="ll-desc">How we handle and protect data.</div></div>
+        <svg class="ll-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg>
+      </a>
+      <a class="ll" href="/terms">
+        <svg class="ll-doc" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+        <div class="ll-text"><div class="ll-name">Terms of Service</div><div class="ll-desc">The terms of using Zyon.</div></div>
+        <svg class="ll-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg>
+      </a>
+      <a class="ll" href="/data-deletion">
+        <svg class="ll-doc" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+        <div class="ll-text"><div class="ll-name">Data Deletion</div><div class="ll-desc">Request removal of your data.</div></div>
+        <svg class="ll-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg>
+      </a>
+    </div>
+  </div>
+</section>
+
+<script>
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+  },{threshold:.16,rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.ru').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+/* Ported verbatim from design-reference/zyon-sections-problem-howitworks.html — Problem section */
+
+.problem {
+  padding: clamp(88px, 12vw, 150px) 0 clamp(64px, 8vw, 96px);
+}
+
+.problemHead {
+  max-width: 760px;
+}
+
+.h2 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  margin: 20px 0 22px;
+}
+
+.muted {
+  color: var(--text-tertiary);
+}
+
+.problemBody {
+  max-width: 54ch;
+  color: var(--text-secondary);
+  font-size: 1.0625rem;
+}
+
+/* —— ENQUIRY CARDS —— */
+.enquiries {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-top: 52px;
+}
+
+.enq {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 18px 16px 15px;
+  opacity: .62;
+  transition: opacity var(--ease-out) .25s, transform var(--ease-out) .25s, border-color var(--ease-out) .25s;
+  display: flex;
+  flex-direction: column;
+  min-height: 142px;
+}
+
+.enq:hover {
+  opacity: 1;
+  transform: translateY(-3px);
+  border-color: var(--border-strong);
+}
+
+.enqTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.enqTime {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+}
+
+.enqTag {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  padding: 2px 8px;
+}
+
+.enqMsg {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  flex: 1;
+}
+
+.enqFoot {
+  font-size: 0.74rem;
+  color: var(--text-tertiary);
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tick {
+  color: var(--text-tertiary);
+  font-size: 0.72rem;
+}
+
+/* missed variant */
+.missed .enqMsg {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+/* —— SILENCE NOTE —— */
+.silenceNote {
+  margin-top: 22px;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ln {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* —— RESPONSIVE —— */
+@media (max-width: 900px) {
+  .enquiries { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 480px) {
+  .enquiries { grid-template-columns: 1fr; }
+  .enq { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enq { transition: none; }
+}

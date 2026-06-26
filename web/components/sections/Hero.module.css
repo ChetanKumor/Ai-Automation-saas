@@ -1,0 +1,266 @@
+/* Ported verbatim from design-reference/zyon-hero.html — hero + chat card */
+
+/* —— PAGE-LOAD REVEAL —— */
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  animation: fadeUp .7s var(--ease-out) forwards;
+}
+
+.lineInner {
+  display: block;
+  transform: translateY(105%);
+  animation: lineUp .8s var(--ease-out) forwards;
+}
+
+@keyframes fadeUp { to { opacity: 1; transform: none; } }
+@keyframes lineUp { to { transform: translateY(0); } }
+
+.d1 { animation-delay: .05s; }
+.d2 { animation-delay: .18s; }
+.d3 { animation-delay: .30s; }
+.d4 { animation-delay: .42s; }
+.d5 { animation-delay: .52s; }
+.d6 { animation-delay: .62s; }
+
+/* —— HERO LAYOUT —— */
+.hero {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 148px 24px 72px;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 56px;
+  align-items: center;
+  min-height: 88vh;
+}
+
+.heroCopy {}
+
+.h1 {
+  font-size: clamp(2.5rem, 5.4vw, 4rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  margin: 22px 0 24px;
+}
+
+.line {
+  display: block;
+  overflow: hidden;
+}
+
+.sub {
+  font-size: clamp(1.0625rem, 1.6vw, 1.25rem);
+  color: var(--text-secondary);
+  max-width: 46ch;
+  line-height: 1.6;
+}
+
+.heroCta {
+  display: flex;
+  gap: 13px;
+  margin-top: 36px;
+  flex-wrap: wrap;
+}
+
+/* —— CHAT CARD —— */
+.chatCol {}
+
+.chatStage {
+  display: flex;
+  justify-content: center;
+  opacity: 0;
+  transform: translateY(24px) scale(.98);
+  animation: fadeUp .9s var(--ease-out) .5s forwards;
+}
+
+.wa {
+  width: 100%;
+  max-width: 384px;
+  background: var(--wa-bg);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: var(--elev-2);
+}
+
+.waHead {
+  background: var(--wa-header);
+  padding: 13px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.waAvatar {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(135deg, #2A3942, #3B4A54);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #8FA3AD;
+}
+
+.waName {
+  font-size: 0.94rem;
+  font-weight: 500;
+  color: var(--wa-text);
+  line-height: 1.2;
+}
+
+.waStatus {
+  font-size: 0.74rem;
+  color: var(--wa-online);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  height: 14px;
+}
+
+.stOnline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stOnline::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--wa-online);
+}
+
+.stTyping {
+  display: none;
+  align-items: center;
+  gap: 3px;
+  color: var(--wa-meta);
+}
+
+.typing .stOnline { display: none; }
+.typing .stTyping { display: flex; }
+
+.stTyping i {
+  width: 4px;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--wa-meta);
+  animation: bounce 1.2s infinite;
+}
+
+.stTyping i:nth-child(2) { animation-delay: .18s; }
+.stTyping i:nth-child(3) { animation-delay: .36s; }
+
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: .5; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+/* —— MESSAGE BUBBLES —— */
+.waBody {
+  padding: 18px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  height: 392px;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.waBody::-webkit-scrollbar { display: none; }
+.waBody { scrollbar-width: none; }
+
+.bubble {
+  max-width: 80%;
+  padding: 8px 11px 6px;
+  border-radius: 9px;
+  font-size: 0.875rem;
+  color: var(--wa-text);
+  line-height: 1.42;
+  position: relative;
+  opacity: 0;
+  transform: translateY(10px) scale(.96);
+  display: none;
+}
+
+.bubbleShow {
+  display: block;
+  animation: pop .42s var(--ease-spring) forwards;
+}
+
+@keyframes pop { to { opacity: 1; transform: none; } }
+
+.time {
+  display: block;
+  text-align: right;
+  font-size: 0.64rem;
+  color: var(--wa-meta);
+  margin-top: 3px;
+}
+
+.bubbleIn {
+  background: var(--wa-in);
+  align-self: flex-start;
+  border-top-left-radius: 2px;
+}
+
+.bubbleOut {
+  background: var(--wa-out);
+  align-self: flex-end;
+  border-top-right-radius: 2px;
+}
+
+.bubbleOut .time::after {
+  content: " ✓✓";
+  color: var(--wa-tick);
+}
+
+.waCaption {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+  margin-top: 18px;
+  max-width: 384px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.5;
+  opacity: 0;
+  animation: fadeUp .7s var(--ease-out) 1s forwards;
+}
+
+/* —— RESPONSIVE —— */
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 40px;
+    padding: 120px 24px 56px;
+    min-height: auto;
+    text-align: left;
+  }
+  .heroCopy { order: 1; }
+  .chatCol { order: 2; }
+  .sub { max-width: 100%; }
+  .heroCta button { flex: 1; justify-content: center; min-width: 140px; }
+  .heroCta a { flex: 1; justify-content: center; min-width: 140px; }
+}
+
+@media (max-width: 480px) {
+  .hero { padding: 108px 18px 48px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .chatStage,
+  .waCaption { opacity: 1; transform: none; }
+  .lineInner { transform: none; }
+  .bubble { opacity: 1; transform: none; }
+  .stTyping i { animation: none; }
+}

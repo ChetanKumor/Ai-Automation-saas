@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zyon — Problem &amp; How It Works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink-900:#0B0C0E;--ink-850:#0F1013;--surface-1:#121317;--surface-2:#181A1F;--surface-3:#202329;
+    --border:rgba(255,255,255,0.08);--border-strong:rgba(255,255,255,0.14);
+    --text-primary:#F5F6F7;--text-secondary:#A2A6AD;--text-tertiary:#6C6F77;
+    --accent:#5C8DF0;--accent-glow:rgba(92,141,240,0.35);
+    --wa-in:#202C33;--wa-out:#005C4B;--wa-text:#E9EDEF;--wa-meta:#8696A0;--wa-online:#25D366;
+    --r-sm:4px;--r-md:8px;--r-lg:12px;--r-pill:999px;
+    --elev-2:0 24px 60px rgba(0,0,0,0.55);
+    --ease-out:cubic-bezier(0.16,1,0.3,1);--ease-spring:cubic-bezier(0.34,1.56,0.64,1);
+    --font-sans:'Geist','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --font-mono:'Geist Mono','JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--ink-900);color:var(--text-primary);font-family:var(--font-sans);
+    -webkit-font-smoothing:antialiased;line-height:1.6}
+  .container{max-width:1180px;margin:0 auto;padding:0 24px}
+  .eyebrow{font-family:var(--font-mono);font-size:0.72rem;font-weight:500;letter-spacing:0.14em;
+    text-transform:uppercase;color:var(--text-tertiary);display:inline-flex;align-items:center;gap:9px}
+  .eyebrow .bar{width:18px;height:1px;background:var(--text-tertiary)}
+  .h2{font-size:clamp(2rem,4vw,3rem);font-weight:600;letter-spacing:-0.025em;line-height:1.1}
+  .sub{font-size:clamp(1.0625rem,1.6vw,1.1875rem);color:var(--text-secondary);line-height:1.6}
+
+  /* reveal */
+  .ru{opacity:0;transform:translateY(18px);transition:opacity .7s var(--ease-out),transform .7s var(--ease-out)}
+  .ru.in{opacity:1;transform:none}
+
+  /* ——— PROBLEM ——— */
+  .problem{padding:clamp(88px,12vw,150px) 0 clamp(64px,8vw,96px)}
+  .problem-head{max-width:760px}
+  .problem .h2{margin:20px 0 22px}
+  .problem .h2 .muted{color:var(--text-tertiary)}
+  .problem-body{max-width:54ch;color:var(--text-secondary);font-size:1.0625rem}
+
+  .enquiries{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:52px}
+  .enq{background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r-lg);
+    padding:18px 16px 15px;opacity:.62;transition:opacity var(--ease-out) .25s,transform var(--ease-out) .25s,border-color var(--ease-out) .25s;
+    display:flex;flex-direction:column;min-height:142px}
+  .enq:hover{opacity:1;transform:translateY(-3px);border-color:var(--border-strong)}
+  .enq-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .enq-time{font-family:var(--font-mono);font-size:0.72rem;color:var(--text-tertiary)}
+  .enq-tag{font-family:var(--font-mono);font-size:0.64rem;letter-spacing:0.06em;text-transform:uppercase;
+    color:var(--text-tertiary);border:1px solid var(--border);border-radius:var(--r-pill);padding:2px 8px}
+  .enq-msg{font-size:0.9rem;color:var(--text-secondary);line-height:1.45;flex:1}
+  .enq-foot{font-size:0.74rem;color:var(--text-tertiary);margin-top:14px;display:flex;align-items:center;gap:6px}
+  .enq-foot .tick{color:var(--text-tertiary);font-size:0.72rem}
+  .enq.missed .enq-msg{color:var(--text-tertiary);font-style:italic}
+  .silence-note{margin-top:22px;font-family:var(--font-mono);font-size:0.76rem;color:var(--text-tertiary);
+    display:flex;align-items:center;gap:10px}
+  .silence-note .ln{flex:1;height:1px;background:var(--border)}
+
+  /* ——— HOW IT WORKS ——— */
+  .how{padding:clamp(72px,9vw,120px) 0 clamp(88px,12vw,150px);border-top:1px solid var(--border)}
+  .how-head{max-width:680px;margin-bottom:64px}
+  .how .h2{margin:20px 0 18px}
+
+  .steps{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:0;align-items:stretch}
+  .step{background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r-lg);
+    padding:26px 24px;display:flex;flex-direction:column;transition:border-color var(--ease-out) .25s,transform var(--ease-out) .25s}
+  .step:hover{border-color:var(--border-strong);transform:translateY(-3px)}
+  .step-num{font-family:var(--font-mono);font-size:0.74rem;color:var(--text-tertiary);letter-spacing:0.08em;margin-bottom:16px}
+  .step-title{font-size:1.25rem;font-weight:500;letter-spacing:-0.01em;margin-bottom:10px}
+  .step-desc{font-size:0.9375rem;color:var(--text-secondary);line-height:1.55;flex:1;margin-bottom:22px}
+
+  .connector{display:flex;align-items:center;justify-content:center;width:46px;color:var(--text-tertiary)}
+  .connector svg{opacity:.8}
+
+  /* micro-visuals */
+  .mv{border:1px solid var(--border);border-radius:var(--r-md);background:var(--ink-900);padding:13px;margin-top:auto}
+  .mv-bubble{background:var(--wa-in);color:var(--wa-text);font-size:0.78rem;padding:7px 10px;border-radius:8px;
+    border-top-left-radius:2px;max-width:90%;line-height:1.4;position:relative}
+  .mv-scan{height:2px;background:linear-gradient(90deg,var(--accent),transparent);border-radius:2px;margin-top:9px;width:70%;opacity:.7}
+  .mv-row{display:flex;align-items:center;gap:8px;font-size:0.78rem;color:var(--text-secondary)}
+  .mv-row+.mv-row{margin-top:9px}
+  .mv-chip{font-family:var(--font-mono);font-size:0.72rem;color:var(--wa-text);background:var(--wa-out);
+    padding:4px 9px;border-radius:var(--r-sm)}
+  .mv-dot{width:6px;height:6px;border-radius:var(--r-pill);background:var(--wa-online);flex-shrink:0}
+  .mv-handoff{display:flex;align-items:center;gap:9px;font-size:0.78rem}
+  .mv-pill{padding:4px 11px;border-radius:var(--r-pill);font-family:var(--font-mono);font-size:0.7rem;
+    border:1px solid var(--border-strong)}
+  .mv-pill.ai{color:var(--text-tertiary)}
+  .mv-pill.you{color:var(--wa-text);background:var(--surface-3);border-color:var(--surface-3)}
+  .mv-arrow{color:var(--text-tertiary)}
+  .mv-av{width:22px;height:22px;border-radius:var(--r-pill);background:linear-gradient(135deg,#2A3942,#3B4A54);
+    flex-shrink:0;margin-left:auto}
+
+  .how-cta{margin-top:48px}
+  .btn{font-family:var(--font-sans);font-size:0.9rem;font-weight:500;padding:11px 20px;border-radius:var(--r-md);
+    cursor:pointer;border:1px solid transparent;background:var(--text-primary);color:var(--ink-900);
+    transition:all var(--ease-out) .15s;display:inline-flex;align-items:center;gap:7px}
+  .btn:hover{transform:translateY(-2px);box-shadow:var(--elev-2)}
+  .btn:focus-visible{outline:none;box-shadow:0 0 0 2px var(--ink-900),0 0 0 4px var(--accent)}
+
+  /* ——— RESPONSIVE ——— */
+  @media(max-width:900px){
+    .enquiries{grid-template-columns:repeat(2,1fr)}
+    .steps{grid-template-columns:1fr;gap:14px}
+    .connector{width:auto;height:32px;transform:rotate(90deg)}
+  }
+  @media(max-width:480px){
+    .enquiries{grid-template-columns:1fr}
+    .enq{opacity:1}
+  }
+  @media(prefers-reduced-motion:reduce){
+    .ru{opacity:1;transform:none;transition:none}
+    *{transition:none!important}
+  }
+</style>
+</head>
+<body>
+
+<!-- SECTION 3 — PROBLEM -->
+<section class="problem">
+  <div class="container">
+    <div class="problem-head ru">
+      <span class="eyebrow"><span class="bar"></span>The status quo</span>
+      <h2 class="h2">Your customers are on WhatsApp.<br><span class="muted">The front desk can't keep up.</span></h2>
+      <p class="problem-body">Enquiries arrive after hours and during appointments. Calls go to voicemail. A new lead waits unread until someone has a free minute — and by then they've messaged another clinic. Your staff answer the same questions all day instead of doing their actual work.</p>
+    </div>
+
+    <div class="enquiries">
+      <div class="enq ru">
+        <div class="enq-top"><span class="enq-time">11:42 PM</span><span class="enq-tag">After hours</span></div>
+        <div class="enq-msg">Do you have any appointments this week?</div>
+        <div class="enq-foot"><span class="tick">✓✓</span> Delivered · unread</div>
+      </div>
+      <div class="enq ru" style="transition-delay:.08s">
+        <div class="enq-top"><span class="enq-time">6:47 AM</span><span class="enq-tag">Before open</span></div>
+        <div class="enq-msg">How much for a cleaning?</div>
+        <div class="enq-foot"><span class="tick">✓✓</span> Delivered · unread</div>
+      </div>
+      <div class="enq missed ru" style="transition-delay:.16s">
+        <div class="enq-top"><span class="enq-time">1:15 PM</span><span class="enq-tag">In a chair</span></div>
+        <div class="enq-msg">Missed voice call</div>
+        <div class="enq-foot">No callback yet</div>
+      </div>
+      <div class="enq ru" style="transition-delay:.24s">
+        <div class="enq-top"><span class="enq-time">9:58 PM</span><span class="enq-tag">After hours</span></div>
+        <div class="enq-msg">My tooth is really hurting — can I come tomorrow?</div>
+        <div class="enq-foot"><span class="tick">✓✓</span> Delivered · unread</div>
+      </div>
+    </div>
+    <div class="silence-note ru" style="transition-delay:.3s"><span>No green. No replies. Every one of these is a customer who will message someone else.</span><span class="ln"></span></div>
+  </div>
+</section>
+
+<!-- SECTION 4 — HOW IT WORKS -->
+<section class="how">
+  <div class="container">
+    <div class="how-head ru">
+      <span class="eyebrow"><span class="bar"></span>How it works</span>
+      <h2 class="h2">From first message to booked appointment</h2>
+      <p class="sub">The AI receptionist reads the message, replies in your business's voice, and books the slot. When a conversation needs a person, your team steps in — in the same chat.</p>
+    </div>
+
+    <div class="steps">
+      <div class="step ru">
+        <div class="step-num">01 · Understand</div>
+        <div class="step-title">It reads every message</div>
+        <p class="step-desc">Each WhatsApp message is read and answered in natural language — questions, details, and qualifying the enquiry.</p>
+        <div class="mv">
+          <div class="mv-bubble">My tooth is really hurting — can I come tomorrow?</div>
+          <div class="mv-scan"></div>
+        </div>
+      </div>
+
+      <div class="connector" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="4" y1="12" x2="18" y2="12"/><polyline points="13 7 18 12 13 17"/></svg>
+      </div>
+
+      <div class="step ru" style="transition-delay:.1s">
+        <div class="step-num">02 · Act</div>
+        <div class="step-title">It books and records</div>
+        <p class="step-desc">It books the appointment, updates the CRM, and runs any follow-ups you've set up — automatically.</p>
+        <div class="mv">
+          <div class="mv-row"><span class="mv-chip">Thu · 11:00 AM</span><span>confirmed</span></div>
+          <div class="mv-row"><span class="mv-dot"></span>Lead added to CRM</div>
+        </div>
+      </div>
+
+      <div class="connector" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="4" y1="12" x2="18" y2="12"/><polyline points="13 7 18 12 13 17"/></svg>
+      </div>
+
+      <div class="step ru" style="transition-delay:.2s">
+        <div class="step-num">03 · Hand off</div>
+        <div class="step-title">Your team steps in</div>
+        <p class="step-desc">When a chat needs a person, your team takes over. The AI stays silent until you hand the conversation back.</p>
+        <div class="mv">
+          <div class="mv-handoff">
+            <span class="mv-pill ai">AI</span>
+            <span class="mv-arrow">→</span>
+            <span class="mv-pill you">You</span>
+            <span class="mv-av"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="how-cta ru" style="transition-delay:.15s">
+      <button class="btn">Book a demo</button>
+    </div>
+  </div>
+</section>
+
+<script>
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+  },{threshold:.18,rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.ru').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

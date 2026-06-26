@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zyon — Book a demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink-900:#0B0C0E;--surface-1:#121317;--surface-2:#181A1F;--surface-3:#202329;
+    --border:rgba(255,255,255,0.08);--border-strong:rgba(255,255,255,0.14);
+    --text-primary:#F5F6F7;--text-secondary:#A2A6AD;--text-tertiary:#6C6F77;
+    --accent:#5C8DF0;--accent-glow:rgba(92,141,240,0.35);
+    --wa-header:#202C33;--wa-text:#E9EDEF;--wa-online:#25D366;
+    --r-sm:4px;--r-md:8px;--r-lg:12px;--r-pill:999px;
+    --elev-2:0 24px 60px rgba(0,0,0,0.55);
+    --ease-out:cubic-bezier(0.16,1,0.3,1);
+    --font-sans:'Geist','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --font-mono:'Geist Mono','JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--ink-900);color:var(--text-primary);font-family:var(--font-sans);
+    -webkit-font-smoothing:antialiased;line-height:1.6}
+  .container{max-width:1180px;margin:0 auto;padding:0 24px}
+
+  .ru{opacity:0;transform:translateY(20px) scale(.99);transition:opacity .8s var(--ease-out),transform .8s var(--ease-out)}
+  .ru.in{opacity:1;transform:none}
+
+  .cta{padding:clamp(80px,11vw,140px) 0;border-top:1px solid var(--border)}
+
+  /* ——— FRAME ——— */
+  .frame{border:1px solid var(--border-strong);border-radius:var(--r-lg);background:var(--surface-1);
+    padding:clamp(48px,8vw,88px) clamp(28px,5vw,48px);text-align:center;position:relative;overflow:hidden}
+  .frame::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;
+    background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.55}
+
+  /* live callback pill */
+  .live-pill{display:inline-flex;align-items:center;gap:10px;background:var(--wa-header);
+    border-radius:var(--r-pill);padding:7px 16px 7px 8px;margin-bottom:30px}
+  .lp-avatar{width:26px;height:26px;border-radius:var(--r-pill);
+    background:linear-gradient(135deg,#2A3942,#3B4A54);display:flex;align-items:center;justify-content:center;
+    font-size:0.72rem;font-weight:600;color:#8FA3AD;flex-shrink:0}
+  .lp-name{font-size:0.84rem;font-weight:500;color:var(--wa-text)}
+  .lp-status{display:inline-flex;align-items:center;gap:6px;font-size:0.74rem;color:var(--wa-online)}
+  .lp-dot{width:7px;height:7px;border-radius:var(--r-pill);background:var(--wa-online);position:relative}
+  .lp-dot::after{content:"";position:absolute;inset:0;border-radius:var(--r-pill);background:var(--wa-online);
+    animation:ping 2s var(--ease-out) infinite}
+  @keyframes ping{0%{transform:scale(1);opacity:.6}70%,100%{transform:scale(2.6);opacity:0}}
+
+  .cta-h2{font-size:clamp(2.25rem,5vw,3.5rem);font-weight:600;letter-spacing:-0.03em;line-height:1.06;
+    max-width:16ch;margin:0 auto 22px}
+  .cta-sub{font-size:clamp(1.0625rem,1.6vw,1.1875rem);color:var(--text-secondary);line-height:1.6;
+    max-width:52ch;margin:0 auto 38px}
+
+  .cta-actions{display:flex;flex-direction:column;align-items:center;gap:14px}
+  .btn-lg{font-family:var(--font-sans);font-size:1.0625rem;font-weight:500;padding:15px 34px;border-radius:var(--r-md);
+    cursor:pointer;border:1px solid transparent;background:var(--text-primary);color:var(--ink-900);
+    transition:all var(--ease-out) .18s;display:inline-flex;align-items:center;gap:9px}
+  .btn-lg:hover{transform:translateY(-3px);box-shadow:var(--elev-2)}
+  .btn-lg:focus-visible{outline:none;box-shadow:0 0 0 2px var(--ink-900),0 0 0 4px var(--accent)}
+  .cta-micro{font-family:var(--font-mono);font-size:0.74rem;letter-spacing:0.06em;color:var(--text-tertiary)}
+
+  @media(prefers-reduced-motion:reduce){
+    .ru{opacity:1;transform:none;transition:none}
+    .lp-dot::after{animation:none}
+    *{transition:none!important}
+  }
+</style>
+</head>
+<body>
+
+<section class="cta">
+  <div class="container">
+    <div class="frame ru">
+      <div class="live-pill">
+        <span class="lp-avatar">L</span>
+        <span class="lp-name">Lakeview Dental</span>
+        <span class="lp-status"><span class="lp-dot"></span>online</span>
+      </div>
+      <h2 class="cta-h2">See Zyon handle a live conversation</h2>
+      <p class="cta-sub">Book a demo. We'll walk you through the AI receptionist, the human handoff, and how it books appointments — on a real WhatsApp chat.</p>
+      <div class="cta-actions">
+        <button class="btn-lg">Book a demo <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+        <span class="cta-micro">No commitment.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+  },{threshold:.2});
+  document.querySelectorAll('.ru').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

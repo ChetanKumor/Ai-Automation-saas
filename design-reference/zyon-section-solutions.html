@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zyon — Solutions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink-900:#0B0C0E;--surface-1:#121317;--surface-2:#181A1F;--surface-3:#202329;
+    --border:rgba(255,255,255,0.08);--border-strong:rgba(255,255,255,0.14);
+    --text-primary:#F5F6F7;--text-secondary:#A2A6AD;--text-tertiary:#6C6F77;
+    --accent:#5C8DF0;--accent-glow:rgba(92,141,240,0.35);
+    --wa-in:#202C33;--wa-out:#005C4B;--wa-text:#E9EDEF;--wa-meta:#8696A0;
+    --r-sm:4px;--r-md:8px;--r-lg:12px;--r-pill:999px;
+    --elev-2:0 24px 60px rgba(0,0,0,0.55);
+    --ease-out:cubic-bezier(0.16,1,0.3,1);
+    --font-sans:'Geist','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --font-mono:'Geist Mono','JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--ink-900);color:var(--text-primary);font-family:var(--font-sans);
+    -webkit-font-smoothing:antialiased;line-height:1.6}
+  .container{max-width:1180px;margin:0 auto;padding:0 24px}
+  .eyebrow{font-family:var(--font-mono);font-size:0.72rem;font-weight:500;letter-spacing:0.14em;
+    text-transform:uppercase;color:var(--text-tertiary);display:inline-flex;align-items:center;gap:9px}
+  .eyebrow .bar{width:18px;height:1px;background:var(--text-tertiary)}
+  .h2{font-size:clamp(2rem,4vw,3rem);font-weight:600;letter-spacing:-0.025em;line-height:1.1}
+  .sub{font-size:clamp(1.0625rem,1.6vw,1.1875rem);color:var(--text-secondary);line-height:1.6}
+
+  .ru{opacity:0;transform:translateY(18px);transition:opacity .7s var(--ease-out),transform .7s var(--ease-out)}
+  .ru.in{opacity:1;transform:none}
+
+  .sol{padding:clamp(80px,11vw,140px) 0;border-top:1px solid var(--border)}
+  .sol-head{max-width:720px;margin-bottom:56px}
+  .sol .h2{margin:20px 0 18px}
+
+  /* ——— VERTICAL CARDS ——— */
+  .verticals{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .vc{background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r-lg);
+    padding:28px 26px;display:flex;flex-direction:column;
+    transition:border-color var(--ease-out) .25s,transform var(--ease-out) .25s}
+  .vc:hover{border-color:var(--border-strong);transform:translateY(-3px)}
+  .vc-icon{color:var(--text-secondary);margin-bottom:18px}
+  .vc-name{font-size:1.25rem;font-weight:500;letter-spacing:-0.01em;margin-bottom:10px}
+  .vc-desc{font-size:0.9375rem;color:var(--text-secondary);line-height:1.55;margin-bottom:22px;flex:1}
+
+  /* compact example */
+  .ex{border:1px solid var(--border);border-radius:var(--r-md);background:var(--ink-900);
+    padding:14px;display:flex;flex-direction:column;gap:7px;margin-top:auto}
+  .ex .b{max-width:88%;padding:7px 10px 6px;border-radius:9px;font-size:0.8rem;color:var(--wa-text);line-height:1.4}
+  .ex .b.in{background:var(--wa-in);align-self:flex-start;border-top-left-radius:2px}
+  .ex .b.out{background:var(--wa-out);align-self:flex-end;border-top-right-radius:2px}
+
+  /* ——— BREADTH STRIP ——— */
+  .breadth{margin-top:18px;border:1px solid var(--border);border-radius:var(--r-lg);
+    background:var(--surface-1);padding:24px 26px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+  .breadth-label{font-size:0.975rem;color:var(--text-primary);font-weight:500;flex-shrink:0;max-width:30ch}
+  .breadth-label span{color:var(--text-secondary);font-weight:400}
+  .tags{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+  .tag{font-family:var(--font-mono);font-size:0.72rem;color:var(--text-secondary);
+    border:1px solid var(--border);border-radius:var(--r-pill);padding:6px 12px;background:var(--ink-900);
+    transition:color var(--ease-out) .2s,border-color var(--ease-out) .2s}
+  .tag:hover{color:var(--text-primary);border-color:var(--border-strong)}
+
+  .sol-cta{margin-top:40px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .btn{font-family:var(--font-sans);font-size:0.9rem;font-weight:500;padding:11px 20px;border-radius:var(--r-md);
+    cursor:pointer;border:1px solid transparent;transition:all var(--ease-out) .15s;display:inline-flex;align-items:center;gap:7px}
+  .btn-primary{background:var(--text-primary);color:var(--ink-900)}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:var(--elev-2)}
+  .btn-ghost{background:transparent;color:var(--text-secondary);padding:11px 4px}
+  .btn-ghost:hover{color:var(--text-primary)}
+  .btn:focus-visible{outline:none;box-shadow:0 0 0 2px var(--ink-900),0 0 0 4px var(--accent)}
+
+  @media(max-width:860px){
+    .verticals{grid-template-columns:1fr}
+    .vc{flex-direction:column}
+    .tags{margin-left:0;width:100%}
+    .breadth-label{max-width:100%}
+  }
+  @media(prefers-reduced-motion:reduce){.ru{opacity:1;transform:none;transition:none}*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<section class="sol">
+  <div class="container">
+    <div class="sol-head ru">
+      <span class="eyebrow"><span class="bar"></span>Solutions</span>
+      <h2 class="h2">Made for your industry. Not limited to one.</h2>
+      <p class="sub">If your customers message you to book an appointment, ask a question, or start a deal, Zyon handles it. Here's how it shows up across a few industries — the platform underneath is the same.</p>
+    </div>
+
+    <div class="verticals">
+      <!-- Clinics & Healthcare -->
+      <div class="vc ru">
+        <svg class="vc-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <div class="vc-name">Clinics &amp; Healthcare</div>
+        <p class="vc-desc">An AI receptionist for any practice — dental, skin, physio, diagnostics, and more. It books appointments, answers treatment and timing questions, and sends reminders, so the front desk stops being the bottleneck.</p>
+        <div class="ex">
+          <div class="b in">Do you have anything for a consultation this week?</div>
+          <div class="b out">Yes — Dr. Mehta has Thursday 11:00 AM or Friday 4:30 PM. Which suits you? I'll send a reminder the day before.</div>
+        </div>
+      </div>
+
+      <!-- Real Estate -->
+      <div class="vc ru" style="transition-delay:.08s">
+        <svg class="vc-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <div class="vc-name">Real Estate</div>
+        <p class="vc-desc">Qualify property enquiries the moment they arrive, capture budget and location, and route serious buyers to an agent. Leads land in the CRM, not a notebook.</p>
+        <div class="ex">
+          <div class="b in">Is the 2BHK in Gachibowli still available?</div>
+          <div class="b out">Yes, it's available. What's your budget range, and when are you looking to move? I'll have an agent call you with options that fit.</div>
+        </div>
+      </div>
+
+      <!-- Finance -->
+      <div class="vc ru" style="transition-delay:.16s">
+        <svg class="vc-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="23 6 13.5 16.5 8.5 11.5 1 19"/><polyline points="17 6 23 6 23 12"/></svg>
+        <div class="vc-name">Finance</div>
+        <p class="vc-desc">For advisors, lenders, and insurance — qualify enquiries, answer common questions, and book consultations, without anyone waiting on hold. The right specialist gets a warm, qualified lead.</p>
+        <div class="ex">
+          <div class="b in">I'm looking for a home loan — what can I get?</div>
+          <div class="b out">I'll set up a call with an advisor who can walk you through your options. Roughly how much are you looking to borrow, and is this a new purchase?</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="breadth ru" style="transition-delay:.1s">
+      <div class="breadth-label">And any business that books appointments or fields enquiries. <span>Same platform, configured to you.</span></div>
+      <div class="tags">
+        <span class="tag">Salons &amp; spas</span>
+        <span class="tag">Gyms &amp; fitness</span>
+        <span class="tag">Diagnostic labs</span>
+        <span class="tag">Coaching &amp; tutoring</span>
+        <span class="tag">Home services</span>
+        <span class="tag">Dealerships</span>
+      </div>
+    </div>
+
+    <div class="sol-cta ru" style="transition-delay:.15s">
+      <button class="btn btn-primary">Book a demo</button>
+      <button class="btn btn-ghost">Explore the platform →</button>
+    </div>
+  </div>
+</section>
+
+<script>
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+  },{threshold:.16,rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.ru').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

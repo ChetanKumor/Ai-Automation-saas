@@ -1,0 +1,241 @@
+/* Ported verbatim from design-reference/zyon-section-platform.html */
+
+.platform {
+  padding: clamp(80px, 11vw, 140px) 0;
+}
+
+.platformHead {
+  max-width: 680px;
+  margin-bottom: 56px;
+}
+
+.h2 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  margin: 20px 0 18px;
+}
+
+.sub {
+  font-size: clamp(1.0625rem, 1.6vw, 1.1875rem);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* —— PRODUCT GRID —— */
+.modules {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  border-bottom: none;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.012);
+}
+
+.mod {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 24px 22px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-height: 178px;
+  transition: border-color var(--ease-out) .25s, transform var(--ease-out) .25s, background var(--ease-out) .25s;
+}
+
+.mod:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-3px);
+  background: var(--surface-2);
+}
+
+.modTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.modIcon {
+  color: var(--text-secondary);
+  transition: color var(--ease-out) .25s;
+}
+
+.mod:hover .modIcon {
+  color: var(--text-primary);
+}
+
+.modStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.live {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.modName {
+  font-size: 1.125rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin-bottom: 8px;
+}
+
+.modDesc {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.modTag {
+  position: absolute;
+  top: -1px;
+  right: 22px;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-900);
+  background: var(--text-primary);
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+}
+
+/* coming soon variant */
+.soon {
+  border-style: dashed;
+  background: transparent;
+}
+
+.soon:hover {
+  transform: none;
+  background: transparent;
+  border-color: var(--border);
+}
+
+.soon .modName,
+.soon .modIcon {
+  color: var(--text-tertiary);
+}
+
+.soon .modStatus {
+  color: var(--text-tertiary);
+}
+
+/* —— PLATFORM BASE —— */
+.base {
+  border: 1px solid var(--border-strong);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+  background: var(--surface-1);
+  padding: 28px 26px;
+  position: relative;
+  overflow: hidden;
+}
+
+.base::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: .5;
+}
+
+.baseInner {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.baseLabel {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+}
+
+.core {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-glow);
+}
+
+.baseCopy {
+  font-size: 0.975rem;
+  color: var(--text-secondary);
+  max-width: 42ch;
+  line-height: 1.55;
+}
+
+.baseCopy b {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.chip {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 6px 11px;
+  background: var(--ink-900);
+}
+
+/* —— CTA —— */
+.platformCta {
+  margin-top: 36px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+/* —— RESPONSIVE —— */
+@media (max-width: 860px) {
+  .modules { grid-template-columns: repeat(2, 1fr); }
+  .chips { margin-left: 0; width: 100%; }
+}
+
+@media (max-width: 520px) {
+  .modules { grid-template-columns: 1fr; }
+  .mod { min-height: auto; }
+  .baseInner { gap: 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mod { transition: none; }
+  .modIcon { transition: none; }
+}

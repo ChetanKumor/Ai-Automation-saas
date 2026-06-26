@@ -1,0 +1,45 @@
+/* Ported verbatim from design-reference/zyon-hero.html — proof bar */
+
+.proof {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin-top: 40px;
+}
+
+.proofInner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 22px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 32px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.proofItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+}
+
+.proofItem svg {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+}
+
+.accentDot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .proofInner { padding: 20px 18px; gap: 14px; }
+  .proofItem { font-size: 0.8rem; width: 100%; }
+}
