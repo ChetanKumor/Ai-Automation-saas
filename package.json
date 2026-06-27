@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "test": "node --test tests/core/actions.test.js tests/core/events.test.js",
+    "test": "node --test tests/core/actions.test.js tests/core/events.test.js tests/webhook/signature.test.js tests/infra/env.test.js tests/server/shutdown.test.js",
     "start": "node server.js",
     "dev": "nodemon server.js"
   },
