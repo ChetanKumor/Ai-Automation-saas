@@ -2,10 +2,20 @@ require('dotenv').config();
 require('./src/infra/config/env');
 
 const express = require('express');
+const crypto  = require('crypto');
 const session = require('express-session');
 const path    = require('path');
+const logger  = require('./src/infra/logging/logger');
 
 const app = express();
+
+// Request-ID middleware
+app.use((req, res, next) => {
+  req.id = crypto.randomUUID();
+  res.setHeader('X-Request-Id', req.id);
+  logger.info({ requestId: req.id, method: req.method, path: req.url }, 'incoming request');
+  next();
+});
 
 // Webhook needs raw body for signature verification — mount before express.json()
 app.use('/webhook', express.raw({ type: 'application/json' }), require('./src/webhook/webhookRoutes'));
@@ -28,10 +38,18 @@ app.use('/admin', adminRoutes);
 // Static files (for non-admin assets)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Health check
-app.get('/health', (_, res) => res.json({ status: 'ok' }));
-
 const db                = require('./src/db/db');
+
+// Health check
+app.get('/health', async (req, res) => {
+  try {
+    await db.query('SELECT 1');
+    res.json({ status: 'ok', db: 'up', ts: new Date().toISOString() });
+  } catch (err) {
+    logger.error({ requestId: req.id, err: err.message }, 'health check DB ping failed');
+    res.status(503).json({ status: 'error', db: 'down', ts: new Date().toISOString() });
+  }
+});
 const reminderCron      = require('./src/scheduler/reminderCron');
 const coreActions       = require('./core/coreActions');
 const crmModule         = require('./src/modules/crm');
@@ -44,7 +62,7 @@ workflowEngine.init();
 
 const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  logger.info({ port: PORT }, 'server started');
 });
 
 const reminderTask = reminderCron.start();
@@ -55,28 +73,28 @@ let shuttingDown = false;
 function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.log(`\n[Shutdown] ${signal} received — draining…`);
+  logger.info({ signal }, 'shutdown received — draining');
 
   const forceTimer = setTimeout(() => {
-    console.error('[Shutdown] Drain timeout — forcing exit');
+    logger.error('drain timeout — forcing exit');
     process.exit(1);
   }, 10_000);
   forceTimer.unref();
 
   server.close(() => {
-    console.log('[Shutdown] HTTP server closed');
+    logger.info('HTTP server closed');
 
     if (reminderTask) reminderTask.stop();
     if (collectionsTask) collectionsTask.stop();
-    console.log('[Shutdown] Cron tasks stopped');
+    logger.info('cron tasks stopped');
 
     db.close()
       .then(() => {
-        console.log('[Shutdown] DB pool closed');
+        logger.info('DB pool closed');
         process.exit(0);
       })
       .catch((err) => {
-        console.error('[Shutdown] DB pool close error:', err.message);
+        logger.error({ err: err.message }, 'DB pool close error');
         process.exit(1);
       });
   });
