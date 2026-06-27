@@ -1,4 +1,5 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const logger = require('../../infra/logging/logger');
 const appointmentService = require('../appointment/appointmentService');
 const notificationService = require('../notification/notificationService');
 
@@ -46,7 +47,7 @@ async function executeTool(name, args, tenant, customerId) {
       );
       if (result.success) {
         notificationService.notifyOwnerOfBooking(tenant, result).catch(err =>
-          console.error('[Notification] Unexpected error:', err.message)
+          logger.error({ err: err.message }, 'notification unexpected error')
         );
       }
       return result;
@@ -84,9 +85,9 @@ const generateReply = async (tenant, customer, conversation, userMessage, histor
     const responses = [];
 
     for (const call of calls) {
-      console.log(`  [tool] ${call.name}(${JSON.stringify(call.args)})`);
+      logger.info({ tool: call.name, args: call.args }, 'tool call');
       const output = await executeTool(call.name, call.args, tenant, customer.id);
-      console.log(`  [tool] → ${JSON.stringify(output).substring(0, 200)}`);
+      logger.info({ tool: call.name, output: JSON.stringify(output).substring(0, 200) }, 'tool result');
       responses.push({ functionResponse: { name: call.name, response: output } });
     }
 

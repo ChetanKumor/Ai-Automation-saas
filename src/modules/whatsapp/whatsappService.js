@@ -1,4 +1,5 @@
 const axios = require('axios');
+const logger = require('../../infra/logging/logger');
 
 const BASE = 'https://graph.facebook.com/v22.0';
 
@@ -21,10 +22,10 @@ const sendMessage = async (tenant, toPhone, text) => {
         timeout: 30_000,
       }
     );
-    console.log(`[WhatsApp] Sent to ${toPhone}, message_id: ${res.data?.messages?.[0]?.id || 'unknown'}`);
+    logger.info({ toPhone, messageId: res.data?.messages?.[0]?.id || 'unknown' }, 'WhatsApp message sent');
   } catch (err) {
     const detail = err.response?.data?.error || err.message;
-    console.error(`[WhatsApp] Send failed to ${toPhone}:`, JSON.stringify(detail));
+    logger.error({ toPhone, detail }, 'WhatsApp send failed');
     throw err;
   }
 };

@@ -1,4 +1,5 @@
 const db                  = require('../../db/db');
+const logger              = require('../../infra/logging/logger');
 const whatsappService     = require('../whatsapp/whatsappService');
 const conversationService = require('../conversation/conversationService');
 
@@ -32,11 +33,11 @@ const handle = async (tenant, from, userText, wamid) => {
       }
     }
   } catch (err) {
-    console.error(`[${tenant.business_name}] Owner command error:`, err.message);
+    logger.error({ tenantId: tenant.id, err: err.message }, 'owner command error');
     try {
       await reply(tenant, from, '❌ Something went wrong. Please try again.');
     } catch (replyErr) {
-      console.error(`[${tenant.business_name}] Failed to send error reply:`, replyErr.message);
+      logger.error({ tenantId: tenant.id, err: replyErr.message }, 'failed to send error reply');
     }
   }
 };
@@ -66,7 +67,7 @@ async function handleTakeover(tenant, ownerPhone, text) {
         await conversationService.setMode(tenant.id, prevConv.id, 'ai');
       }
       await closeHandoffSession(tenant.id, prevCust.id);
-      console.log(`[${tenant.business_name}] Auto-released previous handoff for ${previousPhone}`);
+      logger.info({ tenantId: tenant.id, previousPhone }, 'auto-released previous handoff');
     }
   }
 
@@ -104,7 +105,7 @@ async function handleTakeover(tenant, ownerPhone, text) {
   await reply(tenant, ownerPhone,
     `✅ You're now handling +${customerPhone}.\nTheir messages will forward to you.\nReply: MSG <text> to respond to them.\nType DONE when you want AI to resume.`
   );
-  console.log(`[${tenant.business_name}] TAKEOVER: owner took over ${customerPhone}`);
+  logger.info({ tenantId: tenant.id, customerPhone }, 'TAKEOVER: owner took over');
 }
 
 // ── MSG ───────────────────────────────────────────────────────────
@@ -151,7 +152,7 @@ async function handleMsg(tenant, ownerPhone, text) {
   );
 
   await reply(tenant, ownerPhone, '✅ Sent');
-  console.log(`[${tenant.business_name}] MSG → ${activePhone}: "${msgBody}"`);
+  logger.info({ tenantId: tenant.id, activePhone }, 'MSG sent to customer');
 }
 
 // ── DONE ──────────────────────────────────────────────────────────
@@ -184,7 +185,7 @@ async function handleDone(tenant, ownerPhone) {
   );
 
   await reply(tenant, ownerPhone, '✅ AI has resumed for that customer.');
-  console.log(`[${tenant.business_name}] DONE: AI resumed for ${activePhone}`);
+  logger.info({ tenantId: tenant.id, activePhone }, 'DONE: AI resumed');
 }
 
 // ── STATUS ────────────────────────────────────────────────────────

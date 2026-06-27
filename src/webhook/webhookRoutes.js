@@ -1,5 +1,6 @@
 const express    = require('express');
 const crypto     = require('crypto');
+const logger     = require('../infra/logging/logger');
 const router     = express.Router();
 const controller = require('./webhookController');
 
@@ -7,7 +8,7 @@ function verifySignature(req, res, next) {
   try {
     const signature = req.headers['x-hub-signature-256'];
     if (!signature) {
-      console.warn('[Webhook] Rejected: missing signature header');
+      logger.warn('webhook rejected: missing signature header');
       return res.sendStatus(401);
     }
 
@@ -20,7 +21,7 @@ function verifySignature(req, res, next) {
     const expectedBuf = Buffer.from(expected);
 
     if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
-      console.warn('[Webhook] Rejected: invalid signature');
+      logger.warn('webhook rejected: invalid signature');
       return res.sendStatus(401);
     }
 
@@ -28,7 +29,7 @@ function verifySignature(req, res, next) {
     req.body = JSON.parse(req.body);
     next();
   } catch (err) {
-    console.error('Signature verification failed:', err.message);
+    logger.error({ err: err.message }, 'signature verification failed');
     res.sendStatus(500);
   }
 }

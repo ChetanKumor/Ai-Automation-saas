@@ -1,4 +1,5 @@
 const cron            = require('node-cron');
+const logger          = require('../../infra/logging/logger');
 const db              = require('../../db/db');
 const tenantService   = require('../tenant/tenantService');
 const whatsappService = require('../whatsapp/whatsappService');
@@ -20,7 +21,7 @@ async function tick() {
       `SELECT pg_try_advisory_lock($1) AS acquired`, [LOCK_KEY]
     );
     if (!acquired) {
-      console.log('[Collections] Advisory lock held by another process — skipping');
+      logger.info('collections advisory lock held — skipping');
       return;
     }
     lockAcquired = true;
@@ -29,11 +30,11 @@ async function tick() {
     await processDue(client);
     await markOverdue(client);
   } catch (err) {
-    console.error('[Collections] Tick failed:', err.message);
+    logger.error({ err: err.message }, 'collections tick failed');
   } finally {
     if (lockAcquired && client) {
       await client.query(`SELECT pg_advisory_unlock($1)`, [LOCK_KEY])
-        .catch(err => console.error('[Collections] Advisory unlock failed:', err.message));
+        .catch(err => logger.error({ err: err.message }, 'collections advisory unlock failed'));
     }
     if (client) client.release();
   }
@@ -48,7 +49,7 @@ async function reapStuck(client) {
        AND last_attempt_at < NOW() - INTERVAL '10 minutes'`
   );
   if (recoveredCount > 0) {
-    console.log(`[Collections] Recovered ${recoveredCount} sent-but-unmarked row(s)`);
+    logger.info({ count: recoveredCount }, 'collections recovered sent-but-unmarked rows');
   }
 
   const { rowCount: failedCount } = await client.query(
@@ -61,7 +62,7 @@ async function reapStuck(client) {
     [MAX_ATTEMPTS]
   );
   if (failedCount > 0) {
-    console.log(`[Collections] Permanently failed ${failedCount} row(s) exceeding ${MAX_ATTEMPTS} attempts`);
+    logger.info({ count: failedCount, maxAttempts: MAX_ATTEMPTS }, 'collections permanently failed rows');
   }
 
   const { rowCount } = await client.query(
@@ -74,7 +75,7 @@ async function reapStuck(client) {
     [MAX_ATTEMPTS]
   );
   if (rowCount > 0) {
-    console.log(`[Collections] Reaped ${rowCount} stuck sending row(s)`);
+    logger.info({ count: rowCount }, 'collections reaped stuck sending rows');
   }
 }
 
@@ -119,7 +120,7 @@ async function claimDueRows() {
 async function processDue(client) {
   const due = await claimDueRows();
   if (!due.length) return;
-  console.log(`[Collections] Processing ${due.length} due reminder(s)`);
+  logger.info({ count: due.length }, 'collections processing due reminders');
 
   for (const row of due) {
     try {
@@ -130,13 +131,13 @@ async function processDue(client) {
           `UPDATE payment_schedules SET status = 'needs_template' WHERE id = $1`,
           [row.id]
         );
-        console.log(`[Collections] needs_template: schedule=${row.id} customer=${row.customer_phone} (outside 24h window)`);
+        logger.info({ scheduleId: row.id, customerPhone: row.customer_phone }, 'collections needs_template — outside 24h window');
         continue;
       }
 
       const tenant = await tenantService.getByPhoneNumberId(row.phone_number_id);
       if (!tenant) {
-        console.error(`[Collections] Tenant not found for phone_number_id: ${row.phone_number_id}`);
+        logger.error({ phoneNumberId: row.phone_number_id }, 'collections tenant not found');
         await client.query(
           `UPDATE payment_schedules SET status = 'failed' WHERE id = $1`,
           [row.id]
@@ -156,16 +157,16 @@ async function processDue(client) {
         let nextStatus;
         if (disposition === 'timeout') {
           nextStatus = 'needs_review';
-          console.error(`[Collections] Timeout (ambiguous) for schedule=${row.id}: moved to needs_review`);
+          logger.error({ scheduleId: row.id }, 'collections timeout — moved to needs_review');
         } else if (disposition === 'needs_template') {
           nextStatus = 'needs_template';
-          console.log(`[Collections] needs_template: schedule=${row.id} (re-engagement error from Meta)`);
+          logger.info({ scheduleId: row.id }, 'collections needs_template — re-engagement error from Meta');
         } else if (disposition === 'retryable' && currentAttempts < MAX_ATTEMPTS) {
           nextStatus = 'pending';
-          console.warn(`[Collections] Retryable error for schedule=${row.id} (attempt ${currentAttempts}/${MAX_ATTEMPTS}): ${metaError?.message || sendErr.message}`);
+          logger.warn({ scheduleId: row.id, attempt: currentAttempts, maxAttempts: MAX_ATTEMPTS, err: metaError?.message || sendErr.message }, 'collections retryable error');
         } else {
           nextStatus = 'failed';
-          console.error(`[Collections] Permanent failure for schedule=${row.id}: ${disposition} | status=${sendErr.response?.status} code=${metaError?.code} msg=${metaError?.message || sendErr.message}`);
+          logger.error({ scheduleId: row.id, disposition, status: sendErr.response?.status, code: metaError?.code, err: metaError?.message || sendErr.message }, 'collections permanent failure');
         }
 
         await client.query(
@@ -194,13 +195,13 @@ async function processDue(client) {
         currency: row.currency,
       });
 
-      console.log(`[Collections] Sent reminder: schedule=${row.id} → ${row.customer_phone} (${row.currency} ${row.amount})`);
+      logger.info({ scheduleId: row.id, customerPhone: row.customer_phone, currency: row.currency, amount: row.amount }, 'collections reminder sent');
     } catch (err) {
-      console.error(`[Collections] Send failed for schedule=${row.id}:`, err.message);
+      logger.error({ scheduleId: row.id, err: err.message }, 'collections send failed');
       await client.query(
         `UPDATE payment_schedules SET status = 'failed' WHERE id = $1`,
         [row.id]
-      ).catch(dbErr => console.error(`[Collections] Failed to mark failed: schedule=${row.id}`, dbErr.message));
+      ).catch(dbErr => logger.error({ scheduleId: row.id, err: dbErr.message }, 'collections failed to mark failed'));
     }
   }
 }
@@ -225,7 +226,7 @@ async function markOverdue(client) {
   }
 
   if (overdue.length > 0) {
-    console.log(`[Collections] Marked ${overdue.length} schedule(s) overdue`);
+    logger.info({ count: overdue.length }, 'collections marked schedules overdue');
   }
 }
 
@@ -252,9 +253,9 @@ function buildReminderText(row) {
 
 function start() {
   const task = cron.schedule('*/30 * * * *', () => {
-    tick().catch(err => console.error('[Collections] Unhandled tick error:', err.message));
+    tick().catch(err => logger.error({ err: err.message }, 'collections unhandled tick error'));
   });
-  console.log('[Collections] Cron started — runs every 30 minutes');
+  logger.info('collections cron started — runs every 30 minutes');
   return task;
 }
 

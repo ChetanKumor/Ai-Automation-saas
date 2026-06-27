@@ -1,3 +1,4 @@
+const logger              = require('../infra/logging/logger');
 const db                  = require('../db/db');
 const tenantService       = require('../modules/tenant/tenantService');
 const customerService     = require('../modules/customer/customerService');
@@ -16,7 +17,7 @@ const verify = (req, res) => {
   const challenge = req.query['hub.challenge'];
 
   if (mode === 'subscribe' && token === process.env.WEBHOOK_VERIFY_TOKEN) {
-    console.log('Webhook verified');
+    logger.info('webhook verified');
     return res.status(200).send(challenge);
   }
 
@@ -29,7 +30,7 @@ const handle = async (req, res) => {
   try {
     const value = req.body?.entry?.[0]?.changes?.[0]?.value;
     if (!value?.messages?.[0]) {
-      if (value?.statuses) console.log(`[Webhook] Status update: ${value.statuses[0]?.status} for ${value.statuses[0]?.recipient_id}`);
+      if (value?.statuses) logger.info({ status: value.statuses[0]?.status, recipientId: value.statuses[0]?.recipient_id }, 'webhook status update');
       return;
     }
 
@@ -38,7 +39,7 @@ const handle = async (req, res) => {
     const { id: wamid, from, type } = msg;
 
     if (type !== 'text' || !msg.text?.body) {
-      console.log(`[Webhook] Non-text message (${type}) from ${from} — skipping`);
+      logger.info({ type, from }, 'non-text message — skipping');
       return;
     }
 
@@ -51,7 +52,7 @@ const handle = async (req, res) => {
     const tenant = await tenantService.getByPhoneNumberId(phoneNumberId);
     console.timeEnd(`${timerLabel} tenant`);
     if (!tenant) {
-      console.warn(`No tenant for phone_number_id: ${phoneNumberId}`);
+      logger.warn({ phoneNumberId }, 'no tenant for phone_number_id');
       return;
     }
 
@@ -60,12 +61,12 @@ const handle = async (req, res) => {
     const senderNorm = from.replace(/\D/g, '');
     if (ownerPhone && senderNorm === ownerPhone) {
       if (recentOwnerWamids.has(wamid)) {
-        console.log(`[Owner] Duplicate wamid ${wamid} — skipping`);
+        logger.info({ wamid }, 'owner duplicate wamid — skipping');
         return;
       }
       recentOwnerWamids.add(wamid);
       setTimeout(() => recentOwnerWamids.delete(wamid), 10 * 60 * 1000);
-      console.log(`[${tenant.business_name}] Owner message detected from ${from}`);
+      logger.info({ tenantId: tenant.id, from }, 'owner message detected');
       await ownerCommandHandler.handle(tenant, from, userText, wamid);
       return;
     }
@@ -92,7 +93,7 @@ const handle = async (req, res) => {
     );
 
     if (rowCount === 0) {
-      console.log(`Duplicate wamid ${wamid} — skipping`);
+      logger.info({ wamid }, 'duplicate wamid — skipping');
       return;
     }
 
@@ -105,7 +106,7 @@ const handle = async (req, res) => {
     ]);
 
     if (!freshConv || freshConv.mode === 'human' || !tenant.ai_enabled) {
-      console.log(`[${tenant.business_name}] Skipping AI (mode=${freshConv?.mode}, ai_enabled=${tenant.ai_enabled})`);
+      logger.info({ tenantId: tenant.id, mode: freshConv?.mode, aiEnabled: tenant.ai_enabled }, 'skipping AI');
 
       if (freshConv?.mode === 'human' && tenant.owner_notify_phone) {
         const preview = userText.length > 100 ? userText.slice(0, 97) + '...' : userText;
@@ -115,9 +116,9 @@ const handle = async (req, res) => {
             tenant.owner_notify_phone,
             `💬 Message from +${from}:\n${preview}`
           );
-          console.log(`[${tenant.business_name}] HUMAN MODE — forwarded to owner (${preview.length} chars)`);
+          logger.info({ tenantId: tenant.id, chars: preview.length }, 'human mode — forwarded to owner');
         } catch (fwdErr) {
-          console.error(`[${tenant.business_name}] Failed to forward to owner:`, fwdErr.message);
+          logger.error({ tenantId: tenant.id, err: fwdErr.message }, 'failed to forward to owner');
         }
       }
 
@@ -129,7 +130,7 @@ const handle = async (req, res) => {
 
     const [knowledgeChunks, history, { rows: facts }] = await Promise.all([
       knowledgeService.getRelevantChunks(tenant.id, userText, 3).catch(err => {
-        console.error(`[${tenant.business_name}] RAG failed (continuing without):`, err.message);
+        logger.error({ tenantId: tenant.id, err: err.message }, 'RAG failed (continuing without)');
         return [];
       }),
       customerService.getRecentMessages(tenant.id, conversation.id),
@@ -150,7 +151,7 @@ const handle = async (req, res) => {
       );
       console.timeEnd(`${timerLabel} gemini`);
     } catch (aiErr) {
-      console.error(`[${tenant.business_name}] AI generation failed:`, aiErr.message);
+      logger.error({ tenantId: tenant.id, err: aiErr.message }, 'AI generation failed');
       return;
     }
 
@@ -160,7 +161,7 @@ const handle = async (req, res) => {
       await whatsappService.sendMessage(tenant, from, reply);
       console.timeEnd(`${timerLabel} whatsapp-send`);
     } catch (sendErr) {
-      console.error(`[${tenant.business_name}] WhatsApp send failed:`, sendErr.message);
+      logger.error({ tenantId: tenant.id, err: sendErr.message }, 'WhatsApp send failed');
       return;
     }
 
@@ -173,10 +174,10 @@ const handle = async (req, res) => {
     );
 
     console.timeEnd(`${timerLabel} total`);
-    console.log(`[${tenant.business_name}] ${from}: "${userText}" → "${reply}"`);
+    logger.info({ tenantId: tenant.id, from, wamid }, 'message processed');
 
   } catch (err) {
-    console.error('Webhook error:', err);
+    logger.error({ err: err.message }, 'webhook error');
   }
 };
 

@@ -1,5 +1,6 @@
 const express    = require('express');
 const path       = require('path');
+const logger     = require('../infra/logging/logger');
 const db         = require('../db/db');
 const { encrypt } = require('../utils/encryption');
 const router     = express.Router();
@@ -61,7 +62,7 @@ router.post('/api/tenants', requireAuth, async (req, res) => {
     );
     res.status(201).json(rows[0]);
   } catch (err) {
-    console.error('Create tenant error:', err.message);
+    logger.error({ err: err.message }, 'create tenant error');
     res.status(500).json({ error: 'Failed to create tenant' });
   }
 });
@@ -156,7 +157,7 @@ router.get('/api/leads', requireAuth, async (req, res) => {
     const { rows } = await db.query(sql, params);
     res.json(rows);
   } catch (err) {
-    console.error('[Admin] Failed to fetch leads:', err.message);
+    logger.error({ err: err.message }, 'failed to fetch leads');
     res.status(500).json({ error: 'Failed to fetch leads' });
   }
 });
@@ -191,7 +192,7 @@ router.get('/api/collections', requireAuth, async (req, res) => {
     const { rows } = await db.query(sql, params);
     res.json(rows);
   } catch (err) {
-    console.error('[Admin] Failed to fetch collections:', err.message);
+    logger.error({ err: err.message }, 'failed to fetch collections');
     res.status(500).json({ error: 'Failed to fetch collections' });
   }
 });
@@ -226,7 +227,7 @@ router.get('/api/appointments', requireAuth, async (req, res) => {
     const { rows } = await db.query(sql, params);
     res.json(rows);
   } catch (err) {
-    console.error('[Admin] Failed to fetch appointments:', err.message);
+    logger.error({ err: err.message }, 'failed to fetch appointments');
     res.status(500).json({ error: 'Failed to fetch appointments' });
   }
 });
@@ -259,7 +260,7 @@ router.get('/api/workflow-executions', requireAuth, async (req, res) => {
     const { rows } = await db.query(sql, params);
     res.json(rows);
   } catch (err) {
-    console.error('[Admin] Failed to fetch workflow executions:', err.message);
+    logger.error({ err: err.message }, 'failed to fetch workflow executions');
     res.status(500).json({ error: 'Failed to fetch workflow executions' });
   }
 });

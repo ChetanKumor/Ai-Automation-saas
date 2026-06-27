@@ -1,4 +1,5 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const logger     = require('../../infra/logging/logger');
 const eventBus   = require('../../../core/events');
 const crmService = require('./crmService');
 
@@ -28,7 +29,7 @@ function parseExtraction(raw) {
       intent_level: allowed.includes(parsed.intent_level) ? parsed.intent_level : null,
     };
   } catch (err) {
-    console.warn('[CRM] parseExtraction failed:', err.message);
+    logger.warn({ err: err.message }, 'parseExtraction failed');
     return null;
   }
 }
@@ -55,7 +56,7 @@ function init() {
       const data = parseExtraction(raw);
 
       if (!data) {
-        console.warn('[CRM] LLM returned unparseable extraction output:', raw.slice(0, 200));
+        logger.warn({ raw: raw.slice(0, 200) }, 'LLM returned unparseable extraction output');
         return;
       }
       if (!hasSignal(data)) return;
@@ -83,13 +84,13 @@ function init() {
         stage: lead.stage,
       });
 
-      console.log(`[CRM] ${eventType}: lead=${lead.id} customer=${customer_id} intent=${data.intent_level}`);
+      logger.info({ eventType, leadId: lead.id, customerId: customer_id, intent: data.intent_level }, 'CRM extraction');
     } catch (err) {
-      console.error('[CRM] Extraction failed (non-fatal):', err.message);
+      logger.error({ err: err.message }, 'CRM extraction failed (non-fatal)');
     }
   });
 
-  console.log('[CRM] Lead extraction handler initialized');
+  logger.info('CRM lead extraction handler initialized');
 }
 
 module.exports = { init };

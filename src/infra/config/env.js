@@ -1,5 +1,7 @@
 'use strict';
 
+const logger = require('../logging/logger');
+
 const REQUIRED = [
   'DATABASE_URL',
   'GEMINI_API_KEY',
@@ -12,12 +14,12 @@ const REQUIRED = [
 const missing = REQUIRED.filter((key) => !process.env[key]);
 
 if (missing.length > 0) {
-  console.error(`Missing required env var(s): ${missing.join(', ')}`);
+  logger.error({ missing }, 'missing required env var(s)');
   process.exit(1);
 }
 
 if (process.env.SESSION_SECRET && process.env.SESSION_SECRET.length < 32) {
-  console.error('SESSION_SECRET must be at least 32 characters');
+  logger.error('SESSION_SECRET must be at least 32 characters');
   process.exit(1);
 }
 

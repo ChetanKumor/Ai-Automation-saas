@@ -1,5 +1,6 @@
 const events  = require('../../../core/events');
 const actions = require('../../../core/actions');
+const logger  = require('../../infra/logging/logger');
 const db      = require('../../db/db');
 
 const MAX_WORKFLOW_DEPTH = 5;
@@ -21,7 +22,7 @@ function interpolate(actionParams, payload) {
     if (typeof v === 'string') {
       result[k] = v.replace(/\{(\w+)\}/g, (_, token) => {
         if (token in payload) return String(payload[token]);
-        console.warn(`[Workflow] Missing interpolation token "{${token}}" — replaced with empty string`);
+        logger.warn({ token }, 'workflow missing interpolation token — replaced with empty string');
         return '';
       });
     } else {
@@ -33,12 +34,12 @@ function interpolate(actionParams, payload) {
 
 async function onEvent(event) {
   if (!event.tenant_id) {
-    console.debug('[Workflow] Event without tenant_id — skipping:', event.type);
+    logger.debug({ eventType: event.type }, 'workflow event without tenant_id — skipping');
     return;
   }
 
   if (event.depth >= MAX_WORKFLOW_DEPTH) {
-    console.log(`[Workflow] Depth limit (${MAX_WORKFLOW_DEPTH}) reached for "${event.type}" — halting`);
+    logger.info({ maxDepth: MAX_WORKFLOW_DEPTH, eventType: event.type }, 'workflow depth limit reached — halting');
     return;
   }
 
@@ -90,14 +91,14 @@ async function onEvent(event) {
         [status, error, claimedId]
       );
 
-      console.log(`[Workflow] ${rule.name}: ${rule.action} → ${status} (depth=${ctx.depth} event=${event.type})`);
+      logger.info({ rule: rule.name, action: rule.action, status, depth: ctx.depth, eventType: event.type }, 'workflow rule executed');
     } catch (err) {
-      console.error(`[Workflow] Rule "${rule.name}" (${rule.id}) failed:`, err.message);
+      logger.error({ rule: rule.name, ruleId: rule.id, err: err.message }, 'workflow rule failed');
       if (claimedId) {
         await db.query(
           `UPDATE workflow_executions SET status = 'failed', error = $1 WHERE id = $2`,
           [err.message, claimedId]
-        ).catch(updateErr => console.error(`[Workflow] Failed to mark execution failed:`, updateErr.message));
+        ).catch(updateErr => logger.error({ err: updateErr.message }, 'workflow failed to mark execution failed'));
       }
     }
   }
@@ -121,7 +122,7 @@ function init() {
   if (initialized) return;
   initialized = true;
   events.on('*', onEvent);
-  console.log('[Workflow] Engine initialized');
+  logger.info('workflow engine initialized');
 }
 
 module.exports = { init };

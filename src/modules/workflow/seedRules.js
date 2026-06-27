@@ -1,4 +1,5 @@
 require('dotenv').config();
+const logger = require('../../infra/logging/logger');
 const db = require('../../db/db');
 
 const RULES = [
@@ -24,7 +25,7 @@ async function seed() {
   );
 
   if (!tenants.length) {
-    console.log('[SeedRules] No active tenants found — nothing to seed');
+    logger.info('no active tenants found — nothing to seed');
     return;
   }
 
@@ -40,14 +41,14 @@ async function seed() {
       );
       total += rowCount;
     }
-    console.log(`[SeedRules] Tenant "${tenant.business_name}" (${tenant.id}) — processed`);
+    logger.info({ tenantId: tenant.id, businessName: tenant.business_name }, 'seed rules tenant processed');
   }
-  console.log(`[SeedRules] Done — ${total} new rule(s) inserted`);
+  logger.info({ total }, 'seed rules done');
 }
 
 seed()
   .then(() => process.exit(0))
   .catch(err => {
-    console.error('[SeedRules] Error:', err.message);
+    logger.error({ err: err.message }, 'seed rules error');
     process.exit(1);
   });

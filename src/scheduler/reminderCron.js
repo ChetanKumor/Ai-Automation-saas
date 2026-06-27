@@ -1,4 +1,5 @@
 const cron = require('node-cron');
+const logger = require('../infra/logging/logger');
 const db = require('../db/db');
 const tenantService = require('../modules/tenant/tenantService');
 const whatsappService = require('../modules/whatsapp/whatsappService');
@@ -19,7 +20,7 @@ async function tick() {
       `SELECT pg_try_advisory_lock($1) AS acquired`, [LOCK_KEY]
     );
     if (!acquired) {
-      console.log('[Reminder] Advisory lock held by another process — skipping');
+      logger.info('reminder advisory lock held — skipping');
       return;
     }
     lockAcquired = true;
@@ -27,11 +28,11 @@ async function tick() {
     await reapStuck(client);
     await processDue(client);
   } catch (err) {
-    console.error('[Reminder] Tick failed:', err.message);
+    logger.error({ err: err.message }, 'reminder tick failed');
   } finally {
     if (lockAcquired && client) {
       await client.query(`SELECT pg_advisory_unlock($1)`, [LOCK_KEY])
-        .catch(err => console.error('[Reminder] Advisory unlock failed:', err.message));
+        .catch(err => logger.error({ err: err.message }, 'reminder advisory unlock failed'));
     }
     if (client) client.release();
   }
@@ -46,7 +47,7 @@ async function reapStuck(client) {
        AND last_attempt_at < NOW() - INTERVAL '10 minutes'`
   );
   if (recoveredCount > 0) {
-    console.log(`[Reminder] Recovered ${recoveredCount} sent-but-unmarked row(s)`);
+    logger.info({ count: recoveredCount }, 'reminder recovered sent-but-unmarked rows');
   }
 
   const { rowCount: failedCount } = await client.query(
@@ -59,7 +60,7 @@ async function reapStuck(client) {
     [MAX_ATTEMPTS]
   );
   if (failedCount > 0) {
-    console.log(`[Reminder] Permanently failed ${failedCount} row(s) exceeding ${MAX_ATTEMPTS} attempts`);
+    logger.info({ count: failedCount, maxAttempts: MAX_ATTEMPTS }, 'reminder permanently failed rows');
   }
 
   const { rowCount } = await client.query(
@@ -72,7 +73,7 @@ async function reapStuck(client) {
     [MAX_ATTEMPTS]
   );
   if (rowCount > 0) {
-    console.log(`[Reminder] Reaped ${rowCount} stuck sending row(s)`);
+    logger.info({ count: rowCount }, 'reminder reaped stuck sending rows');
   }
 }
 
@@ -127,17 +128,17 @@ async function claimDueAppointments() {
 async function processDue(client) {
   const due = await claimDueAppointments();
   if (!due.length) return;
-  console.log(`[Reminder] Processing ${due.length} due reminder(s)`);
+  logger.info({ count: due.length }, 'processing due reminders');
 
   for (const appt of due) {
     try {
       await processReminder(client, appt);
     } catch (err) {
-      console.error(`[Reminder] Error processing appointment ${appt.appointment_id}:`, err.message);
+      logger.error({ appointmentId: appt.appointment_id, err: err.message }, 'reminder processing error');
       await client.query(
         `UPDATE appointments SET reminder_status = 'failed' WHERE id = $1`,
         [appt.appointment_id]
-      ).catch(dbErr => console.error(`[Reminder] Failed to mark failed: ${appt.appointment_id}`, dbErr.message));
+      ).catch(dbErr => logger.error({ appointmentId: appt.appointment_id, err: dbErr.message }, 'reminder failed to mark failed'));
     }
   }
 }
@@ -163,16 +164,13 @@ async function processReminder(client, appt) {
        VALUES ($1, 'reminder', $2, 'needs_template')`,
       [appt.tenant_id, reminderText]
     );
-    console.log(
-      `[Reminder] SKIPPED (outside 24h window, no template) → ${appt.customer_phone} | ` +
-      `Last msg: ${appt.last_inbound_at ? new Date(appt.last_inbound_at).toISOString() : 'never'}`
-    );
+    logger.info({ customerPhone: appt.customer_phone, lastInbound: appt.last_inbound_at || 'never' }, 'reminder skipped — outside 24h window, no template');
     return;
   }
 
   const tenant = await tenantService.getByPhoneNumberId(appt.phone_number_id);
   if (!tenant) {
-    console.error(`[Reminder] Tenant not found for phone_number_id: ${appt.phone_number_id}`);
+    logger.error({ phoneNumberId: appt.phone_number_id }, 'reminder tenant not found');
     await client.query(
       `UPDATE appointments SET reminder_status = 'failed' WHERE id = $1`,
       [appt.appointment_id]
@@ -187,7 +185,7 @@ async function processReminder(client, appt) {
     try {
       await whatsappService.sendMessage(tenant, appt.customer_phone, reminderText);
       sentStatus = 'sent';
-      console.log(`[Reminder] Sent to ${appt.customer_phone}: ${reminderText}`);
+      logger.info({ customerPhone: appt.customer_phone }, 'reminder sent');
     } catch (err) {
       sendErr = err;
     }
@@ -195,7 +193,7 @@ async function processReminder(client, appt) {
     try {
       await sendTemplateMessage(tenant, appt);
       sentStatus = 'sent';
-      console.log(`[Reminder] Template sent to ${appt.customer_phone}`);
+      logger.info({ customerPhone: appt.customer_phone }, 'reminder template sent');
     } catch (err) {
       sendErr = err;
     }
@@ -209,16 +207,16 @@ async function processReminder(client, appt) {
     let nextStatus;
     if (disposition === 'timeout') {
       nextStatus = 'needs_review';
-      console.error(`[Reminder] Timeout (ambiguous) for appointment=${appt.appointment_id}: moved to needs_review`);
+      logger.error({ appointmentId: appt.appointment_id }, 'reminder timeout — moved to needs_review');
     } else if (disposition === 'needs_template') {
       nextStatus = 'needs_template';
-      console.log(`[Reminder] needs_template: appointment=${appt.appointment_id} (re-engagement error from Meta)`);
+      logger.info({ appointmentId: appt.appointment_id }, 'reminder needs_template — re-engagement error from Meta');
     } else if (disposition === 'retryable' && currentAttempts < MAX_ATTEMPTS) {
       nextStatus = 'pending';
-      console.warn(`[Reminder] Retryable error for appointment=${appt.appointment_id} (attempt ${currentAttempts}/${MAX_ATTEMPTS}): ${metaError?.message || sendErr.message}`);
+      logger.warn({ appointmentId: appt.appointment_id, attempt: currentAttempts, maxAttempts: MAX_ATTEMPTS, err: metaError?.message || sendErr.message }, 'reminder retryable error');
     } else {
       nextStatus = 'failed';
-      console.error(`[Reminder] Permanent failure for appointment=${appt.appointment_id}: ${disposition} | status=${sendErr.response?.status} code=${metaError?.code} msg=${metaError?.message || sendErr.message}`);
+      logger.error({ appointmentId: appt.appointment_id, disposition, status: sendErr.response?.status, code: metaError?.code, err: metaError?.message || sendErr.message }, 'reminder permanent failure');
     }
 
     await client.query(
@@ -289,9 +287,9 @@ async function sendTemplateMessage(tenant, appt) {
 
 function start() {
   const task = cron.schedule('*/15 * * * *', () => {
-    tick().catch(err => console.error('[Reminder] Unhandled tick error:', err.message));
+    tick().catch(err => logger.error({ err: err.message }, 'reminder unhandled tick error'));
   });
-  console.log('[Reminder] Cron started — runs every 15 minutes');
+  logger.info('reminder cron started — runs every 15 minutes');
   return task;
 }
 

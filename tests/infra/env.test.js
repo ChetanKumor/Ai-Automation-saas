@@ -38,7 +38,7 @@ describe('Env validation (src/infra/config/env.js)', () => {
       runWithEnv({ DATABASE_URL: undefined });
       assert.fail('Should have thrown');
     } catch (err) {
-      assert.ok(err.stderr.includes('DATABASE_URL'), `stderr should mention DATABASE_URL, got: ${err.stderr}`);
+      assert.ok(err.stdout.includes('DATABASE_URL'), `stdout should mention DATABASE_URL, got: ${err.stdout}`);
       assert.notEqual(err.status, 0);
     }
   });
@@ -48,7 +48,7 @@ describe('Env validation (src/infra/config/env.js)', () => {
       runWithEnv({ GEMINI_API_KEY: undefined });
       assert.fail('Should have thrown');
     } catch (err) {
-      assert.ok(err.stderr.includes('GEMINI_API_KEY'));
+      assert.ok(err.stdout.includes('GEMINI_API_KEY'));
       assert.notEqual(err.status, 0);
     }
   });
@@ -58,7 +58,7 @@ describe('Env validation (src/infra/config/env.js)', () => {
       runWithEnv({ META_APP_SECRET: undefined });
       assert.fail('Should have thrown');
     } catch (err) {
-      assert.ok(err.stderr.includes('META_APP_SECRET'));
+      assert.ok(err.stdout.includes('META_APP_SECRET'));
       assert.notEqual(err.status, 0);
     }
   });
@@ -68,8 +68,8 @@ describe('Env validation (src/infra/config/env.js)', () => {
       runWithEnv({ DATABASE_URL: undefined, ENCRYPTION_KEY: undefined });
       assert.fail('Should have thrown');
     } catch (err) {
-      assert.ok(err.stderr.includes('DATABASE_URL'));
-      assert.ok(err.stderr.includes('ENCRYPTION_KEY'));
+      assert.ok(err.stdout.includes('DATABASE_URL'));
+      assert.ok(err.stdout.includes('ENCRYPTION_KEY'));
       assert.notEqual(err.status, 0);
     }
   });
@@ -79,7 +79,7 @@ describe('Env validation (src/infra/config/env.js)', () => {
       runWithEnv({ SESSION_SECRET: 'tooshort' });
       assert.fail('Should have thrown');
     } catch (err) {
-      assert.ok(err.stderr.includes('SESSION_SECRET'));
+      assert.ok(err.stdout.includes('SESSION_SECRET'));
       assert.notEqual(err.status, 0);
     }
   });

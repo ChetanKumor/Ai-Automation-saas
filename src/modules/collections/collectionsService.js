@@ -1,4 +1,5 @@
 const db       = require('../../db/db');
+const logger   = require('../../infra/logging/logger');
 const eventBus = require('../../../core/events');
 
 async function schedulePayment(tenantId, customerId, { amount, currency, due_date, reminder_send_at }) {
@@ -39,7 +40,7 @@ async function markPaid(tenantId, scheduleId, ctx) {
     causation_id: ctx?.causation_id ?? null,
   });
 
-  console.log(`[Collections] payment_received: schedule=${row.id} amount=${row.amount}`);
+  logger.info({ scheduleId: row.id, amount: row.amount }, 'payment received');
   return { schedule: row };
 }
 
