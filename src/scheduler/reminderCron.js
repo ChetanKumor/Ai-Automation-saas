@@ -288,10 +288,11 @@ async function sendTemplateMessage(tenant, appt) {
 }
 
 function start() {
-  cron.schedule('*/15 * * * *', () => {
+  const task = cron.schedule('*/15 * * * *', () => {
     tick().catch(err => console.error('[Reminder] Unhandled tick error:', err.message));
   });
   console.log('[Reminder] Cron started — runs every 15 minutes');
+  return task;
 }
 
 module.exports = { start, tick };

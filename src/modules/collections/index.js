@@ -28,7 +28,8 @@ function init() {
     return collectionsService.markPaid(ctx.tenant_id, params.schedule_id, ctx);
   });
 
-  collectionsCron.start();
+  const cronTask = collectionsCron.start();
+  module.exports.cronTask = cronTask;
 
   console.log('[Collections] Module initialized');
 }

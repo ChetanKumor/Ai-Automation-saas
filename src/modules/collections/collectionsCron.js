@@ -251,10 +251,11 @@ function buildReminderText(row) {
 }
 
 function start() {
-  cron.schedule('*/30 * * * *', () => {
+  const task = cron.schedule('*/30 * * * *', () => {
     tick().catch(err => console.error('[Collections] Unhandled tick error:', err.message));
   });
   console.log('[Collections] Cron started — runs every 30 minutes');
+  return task;
 }
 
 module.exports = { start, tick };

@@ -1,9 +1,5 @@
 require('dotenv').config();
-
-const REQUIRED_ENV = ['DATABASE_URL', 'GEMINI_API_KEY', 'WEBHOOK_VERIFY_TOKEN', 'META_APP_SECRET', 'ENCRYPTION_KEY', 'ADMIN_PASSWORD'];
-for (const key of REQUIRED_ENV) {
-  if (!process.env[key]) { console.error(`Missing required env var: ${key}`); process.exit(1); }
-}
+require('./src/infra/config/env');
 
 const express = require('express');
 const session = require('express-session');
@@ -35,7 +31,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 
-const reminderCron = require('./src/scheduler/reminderCron');
+const db                = require('./src/db/db');
+const reminderCron      = require('./src/scheduler/reminderCron');
 const coreActions       = require('./core/coreActions');
 const crmModule         = require('./src/modules/crm');
 const collectionsModule = require('./src/modules/collections');
@@ -46,7 +43,44 @@ collectionsModule.init();
 workflowEngine.init();
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  reminderCron.start();
 });
+
+const reminderTask = reminderCron.start();
+const collectionsTask = collectionsModule.cronTask;
+
+let shuttingDown = false;
+
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`\n[Shutdown] ${signal} received — draining…`);
+
+  const forceTimer = setTimeout(() => {
+    console.error('[Shutdown] Drain timeout — forcing exit');
+    process.exit(1);
+  }, 10_000);
+  forceTimer.unref();
+
+  server.close(() => {
+    console.log('[Shutdown] HTTP server closed');
+
+    if (reminderTask) reminderTask.stop();
+    if (collectionsTask) collectionsTask.stop();
+    console.log('[Shutdown] Cron tasks stopped');
+
+    db.close()
+      .then(() => {
+        console.log('[Shutdown] DB pool closed');
+        process.exit(0);
+      })
+      .catch((err) => {
+        console.error('[Shutdown] DB pool close error:', err.message);
+        process.exit(1);
+      });
+  });
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));
