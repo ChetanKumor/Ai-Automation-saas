@@ -16,7 +16,10 @@ function verifySignature(req, res, next) {
         .update(req.body)       // req.body is a raw Buffer here
         .digest('hex');
 
-    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+    const sigBuf = Buffer.from(signature);
+    const expectedBuf = Buffer.from(expected);
+
+    if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
       console.warn('[Webhook] Rejected: invalid signature');
       return res.sendStatus(401);
     }
@@ -34,3 +37,4 @@ router.get('/',  controller.verify);                       // Meta verification 
 router.post('/', verifySignature, controller.handle);      // Incoming messages
 
 module.exports = router;
+module.exports._verifySignature = verifySignature;
