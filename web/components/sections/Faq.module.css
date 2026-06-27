@@ -1,0 +1,146 @@
+/* Ported verbatim from design-reference/zyon-section-faq.html */
+
+.faq {
+  padding: clamp(80px, 11vw, 140px) 0;
+  border-top: 1px solid var(--border);
+}
+
+.faqGrid {
+  display: grid;
+  grid-template-columns: 0.8fr 1.4fr;
+  gap: 56px;
+}
+
+.faqHead {
+  position: sticky;
+  top: 110px;
+  align-self: start;
+}
+
+.faqHead h2 {
+  font-size: clamp(2rem, 4vw, 2.875rem);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  margin: 20px 0 18px;
+}
+
+.faqHead p {
+  color: var(--text-secondary);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  max-width: 30ch;
+  margin-bottom: 26px;
+}
+
+.faqCta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ——— ACCORDION ——— */
+.faqList {
+  border-top: 1px solid var(--border);
+}
+
+.faqItem {
+  border-bottom: 1px solid var(--border);
+}
+
+.faqQ {
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 4px;
+  font-family: var(--font-sans);
+  font-size: 1.0625rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  transition: color var(--ease-out) 0.2s;
+}
+
+.faqQ:hover {
+  color: var(--accent);
+}
+
+.faqQ:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-glow);
+  border-radius: var(--r-sm);
+}
+
+.faqChevron {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  transition: transform var(--ease-out) 0.3s, color var(--ease-out) 0.2s;
+}
+
+.faqItem.open .faqChevron,
+.open .faqChevron {
+  transform: rotate(180deg);
+  color: var(--accent);
+}
+
+.faqQ:hover .faqChevron {
+  color: var(--accent);
+}
+
+.faqAWrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.35s var(--ease-out);
+}
+
+.open .faqAWrap {
+  grid-template-rows: 1fr;
+}
+
+.faqAInner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.faqA {
+  font-size: 0.9688rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  max-width: 62ch;
+  padding: 0 4px 24px;
+  opacity: 0;
+  transition: opacity 0.3s var(--ease-out);
+}
+
+.open .faqA {
+  opacity: 1;
+}
+
+@media (max-width: 860px) {
+  .faqGrid {
+    grid-template-columns: 1fr;
+    gap: 36px;
+  }
+
+  .faqHead {
+    position: static;
+  }
+
+  .faqHead p {
+    max-width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .faqAWrap,
+  .faqChevron,
+  .faqA {
+    transition: none !important;
+  }
+}

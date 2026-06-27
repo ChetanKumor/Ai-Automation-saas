@@ -1,0 +1,418 @@
+/* ═══════════════════════════════════════════════════════
+   Legal pages — shared chrome + content styles
+   Ported verbatim from design-reference/zyon-legal-*.html
+   ═══════════════════════════════════════════════════════ */
+
+/* ─── Top bar ─── */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(11, 12, 14, 0.78);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+
+.topbarInner {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 15px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 1.0625rem;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.brand:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ink-900), 0 0 0 4px var(--accent);
+  border-radius: var(--r-sm);
+}
+
+.mark {
+  width: 21px;
+  height: 21px;
+}
+
+.mark rect {
+  fill: none;
+  stroke: var(--text-primary);
+  stroke-width: 1.6;
+}
+
+.mark circle {
+  fill: var(--text-primary);
+}
+
+.back {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: color 0.2s var(--ease-out);
+}
+
+.back:hover {
+  color: var(--text-primary);
+  opacity: 1;
+}
+
+.back:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ink-900), 0 0 0 4px var(--accent);
+  border-radius: var(--r-sm);
+}
+
+/* ─── Container ─── */
+.container {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ─── Document header ─── */
+.docHead {
+  padding: 64px 0 40px;
+  border-bottom: 1px solid var(--border);
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.docHead h1 {
+  font-size: clamp(2.25rem, 4.5vw, 3rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.08;
+  margin: 16px 0 18px;
+}
+
+.metaLine {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+  margin-bottom: 22px;
+}
+
+.docIntro {
+  font-size: 1.0625rem;
+  color: var(--text-secondary);
+  line-height: 1.65;
+  max-width: 64ch;
+}
+
+/* ─── Two-column grid (Privacy, Terms) ─── */
+.docGrid {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 56px;
+  padding: 48px 0 96px;
+  align-items: start;
+}
+
+/* ─── Table of contents sidebar ─── */
+.toc {
+  position: sticky;
+  top: 90px;
+}
+
+.tocTitle {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 14px;
+}
+
+.toc a {
+  display: block;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  padding: 5px 0;
+  line-height: 1.4;
+  border-left: 1px solid var(--border);
+  padding-left: 14px;
+  margin-left: -1px;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.toc a:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  opacity: 1;
+}
+
+.toc a:focus-visible {
+  outline: none;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ─── Content column (inside grid) ─── */
+.content {
+  max-width: 720px;
+  min-width: 0;
+}
+
+.content h2 {
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text-primary);
+  margin: 44px 0 14px;
+  scroll-margin-top: 90px;
+  padding-top: 8px;
+}
+
+.content h2:first-child {
+  margin-top: 0;
+}
+
+.content h3 {
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 26px 0 10px;
+}
+
+.content p {
+  font-size: 0.975rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin-bottom: 16px;
+}
+
+.content ul,
+.content ol {
+  margin: 0 0 16px;
+  padding-left: 22px;
+}
+
+.content li {
+  font-size: 0.975rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin-bottom: 8px;
+}
+
+.content strong {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.content a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: opacity 0.2s var(--ease-out);
+}
+
+.content a:hover {
+  opacity: 0.8;
+}
+
+.content a:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-glow);
+  border-radius: var(--r-sm);
+}
+
+/* ─── Single-column content (Data Deletion, Acceptable Use) ─── */
+.contentSingle {
+  max-width: 720px;
+  padding: 48px 0 96px;
+}
+
+.contentSingle h2 {
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text-primary);
+  margin: 40px 0 14px;
+  scroll-margin-top: 90px;
+}
+
+.contentSingle h2:first-child {
+  margin-top: 0;
+}
+
+.contentSingle h3 {
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 24px 0 10px;
+}
+
+.contentSingle p {
+  font-size: 0.975rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin-bottom: 16px;
+}
+
+.contentSingle ul,
+.contentSingle ol {
+  margin: 0 0 16px;
+  padding-left: 22px;
+}
+
+.contentSingle li {
+  font-size: 0.975rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin-bottom: 8px;
+}
+
+.contentSingle strong {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.contentSingle a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: opacity 0.2s var(--ease-out);
+}
+
+.contentSingle a:hover {
+  opacity: 0.8;
+}
+
+.contentSingle a:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-glow);
+  border-radius: var(--r-sm);
+}
+
+/* ─── Callout box ─── */
+.callout {
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  padding: 16px 20px;
+  margin: 20px 0;
+}
+
+.callout p {
+  margin: 0;
+  font-size: 0.925rem;
+}
+
+/* ─── Placeholder highlight ─── */
+.ph {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--accent);
+  background: var(--accent-glow);
+  padding: 1px 6px;
+  border-radius: var(--r-sm);
+}
+
+/* ─── Steps card (Data Deletion) ─── */
+.stepsCard {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+  padding: 26px 28px;
+  margin: 8px 0 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.stepsCard::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.5;
+}
+
+.stepsCard h3 {
+  margin-top: 0;
+}
+
+/* ─── Legal footer ─── */
+.legalFoot {
+  border-top: 1px solid var(--border);
+  padding: 28px 0;
+}
+
+.legalFootInner {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.legalLinks {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.legalLinks a {
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  transition: color 0.2s var(--ease-out);
+}
+
+.legalLinks a:hover {
+  color: var(--text-primary);
+  opacity: 1;
+}
+
+.legalLinks a:focus-visible {
+  outline: none;
+  color: var(--accent);
+}
+
+.copy {
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 860px) {
+  .docGrid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .toc {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toc a,
+  .back,
+  .legalLinks a,
+  .content a,
+  .contentSingle a {
+    transition: none !important;
+  }
+}

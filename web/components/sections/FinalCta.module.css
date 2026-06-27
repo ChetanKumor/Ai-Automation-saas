@@ -1,0 +1,133 @@
+/* Ported verbatim from design-reference/zyon-section-cta.html */
+
+.cta {
+  padding: clamp(80px, 11vw, 140px) 0;
+  border-top: 1px solid var(--border);
+}
+
+/* ——— FRAME ——— */
+.frame {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+  padding: clamp(48px, 8vw, 88px) clamp(28px, 5vw, 48px);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.frame::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.55;
+}
+
+/* live callback pill */
+.livePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--wa-header);
+  border-radius: var(--r-pill);
+  padding: 7px 16px 7px 8px;
+  margin-bottom: 30px;
+}
+
+.lpAvatar {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(135deg, #2A3942, #3B4A54);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #8FA3AD;
+  flex-shrink: 0;
+}
+
+.lpName {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--wa-text);
+}
+
+.lpStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+  color: var(--wa-online);
+}
+
+.lpDot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: var(--wa-online);
+  position: relative;
+}
+
+.lpDot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-pill);
+  background: var(--wa-online);
+  animation: ping 2s var(--ease-out) infinite;
+}
+
+@keyframes ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  70%,
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+.ctaH2 {
+  font-size: clamp(2.25rem, 5vw, 3.5rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.06;
+  max-width: 16ch;
+  margin: 0 auto 22px;
+}
+
+.ctaSub {
+  font-size: clamp(1.0625rem, 1.6vw, 1.1875rem);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  max-width: 52ch;
+  margin: 0 auto 38px;
+}
+
+.ctaActions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.ctaMicro {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lpDot::after {
+    animation: none;
+  }
+}
