@@ -137,6 +137,8 @@ CREATE TABLE conversations (
   tenant_id         UUID NOT NULL REFERENCES tenants(id)   ON DELETE CASCADE,
   customer_id       UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
 
+  channel           TEXT NOT NULL DEFAULT 'whatsapp',
+
   -- AI + Human coexistence
   mode              TEXT NOT NULL DEFAULT 'ai'
                       CHECK (mode IN ('ai', 'human')),
@@ -156,10 +158,9 @@ CREATE TABLE conversations (
 CREATE INDEX idx_conversations_customer      ON conversations(customer_id);
 CREATE INDEX idx_conversations_tenant_status ON conversations(tenant_id, status);
 
--- Guarantee only ONE open conversation per customer at a time.
--- This single line prevents duplicate-thread bugs.
-CREATE UNIQUE INDEX uniq_open_conversation_per_customer
-  ON conversations(customer_id)
+-- Guarantee only ONE open conversation per customer per tenant at a time.
+CREATE UNIQUE INDEX uniq_open_conversation
+  ON conversations(tenant_id, customer_id)
   WHERE status = 'open';
 
 CREATE TRIGGER trg_conversations_updated BEFORE UPDATE ON conversations
@@ -175,19 +176,26 @@ CREATE TABLE messages (
   conversation_id  UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   customer_id      UUID NOT NULL REFERENCES customers(id)     ON DELETE CASCADE,
 
-  wamid            TEXT UNIQUE,         -- WhatsApp message id → idempotency key
+  wamid            TEXT,                -- legacy WhatsApp message id (retained for compatibility)
+  external_id      TEXT,                -- channel-scoped message id (dedup key)
+  channel          TEXT NOT NULL DEFAULT 'whatsapp',
   direction        TEXT NOT NULL
                      CHECK (direction IN ('inbound', 'outbound')),
   sender           TEXT NOT NULL
                      CHECK (sender IN ('customer', 'ai', 'agent')),
   content          TEXT NOT NULL,
-  msg_type         TEXT NOT NULL DEFAULT 'text',  -- text/image/audio/document...
+  msg_type         TEXT NOT NULL DEFAULT 'text',
+  media_ref        TEXT,                -- provider media reference for non-text messages
 
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_messages_conversation ON messages(conversation_id, created_at);
 CREATE INDEX idx_messages_customer     ON messages(customer_id, created_at);
+
+-- Channel-scoped dedup: replaces the old wamid UNIQUE constraint
+CREATE UNIQUE INDEX uniq_msg_external
+  ON messages(tenant_id, channel, external_id) WHERE external_id IS NOT NULL;
 
 
 -- ============================================================
