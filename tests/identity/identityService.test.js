@@ -359,9 +359,9 @@ describe('Identity Service', () => {
 
     // Create a conversation and messages
     const { rows: [conv] } = await db.query(
-      `INSERT INTO conversations (tenant_id, customer_id)
-       VALUES ($1, $2)
-       ON CONFLICT (customer_id) WHERE status = 'open'
+      `INSERT INTO conversations (tenant_id, customer_id, channel)
+       VALUES ($1, $2, 'whatsapp')
+       ON CONFLICT (tenant_id, customer_id) WHERE status = 'open'
        DO UPDATE SET updated_at = NOW()
        RETURNING *`,
       [TENANT_A, customer.id]
