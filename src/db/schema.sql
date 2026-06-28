@@ -448,6 +448,27 @@ CREATE TABLE workflow_executions (
 
 
 -- ============================================================
+--  17. CHANNEL_IDENTIFIERS  — cross-channel customer identity
+-- ============================================================
+CREATE TABLE channel_identifiers (
+  id          BIGSERIAL PRIMARY KEY,
+  tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  channel_type TEXT NOT NULL,
+  identifier  TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  UNIQUE (tenant_id, channel_type, identifier)
+);
+
+CREATE INDEX idx_channel_identifiers_lookup
+  ON channel_identifiers(tenant_id, channel_type, identifier);
+
+CREATE INDEX idx_channel_identifiers_customer
+  ON channel_identifiers(customer_id);
+
+
+-- ============================================================
 --  SAMPLE DATA (optional) — create your first business to test.
 --  Fill in your real Meta values, then uncomment and run.
 -- ============================================================
