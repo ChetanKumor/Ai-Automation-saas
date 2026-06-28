@@ -25,6 +25,28 @@ const verify = (req, res) => {
   res.sendStatus(403);
 };
 
+function extractMessageContent(msg) {
+  switch (msg.type) {
+    case 'text':
+      if (!msg.text?.body) return null;
+      return { content: msg.text.body, mediaRef: null, msgType: 'text' };
+    case 'image':
+      return { content: msg.image?.caption || '[image]', mediaRef: msg.image?.id || null, msgType: 'image' };
+    case 'audio':
+      return { content: '[audio]', mediaRef: msg.audio?.id || null, msgType: 'audio' };
+    case 'video':
+      return { content: msg.video?.caption || '[video]', mediaRef: msg.video?.id || null, msgType: 'video' };
+    case 'document':
+      return { content: msg.document?.caption || msg.document?.filename || '[document]', mediaRef: msg.document?.id || null, msgType: 'document' };
+    case 'location':
+      return { content: `[location: ${msg.location?.latitude},${msg.location?.longitude}]`, mediaRef: null, msgType: 'location' };
+    case 'sticker':
+      return { content: '[sticker]', mediaRef: msg.sticker?.id || null, msgType: 'sticker' };
+    default:
+      return { content: `[${msg.type}]`, mediaRef: null, msgType: msg.type || 'unknown' };
+  }
+}
+
 const handle = async (req, res) => {
   res.sendStatus(200);
 
@@ -39,16 +61,10 @@ const handle = async (req, res) => {
     const msg           = value.messages[0];
     const { id: wamid, from, type } = msg;
 
-    if (type !== 'text' || !msg.text?.body) {
-      logger.info({ type, from }, 'non-text message — skipping');
-      return;
-    }
-
-    const userText = msg.text.body;
+    // ── 1. RESOLVE TENANT (cached after first hit) ───────────────────
     const timerLabel = `[Pipeline ${wamid.slice(-6)}]`;
     console.time(`${timerLabel} total`);
 
-    // ── 1. RESOLVE TENANT (cached after first hit) ───────────────────
     console.time(`${timerLabel} tenant`);
     const tenant = await tenantService.getByPhoneNumberId(phoneNumberId);
     console.timeEnd(`${timerLabel} tenant`);
@@ -57,20 +73,32 @@ const handle = async (req, res) => {
       return;
     }
 
-    // ── OWNER DETECTION ─────────────────────────────────────────────
+    // ── OWNER DETECTION (text commands only) ─────────────────────────
     const ownerPhone = tenant.owner_notify_phone?.replace(/\D/g, '');
     const senderNorm = from.replace(/\D/g, '');
     if (ownerPhone && senderNorm === ownerPhone) {
-      if (recentOwnerWamids.has(wamid)) {
-        logger.info({ wamid }, 'owner duplicate wamid — skipping');
-        return;
+      if (type === 'text' && msg.text?.body) {
+        if (recentOwnerWamids.has(wamid)) {
+          logger.info({ wamid }, 'owner duplicate wamid — skipping');
+          return;
+        }
+        recentOwnerWamids.add(wamid);
+        setTimeout(() => recentOwnerWamids.delete(wamid), 10 * 60 * 1000);
+        logger.info({ tenantId: tenant.id, from }, 'owner message detected');
+        await ownerCommandHandler.handle(tenant, from, msg.text.body, wamid);
+      } else {
+        logger.info({ type, from }, 'non-text from owner — ignoring');
       }
-      recentOwnerWamids.add(wamid);
-      setTimeout(() => recentOwnerWamids.delete(wamid), 10 * 60 * 1000);
-      logger.info({ tenantId: tenant.id, from }, 'owner message detected');
-      await ownerCommandHandler.handle(tenant, from, userText, wamid);
       return;
     }
+
+    // ── EXTRACT MESSAGE CONTENT ──────────────────────────────────────
+    const extracted = extractMessageContent(msg);
+    if (!extracted) {
+      logger.info({ type, from }, 'empty message — skipping');
+      return;
+    }
+    const { content, mediaRef, msgType } = extracted;
 
     // ── 2. UPSERT CUSTOMER ───────────────────────────────────────────
     console.time(`${timerLabel} customer`);
@@ -88,17 +116,19 @@ const handle = async (req, res) => {
     // ── 3. GET OR CREATE OPEN CONVERSATION ───────────────────────────
     console.time(`${timerLabel} conversation`);
     const conversation = await conversationService.getOrCreateOpenConversation(
-      tenant.id, customer.id
+      tenant.id, customer.id, 'whatsapp'
     );
     console.timeEnd(`${timerLabel} conversation`);
 
-    // ── 4. STORE INBOUND MESSAGE — idempotency via ON CONFLICT ───────
+    // ── 4. STORE INBOUND MESSAGE — idempotency via relocated dedup ───
     const { rowCount } = await db.query(
       `INSERT INTO messages
-         (tenant_id, conversation_id, customer_id, wamid, direction, sender, content)
-       VALUES ($1, $2, $3, $4, 'inbound', 'customer', $5)
-       ON CONFLICT (wamid) DO NOTHING`,
-      [tenant.id, conversation.id, customer.id, wamid, userText]
+         (tenant_id, conversation_id, customer_id, wamid, external_id,
+          direction, sender, content, channel, msg_type, media_ref)
+       VALUES ($1, $2, $3, $4, $4, 'inbound', 'customer', $5, 'whatsapp', $6, $7)
+       ON CONFLICT (tenant_id, channel, external_id)
+         WHERE external_id IS NOT NULL DO NOTHING`,
+      [tenant.id, conversation.id, customer.id, wamid, content, msgType, mediaRef]
     );
 
     if (rowCount === 0) {
@@ -106,7 +136,17 @@ const handle = async (req, res) => {
       return;
     }
 
-    eventBus.emit('message_received', { tenant_id: tenant.id, customer_id: customer.id, conversation_id: conversation.id, message_id: wamid, text: userText, mode: conversation.mode });
+    eventBus.emit('message_received', { tenant_id: tenant.id, customer_id: customer.id, conversation_id: conversation.id, message_id: wamid, text: content, mode: conversation.mode });
+
+    // ── NON-TEXT: stored, but no AI reply ────────────────────────────
+    if (type !== 'text') {
+      await db.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1 AND tenant_id = $2`, [conversation.id, tenant.id]);
+      console.timeEnd(`${timerLabel} total`);
+      logger.info({ tenantId: tenant.id, from, wamid, msgType }, 'non-text message stored');
+      return;
+    }
+
+    const userText = content;
 
     // ── 5. PARALLEL: mode check + last_message_at update ─────────────
     const [{ rows: [freshConv] }] = await Promise.all([
@@ -165,9 +205,10 @@ const handle = async (req, res) => {
     }
 
     // ── 8. SEND VIA WHATSAPP ─────────────────────────────────────────
+    let sentWamid;
     try {
       console.time(`${timerLabel} whatsapp-send`);
-      await whatsappService.sendMessage(tenant, from, reply);
+      sentWamid = await whatsappService.sendMessage(tenant, from, reply);
       console.timeEnd(`${timerLabel} whatsapp-send`);
     } catch (sendErr) {
       logger.error({ tenantId: tenant.id, err: sendErr.message }, 'WhatsApp send failed');
@@ -177,9 +218,10 @@ const handle = async (req, res) => {
     // ── 9. STORE OUTBOUND AI MESSAGE (only after successful send) ────
     await db.query(
       `INSERT INTO messages
-         (tenant_id, conversation_id, customer_id, direction, sender, content)
-       VALUES ($1, $2, $3, 'outbound', 'ai', $4)`,
-      [tenant.id, conversation.id, customer.id, reply]
+         (tenant_id, conversation_id, customer_id, wamid, external_id,
+          direction, sender, content, channel, msg_type)
+       VALUES ($1, $2, $3, $4, $4, 'outbound', 'ai', $5, 'whatsapp', 'text')`,
+      [tenant.id, conversation.id, customer.id, sentWamid, reply]
     );
 
     console.timeEnd(`${timerLabel} total`);
@@ -190,4 +232,4 @@ const handle = async (req, res) => {
   }
 };
 
-module.exports = { verify, handle };
+module.exports = { verify, handle, extractMessageContent };

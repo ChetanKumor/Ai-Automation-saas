@@ -137,12 +137,14 @@ async function handleMsg(tenant, ownerPhone, text) {
     return reply(tenant, ownerPhone, '❌ No open conversation for that customer.');
   }
 
-  await whatsappService.sendMessage(tenant, activePhone, msgBody);
+  const sentWamid = await whatsappService.sendMessage(tenant, activePhone, msgBody);
 
   await db.query(
-    `INSERT INTO messages (tenant_id, conversation_id, customer_id, direction, sender, content)
-     VALUES ($1, $2, $3, 'outbound', 'agent', $4)`,
-    [tenant.id, conv.id, customer.id, msgBody]
+    `INSERT INTO messages
+       (tenant_id, conversation_id, customer_id, wamid, external_id,
+        direction, sender, content, channel)
+     VALUES ($1, $2, $3, $4, $4, 'outbound', 'agent', $5, 'whatsapp')`,
+    [tenant.id, conv.id, customer.id, sentWamid, msgBody]
   );
 
   await db.query(

@@ -22,7 +22,9 @@ const sendMessage = async (tenant, toPhone, text) => {
         timeout: 30_000,
       }
     );
-    logger.info({ toPhone, messageId: res.data?.messages?.[0]?.id || 'unknown' }, 'WhatsApp message sent');
+    const messageId = res.data?.messages?.[0]?.id || null;
+    logger.info({ toPhone, messageId: messageId || 'unknown' }, 'WhatsApp message sent');
+    return messageId;
   } catch (err) {
     const detail = err.response?.data?.error || err.message;
     logger.error({ toPhone, detail }, 'WhatsApp send failed');

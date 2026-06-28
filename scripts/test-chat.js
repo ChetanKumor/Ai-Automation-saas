@@ -31,15 +31,20 @@ async function processMessage(tenant, customer, conversation, text) {
   );
 
   // Store both messages so history builds up across turns
+  const testWamid = 'test_' + Date.now();
   await db.query(
-    `INSERT INTO messages (tenant_id, conversation_id, customer_id, wamid, direction, sender, content)
-     VALUES ($1, $2, $3, $4, 'inbound', 'customer', $5)
-     ON CONFLICT (wamid) DO NOTHING`,
-    [tenant.id, conversation.id, customer.id, 'test_' + Date.now(), text]
+    `INSERT INTO messages
+       (tenant_id, conversation_id, customer_id, wamid, external_id,
+        direction, sender, content, channel)
+     VALUES ($1, $2, $3, $4, $4, 'inbound', 'customer', $5, 'whatsapp')
+     ON CONFLICT (tenant_id, channel, external_id)
+       WHERE external_id IS NOT NULL DO NOTHING`,
+    [tenant.id, conversation.id, customer.id, testWamid, text]
   );
   await db.query(
-    `INSERT INTO messages (tenant_id, conversation_id, customer_id, direction, sender, content)
-     VALUES ($1, $2, $3, 'outbound', 'ai', $4)`,
+    `INSERT INTO messages
+       (tenant_id, conversation_id, customer_id, direction, sender, content, channel)
+     VALUES ($1, $2, $3, 'outbound', 'ai', $4, 'whatsapp')`,
     [tenant.id, conversation.id, customer.id, reply]
   );
 
