@@ -1,6 +1,6 @@
 const actions          = require('./actions');
 const db               = require('../src/db/db');
-const whatsappService  = require('../src/modules/whatsapp/whatsappService');
+const whatsappService  = require('../src/modules/channels/whatsapp/sender');
 const tenantService    = require('../src/modules/tenant/tenantService');
 
 function init() {

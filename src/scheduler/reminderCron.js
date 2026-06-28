@@ -2,7 +2,7 @@ const cron = require('node-cron');
 const logger = require('../infra/logging/logger');
 const db = require('../db/db');
 const tenantService = require('../modules/tenant/tenantService');
-const whatsappService = require('../modules/whatsapp/whatsappService');
+const whatsappService = require('../modules/channels/whatsapp/sender');
 const { classifySendError } = require('../utils/classifySendError');
 
 const LOCK_KEY = 770_202;

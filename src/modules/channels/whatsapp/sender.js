@@ -1,5 +1,5 @@
 const axios = require('axios');
-const logger = require('../../infra/logging/logger');
+const logger = require('../../../infra/logging/logger');
 
 const BASE = 'https://graph.facebook.com/v22.0';
 

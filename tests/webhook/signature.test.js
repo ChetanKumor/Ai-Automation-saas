@@ -25,7 +25,7 @@ describe('Webhook signature verification', () => {
     if (!process.env.ENCRYPTION_KEY) {
       process.env.ENCRYPTION_KEY = 'a'.repeat(64);
     }
-    const routes = require('../../src/webhook/webhookRoutes');
+    const routes = require('../../src/modules/channels/whatsapp/routes');
     verifySignature = routes._verifySignature;
   });
 

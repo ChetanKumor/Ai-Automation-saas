@@ -2,7 +2,7 @@ const cron            = require('node-cron');
 const logger          = require('../../infra/logging/logger');
 const db              = require('../../db/db');
 const tenantService   = require('../tenant/tenantService');
-const whatsappService = require('../whatsapp/whatsappService');
+const whatsappService = require('../channels/whatsapp/sender');
 const eventBus        = require('../../../core/events');
 const { classifySendError } = require('../../utils/classifySendError');
 

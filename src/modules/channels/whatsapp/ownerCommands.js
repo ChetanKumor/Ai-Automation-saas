@@ -1,7 +1,7 @@
-const db                  = require('../../db/db');
-const logger              = require('../../infra/logging/logger');
-const whatsappService     = require('../whatsapp/whatsappService');
-const conversationService = require('../conversation/conversationService');
+const db                  = require('../../../db/db');
+const logger              = require('../../../infra/logging/logger');
+const sender              = require('./sender');
+const conversationService = require('../../conversation/conversationService');
 
 const HELP_TEXT = `Zyon Admin Commands:
 TAKEOVER <phone> — take over a conversation
@@ -137,7 +137,7 @@ async function handleMsg(tenant, ownerPhone, text) {
     return reply(tenant, ownerPhone, '❌ No open conversation for that customer.');
   }
 
-  const sentWamid = await whatsappService.sendMessage(tenant, activePhone, msgBody);
+  const sentWamid = await sender.sendMessage(tenant, activePhone, msgBody);
 
   await db.query(
     `INSERT INTO messages
@@ -235,7 +235,7 @@ async function getActiveHandoff(tenantId) {
 }
 
 async function reply(tenant, to, text) {
-  await whatsappService.sendMessage(tenant, to, text);
+  await sender.sendMessage(tenant, to, text);
 }
 
 module.exports = { handle };

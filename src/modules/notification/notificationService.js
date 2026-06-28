@@ -1,6 +1,6 @@
 const db = require('../../db/db');
 const logger = require('../../infra/logging/logger');
-const whatsappService = require('../whatsapp/whatsappService');
+const whatsappService = require('../channels/whatsapp/sender');
 
 async function notifyOwnerOfBooking(tenant, bookingResult) {
   const content = `New appointment: ${bookingResult.patient_name || 'Patient'} with ${bookingResult.doctor} at ${bookingResult.time}`;

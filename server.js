@@ -17,8 +17,13 @@ app.use((req, res, next) => {
   next();
 });
 
+// Register channel adapters before accepting connections
+const channelRegistry = require('./src/modules/channels');
+const whatsappAdapter = require('./src/modules/channels/whatsapp/adapter');
+channelRegistry.register(whatsappAdapter);
+
 // Webhook needs raw body for signature verification — mount before express.json()
-app.use('/webhook', express.raw({ type: 'application/json' }), require('./src/webhook/webhookRoutes'));
+app.use('/webhook', express.raw({ type: 'application/json' }), require('./src/modules/channels/whatsapp/routes'));
 
 // JSON parsing for all other routes
 app.use(express.json());
