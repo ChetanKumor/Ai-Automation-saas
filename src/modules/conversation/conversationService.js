@@ -1,16 +1,13 @@
 const db = require('../../db/db');
 
-// Returns the single open conversation for this customer, creating one if none exists.
-// The partial unique index (customer_id WHERE status='open') guarantees at most one open
-// conversation per customer; the DO UPDATE forces RETURNING to always yield a row.
-const getOrCreateOpenConversation = async (tenantId, customerId) => {
+const getOrCreateOpenConversation = async (tenantId, customerId, channel = 'whatsapp') => {
   const { rows } = await db.query(
-    `INSERT INTO conversations (tenant_id, customer_id)
-     VALUES ($1, $2)
-     ON CONFLICT (customer_id) WHERE status = 'open'
+    `INSERT INTO conversations (tenant_id, customer_id, channel)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (tenant_id, customer_id) WHERE status = 'open'
      DO UPDATE SET updated_at = NOW()
      RETURNING *`,
-    [tenantId, customerId]
+    [tenantId, customerId, channel]
   );
   return rows[0];
 };
