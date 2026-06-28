@@ -2,6 +2,7 @@ const logger              = require('../infra/logging/logger');
 const db                  = require('../db/db');
 const tenantService       = require('../modules/tenant/tenantService');
 const customerService     = require('../modules/customer/customerService');
+const identityService     = require('../modules/identity/identityService');
 const conversationService = require('../modules/conversation/conversationService');
 const aiService           = require('../modules/ai/aiService');
 const knowledgeService    = require('../modules/knowledge/knowledgeService');
@@ -73,7 +74,15 @@ const handle = async (req, res) => {
 
     // ── 2. UPSERT CUSTOMER ───────────────────────────────────────────
     console.time(`${timerLabel} customer`);
-    const customer = await customerService.findOrCreate(tenant.id, from);
+    const waProfileName = value.contacts?.[0]?.profile?.name || null;
+    const customer = process.env.IDENTITY_RESOLUTION_ENABLED === 'true'
+      ? await identityService.resolveCustomer({
+          tenantId: tenant.id,
+          channelType: 'whatsapp',
+          identifier: from,
+          profile: waProfileName ? { name: waProfileName } : undefined,
+        })
+      : await customerService.findOrCreate(tenant.id, from);
     console.timeEnd(`${timerLabel} customer`);
 
     // ── 3. GET OR CREATE OPEN CONVERSATION ───────────────────────────

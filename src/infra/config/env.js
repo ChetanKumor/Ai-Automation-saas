@@ -32,4 +32,5 @@ module.exports = {
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
   SESSION_SECRET: process.env.SESSION_SECRET,
   PORT: process.env.PORT || 3000,
+  IDENTITY_RESOLUTION_ENABLED: process.env.IDENTITY_RESOLUTION_ENABLED === 'true',
 };
