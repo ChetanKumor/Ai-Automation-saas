@@ -5,6 +5,13 @@ const notificationService = require('../notification/notificationService');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+// Injectable model factory. Production uses Gemini; tests can script the tool
+// loop deterministically without a live model. Not a business-logic seam.
+let modelProvider = (config) => genAI.getGenerativeModel(config);
+function _setModelProvider(fn) {
+  modelProvider = fn || ((config) => genAI.getGenerativeModel(config));
+}
+
 const TOOLS = [{
   functionDeclarations: [
     {
@@ -57,10 +64,10 @@ async function executeTool(name, args, tenant, customerId) {
   }
 }
 
-const generateReply = async (tenant, customer, conversation, userMessage, history, knowledgeChunks = [], facts = []) => {
-  const model = genAI.getGenerativeModel({
+const generateReply = async (tenant, customer, conversation, userMessage, history, knowledgeChunks = [], facts = [], { channel = 'whatsapp' } = {}) => {
+  const model = modelProvider({
     model: 'gemini-2.5-flash',
-    systemInstruction: buildSystemPrompt(tenant, customer, conversation, facts, knowledgeChunks),
+    systemInstruction: buildSystemPrompt(tenant, customer, conversation, facts, knowledgeChunks, channel),
     tools: TOOLS
   });
 
@@ -98,7 +105,7 @@ const generateReply = async (tenant, customer, conversation, userMessage, histor
   return result.response.text().trim();
 };
 
-const buildSystemPrompt = (tenant, customer, conversation, facts, knowledgeChunks = []) => {
+const buildSystemPrompt = (tenant, customer, conversation, facts, knowledgeChunks = [], channel = 'whatsapp') => {
   const factLines = facts.length
     ? facts.map(f => `- ${f.key}: ${f.value}`).join('\n')
     : 'None yet.';
@@ -113,6 +120,15 @@ const buildSystemPrompt = (tenant, customer, conversation, facts, knowledgeChunk
 
   const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
   const dayOfWeek = new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata', weekday: 'long' });
+
+  // Presentation-only branch. Business logic, tools, and guards are identical
+  // across channels — voice differs only in how the reply is delivered (spoken).
+  const voiceStyle = channel === 'voice'
+    ? `\n\nVoice call style (your reply is spoken aloud on a phone call):
+- Use plain spoken words ONLY — no markdown, asterisks, bullet points, emoji, or links
+- 1-2 short sentences a caller can follow by ear; ask only one thing at a time
+- Speak times and dates naturally (e.g. "ten thirty in the morning", "Wednesday the fifth")`
+    : '';
 
   return `
 ${tenant.ai_prompt}
@@ -139,7 +155,8 @@ Appointment booking rules:
 - Never call book_appointment on first mention — confirm first, book second
 - All times are IST. If a day is closed or fully booked, say so and suggest the nearest open day
 - Politely decline past dates or past times today
+${voiceStyle}
 `.trim();
 };
 
-module.exports = { generateReply };
+module.exports = { generateReply, _setModelProvider };
