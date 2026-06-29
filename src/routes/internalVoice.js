@@ -73,9 +73,9 @@ async function handleTurn(req, res) {
     );
     if (!conversation) return res.status(404).json({ error: 'conversation not found' });
 
-    // Language prior (full read/write wired in a later commit); detection from the
-    // request is used as the fallback.
-    const effectiveLanguage = customer.preferred_language || language || null;
+    // Honor the stored preferred_language prior; the request's STT-detected
+    // language is used (and persisted) only when the prior is null.
+    const effectiveLanguage = await customerService.resolveLanguage(tenant_id, customer_id, language);
 
     // Persist the inbound voice turn (channel='voice') BEFORE fetching history —
     // getRecentMessages OFFSET-1's past this just-inserted row, exactly as WhatsApp does.
