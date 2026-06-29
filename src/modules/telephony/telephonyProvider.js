@@ -60,7 +60,8 @@ function getProvider(name) {
   return provider;
 }
 
-// ── Default dev implementation ──
+// ── Default dev implementation + production stub ──
 register(require('./providers/noop'));
+register(require('./providers/plivo'));
 
 module.exports = { register, getProvider, REQUIRED_METHODS };
