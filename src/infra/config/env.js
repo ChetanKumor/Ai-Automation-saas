@@ -33,4 +33,11 @@ module.exports = {
   SESSION_SECRET: process.env.SESSION_SECRET,
   PORT: process.env.PORT || 3000,
   IDENTITY_RESOLUTION_ENABLED: process.env.IDENTITY_RESOLUTION_ENABLED === 'true',
+
+  // Voice channel (PR6) — all optional; off by default. With VOICE_ENABLED off,
+  // nothing voice-related is wired and the WhatsApp path is unchanged.
+  VOICE_ENABLED: process.env.VOICE_ENABLED === 'true',
+  TELEPHONY_PROVIDER: process.env.TELEPHONY_PROVIDER || 'noop',
+  SARVAM_API_KEY: process.env.SARVAM_API_KEY,
+  VOICE_INTERNAL_SECRET: process.env.VOICE_INTERNAL_SECRET,
 };

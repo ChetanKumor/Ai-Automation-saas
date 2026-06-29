@@ -25,6 +25,28 @@ channelRegistry.register(whatsappAdapter);
 // Webhook needs raw body for signature verification — mount before express.json()
 app.use('/webhook', express.raw({ type: 'application/json' }), require('./src/modules/channels/whatsapp/routes'));
 
+// ── Voice channel (PR6) — gated; off by default → zero behavior change ──
+// Mounted before express.json() because the internal endpoint authenticates over
+// the raw HMAC-signed body.
+if (process.env.VOICE_ENABLED === 'true') {
+  const voiceChannelAdapter = require('./src/modules/channels/voice/voiceChannelAdapter');
+  channelRegistry.register(voiceChannelAdapter);
+
+  app.use('/internal/voice', require('./src/routes/internalVoice'));
+
+  try {
+    const telephony = require('./src/modules/telephony/telephonyProvider');
+    const provider = telephony.getProvider(process.env.TELEPHONY_PROVIDER || 'noop');
+    provider.onInboundCall(() => logger.info('voice: inbound call received'));
+    logger.info({ telephonyProvider: provider.name }, 'voice channel enabled');
+  } catch (err) {
+    logger.error(
+      { err: err.message, telephonyProvider: process.env.TELEPHONY_PROVIDER },
+      'voice telephony wiring failed (voice inbound disabled)'
+    );
+  }
+}
+
 // JSON parsing for all other routes
 app.use(express.json());
 
