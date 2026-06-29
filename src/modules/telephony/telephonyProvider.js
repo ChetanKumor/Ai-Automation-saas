@@ -60,4 +60,7 @@ function getProvider(name) {
   return provider;
 }
 
+// ── Default dev implementation ──
+register(require('./providers/noop'));
+
 module.exports = { register, getProvider, REQUIRED_METHODS };
