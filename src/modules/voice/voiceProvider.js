@@ -53,7 +53,7 @@ function getProvider(name) {
   return provider;
 }
 
-// The single implementation (Sarvam) registers itself in the next commit; the
-// registry intentionally starts empty so this module stands alone.
+// ── Single registered implementation: Sarvam (Saaras STT, Bulbul TTS) ──
+register(require('./providers/sarvam'));
 
 module.exports = { register, getProvider };
