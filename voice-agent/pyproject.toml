@@ -1,20 +1,34 @@
 [project]
 name = "voice-agent"
 version = "0.1.0"
-description = "Real-time voice audio loop (LiveKit Agents) that delegates every turn to the Node brain. Transport only — no business logic."
+description = "Real-time voice audio loop (LiveKit Agents) that delegates every turn to the Node brain over HTTP. Transport only — no business logic."
 requires-python = ">=3.11"
 dependencies = [
-    "livekit-agents>=0.10",   # real-time audio loop: VAD, turn-taking, barge-in
-    "livekit-plugins-silero",  # VAD
-    "httpx>=0.27",            # POST /internal/voice/turn
+    "livekit-agents>=1.2,<2",        # real-time audio loop: VAD, turn detection, barge-in, AgentSession
+    "livekit-plugins-silero>=1.2,<2", # VAD
+    "websockets>=12",                # Sarvam streaming STT/TTS WebSockets
+    "httpx>=0.27",                   # HMAC-signed calls to the Node brain
 ]
 
-# STT/TTS use Sarvam (Saaras / Bulbul) via the Sarvam HTTP API directly; if/when
-# an official livekit Sarvam plugin exists, add it here. Telephony is reached via
-# the Node TelephonyProvider seam, never from this worker.
+# Sarvam STT (Saaras) / TTS (Bulbul) are reached over their streaming WebSocket
+# APIs directly (see stt_sarvam.py / tts_sarvam.py). If/when an official LiveKit
+# Sarvam plugin ships, prefer it and drop the adapters. Telephony is reached via
+# the Node TelephonyProvider seam (noop in dev) — NEVER from this worker.
+
+[project.optional-dependencies]
+# Semantic end-of-turn detection. The worker falls back to VAD turn detection
+# when this is not installed (see _resolve_turn_detection in agent.py).
+turn-detector = ["livekit-plugins-turn-detector>=1.2,<2"]
 
 [tool.uv]
-dev-dependencies = []
+dev-dependencies = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
 
 [build-system]
 requires = ["hatchling"]
