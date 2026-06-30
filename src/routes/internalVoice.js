@@ -5,8 +5,8 @@ const logger              = require('../infra/logging/logger');
 const db                  = require('../db/db');
 const tenantService       = require('../modules/tenant/tenantService');
 const customerService     = require('../modules/customer/customerService');
-const knowledgeService    = require('../modules/knowledge/knowledgeService');
 const aiService           = require('../modules/ai/aiService');
+const { assembleConversationContext } = require('../modules/conversation/contextAssembler');
 const identityService     = require('../modules/identity/identityService');
 const conversationService = require('../modules/conversation/conversationService');
 const voiceChannelAdapter = require('../modules/channels/voice/voiceChannelAdapter');
@@ -38,24 +38,42 @@ function authenticate(req, res, next) {
 }
 
 /**
- * POST /internal/voice/turn — route ONE voice turn into the existing brain.
+ * POST /internal/voice/turn — route ONE finalized voice turn into the existing brain.
  *
  * Transport glue + persistence only. All business logic (tool selection,
  * booking guards, memory) lives in aiService.generateReply / the booking tools,
  * reached here with channel="voice" (spoken style). Outbound is RETURNED to the
  * worker (it does TTS), not pushed.
  *
- * req:  { tenant_id, customer_id, conversation_id, call_session_id, channel:"voice", language, transcript }
+ * Identity resolves ONCE at /call/start; every turn reuses the call_session's
+ * customer + conversation. The worker supplies only call_session_id — it never
+ * resolves tenant/customer/conversation itself. (This supersedes PR6's
+ * worker-supplied customer_id/conversation_id.)
+ *
+ * req:  { call_session_id, channel:"voice", language, transcript }
  * res:  { reply_text, end_call:boolean, language }
  */
 async function handleTurn(req, res) {
-  const { tenant_id, customer_id, conversation_id, language, transcript } = req.body || {};
+  const { call_session_id, language, transcript } = req.body || {};
 
-  if (!tenant_id || !customer_id || !conversation_id || !transcript) {
+  if (!call_session_id || !transcript) {
     return res.status(400).json({ error: 'missing required fields' });
   }
 
   try {
+    // Resolve customer/conversation/tenant from the call_session (bridged once at
+    // /call/start). The call_session is the canonical owner of all three.
+    const { rows: [session] } = await db.query(
+      'SELECT tenant_id, customer_id, conversation_id FROM call_sessions WHERE id = $1',
+      [call_session_id]
+    );
+    if (!session) return res.status(404).json({ error: 'call session not found' });
+
+    const { tenant_id, customer_id, conversation_id } = session;
+    if (!customer_id || !conversation_id) {
+      return res.status(409).json({ error: 'call session not bridged to a customer/conversation' });
+    }
+
     // Hydrate tenant (decrypted creds + cache) — same pattern as the WhatsApp adapter.
     const { rows: [t] } = await db.query(
       'SELECT phone_number_id FROM tenants WHERE id = $1 AND active = true', [tenant_id]
@@ -96,18 +114,13 @@ async function handleTurn(req, res) {
       return res.json({ reply_text: '', end_call: false, language: effectiveLanguage });
     }
 
-    // Same parallel context fetch as whatsapp/routes.js.
-    const [knowledgeChunks, history, { rows: facts }] = await Promise.all([
-      knowledgeService.getRelevantChunks(tenant_id, transcript, 3).catch((err) => {
-        logger.error({ tenant_id, err: err.message }, 'RAG failed (continuing without)');
-        return [];
-      }),
-      customerService.getRecentMessages(tenant_id, conversation_id),
-      db.query(
-        `SELECT key, value FROM customer_memory WHERE tenant_id = $1 AND customer_id = $2 ORDER BY key`,
-        [tenant_id, customer_id]
-      ),
-    ]);
+    // SHARED context-assembly path — the same helper the WhatsApp route uses.
+    const { knowledgeChunks, history, facts } = await assembleConversationContext({
+      tenantId: tenant_id,
+      conversationId: conversation_id,
+      customerId: customer_id,
+      text: transcript,
+    });
 
     // THE ONE BRAIN — same tools, same booking guards; channel only changes style.
     const reply_text = await aiService.generateReply(
