@@ -11,6 +11,8 @@ const identityService     = require('../modules/identity/identityService');
 const conversationService = require('../modules/conversation/conversationService');
 const voiceChannelAdapter = require('../modules/channels/voice/voiceChannelAdapter');
 const hmac                = require('../utils/hmac');
+const eventBus            = require('../../core/events');
+const EVENT               = require('../../core/eventTypes');
 
 const router = express.Router();
 
@@ -100,12 +102,27 @@ async function handleTurn(req, res) {
 
     // Persist the inbound voice turn (channel='voice') BEFORE fetching history —
     // getRecentMessages OFFSET-1's past this just-inserted row, exactly as WhatsApp does.
-    await db.query(
+    const { rows: [inbound] } = await db.query(
       `INSERT INTO messages
          (tenant_id, conversation_id, customer_id, direction, sender, content, channel, msg_type)
-       VALUES ($1, $2, $3, 'inbound', 'customer', $4, 'voice', 'text')`,
+       VALUES ($1, $2, $3, 'inbound', 'customer', $4, 'voice', 'text')
+       RETURNING id`,
       [tenant_id, conversation_id, customer_id, transcript]
     );
+
+    // CRM/memory/timeline parity: emit the SAME domain event WhatsApp emits for an
+    // inbound message (handleInbound → MESSAGE_RECEIVED), via the existing bus.
+    // Downstream consumers (workflow rules matching trigger_event, CRM extraction,
+    // memory write-back) handle it with no voice special-casing. Emitted before the
+    // mode gate, exactly as the WhatsApp path emits it before its reply check.
+    eventBus.emit(EVENT.MESSAGE_RECEIVED, {
+      tenant_id,
+      customer_id,
+      conversation_id,
+      message_id: inbound.id,
+      text: transcript,
+      mode: conversation.mode,
+    });
 
     // Same mode/ai_enabled gate as the WhatsApp path.
     if (conversation.mode === 'human' || !tenant.ai_enabled) {
