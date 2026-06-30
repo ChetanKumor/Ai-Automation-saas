@@ -1,13 +1,16 @@
 'use strict';
 
-const express          = require('express');
-const logger           = require('../infra/logging/logger');
-const db               = require('../db/db');
-const tenantService    = require('../modules/tenant/tenantService');
-const customerService  = require('../modules/customer/customerService');
-const knowledgeService = require('../modules/knowledge/knowledgeService');
-const aiService        = require('../modules/ai/aiService');
-const hmac             = require('../utils/hmac');
+const express             = require('express');
+const logger              = require('../infra/logging/logger');
+const db                  = require('../db/db');
+const tenantService       = require('../modules/tenant/tenantService');
+const customerService     = require('../modules/customer/customerService');
+const knowledgeService    = require('../modules/knowledge/knowledgeService');
+const aiService           = require('../modules/ai/aiService');
+const identityService     = require('../modules/identity/identityService');
+const conversationService = require('../modules/conversation/conversationService');
+const voiceChannelAdapter = require('../modules/channels/voice/voiceChannelAdapter');
+const hmac                = require('../utils/hmac');
 
 const router = express.Router();
 
@@ -127,9 +130,111 @@ async function handleTurn(req, res) {
   }
 }
 
-router.post('/turn', express.raw({ type: '*/*' }), authenticate, handleTurn);
+/**
+ * POST /internal/voice/call/start — bridge a call into the brain's identity model.
+ *
+ * Identity resolves ONCE here, at bridge time, via the SAME identityService the
+ * WhatsApp path uses. For voice (a phone channel) a returning caller is matched
+ * by phone and reuses their EXISTING open conversation — so voice and WhatsApp
+ * share one customer, one conversation, one memory. A new caller creates the
+ * customer + voice channel_identifier. Every subsequent turn reuses this
+ * call_session's customer/conversation (the worker never resolves identity).
+ *
+ * req:  { tenant_id, caller_id, channel:"voice" }
+ * res:  { call_session_id, customer_id, conversation_id }
+ */
+async function handleCallStart(req, res) {
+  const { tenant_id, caller_id, channel = 'voice' } = req.body || {};
+
+  if (!tenant_id || !caller_id) {
+    return res.status(400).json({ error: 'missing required fields' });
+  }
+
+  try {
+    const { rows: [t] } = await db.query(
+      'SELECT id FROM tenants WHERE id = $1 AND active = true', [tenant_id]
+    );
+    if (!t) return res.status(404).json({ error: 'tenant not found' });
+
+    // Same resolution WhatsApp uses (phone fallback + channel_identifier link).
+    const customer = await identityService.resolveCustomer({
+      tenantId: tenant_id,
+      channelType: channel,
+      identifier: caller_id,
+    });
+
+    // Returning customer → their existing open conversation; new → a fresh one.
+    const conversation = await conversationService.getOrCreateOpenConversation(
+      tenant_id, customer.id, 'voice'
+    );
+
+    // PR6 lifecycle: create call_session (in_progress) + emit call.started.
+    const session = await voiceChannelAdapter.startSession({
+      tenantId: tenant_id,
+      customerId: customer.id,
+      conversationId: conversation.id,
+      provider: 'noop',
+      direction: 'inbound',
+      fromNumber: caller_id,
+    });
+
+    return res.json({
+      call_session_id: session.id,
+      customer_id: customer.id,
+      conversation_id: conversation.id,
+    });
+  } catch (err) {
+    logger.error({ err: err.message }, 'internal voice call/start failed');
+    return res.status(500).json({ error: 'call start failed' });
+  }
+}
+
+/**
+ * POST /internal/voice/call/end — close the call_session + emit call.ended.
+ *
+ * The worker supplies only the call_session_id (the canonical owner of the
+ * tenant), so tenant scope is resolved server-side before the tenant-scoped
+ * update. Drives PR6's call_sessions.updateStatus + call.ended.
+ *
+ * req:  { call_session_id, status:"completed"|"failed", duration_seconds }
+ * res:  { ok:true }
+ */
+async function handleCallEnd(req, res) {
+  const { call_session_id, status = 'completed', duration_seconds = null } = req.body || {};
+
+  if (!call_session_id) {
+    return res.status(400).json({ error: 'missing required fields' });
+  }
+  if (status !== 'completed' && status !== 'failed') {
+    return res.status(400).json({ error: 'invalid status' });
+  }
+
+  try {
+    const { rows: [row] } = await db.query(
+      'SELECT tenant_id FROM call_sessions WHERE id = $1', [call_session_id]
+    );
+    if (!row) return res.status(404).json({ error: 'call session not found' });
+
+    const session = await voiceChannelAdapter.endSession(call_session_id, row.tenant_id, {
+      status,
+      durationSeconds: duration_seconds,
+    });
+    if (!session) return res.status(404).json({ error: 'call session not found' });
+
+    return res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err: err.message }, 'internal voice call/end failed');
+    return res.status(500).json({ error: 'call end failed' });
+  }
+}
+
+router.post('/call/start', express.raw({ type: '*/*' }), authenticate, handleCallStart);
+router.post('/call/end',   express.raw({ type: '*/*' }), authenticate, handleCallEnd);
+router.post('/turn',       express.raw({ type: '*/*' }), authenticate, handleTurn);
 
 module.exports = router;
 module.exports._authenticate = authenticate;
 module.exports._handleTurn = handleTurn;
+module.exports._handleCallStart = handleCallStart;
+module.exports._handleCallEnd = handleCallEnd;
 
