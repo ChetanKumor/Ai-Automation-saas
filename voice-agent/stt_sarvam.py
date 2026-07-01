@@ -4,24 +4,21 @@ Wraps Sarvam's streaming speech-to-text-translate WebSocket (Saaras) in the
 LiveKit `stt.STT` / `stt.RecognizeStream` plugin contract, so an AgentSession can
 use it like any built-in STT: push audio frames, receive interim + final
 transcripts, and let the session own VAD / turn detection / barge-in. The
-translate endpoint also gives code-switch handling (Telugu<->English) and a
+translate endpoint also handles code-switch (Telugu<->English) and returns a
 detected `language_code` we forward to the brain.
 
 Streaming lives ENTIRELY worker-side. The HTTP boundary to the brain is
-turn-shaped — one delegate_turn per FINAL transcript (see agent.py). There is no
-business logic here: this only moves audio in and transcripts out.
+turn-shaped — one delegate_turn per FINAL transcript (see agent.py). No business
+logic here: audio in, transcripts out. The wire protocol lives in the
+livekit-free sarvam_protocol module (unit-tested there).
 
-NOTE (version): written against livekit-agents 1.x (stt.STT / RecognizeStream,
-SpeechEvent/SpeechEventType/SpeechData) and the `websockets` client
-(`additional_headers=`). The pure helpers below are SDK-independent and are the
-unit-tested surface; validate the streaming glue on `uv sync`.
+NOTE (version): written against livekit-agents 1.x and the `websockets` client
+(`additional_headers=`). Validate the streaming glue on `uv sync`.
 """
 
 from __future__ import annotations
 
 import asyncio
-import base64
-import json
 import logging
 import os
 from typing import Optional
@@ -30,68 +27,16 @@ import websockets
 from livekit import rtc
 from livekit.agents import DEFAULT_API_CONNECT_OPTIONS, stt
 
+from sarvam_protocol import INPUT_SAMPLE_RATE, encode_audio_message, parse_message
+
 logger = logging.getLogger("voice-agent.stt")
 
 SARVAM_STT_WS = os.environ.get(
     "SARVAM_STT_WS_URL", "wss://api.sarvam.ai/speech-to-text-translate/ws"
 )
 SARVAM_STT_MODEL = os.environ.get("SARVAM_STT_MODEL", "saaras:v2.5")
-INPUT_SAMPLE_RATE = 16000  # Sarvam streaming expects 16 kHz mono PCM16
 
 
-# ── Pure message helpers (unit-tested without a live socket or the SDK) ───────
-def encode_audio_message(pcm16: bytes, sample_rate: int = INPUT_SAMPLE_RATE) -> str:
-    """Build the JSON audio frame Sarvam streaming STT expects (base64 PCM16)."""
-    return json.dumps(
-        {
-            "audio": {
-                "data": base64.b64encode(pcm16).decode("ascii"),
-                "encoding": "audio/x-raw",
-                "sample_rate": sample_rate,
-            }
-        }
-    )
-
-
-def parse_message(raw: str) -> Optional[dict]:
-    """Normalize a Sarvam STT WS message → {kind, text, language} or None.
-
-    kind ∈ {"interim", "final", "speech_start", "speech_end"}. Sarvam emits
-    transcripts as type "data" (data.transcript, data.language_code) and VAD
-    boundaries as type "events" (data.signal_type START_SPEECH / END_SPEECH).
-    """
-    try:
-        msg = json.loads(raw)
-    except (ValueError, TypeError):
-        return None
-    if not isinstance(msg, dict):
-        return None
-
-    mtype = msg.get("type")
-    data = msg.get("data") or {}
-
-    if mtype == "data":
-        text = (data.get("transcript") or "").strip()
-        if not text:
-            return None
-        is_final = data.get("is_final", True)  # finalized unless explicitly partial
-        return {
-            "kind": "final" if is_final else "interim",
-            "text": text,
-            "language": data.get("language_code"),
-        }
-
-    if mtype == "events":
-        signal = (data.get("signal_type") or "").upper()
-        if signal in ("START_SPEECH", "SPEECH_START"):
-            return {"kind": "speech_start", "text": "", "language": None}
-        if signal in ("END_SPEECH", "SPEECH_END"):
-            return {"kind": "speech_end", "text": "", "language": None}
-
-    return None
-
-
-# ── LiveKit STT plugin ────────────────────────────────────────────────────────
 class SarvamSTT(stt.STT):
     def __init__(
         self,

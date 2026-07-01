@@ -46,6 +46,7 @@ from brain_client import SPOKEN_FALLBACK, BrainClient, BrainError
 from latency import TurnLatency
 from stt_sarvam import SarvamSTT
 from tts_sarvam import SarvamTTS
+from turn_context import latest_user_text
 
 logger = logging.getLogger("voice-agent")
 
@@ -83,35 +84,6 @@ class CallState:
 
 
 # ── The brain-delegating "LLM" node (ZERO reasoning) ──────────────────────────
-def latest_user_text(chat_ctx) -> str:
-    """Extract the latest user-turn text from a LiveKit ChatContext.
-
-    The worker forwards ONLY this to the brain — conversation history/context is
-    owned by Node (the single context-assembly path), never re-derived here.
-    Pure + defensive across SDK minor versions (items vs messages, text_content
-    vs content). Unit-tested with a fake chat_ctx.
-    """
-    items = getattr(chat_ctx, "items", None)
-    if items is None:
-        items = getattr(chat_ctx, "messages", []) or []
-    for item in reversed(list(items)):
-        if getattr(item, "role", None) != "user":
-            continue
-        txt = getattr(item, "text_content", None)
-        if callable(txt):
-            txt = txt()
-        if txt:
-            return str(txt).strip()
-        content = getattr(item, "content", None)
-        if isinstance(content, str):
-            return content.strip()
-        if isinstance(content, (list, tuple)):
-            parts = [c for c in content if isinstance(c, str)]
-            if parts:
-                return " ".join(parts).strip()
-    return ""
-
-
 class BrainLLM(llm.LLM):
     """A custom LLM node that delegates each finalized turn to the Node brain.
 
