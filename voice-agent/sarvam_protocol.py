@@ -6,9 +6,13 @@ websockets, no network. The plugin adapters (stt_sarvam.py / tts_sarvam.py) are
 thin glue over these.
 
 STT (speech-to-text-translate, Saaras):
-  send: {"audio":{"data":"<b64 PCM16>","encoding":"audio/x-raw","sample_rate":16000}}
+  send: {"audio":{"data":"<b64 PCM16>","encoding":"audio/wav","sample_rate":16000}}
   recv: {"type":"data","data":{"transcript":"...","language_code":"te-IN"}}
         {"type":"events","data":{"signal_type":"START_SPEECH"|"END_SPEECH"}}
+  NOTE: Sarvam's `audio.encoding` enum accepts "audio/wav" (raw PCM16 payload —
+  NO container/header per frame) or the pcm_* variants; it REJECTS "audio/x-raw"
+  with a pipeline validation error and closes the socket. Server-side VAD
+  (vad_signals=true) segments the continuous stream into per-utterance finals.
 
 TTS (text-to-speech, Bulbul):
   send: {"type":"config","data":{target_language_code,speaker,speech_sample_rate,model}}
@@ -29,12 +33,18 @@ INPUT_SAMPLE_RATE = 16000  # Sarvam streaming STT expects 16 kHz mono PCM16
 
 # ── STT ───────────────────────────────────────────────────────────────────────
 def encode_audio_message(pcm16: bytes, sample_rate: int = INPUT_SAMPLE_RATE) -> str:
-    """Build the JSON audio frame Sarvam streaming STT expects (base64 PCM16)."""
+    """Build the JSON audio frame Sarvam streaming STT expects (base64 PCM16).
+
+    encoding MUST be "audio/wav" — Sarvam's request schema rejects "audio/x-raw"
+    (`audio.encoding` enum) and closes the socket, so no audio is ever
+    transcribed. The payload stays raw PCM16 (no per-frame WAV header): wrapping
+    each frame in a RIFF header is accepted but yields empty transcripts.
+    """
     return json.dumps(
         {
             "audio": {
                 "data": base64.b64encode(pcm16).decode("ascii"),
-                "encoding": "audio/x-raw",
+                "encoding": "audio/wav",
                 "sample_rate": sample_rate,
             }
         }
@@ -115,6 +125,30 @@ def parse_audio(raw: str) -> Optional[bytes]:
         return base64.b64decode(b64)
     except (ValueError, TypeError):
         return None
+
+
+def pcm16_from_wav(data: bytes) -> bytes:
+    """Strip a RIFF/WAVE header if present, returning raw PCM16 samples.
+
+    Sarvam Bulbul returns base64-encoded WAV; the leading chunk carries the RIFF
+    header (44 bytes, or more when a 'fmt ' extension / 'LIST'/'fact' chunk is
+    present). Pushing that container to the raw-PCM AudioByteStream is what causes
+    the hiss/bass distortion and the sample-count misalignment. Header-less
+    continuation chunks are returned unchanged.
+    """
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WAVE":
+        # Walk the RIFF sub-chunks to the 'data' chunk (its offset varies with the
+        # fmt extension size), rather than assuming a fixed 44-byte header.
+        i = 12
+        while i + 8 <= len(data):
+            chunk_id = data[i : i + 4]
+            chunk_size = int.from_bytes(data[i + 4 : i + 8], "little")
+            if chunk_id == b"data":
+                payload = data[i + 8 : i + 8 + chunk_size] if chunk_size else data[i + 8 :]
+                return payload
+            i += 8 + chunk_size + (chunk_size & 1)  # chunks are word-aligned
+        return data[44:]  # no 'data' chunk found → assume the standard header
+    return data
 
 
 def is_final_event(raw: str) -> bool:

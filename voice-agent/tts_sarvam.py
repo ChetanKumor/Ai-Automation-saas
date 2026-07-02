@@ -26,15 +26,34 @@ from typing import Callable, Optional
 import websockets
 from livekit.agents import DEFAULT_API_CONNECT_OPTIONS, tts
 
-from sarvam_protocol import config_message, flush_message, is_final_event, parse_audio, text_message
+from sarvam_protocol import (
+    config_message,
+    flush_message,
+    is_final_event,
+    parse_audio,
+    pcm16_from_wav,
+    text_message,
+)
 
 logger = logging.getLogger("voice-agent.tts")
+
+# Emitter framing. We buffer decoded PCM and push whole frames of this size so no
+# partial frame is dropped; the trailing remainder is padded with silence. Small
+# (20 ms) to keep time-to-first-frame low.
+FRAME_MS = 20
+
+# Dev-only per-hop tracing. OFF by default; NEVER alters control flow.
+VOICE_DEBUG = os.environ.get("VOICE_DEBUG", "").lower() in ("1", "true", "yes")
 
 SARVAM_TTS_WS = os.environ.get("SARVAM_TTS_WS_URL", "wss://api.sarvam.ai/text-to-speech/ws")
 SARVAM_TTS_MODEL = os.environ.get("SARVAM_TTS_MODEL", "bulbul:v2")
 SARVAM_TTS_SPEAKER = os.environ.get("SARVAM_TTS_SPEAKER", "anushka")
-# bulbul:v2 → 22050; bulbul:v3 → 24000.
-SARVAM_TTS_SAMPLE_RATE = int(os.environ.get("SARVAM_TTS_SAMPLE_RATE", "22050"))
+# MUST equal the LiveKit room AudioSource rate (RoomOutputOptions default 24000)
+# so the AgentSession's TTS→output path does NO resampling (generation.py only
+# inserts an rtc.AudioResampler when tts.sample_rate != audio_output.sample_rate).
+# Sarvam Bulbul honors this rate; 24000 is native to bulbul:v2 and returns audio
+# reliably, whereas the old 22050 forced a non-integer 22050→24000 resample.
+SARVAM_TTS_SAMPLE_RATE = int(os.environ.get("SARVAM_TTS_SAMPLE_RATE", "24000"))
 DEFAULT_TTS_LANGUAGE = os.environ.get("VOICE_DEFAULT_LANGUAGE", "en-IN")
 
 
@@ -89,9 +108,25 @@ class SarvamTTSStream(tts.ChunkedStream):
             sample_rate=t.sample_rate,
             num_channels=t.num_channels,
             mime_type="audio/pcm",
+            frame_size_ms=FRAME_MS,
         )
+        if VOICE_DEBUG:
+            # hop9: the rate/channels we declare to the AudioSource. The room
+            # output is 24000 mono; when this equals 24000 no resample occurs.
+            logger.info(
+                "tts emitter declared: sample_rate=%d ch=%d (requested speech_sample_rate=%d)",
+                t.sample_rate, t.num_channels, t.sample_rate,
+            )
+        pushed_bytes = 0
 
-        first = True
+        # One emitter frame in bytes (PCM16). Sarvam's WAV chunks arrive at
+        # arbitrary sizes, so we align our pushes to this to avoid dropped/partial
+        # frames. Matches the emitter's own samples_per_channel formula.
+        frame_bytes = int(t.sample_rate // 1000 * FRAME_MS) * 2 * t.num_channels
+
+        buf = bytearray()
+        first_byte = True
+        first_frame = True
         async with websockets.connect(url, additional_headers=headers) as ws:
             await ws.send(config_message(language, t._speaker, t.sample_rate, t._model))
             await ws.send(text_message(self._input_text))
@@ -100,13 +135,45 @@ class SarvamTTSStream(tts.ChunkedStream):
             async for raw in ws:
                 pcm = parse_audio(raw)
                 if pcm:
-                    if first:
+                    if first_byte:
+                        first_byte = False
                         t.on_first_byte()           # first audio byte back from Sarvam
-                    output_emitter.push(pcm)        # play this chunk while the rest generates
-                    if first:
-                        first = False
-                        t.on_playback_start()       # first frame fed to the room
+                        if VOICE_DEBUG:
+                            # hop6: read the TRUE shape of Sarvam's first chunk. The
+                            # streaming endpoint returns headerless raw PCM16 at the
+                            # requested speech_sample_rate (no RIFF to parse).
+                            has_riff = pcm[:4] == b"RIFF"
+                            logger.info(
+                                "tts hop6 first-chunk bytes=%d riff_header=%s "
+                                "(payload treated as PCM16 @%dHz)",
+                                len(pcm), has_riff, t.sample_rate,
+                            )
+                    buf.extend(pcm16_from_wav(pcm))  # strip WAV container → raw PCM16
+                    # Push only whole frames; hold the remainder for the next chunk.
+                    n = (len(buf) // frame_bytes) * frame_bytes
+                    if n:
+                        output_emitter.push(bytes(buf[:n]))
+                        pushed_bytes += n
+                        del buf[:n]
+                        if first_frame:
+                            first_frame = False
+                            t.on_playback_start()   # first frame actually fed to the room
                 elif is_final_event(raw):
                     break
 
+        # Pad the trailing partial frame with silence so nothing is dropped at flush.
+        if buf:
+            buf.extend(b"\x00" * (frame_bytes - len(buf)))
+            output_emitter.push(bytes(buf))
+            pushed_bytes += len(buf)
+            if first_frame:
+                first_frame = False
+                t.on_playback_start()
+
+        if VOICE_DEBUG:
+            # hop10/11: total PCM16 fed to the AudioSource at the declared rate.
+            logger.info(
+                "tts pushed total=%d bytes = %.2fs @%dHz mono",
+                pushed_bytes, pushed_bytes / 2 / t.sample_rate, t.sample_rate,
+            )
         output_emitter.flush()

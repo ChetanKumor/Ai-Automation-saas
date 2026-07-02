@@ -31,6 +31,9 @@ from sarvam_protocol import INPUT_SAMPLE_RATE, encode_audio_message, parse_messa
 
 logger = logging.getLogger("voice-agent.stt")
 
+# Dev-only per-hop tracing. OFF by default; NEVER alters control flow.
+VOICE_DEBUG = os.environ.get("VOICE_DEBUG", "").lower() in ("1", "true", "yes")
+
 SARVAM_STT_WS = os.environ.get(
     "SARVAM_STT_WS_URL", "wss://api.sarvam.ai/speech-to-text-translate/ws"
 )
@@ -74,17 +77,29 @@ class SarvamSTTStream(stt.RecognizeStream):
         self._language = language
 
     def _connect_url(self) -> str:
-        url = f"{SARVAM_STT_WS}?model={self._model}"
+        # Server-side VAD segments the CONTINUOUS mic stream into per-utterance
+        # finals: without vad_signals/flush_signal the socket accepts audio but
+        # never emits a transcript (verified against the live endpoint). Mirrors
+        # the official livekit-plugins-sarvam connect params.
+        url = (
+            f"{SARVAM_STT_WS}?model={self._model}"
+            f"&sample_rate={INPUT_SAMPLE_RATE}"
+            "&vad_signals=true&flush_signal=true&high_vad_sensitivity=true"
+        )
         if self._language:
-            url += f"&language_code={self._language}"
+            url += f"&language-code={self._language}"
         return url
 
     async def _run(self) -> None:
         headers = {"api-subscription-key": self._api_key}
+        if VOICE_DEBUG:
+            logger.info("stt connect: %s", self._connect_url())
         async with websockets.connect(self._connect_url(), additional_headers=headers) as ws:
             sender = asyncio.create_task(self._send_audio(ws))
             try:
                 async for raw in ws:
+                    if VOICE_DEBUG:
+                        logger.info("stt recv<< %s", str(raw)[:400])  # hop4/5: raw Sarvam msg
                     bit = parse_message(raw)
                     if bit:
                         self._emit(bit)
@@ -94,10 +109,21 @@ class SarvamSTTStream(stt.RecognizeStream):
     async def _send_audio(self, ws) -> None:
         # `self._input_ch` yields rtc.AudioFrame (resampled to INPUT_SAMPLE_RATE)
         # plus flush sentinels — only forward real frames.
+        n = 0
         async for frame in self._input_ch:
             if not isinstance(frame, rtc.AudioFrame):
                 continue
-            await ws.send(encode_audio_message(frame.data.tobytes(), frame.sample_rate))
+            data = frame.data.tobytes()
+            if VOICE_DEBUG and n % 50 == 0:  # hop1/3: prove non-silent audio enters
+                import audioop
+                rms = audioop.rms(data, 2) if data else 0
+                logger.info(
+                    "stt frame#%d rate=%d ch=%d spc=%d bytes=%d rms=%d enc=audio/wav",
+                    n, frame.sample_rate, frame.num_channels,
+                    frame.samples_per_channel, len(data), rms,
+                )
+            n += 1
+            await ws.send(encode_audio_message(data, frame.sample_rate))
 
     def _emit(self, bit: dict) -> None:
         kind = bit["kind"]

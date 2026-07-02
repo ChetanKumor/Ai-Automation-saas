@@ -18,7 +18,9 @@ from sarvam_protocol import (
 def test_encode_audio_message_base64_roundtrip():
     pcm = b"\x01\x02\x03\x04"
     msg = json.loads(encode_audio_message(pcm, 16000))
-    assert msg["audio"]["encoding"] == "audio/x-raw"
+    # Sarvam's audio.encoding enum rejects "audio/x-raw"; must be "audio/wav"
+    # (raw PCM16 payload, no per-frame container).
+    assert msg["audio"]["encoding"] == "audio/wav"
     assert msg["audio"]["sample_rate"] == 16000
     assert base64.b64decode(msg["audio"]["data"]) == pcm
 

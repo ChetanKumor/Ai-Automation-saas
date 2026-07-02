@@ -8,6 +8,7 @@ dependencies = [
     "livekit-plugins-silero>=1.2,<2", # VAD
     "websockets>=12",                # Sarvam streaming STT/TTS WebSockets
     "httpx>=0.27",                   # HMAC-signed calls to the Node brain
+    "python-dotenv>=1.0",            # load .env before LiveKit reads LIVEKIT_URL etc.
 ]
 
 # Sarvam STT (Saaras) / TTS (Bulbul) are reached over their streaming WebSocket
@@ -21,6 +22,7 @@ dependencies = [
 turn-detector = ["livekit-plugins-turn-detector>=1.2,<2"]
 
 [tool.uv]
+package = false
 dev-dependencies = [
     "pytest>=8",
     "pytest-asyncio>=0.23",

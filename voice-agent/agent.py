@@ -31,6 +31,10 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from livekit.agents import (
     DEFAULT_API_CONNECT_OPTIONS,
     Agent,
@@ -172,6 +176,20 @@ class _InstrumentedTTS(SarvamTTS):
 
 
 # ── Entrypoint ────────────────────────────────────────────────────────────────
+def _load_vad():
+    """Silero VAD tuned so short pauses don't truncate an utterance.
+
+    16 kHz mono to match the STT feed. min_silence_duration is relaxed to ~600 ms
+    (from the 550 ms default) so a brief mid-sentence pause doesn't end the turn,
+    with a min_speech_duration floor to reject blips.
+    """
+    return silero.VAD.load(
+        sample_rate=16000,
+        min_silence_duration=0.6,
+        min_speech_duration=0.1,
+    )
+
+
 def _resolve_turn_detection():
     """Prefer the semantic multilingual turn detector; fall back to VAD."""
     try:
@@ -227,10 +245,12 @@ async def entrypoint(ctx: JobContext) -> None:
     session = AgentSession(
         stt=SarvamSTT(),
         tts=_InstrumentedTTS(call=call),
-        vad=vad or silero.VAD.load(),
+        vad=vad or _load_vad(),
         llm=BrainLLM(brain=brain, call=call),
         turn_detection=_resolve_turn_detection(),
         allow_interruptions=True,  # barge-in: caller speech stops/clears playback
+        # Relax endpointing so short pauses don't cut the caller off mid-utterance.
+        turn_handling={"endpointing": {"min_delay": 0.6}},
     )
 
     # End-of-call watcher: when the brain asks to end (or the fallback fired),
@@ -239,7 +259,7 @@ async def entrypoint(ctx: JobContext) -> None:
         while not call.end_requested:
             await asyncio.sleep(0.2)
         await asyncio.sleep(1.5)  # grace for the closing line to finish speaking
-        await ctx.shutdown(reason="end_call")
+        ctx.shutdown(reason="end_call")  # sync, returns None — do NOT await
 
     asyncio.create_task(_watch_end())
 
@@ -248,7 +268,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
 def prewarm(proc) -> None:
     # Load VAD once per worker process (saves per-call startup latency).
-    proc.userdata["vad"] = silero.VAD.load()
+    proc.userdata["vad"] = _load_vad()
 
 
 if __name__ == "__main__":

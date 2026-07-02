@@ -76,6 +76,14 @@ const generateReply = async (tenant, customer, conversation, userMessage, histor
     parts: [{ text: m.content }]
   }));
 
+  // Gemini requires the first content's role to be 'user'. A voice history window
+  // can open with the AI greeting (role 'model'), which triggers a 500 ("First
+  // content should be with role 'user', got model"). Drop leading non-user
+  // entries so chatHistory[0].role === 'user' (or [] if none remain).
+  while (chatHistory.length && chatHistory[0].role !== 'user') {
+    chatHistory.shift();
+  }
+
   const chat = model.startChat({
     history: chatHistory,
     generationConfig: {
