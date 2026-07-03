@@ -78,6 +78,25 @@ async def test_call_start_then_end_hit_the_right_paths():
 
 
 @pytest.mark.asyncio
+async def test_call_end_rounds_duration_to_an_integer():
+    seen = {}
+
+    def handler(request):
+        seen["sig_ok"] = _sig_ok(request)
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"ok": True})
+
+    client = _client(handler)
+    brain = BrainClient("http://brain:3000", SECRET, client=client)
+    await brain.call_end("cs", "completed", 21.8)
+    await client.aclose()
+
+    assert seen["body"]["duration_seconds"] == 22
+    assert isinstance(seen["body"]["duration_seconds"], int)  # 22, not 22.0
+    assert seen["sig_ok"] is True  # the signature covers the coerced body
+
+
+@pytest.mark.asyncio
 async def test_http_error_becomes_brain_error():
     client = _client(lambda request: httpx.Response(500, text="boom"))
     brain = BrainClient("http://brain:3000", SECRET, client=client)

@@ -199,12 +199,17 @@ class BrainClient:
     async def call_end(
         self, call_session_id: str, status: str, duration_seconds: Optional[float]
     ) -> dict:
-        """Close the call_session. status is "completed" | "failed"."""
+        """Close the call_session. status is "completed" | "failed".
+
+        duration_seconds goes over the wire as an int — the DB column is
+        integer (migration 018) and the producer owns rounding."""
         return await self._post(
             "/internal/voice/call/end",
             {
                 "call_session_id": call_session_id,
                 "status": status,
-                "duration_seconds": duration_seconds,
+                "duration_seconds": (
+                    None if duration_seconds is None else int(round(duration_seconds))
+                ),
             },
         )
