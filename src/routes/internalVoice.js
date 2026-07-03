@@ -512,17 +512,24 @@ async function handleCallStart(req, res) {
  * tenant), so tenant scope is resolved server-side before the tenant-scoped
  * update. Drives PR6's call_sessions.updateStatus + call.ended.
  *
- * req:  { call_session_id, status:"completed"|"failed", duration_seconds }
+ * req:  { call_session_id, status:"completed"|"failed", duration_seconds:int>=0 }
  * res:  { ok:true }
  */
 async function handleCallEnd(req, res) {
-  const { call_session_id, status = 'completed', duration_seconds = null } = req.body || {};
+  const { call_session_id, status = 'completed', duration_seconds } = req.body || {};
 
   if (!call_session_id) {
     return res.status(400).json({ error: 'missing required fields' });
   }
   if (status !== 'completed' && status !== 'failed') {
     return res.status(400).json({ error: 'invalid status' });
+  }
+  // call_sessions.duration_seconds is int (migration 018): coerce at the process
+  // boundary and reject malformed input instead of 500ing inside the UPDATE.
+  const d = Math.round(Number(duration_seconds));
+  if (!Number.isFinite(d) || d < 0) {
+    logger.warn({ call_session_id, duration_seconds }, 'internal voice call/end: invalid duration_seconds');
+    return res.status(400).json({ error: 'invalid duration_seconds' });
   }
 
   try {
@@ -533,7 +540,7 @@ async function handleCallEnd(req, res) {
 
     const session = await voiceChannelAdapter.endSession(call_session_id, row.tenant_id, {
       status,
-      durationSeconds: duration_seconds,
+      durationSeconds: d,
     });
     if (!session) return res.status(404).json({ error: 'call session not found' });
 

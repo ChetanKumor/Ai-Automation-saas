@@ -220,6 +220,54 @@ describe('PR7 voice lifecycle — identity, turn-from-session, event parity', ()
     assert.equal(closed.status, 'failed');
   });
 
+  it('call/end: float duration_seconds is rounded at the boundary (21.8 → 22)', async () => {
+    const caller = '+919000000707';
+    const start = await signedPost('/call/start', { tenant_id: TENANT_ID, caller_id: caller, channel: 'voice' });
+
+    const res = await signedPost('/call/end', {
+      call_session_id: start.json.call_session_id,
+      status: 'completed',
+      duration_seconds: 21.8,
+    });
+    assert.equal(res.status, 200);
+
+    const closed = await callSessions.get(start.json.call_session_id, TENANT_ID);
+    assert.equal(closed.status, 'completed');
+    assert.equal(closed.duration_seconds, 22);
+  });
+
+  it('call/end: integer duration_seconds passes through unchanged (45)', async () => {
+    const caller = '+919000000708';
+    const start = await signedPost('/call/start', { tenant_id: TENANT_ID, caller_id: caller, channel: 'voice' });
+
+    const res = await signedPost('/call/end', {
+      call_session_id: start.json.call_session_id,
+      status: 'completed',
+      duration_seconds: 45,
+    });
+    assert.equal(res.status, 200);
+
+    const closed = await callSessions.get(start.json.call_session_id, TENANT_ID);
+    assert.equal(closed.duration_seconds, 45);
+  });
+
+  it('call/end: malformed duration_seconds → 400 and the session row is untouched', async () => {
+    const caller = '+919000000709';
+    const start = await signedPost('/call/start', { tenant_id: TENANT_ID, caller_id: caller, channel: 'voice' });
+
+    const res = await signedPost('/call/end', {
+      call_session_id: start.json.call_session_id,
+      status: 'completed',
+      duration_seconds: 'abc',
+    });
+    assert.equal(res.status, 400);
+
+    const session = await callSessions.get(start.json.call_session_id, TENANT_ID);
+    assert.equal(session.status, 'in_progress');   // not closed
+    assert.equal(session.duration_seconds, null);  // no partial write
+    assert.equal(session.ended_at, null);
+  });
+
   it('call/end: unknown call_session_id → 404', async () => {
     const res = await signedPost('/call/end', {
       call_session_id: '00000000-0000-0000-0000-000000000000',

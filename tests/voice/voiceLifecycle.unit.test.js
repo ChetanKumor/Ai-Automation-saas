@@ -73,6 +73,21 @@ describe('internal voice endpoints — auth + validation (no DB)', () => {
     assert.equal(res.status, 400);
   });
 
+  it('call/end with a non-numeric duration_seconds → 400', async () => {
+    const res = await post('/call/end', { call_session_id: 'x', status: 'completed', duration_seconds: 'abc' });
+    assert.equal(res.status, 400);
+  });
+
+  it('call/end with a negative duration_seconds → 400', async () => {
+    const res = await post('/call/end', { call_session_id: 'x', status: 'completed', duration_seconds: -5 });
+    assert.equal(res.status, 400);
+  });
+
+  it('call/end with missing duration_seconds → 400', async () => {
+    const res = await post('/call/end', { call_session_id: 'x', status: 'completed' });
+    assert.equal(res.status, 400);
+  });
+
   it('turn with missing call_session_id → 400', async () => {
     const res = await post('/turn', { transcript: 'hello' });
     assert.equal(res.status, 400);
