@@ -33,7 +33,9 @@ A **separate** deployable that runs the real-time audio loop for the Voice chann
 | --- | --- |
 | `NODE_BRAIN_URL` | Base URL of the Node app (default `http://localhost:3000`) |
 | `VOICE_INTERNAL_SECRET` | Shared HMAC secret for `/internal/voice/*` (match Node) |
-| `VOICE_TURN_TIMEOUT_S` | Per-turn delegate timeout (static apology on failure) |
+| `VOICE_TURN_TIMEOUT_S` | Per-turn delegate timeout (static apology on failure); per-chunk read timeout in SSE mode |
+| `VOICE_STREAM_TURNS` | `true` = opt-in SSE turn mode (brain ack + streamed reply); default `false` = JSON path (rollback switch) |
+| `VOICE_TURN_MAX_S` | Overall hard cap per SSE turn (default `60`) |
 | `SARVAM_API_KEY` | Sarvam Saaras/Bulbul key |
 | `SARVAM_STT_MODEL` / `SARVAM_TTS_MODEL` | `saaras:v3` / `bulbul:v3` |
 | `SARVAM_TTS_SPEAKER` | bulbul:v3-valid voice (default `shubh`) |

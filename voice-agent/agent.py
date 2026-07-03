@@ -38,7 +38,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from livekit.agents import Agent, AgentSession, JobContext, WorkerOptions, cli, llm
+from livekit.agents import Agent, AgentSession, FlushSentinel, JobContext, WorkerOptions, cli, llm
 from livekit.plugins import sarvam
 
 from brain_client import BrainClient, BrainError, aclose_shared_client
@@ -54,6 +54,19 @@ TURN_TIMEOUT_S = float(os.environ.get("VOICE_TURN_TIMEOUT_S", "10"))
 # maps to the seeded returning customer (scripts/seed_voice_test_customer).
 VOICE_DEV_CALLER_NUMBER = os.environ.get("VOICE_DEV_CALLER_NUMBER", "")
 VOICE_TENANT_ID = os.environ.get("VOICE_TENANT_ID", "")
+
+# PR9C — opt-in SSE turn streaming (dark by default). Read at call time so the
+# JSON path stays byte-identical when off and tests can toggle per case.
+def _stream_enabled() -> bool:
+    return os.environ.get("VOICE_STREAM_TURNS", "false").strip().lower() in ("1", "true", "yes")
+
+
+def _turn_max_s() -> float:
+    try:
+        return float(os.environ.get("VOICE_TURN_MAX_S", "60"))
+    except ValueError:
+        return 60.0
+
 
 SARVAM_STT_MODEL = os.environ.get("SARVAM_STT_MODEL", "saaras:v3")
 SARVAM_TTS_MODEL = os.environ.get("SARVAM_TTS_MODEL", "bulbul:v3")
@@ -112,7 +125,10 @@ class BrainStubLLM(llm.LLM):
 # ── The delegation shim (ZERO reasoning) ──────────────────────────────────────
 class BrainAgent(Agent):
     """Forwards each finalized user turn to the Node brain and yields the
-    brain's reply_text unchanged (one chunk — the contract is non-streaming).
+    brain's reply_text unchanged. Default: one chunk (JSON contract). With
+    VOICE_STREAM_TURNS=true (PR9C): the brain's SSE events — a brain-authored
+    ack chunk, then delta chunks — all authored by the brain; this worker still
+    generates zero language.
 
     The session-local chat history is deliberately ignored (only the latest
     user message is read): the Node brain owns conversation state, and the
@@ -159,6 +175,20 @@ class BrainAgent(Agent):
         if not transcript:
             return
 
+        # PR9C: opt-in SSE turn mode. The inner generator is aclosed
+        # DETERMINISTICALLY on barge-in (the framework acloses llm_node →
+        # GeneratorExit here → finally → inner aclose → HTTP stream closed →
+        # the brain's disconnect abort fires). Flag off ⇒ the JSON path below
+        # runs untouched.
+        if _stream_enabled():
+            inner = self._llm_node_streamed(transcript)
+            try:
+                async for chunk in inner:
+                    yield chunk
+            finally:
+                await inner.aclose()
+            return
+
         call = self._call
         t0 = time.perf_counter()
         try:
@@ -190,6 +220,70 @@ class BrainAgent(Agent):
         # contract allows true. Signal AFTER the yield so the reply is already
         # queued for playout; the entrypoint lets it finish, then shuts down.
         if decision.get("end_call"):
+            self._signal_end()
+
+    async def _llm_node_streamed(self, transcript: str):
+        """PR9C — SSE turn consumption (VOICE_STREAM_TURNS=true only).
+
+        Yields the brain-authored ack as the first chunk followed by a
+        FlushSentinel — the sentinel ends the TTS segment so the ack is
+        synthesized and spoken IMMEDIATELY (without it, the sentence tokenizer
+        holds a lone sentence until more text arrives — livekit-agents
+        token_stream.py buffers until a second sentence begins). Deltas then
+        stream into the next TTS segment as received.
+
+        done applies end_call/language exactly like the JSON path. Limitation:
+        the TTS language of THIS turn is fixed at the turn's start; a language
+        change on done only takes effect from the next synthesis stream (next
+        turn). On any transport/brain error after audio may have been spoken:
+        yield the static per-language apology and end the call — never silence.
+        """
+        call = self._call
+        t0 = time.perf_counter()
+        done: Optional[dict] = None
+        try:
+            events = self._brain.stream_turn(
+                call.call_session_id, call.language, transcript, max_s=_turn_max_s()
+            )
+            try:
+                async for name, data in events:
+                    if name == "ack":
+                        text = (data.get("text") or "").strip()
+                        if text:
+                            yield text
+                            yield FlushSentinel()
+                    elif name == "delta":
+                        text = data.get("text") or ""
+                        if text:
+                            yield text
+                    elif name == "done":
+                        done = data
+                        break
+                    elif name == "error":
+                        raise BrainError(f"turn error event: {data.get('message')}")
+            finally:
+                # Idempotent; also the barge-in path (GeneratorExit lands here
+                # and closing the generator closes the HTTP stream).
+                await events.aclose()
+            if done is None:
+                raise BrainError("SSE stream ended without a done event")
+        except BrainError as exc:
+            # Never dead air, no retries: speak the static apology, end 'failed'.
+            logger.error("stream_turn failed: %s", exc)
+            call.failed = True
+            yield apology_for(call.language)
+            self._signal_end()
+            return
+        logger.info("stream_turn_total_ms=%.1f", (time.perf_counter() - t0) * 1000.0)
+
+        # Same decision handling as the JSON path; language only affects the
+        # NEXT turn's synthesis (mid-stream switching is not supported).
+        language = done.get("language")
+        if language and language != call.language:
+            call.language = language
+            self._switch_tts_language(language)
+
+        if done.get("end_call"):
             self._signal_end()
 
 

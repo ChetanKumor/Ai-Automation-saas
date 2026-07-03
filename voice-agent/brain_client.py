@@ -17,7 +17,8 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-from typing import Any, Optional
+import time
+from typing import Any, AsyncIterator, Optional, Tuple
 
 import httpx
 
@@ -126,6 +127,74 @@ class BrainClient:
                 "transcript": transcript,
             },
         )
+
+    async def stream_turn(
+        self,
+        call_session_id: str,
+        language: Optional[str],
+        transcript: str,
+        *,
+        max_s: float = 60.0,
+    ) -> AsyncIterator[Tuple[str, dict]]:
+        """PR9C — delegate ONE finalized turn in SSE mode; yields (event, data)
+        tuples in wire order: ack / delta / done / error.
+
+        Opt-in is belt-and-braces: `accept: text/event-stream` header AND
+        `"stream": true` in the (HMAC-signed) body. Timeouts: the client's
+        VOICE_TURN_TIMEOUT_S applies PER READ (a stalled stream times out
+        chunk-by-chunk, not whole-body); `max_s` is the overall hard cap for
+        the turn, checked between events. Any transport failure surfaces as
+        BrainError. Closing this generator (barge-in) closes the HTTP stream,
+        which fires the brain's disconnect abort.
+        """
+        payload = {
+            "call_session_id": call_session_id,
+            "channel": "voice",
+            "language": language,
+            "transcript": transcript,
+            "stream": True,
+        }
+        raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        headers = {**self._headers(raw), "accept": "text/event-stream"}
+        url = f"{self._base_url}/internal/voice/turn"
+        client = self._client or _get_shared_client()
+
+        deadline = time.monotonic() + max_s
+        try:
+            async with client.stream(
+                "POST", url, content=raw, headers=headers, timeout=self._timeout
+            ) as resp:
+                if resp.status_code >= 400:
+                    body = await resp.aread()
+                    raise BrainError(
+                        f"/internal/voice/turn -> HTTP {resp.status_code}: "
+                        f"{body.decode('utf-8', 'replace')[:200]}"
+                    )
+                event: Optional[str] = None
+                data_lines: list = []
+                async for line in resp.aiter_lines():
+                    if time.monotonic() > deadline:
+                        raise BrainError(
+                            f"/internal/voice/turn -> stream exceeded hard cap {max_s}s"
+                        )
+                    line = line.rstrip("\r")
+                    if line == "":
+                        if event is not None or data_lines:
+                            try:
+                                data = json.loads("\n".join(data_lines)) if data_lines else {}
+                            except ValueError as exc:
+                                raise BrainError(
+                                    f"/internal/voice/turn -> bad SSE data: {exc}"
+                                ) from exc
+                            yield (event or "message", data)
+                        event, data_lines = None, []
+                    elif line.startswith("event:"):
+                        event = line[len("event:"):].strip()
+                    elif line.startswith("data:"):
+                        data_lines.append(line[len("data:"):].strip())
+                    # comments / unknown fields are ignored per the SSE spec
+        except httpx.HTTPError as exc:  # timeouts, connect/read errors, protocol errors
+            raise BrainError(f"/internal/voice/turn (stream) -> {type(exc).__name__}: {exc}") from exc
 
     async def call_end(
         self, call_session_id: str, status: str, duration_seconds: Optional[float]
