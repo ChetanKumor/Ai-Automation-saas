@@ -40,4 +40,11 @@ module.exports = {
   TELEPHONY_PROVIDER: process.env.TELEPHONY_PROVIDER || 'noop',
   SARVAM_API_KEY: process.env.SARVAM_API_KEY,
   VOICE_INTERNAL_SECRET: process.env.VOICE_INTERNAL_SECRET,
+
+  // Voice turn latency knobs (PR9A) — all optional, voice-channel only; the
+  // WhatsApp/default Gemini config is untouched. Read at call time by aiService.
+  VOICE_THINKING_BUDGET: process.env.VOICE_THINKING_BUDGET,     // default 0 (thinking off)
+  VOICE_MAX_OUTPUT_TOKENS: process.env.VOICE_MAX_OUTPUT_TOKENS, // default 150
+  VOICE_HISTORY_TURNS: process.env.VOICE_HISTORY_TURNS,         // default 8
+  VOICE_MEMORY_FACTS_MAX: process.env.VOICE_MEMORY_FACTS_MAX,   // default 10
 };

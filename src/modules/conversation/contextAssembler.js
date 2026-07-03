@@ -18,6 +18,9 @@ const customerService  = require('../customer/customerService');
  *   - history         : recent message history, oldest-first, EXCLUDING the
  *                       just-inserted inbound row (getRecentMessages OFFSET 1)
  *   - facts           : the customer's long-term memory rows, key-ordered
+ *                       (each row also carries updated_at so the voice channel
+ *                       can cap to the most recent facts; prompt text built
+ *                       from key/value is unchanged)
  *
  * There is no channel-specific branching here: both channels assemble the same
  * context, which is what keeps "one conversation brain" true for voice — there
@@ -40,7 +43,7 @@ async function assembleConversationContext({ tenantId, conversationId, customerI
     }),
     customerService.getRecentMessages(tenantId, conversationId),
     db.query(
-      `SELECT key, value FROM customer_memory WHERE tenant_id = $1 AND customer_id = $2 ORDER BY key`,
+      `SELECT key, value, updated_at FROM customer_memory WHERE tenant_id = $1 AND customer_id = $2 ORDER BY key`,
       [tenantId, customerId]
     ),
   ]);

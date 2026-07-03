@@ -44,6 +44,12 @@ const TOOLS = [{
   ]
 }];
 
+// Read an optional integer env knob at call time (tests can set/unset per case).
+const envInt = (name, fallback) => {
+  const v = parseInt(process.env[name], 10);
+  return Number.isFinite(v) ? v : fallback;
+};
+
 async function executeTool(name, args, tenant, customerId) {
   switch (name) {
     case 'check_availability':
@@ -65,13 +71,30 @@ async function executeTool(name, args, tenant, customerId) {
 }
 
 const generateReply = async (tenant, customer, conversation, userMessage, history, knowledgeChunks = [], facts = [], { channel = 'whatsapp' } = {}) => {
+  // ── Voice prompt diet (channel === 'voice' ONLY; default path untouched) ──
+  // History: keep the last VOICE_HISTORY_TURNS entries (one entry = one stored
+  // message). Facts: keep the VOICE_MEMORY_FACTS_MAX most recently updated
+  // (contextAssembler supplies updated_at), rendered most-recent-first; under
+  // the cap the existing key order is kept unchanged.
+  let promptHistory = history;
+  let promptFacts = facts;
+  if (channel === 'voice') {
+    promptHistory = history.slice(-envInt('VOICE_HISTORY_TURNS', 8));
+    const maxFacts = envInt('VOICE_MEMORY_FACTS_MAX', 10);
+    if (facts.length > maxFacts) {
+      promptFacts = [...facts]
+        .sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))
+        .slice(0, maxFacts);
+    }
+  }
+
   const model = modelProvider({
     model: 'gemini-2.5-flash',
-    systemInstruction: buildSystemPrompt(tenant, customer, conversation, facts, knowledgeChunks, channel),
+    systemInstruction: buildSystemPrompt(tenant, customer, conversation, promptFacts, knowledgeChunks, channel),
     tools: TOOLS
   });
 
-  const chatHistory = history.map(m => ({
+  const chatHistory = promptHistory.map(m => ({
     role: m.sender === 'customer' ? 'user' : 'model',
     parts: [{ text: m.content }]
   }));
@@ -84,12 +107,26 @@ const generateReply = async (tenant, customer, conversation, userMessage, histor
     chatHistory.shift();
   }
 
+  // ── Generation config ──
+  // Default channel: EXACTLY the pre-PR object (guarded by test). Voice:
+  // thinking disabled (thinkingBudget 0) + tighter output cap, both env-tunable.
+  // The installed SDK (@google/generative-ai@0.24.1) serializes generationConfig
+  // verbatim into the v1beta request, and ChatSession reuses it for EVERY
+  // sendMessage — so this covers tool-loop intermediate calls too.
+  const generationConfig = channel === 'voice'
+    ? {
+        maxOutputTokens: envInt('VOICE_MAX_OUTPUT_TOKENS', 150),
+        temperature: 0.7,
+        thinkingConfig: { thinkingBudget: envInt('VOICE_THINKING_BUDGET', 0) }
+      }
+    : {
+        maxOutputTokens: 250,
+        temperature: 0.7
+      };
+
   const chat = model.startChat({
     history: chatHistory,
-    generationConfig: {
-      maxOutputTokens: 250,
-      temperature: 0.7
-    }
+    generationConfig
   });
 
   let result = await chat.sendMessage(userMessage);
