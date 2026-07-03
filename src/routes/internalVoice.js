@@ -40,6 +40,26 @@ function authenticate(req, res, next) {
   next();
 }
 
+// ── PR9C: opt-in SSE turn mode ────────────────────────────────────────────────
+
+// Brain-authored acknowledgment copy, per language (the worker NEVER authors
+// language). Spoken the moment a turn resolves to a tool round. Constants for
+// now; env-overridable copy is a later PR.
+const VOICE_ACK_COPY = {
+  'te-IN': 'ఒక్క నిమిషం, చూస్తున్నాను.',
+  'hi-IN': 'एक मिनट, ज़रा देखते हैं।',
+  'en-IN': 'One moment, let me check.',
+};
+
+const ackTextFor = (language) => VOICE_ACK_COPY[language] || VOICE_ACK_COPY['en-IN'];
+
+/** Belt and braces: the worker opts into SSE with BOTH the Accept header and a
+ * body flag. Anything else takes the JSON branch untouched. */
+function wantsStream(req) {
+  return String(req.headers.accept || '').includes('text/event-stream')
+    && !!req.body && req.body.stream === true;
+}
+
 /**
  * POST /internal/voice/turn — route ONE finalized voice turn into the existing brain.
  *
@@ -55,8 +75,14 @@ function authenticate(req, res, next) {
  *
  * req:  { call_session_id, channel:"voice", language, transcript }
  * res:  { reply_text, end_call:boolean, language }
+ *
+ * PR9C: when the request opts in (Accept: text/event-stream + body stream:true)
+ * the turn is served as SSE by handleTurnSSE instead — the JSON body below is
+ * byte-identical to the pre-PR9C contract and remains the default.
  */
 async function handleTurn(req, res) {
+  if (wantsStream(req)) return handleTurnSSE(req, res);
+
   const { call_session_id, language, transcript } = req.body || {};
 
   if (!call_session_id || !transcript) {
@@ -182,6 +208,245 @@ async function handleTurn(req, res) {
 }
 
 /**
+ * PR9C — SSE branch of /internal/voice/turn (opt-in via wantsStream).
+ *
+ * Same HMAC (middleware, over the raw body — a 401 never emits SSE bytes),
+ * same hydrate/gate/fetch/persist-inbound flow and status codes as the JSON
+ * branch above (kept as an intentional mirror so the JSON branch stays
+ * untouched code). Every pre-stream failure is a plain HTTP error exactly like
+ * the JSON branch; headers switch to text/event-stream only once the turn is
+ * fully validated.
+ *
+ * Event protocol (in order):
+ *   ack   {text, language}                 at most once, only when the reply
+ *                                          loop enters a tool round, BEFORE
+ *                                          any tool executes
+ *   delta {text}                           text chunks of the FINAL completion
+ *   done  {reply_text, end_call, language} authoritative record, emitted AFTER
+ *                                          outbound persistence completes
+ *   error {message}                        model/tool failure after headers
+ *
+ * On client disconnect: abort the in-flight Gemini stream (AbortSignal), stop
+ * the loop, persist the partial reply as the outbound message (sent-text may
+ * exceed spoken-text — known approximation), clean up.
+ */
+async function handleTurnSSE(req, res) {
+  const { call_session_id, language, transcript } = req.body || {};
+
+  if (!call_session_id || !transcript) {
+    return res.status(400).json({ error: 'missing required fields' });
+  }
+
+  const turn = createTurnTimer({ call_session_id });
+  turn.annotate({ stream_mode: true });
+
+  // Disconnect plumbing. `finished` is set right before the normal res.end()
+  // so the close listener only fires for a premature client disconnect.
+  // NOTE: res.on('close'), not req.on('close') — on Node >= 16 the request's
+  // 'close' fires when the request MESSAGE completes (body fully consumed,
+  // i.e. immediately here), verified live on this runtime; the response's
+  // 'close' fires only when the underlying connection actually goes away.
+  let finished = false;
+  let aborted = false;
+  let streaming = false; // SSE headers sent
+  const abortController = new AbortController();
+  res.on('close', () => {
+    if (finished || aborted) return;
+    aborted = true;
+    abortController.abort();
+  });
+
+  const sse = (event, data) => {
+    if (aborted || res.writableEnded) return;
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+  const startSSE = () => {
+    streaming = true;
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    if (typeof res.flushHeaders === 'function') res.flushHeaders();
+  };
+
+  // Route-side accumulation of forwarded deltas: on disconnect this is "what
+  // was generated so far" and becomes the persisted outbound message.
+  let partialText = '';
+  let tenantScope = null; // {tenant_id, conversation_id, customer_id} once hydrated
+
+  try {
+    const endHydrate = turn.start('hydrate_validate');
+
+    const { rows: [session] } = await db.query(
+      'SELECT tenant_id, customer_id, conversation_id FROM call_sessions WHERE id = $1',
+      [call_session_id]
+    );
+    if (!session) return res.status(404).json({ error: 'call session not found' });
+
+    const { tenant_id, customer_id, conversation_id } = session;
+    turn.set({ tenant_id });
+    if (!customer_id || !conversation_id) {
+      return res.status(409).json({ error: 'call session not bridged to a customer/conversation' });
+    }
+
+    const { rows: [t] } = await db.query(
+      'SELECT phone_number_id FROM tenants WHERE id = $1 AND active = true', [tenant_id]
+    );
+    if (!t) return res.status(404).json({ error: 'tenant not found' });
+    const tenant = await tenantService.getByPhoneNumberId(t.phone_number_id);
+    if (!tenant) return res.status(404).json({ error: 'tenant credentials not found' });
+
+    const { rows: [customer] } = await db.query(
+      'SELECT * FROM customers WHERE id = $1 AND tenant_id = $2', [customer_id, tenant_id]
+    );
+    if (!customer) return res.status(404).json({ error: 'customer not found' });
+
+    const { rows: [conversation] } = await db.query(
+      'SELECT * FROM conversations WHERE id = $1 AND tenant_id = $2 AND customer_id = $3',
+      [conversation_id, tenant_id, customer_id]
+    );
+    if (!conversation) return res.status(404).json({ error: 'conversation not found' });
+
+    const effectiveLanguage = await customerService.resolveLanguage(tenant_id, customer_id, language);
+    endHydrate();
+    tenantScope = { tenant_id, conversation_id, customer_id };
+
+    const endPersistIn = turn.start('persist_inbound');
+    const { rows: [inbound] } = await db.query(
+      `INSERT INTO messages
+         (tenant_id, conversation_id, customer_id, direction, sender, content, channel, msg_type)
+       VALUES ($1, $2, $3, 'inbound', 'customer', $4, 'voice', 'text')
+       RETURNING id`,
+      [tenant_id, conversation_id, customer_id, transcript]
+    );
+    endPersistIn();
+
+    eventBus.emit(EVENT.MESSAGE_RECEIVED, {
+      tenant_id,
+      customer_id,
+      conversation_id,
+      message_id: inbound.id,
+      text: transcript,
+      mode: conversation.mode,
+    });
+
+    // Same mode/ai_enabled gate as the JSON branch — expressed as an SSE turn
+    // with no ack/deltas and an empty authoritative record.
+    if (conversation.mode === 'human' || !tenant.ai_enabled) {
+      logger.info({ tenant_id, mode: conversation.mode, aiEnabled: tenant.ai_enabled }, 'voice turn: AI skipped');
+      await db.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1 AND tenant_id = $2`, [conversation_id, tenant_id]);
+      startSSE();
+      sse('done', { reply_text: '', end_call: false, language: effectiveLanguage });
+      finished = true;
+      res.end();
+      return;
+    }
+
+    const endFetch = turn.start('fetch_parallel');
+    const { knowledgeChunks, history, facts } = await assembleConversationContext({
+      tenantId: tenant_id,
+      conversationId: conversation_id,
+      customerId: customer_id,
+      text: transcript,
+      onTiming: (name, ms) => turn.record(`fetch_parallel_${name}`, ms),
+    });
+    endFetch();
+
+    // Everything is validated — switch to the event stream.
+    startSSE();
+
+    let ackEmitted = false;
+    let firstDelta = true;
+
+    const reply_text = await aiService.generateReplyStream(
+      tenant, customer, conversation, transcript, history, knowledgeChunks, facts,
+      {
+        metrics: turn,
+        signal: abortController.signal,
+        // Ack: at most once per turn, the moment the reply loop resolves to a
+        // tool round — before any tool executes.
+        onToolRound: () => {
+          if (ackEmitted || aborted) return;
+          ackEmitted = true;
+          turn.annotate({ ack_emitted_ms: turn.elapsed() });
+          sse('ack', { text: ackTextFor(effectiveLanguage), language: effectiveLanguage });
+        },
+        onDelta: (text) => {
+          if (aborted) return;
+          if (firstDelta) {
+            firstDelta = false;
+            turn.annotate({ first_delta_ms: turn.elapsed() });
+          }
+          partialText += text;
+          sse('delta', { text });
+        },
+      }
+    );
+
+    if (aborted) {
+      // Client went away mid-generation (barge-in / hangup). The Gemini stream
+      // was aborted via the signal; persist what was forwarded so far.
+      await persistPartialOutbound(tenantScope, partialText.trim(), turn);
+      return;
+    }
+
+    // Same persistence semantics and ordering as the JSON branch: full reply
+    // text, then last_message_at — done is emitted only after both complete.
+    const endPersistOut = turn.start('persist_outbound');
+    await db.query(
+      `INSERT INTO messages
+         (tenant_id, conversation_id, customer_id, direction, sender, content, channel, msg_type)
+       VALUES ($1, $2, $3, 'outbound', 'ai', $4, 'voice', 'text')`,
+      [tenant_id, conversation_id, customer_id, reply_text]
+    );
+    await db.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1 AND tenant_id = $2`, [conversation_id, tenant_id]);
+    endPersistOut();
+
+    sse('done', { reply_text, end_call: false, language: effectiveLanguage });
+    finished = true;
+    res.end();
+  } catch (err) {
+    if (aborted) {
+      // Disconnect abort surfaces as a stream-read error — expected teardown.
+      logger.info({ err: err.message }, 'internal voice turn (sse): client disconnected, stream aborted');
+      await persistPartialOutbound(tenantScope, partialText.trim(), turn);
+      return;
+    }
+    logger.error({ err: err.message }, 'internal voice turn (sse) failed');
+    if (!streaming) {
+      return res.status(500).json({ error: 'turn failed' });
+    }
+    sse('error', { message: 'turn failed' });
+    finished = true;
+    res.end();
+  } finally {
+    turn.emit();
+  }
+}
+
+/** Persist an interrupted turn's partial reply (existing columns only — the
+ * row is a normal outbound voice message whose content is what was generated
+ * before the disconnect). No-op when nothing was generated. */
+async function persistPartialOutbound(scope, text, turn) {
+  if (!scope || !text) return;
+  try {
+    const endPersistOut = turn.start('persist_outbound');
+    await db.query(
+      `INSERT INTO messages
+         (tenant_id, conversation_id, customer_id, direction, sender, content, channel, msg_type)
+       VALUES ($1, $2, $3, 'outbound', 'ai', $4, 'voice', 'text')`,
+      [scope.tenant_id, scope.conversation_id, scope.customer_id, text]
+    );
+    await db.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1 AND tenant_id = $2`, [scope.conversation_id, scope.tenant_id]);
+    endPersistOut();
+  } catch (err) {
+    logger.error({ err: err.message }, 'internal voice turn (sse): partial outbound persist failed');
+  }
+}
+
+/**
  * POST /internal/voice/call/start — bridge a call into the brain's identity model.
  *
  * Identity resolves ONCE here, at bridge time, via the SAME identityService the
@@ -288,4 +553,6 @@ module.exports._authenticate = authenticate;
 module.exports._handleTurn = handleTurn;
 module.exports._handleCallStart = handleCallStart;
 module.exports._handleCallEnd = handleCallEnd;
+module.exports._handleTurnSSE = handleTurnSSE;
+module.exports._VOICE_ACK_COPY = VOICE_ACK_COPY;
 

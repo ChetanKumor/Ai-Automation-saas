@@ -39,12 +39,19 @@ function createTurnTimer({ call_session_id = null, tenant_id = null } = {}) {
   const stages = {};
   const geminiCalls = [];
   const toolCalls = [];
+  const extra = {}; // PR9C: top-level annotations (stream_mode, ack_emitted_ms, first_delta_ms)
 
   return {
     turn_id: ids.turn_id,
 
     /** Fill in ids discovered mid-turn (e.g. tenant_id after hydration). */
     set(fields) { Object.assign(ids, fields); },
+
+    /** PR9C: merge extra top-level fields into the emitted line. */
+    annotate(fields) { Object.assign(extra, fields); },
+
+    /** Milliseconds elapsed since the turn started (for offset annotations). */
+    elapsed() { return round(nowMs() - t0); },
 
     /** Start a named stage; call the returned closure to record its duration. */
     start(name) {
@@ -56,8 +63,9 @@ function createTurnTimer({ call_session_id = null, tenant_id = null } = {}) {
     record(name, ms) { stages[name] = round(ms); },
 
     /** One Gemini model call: latency + token usage (thinking tokens when the
-     * API returns usageMetadata.thoughtsTokenCount; absent ⇒ 0 thinking). */
-    recordGeminiCall({ latency_ms, usageMetadata }) {
+     * API returns usageMetadata.thoughtsTokenCount; absent ⇒ 0 thinking).
+     * streamed marks SSE-mode calls made via sendMessageStream (PR9C). */
+    recordGeminiCall({ latency_ms, usageMetadata, streamed = false }) {
       const n = geminiCalls.length + 1;
       const u = usageMetadata || null;
       geminiCalls.push({
@@ -67,6 +75,7 @@ function createTurnTimer({ call_session_id = null, tenant_id = null } = {}) {
         output_tokens: u ? (u.candidatesTokenCount ?? null) : null,
         thinking_tokens: u ? (u.thoughtsTokenCount ?? 0) : null,
         total_tokens: u ? (u.totalTokenCount ?? null) : null,
+        streamed: !!streamed,
       });
       stages[`gemini_call_${n}`] = round(latency_ms);
     },
@@ -84,6 +93,7 @@ function createTurnTimer({ call_session_id = null, tenant_id = null } = {}) {
         turn_id: ids.turn_id,
         call_session_id: ids.call_session_id,
         tenant_id: ids.tenant_id,
+        ...extra,
         stages,
         gemini: { calls: geminiCalls },
         tools: toolCalls,
