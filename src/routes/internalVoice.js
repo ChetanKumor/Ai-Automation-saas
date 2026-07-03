@@ -11,6 +11,7 @@ const identityService     = require('../modules/identity/identityService');
 const conversationService = require('../modules/conversation/conversationService');
 const voiceChannelAdapter = require('../modules/channels/voice/voiceChannelAdapter');
 const hmac                = require('../utils/hmac');
+const { createTurnTimer } = require('../infra/logging/turnMetrics');
 const eventBus            = require('../../core/events');
 const EVENT               = require('../../core/eventTypes');
 
@@ -62,7 +63,13 @@ async function handleTurn(req, res) {
     return res.status(400).json({ error: 'missing required fields' });
   }
 
+  // Per-turn stage timings (PR9A). Logging only: one structured line per turn,
+  // emitted in the finally below on every exit path. No response-shape change.
+  const turn = createTurnTimer({ call_session_id });
+
   try {
+    const endHydrate = turn.start('hydrate_validate');
+
     // Resolve customer/conversation/tenant from the call_session (bridged once at
     // /call/start). The call_session is the canonical owner of all three.
     const { rows: [session] } = await db.query(
@@ -72,6 +79,7 @@ async function handleTurn(req, res) {
     if (!session) return res.status(404).json({ error: 'call session not found' });
 
     const { tenant_id, customer_id, conversation_id } = session;
+    turn.set({ tenant_id });
     if (!customer_id || !conversation_id) {
       return res.status(409).json({ error: 'call session not bridged to a customer/conversation' });
     }
@@ -99,9 +107,11 @@ async function handleTurn(req, res) {
     // Honor the stored preferred_language prior; the request's STT-detected
     // language is used (and persisted) only when the prior is null.
     const effectiveLanguage = await customerService.resolveLanguage(tenant_id, customer_id, language);
+    endHydrate();
 
     // Persist the inbound voice turn (channel='voice') BEFORE fetching history —
     // getRecentMessages OFFSET-1's past this just-inserted row, exactly as WhatsApp does.
+    const endPersistIn = turn.start('persist_inbound');
     const { rows: [inbound] } = await db.query(
       `INSERT INTO messages
          (tenant_id, conversation_id, customer_id, direction, sender, content, channel, msg_type)
@@ -109,6 +119,7 @@ async function handleTurn(req, res) {
        RETURNING id`,
       [tenant_id, conversation_id, customer_id, transcript]
     );
+    endPersistIn();
 
     // CRM/memory/timeline parity: emit the SAME domain event WhatsApp emits for an
     // inbound message (handleInbound → MESSAGE_RECEIVED), via the existing bus.
@@ -132,19 +143,26 @@ async function handleTurn(req, res) {
     }
 
     // SHARED context-assembly path — the same helper the WhatsApp route uses.
+    const endFetch = turn.start('fetch_parallel');
     const { knowledgeChunks, history, facts } = await assembleConversationContext({
       tenantId: tenant_id,
       conversationId: conversation_id,
       customerId: customer_id,
       text: transcript,
+      onTiming: (name, ms) => turn.record(`fetch_parallel_${name}`, ms),
     });
+    endFetch();
 
     // THE ONE BRAIN — same tools, same booking guards; channel only changes style.
+    // The turn timer doubles as the metrics collector (gemini_call_<n> +
+    // tool_exec_<n>_<name> land in this turn's stages).
     const reply_text = await aiService.generateReply(
-      tenant, customer, conversation, transcript, history, knowledgeChunks, facts, { channel: 'voice' }
+      tenant, customer, conversation, transcript, history, knowledgeChunks, facts,
+      { channel: 'voice', metrics: turn }
     );
 
     // Persist the outbound voice turn (channel='voice').
+    const endPersistOut = turn.start('persist_outbound');
     await db.query(
       `INSERT INTO messages
          (tenant_id, conversation_id, customer_id, direction, sender, content, channel, msg_type)
@@ -152,11 +170,14 @@ async function handleTurn(req, res) {
       [tenant_id, conversation_id, customer_id, reply_text]
     );
     await db.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1 AND tenant_id = $2`, [conversation_id, tenant_id]);
+    endPersistOut();
 
     return res.json({ reply_text, end_call: false, language: effectiveLanguage });
   } catch (err) {
     logger.error({ err: err.message }, 'internal voice turn failed');
     return res.status(500).json({ error: 'turn failed' });
+  } finally {
+    turn.emit();
   }
 }
 

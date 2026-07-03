@@ -70,7 +70,7 @@ async function executeTool(name, args, tenant, customerId) {
   }
 }
 
-const generateReply = async (tenant, customer, conversation, userMessage, history, knowledgeChunks = [], facts = [], { channel = 'whatsapp' } = {}) => {
+const generateReply = async (tenant, customer, conversation, userMessage, history, knowledgeChunks = [], facts = [], { channel = 'whatsapp', metrics = null } = {}) => {
   // ── Voice prompt diet (channel === 'voice' ONLY; default path untouched) ──
   // History: keep the last VOICE_HISTORY_TURNS entries (one entry = one stored
   // message). Facts: keep the VOICE_MEMORY_FACTS_MAX most recently updated
@@ -129,7 +129,22 @@ const generateReply = async (tenant, customer, conversation, userMessage, histor
     generationConfig
   });
 
-  let result = await chat.sendMessage(userMessage);
+  // Observability-only seam: when a metrics collector is passed (voice turn
+  // path), record per-call latency + token usage and per-tool timings. The
+  // WhatsApp path passes no collector — zero change there.
+  const sendTimed = async (payload) => {
+    const t0 = process.hrtime.bigint();
+    const result = await chat.sendMessage(payload);
+    if (metrics) {
+      metrics.recordGeminiCall({
+        latency_ms: Number(process.hrtime.bigint() - t0) / 1e6,
+        usageMetadata: result.response.usageMetadata,
+      });
+    }
+    return result;
+  };
+
+  let result = await sendTimed(userMessage);
   let loops = 0;
 
   while (result.response.functionCalls() && loops < 5) {
@@ -138,12 +153,14 @@ const generateReply = async (tenant, customer, conversation, userMessage, histor
 
     for (const call of calls) {
       logger.info({ tool: call.name, args: call.args }, 'tool call');
+      const t0 = process.hrtime.bigint();
       const output = await executeTool(call.name, call.args, tenant, customer.id);
+      if (metrics) metrics.recordToolExec(call.name, Number(process.hrtime.bigint() - t0) / 1e6);
       logger.info({ tool: call.name, output: JSON.stringify(output).substring(0, 200) }, 'tool result');
       responses.push({ functionResponse: { name: call.name, response: output } });
     }
 
-    result = await chat.sendMessage(responses);
+    result = await sendTimed(responses);
     loops++;
   }
 

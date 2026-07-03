@@ -33,19 +33,31 @@ const customerService  = require('../customer/customerService');
  * @param {string}  args.customerId
  * @param {string}  args.text            The inbound user text (for RAG retrieval).
  * @param {number} [args.ragTopK=3]      Number of knowledge chunks to retrieve.
+ * @param {Function} [args.onTiming]     Optional (name, ms) sink for per-source
+ *                                       sub-timings (knowledge/history/memory).
+ *                                       Observability only — absent ⇒ identical
+ *                                       behavior to before.
  * @returns {Promise<{ knowledgeChunks: Array, history: Array, facts: Array }>}
  */
-async function assembleConversationContext({ tenantId, conversationId, customerId, text, ragTopK = 3 }) {
+async function assembleConversationContext({ tenantId, conversationId, customerId, text, ragTopK = 3, onTiming = null }) {
+  // When a timing sink is provided, measure each parallel source individually
+  // (values/rejections pass through unchanged); otherwise leave promises as-is.
+  const timed = (name, promise) => {
+    if (!onTiming) return promise;
+    const t0 = process.hrtime.bigint();
+    return promise.finally(() => onTiming(name, Number(process.hrtime.bigint() - t0) / 1e6));
+  };
+
   const [knowledgeChunks, history, { rows: facts }] = await Promise.all([
-    knowledgeService.getRelevantChunks(tenantId, text, ragTopK).catch((err) => {
+    timed('knowledge', knowledgeService.getRelevantChunks(tenantId, text, ragTopK).catch((err) => {
       logger.error({ tenantId, err: err.message }, 'RAG failed (continuing without)');
       return [];
-    }),
-    customerService.getRecentMessages(tenantId, conversationId),
-    db.query(
+    })),
+    timed('history', customerService.getRecentMessages(tenantId, conversationId)),
+    timed('memory', db.query(
       `SELECT key, value, updated_at FROM customer_memory WHERE tenant_id = $1 AND customer_id = $2 ORDER BY key`,
       [tenantId, customerId]
-    ),
+    )),
   ]);
 
   return { knowledgeChunks, history, facts };
