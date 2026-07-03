@@ -41,7 +41,7 @@ load_dotenv()
 from livekit.agents import Agent, AgentSession, JobContext, WorkerOptions, cli, llm
 from livekit.plugins import sarvam
 
-from brain_client import BrainClient, BrainError
+from brain_client import BrainClient, BrainError, aclose_shared_client
 from turn_context import latest_user_text
 
 logger = logging.getLogger("voice-agent")
@@ -231,6 +231,9 @@ async def entrypoint(ctx: JobContext) -> None:
             logger.info("call ended: %s (%.1fs)", status, call.duration_s())
         except BrainError as exc:
             logger.error("call_end failed: %s", exc)
+        finally:
+            # PR9A: release the shared keepalive HTTP client with the job.
+            await aclose_shared_client()
 
     ctx.add_shutdown_callback(_on_shutdown)
 

@@ -25,6 +25,34 @@ import httpx
 # emits dead air even if the brain is unreachable (see resilience in agent.py).
 SPOKEN_FALLBACK = "Sorry, I'm having trouble right now. Could you say that again?"
 
+# Module-level persistent HTTP client (PR9A): created once, reused across every
+# turn so delegate_turn stops paying a fresh TCP/TLS handshake per call.
+# Lazily (re)created; closed via aclose_shared_client() in the worker's existing
+# shutdown path (agent.py add_shutdown_callback). Per-request timeouts still
+# come from each BrainClient's VOICE_TURN_TIMEOUT_S — unchanged.
+_shared_client: Optional[httpx.AsyncClient] = None
+
+
+def _get_shared_client() -> httpx.AsyncClient:
+    global _shared_client
+    if _shared_client is None or _shared_client.is_closed:
+        _shared_client = httpx.AsyncClient(
+            limits=httpx.Limits(
+                max_connections=10,
+                max_keepalive_connections=5,
+                keepalive_expiry=30.0,
+            ),
+        )
+    return _shared_client
+
+
+async def aclose_shared_client() -> None:
+    """Close the shared client (worker shutdown). Safe to call repeatedly."""
+    global _shared_client
+    client, _shared_client = _shared_client, None
+    if client is not None and not client.is_closed:
+        await client.aclose()
+
 
 class BrainError(Exception):
     """Any non-2xx / transport failure talking to the Node brain."""
@@ -64,8 +92,9 @@ class BrainClient:
         headers = self._headers(raw)
         url = f"{self._base_url}{path}"
 
-        owns = self._client is None
-        client = self._client or httpx.AsyncClient(timeout=self._timeout)
+        # Injected client (tests) wins; otherwise the shared keepalive client.
+        # Neither is closed here — lifecycle belongs to the injector / shutdown.
+        client = self._client or _get_shared_client()
         try:
             resp = await client.post(url, content=raw, headers=headers, timeout=self._timeout)
             if resp.status_code >= 400:
@@ -73,9 +102,6 @@ class BrainClient:
             return resp.json()
         except httpx.HTTPError as exc:  # timeouts, connection errors
             raise BrainError(f"{path} -> {type(exc).__name__}: {exc}") from exc
-        finally:
-            if owns:
-                await client.aclose()
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
 

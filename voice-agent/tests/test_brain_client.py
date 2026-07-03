@@ -12,6 +12,7 @@ import json
 import httpx
 import pytest
 
+import brain_client
 from brain_client import BrainClient, BrainError, sign
 
 SECRET = "s3cr3t-shared"
@@ -95,3 +96,66 @@ async def test_timeout_becomes_brain_error():
     with pytest.raises(BrainError):
         await brain.delegate_turn("cs", "en-IN", "hi")
     await client.aclose()
+
+
+# ── PR9A: persistent shared client (no injected client) ──────────────────────
+
+def _counting_async_client_factory(created):
+    """Wrap the real httpx.AsyncClient so shared-client construction is counted
+    and backed by a MockTransport (no network)."""
+    real = httpx.AsyncClient
+
+    def factory(*args, **kwargs):
+        kwargs["transport"] = httpx.MockTransport(
+            lambda request: httpx.Response(
+                200, json={"reply_text": "ok", "end_call": False, "language": "te-IN"}
+            )
+        )
+        instance = real(*args, **kwargs)
+        created.append(instance)
+        return instance
+
+    return factory
+
+
+@pytest.mark.asyncio
+async def test_shared_client_constructed_once_and_reused_across_turns(monkeypatch):
+    created = []
+    monkeypatch.setattr(brain_client.httpx, "AsyncClient", _counting_async_client_factory(created))
+    await brain_client.aclose_shared_client()  # clean slate
+
+    brain = BrainClient("http://brain:3000", SECRET)
+    await brain.delegate_turn("cs-1", "te-IN", "turn one")
+    await brain.delegate_turn("cs-1", "te-IN", "turn two")
+
+    assert len(created) == 1                            # constructed once
+    assert brain_client._shared_client is created[0]    # identity: same instance reused
+
+    await brain_client.aclose_shared_client()           # existing shutdown path
+    assert created[0].is_closed
+    assert brain_client._shared_client is None
+
+
+@pytest.mark.asyncio
+async def test_shared_client_recreated_after_shutdown_close(monkeypatch):
+    created = []
+    monkeypatch.setattr(brain_client.httpx, "AsyncClient", _counting_async_client_factory(created))
+    await brain_client.aclose_shared_client()
+
+    brain = BrainClient("http://brain:3000", SECRET)
+    await brain.delegate_turn("cs-1", "te-IN", "before shutdown")
+    await brain_client.aclose_shared_client()
+    await brain.delegate_turn("cs-2", "te-IN", "after shutdown")  # lazily recreated
+
+    assert len(created) == 2
+    assert created[0].is_closed
+    assert not created[1].is_closed
+
+    await brain_client.aclose_shared_client()
+
+
+@pytest.mark.asyncio
+async def test_aclose_shared_client_is_idempotent_and_safe_when_unused():
+    await brain_client.aclose_shared_client()
+    await brain_client.aclose_shared_client()
+    assert brain_client._shared_client is None
