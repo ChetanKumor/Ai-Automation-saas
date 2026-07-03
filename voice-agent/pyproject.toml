@@ -1,20 +1,29 @@
 [project]
 name = "voice-agent"
 version = "0.1.0"
-description = "Real-time voice audio loop (LiveKit Agents) that delegates every turn to the Node brain. Transport only — no business logic."
+description = "Real-time voice audio loop (LiveKit Agents) that delegates every turn to the Node brain over HTTP. Transport only — no business logic."
 requires-python = ">=3.11"
 dependencies = [
-    "livekit-agents>=0.10",   # real-time audio loop: VAD, turn-taking, barge-in
-    "livekit-plugins-silero",  # VAD
-    "httpx>=0.27",            # POST /internal/voice/turn
+    "livekit-agents==1.6.4",          # real-time audio loop: turn detection, barge-in, AgentSession
+    "livekit-plugins-sarvam==1.6.4",  # official Sarvam STT (Saaras) / TTS (Bulbul) plugin — owns ALL audio transport
+    "httpx>=0.27",                    # HMAC-signed calls to the Node brain
+    "python-dotenv>=1.0",             # load .env before LiveKit reads LIVEKIT_URL etc.
 ]
 
-# STT/TTS use Sarvam (Saaras / Bulbul) via the Sarvam HTTP API directly; if/when
-# an official livekit Sarvam plugin exists, add it here. Telephony is reached via
-# the Node TelephonyProvider seam, never from this worker.
+# The Sarvam plugin owns streaming STT/TTS end to end (voice-activity
+# segmentation, framing, sample rates, connection lifecycle). Telephony is
+# reached via the Node TelephonyProvider seam (noop in dev) — NEVER from here.
 
 [tool.uv]
-dev-dependencies = []
+package = false
+dev-dependencies = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
 
 [build-system]
 requires = ["hatchling"]

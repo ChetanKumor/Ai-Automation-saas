@@ -3,9 +3,8 @@ const crypto              = require('crypto');
 const logger              = require('../../../infra/logging/logger');
 const db                  = require('../../../db/db');
 const tenantService       = require('../../tenant/tenantService');
-const customerService     = require('../../customer/customerService');
 const aiService           = require('../../ai/aiService');
-const knowledgeService    = require('../../knowledge/knowledgeService');
+const { assembleConversationContext } = require('../../conversation/contextAssembler');
 const sender              = require('./sender');
 const ownerCommands       = require('./ownerCommands');
 const adapter             = require('./adapter');
@@ -150,20 +149,15 @@ const handle = async (req, res) => {
         continue;
       }
 
-      // ── 6. PARALLEL: RAG + history + customer memory ───────────────
+      // ── 6. PARALLEL: RAG + history + customer memory (shared helper) ─
       console.time(`${tl} parallel-fetch`);
 
-      const [knowledgeChunks, history, { rows: facts }] = await Promise.all([
-        knowledgeService.getRelevantChunks(envelope.tenantId, userText, 3).catch(err => {
-          logger.error({ tenantId: envelope.tenantId, err: err.message }, 'RAG failed (continuing without)');
-          return [];
-        }),
-        customerService.getRecentMessages(envelope.tenantId, conversation.id),
-        db.query(
-          `SELECT key, value FROM customer_memory WHERE tenant_id = $1 AND customer_id = $2 ORDER BY key`,
-          [envelope.tenantId, customer.id]
-        )
-      ]);
+      const { knowledgeChunks, history, facts } = await assembleConversationContext({
+        tenantId: envelope.tenantId,
+        conversationId: conversation.id,
+        customerId: customer.id,
+        text: userText,
+      });
 
       console.timeEnd(`${tl} parallel-fetch`);
 

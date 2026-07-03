@@ -44,6 +44,12 @@ const TOOLS = [{
   ]
 }];
 
+// Read an optional integer env knob at call time (tests can set/unset per case).
+const envInt = (name, fallback) => {
+  const v = parseInt(process.env[name], 10);
+  return Number.isFinite(v) ? v : fallback;
+};
+
 async function executeTool(name, args, tenant, customerId) {
   switch (name) {
     case 'check_availability':
@@ -64,27 +70,81 @@ async function executeTool(name, args, tenant, customerId) {
   }
 }
 
-const generateReply = async (tenant, customer, conversation, userMessage, history, knowledgeChunks = [], facts = [], { channel = 'whatsapp' } = {}) => {
+const generateReply = async (tenant, customer, conversation, userMessage, history, knowledgeChunks = [], facts = [], { channel = 'whatsapp', metrics = null } = {}) => {
+  // ── Voice prompt diet (channel === 'voice' ONLY; default path untouched) ──
+  // History: keep the last VOICE_HISTORY_TURNS entries (one entry = one stored
+  // message). Facts: keep the VOICE_MEMORY_FACTS_MAX most recently updated
+  // (contextAssembler supplies updated_at), rendered most-recent-first; under
+  // the cap the existing key order is kept unchanged.
+  let promptHistory = history;
+  let promptFacts = facts;
+  if (channel === 'voice') {
+    promptHistory = history.slice(-envInt('VOICE_HISTORY_TURNS', 8));
+    const maxFacts = envInt('VOICE_MEMORY_FACTS_MAX', 10);
+    if (facts.length > maxFacts) {
+      promptFacts = [...facts]
+        .sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))
+        .slice(0, maxFacts);
+    }
+  }
+
   const model = modelProvider({
     model: 'gemini-2.5-flash',
-    systemInstruction: buildSystemPrompt(tenant, customer, conversation, facts, knowledgeChunks, channel),
+    systemInstruction: buildSystemPrompt(tenant, customer, conversation, promptFacts, knowledgeChunks, channel),
     tools: TOOLS
   });
 
-  const chatHistory = history.map(m => ({
+  const chatHistory = promptHistory.map(m => ({
     role: m.sender === 'customer' ? 'user' : 'model',
     parts: [{ text: m.content }]
   }));
 
+  // Gemini requires the first content's role to be 'user'. A voice history window
+  // can open with the AI greeting (role 'model'), which triggers a 500 ("First
+  // content should be with role 'user', got model"). Drop leading non-user
+  // entries so chatHistory[0].role === 'user' (or [] if none remain).
+  while (chatHistory.length && chatHistory[0].role !== 'user') {
+    chatHistory.shift();
+  }
+
+  // ── Generation config ──
+  // Default channel: EXACTLY the pre-PR object (guarded by test). Voice:
+  // thinking disabled (thinkingBudget 0) + tighter output cap, both env-tunable.
+  // The installed SDK (@google/generative-ai@0.24.1) serializes generationConfig
+  // verbatim into the v1beta request, and ChatSession reuses it for EVERY
+  // sendMessage — so this covers tool-loop intermediate calls too.
+  const generationConfig = channel === 'voice'
+    ? {
+        maxOutputTokens: envInt('VOICE_MAX_OUTPUT_TOKENS', 150),
+        temperature: 0.7,
+        thinkingConfig: { thinkingBudget: envInt('VOICE_THINKING_BUDGET', 0) }
+      }
+    : {
+        maxOutputTokens: 250,
+        temperature: 0.7
+      };
+
   const chat = model.startChat({
     history: chatHistory,
-    generationConfig: {
-      maxOutputTokens: 250,
-      temperature: 0.7
-    }
+    generationConfig
   });
 
-  let result = await chat.sendMessage(userMessage);
+  // Observability-only seam: when a metrics collector is passed (voice turn
+  // path), record per-call latency + token usage and per-tool timings. The
+  // WhatsApp path passes no collector — zero change there.
+  const sendTimed = async (payload) => {
+    const t0 = process.hrtime.bigint();
+    const result = await chat.sendMessage(payload);
+    if (metrics) {
+      metrics.recordGeminiCall({
+        latency_ms: Number(process.hrtime.bigint() - t0) / 1e6,
+        usageMetadata: result.response.usageMetadata,
+      });
+    }
+    return result;
+  };
+
+  let result = await sendTimed(userMessage);
   let loops = 0;
 
   while (result.response.functionCalls() && loops < 5) {
@@ -93,16 +153,153 @@ const generateReply = async (tenant, customer, conversation, userMessage, histor
 
     for (const call of calls) {
       logger.info({ tool: call.name, args: call.args }, 'tool call');
+      const t0 = process.hrtime.bigint();
       const output = await executeTool(call.name, call.args, tenant, customer.id);
+      if (metrics) metrics.recordToolExec(call.name, Number(process.hrtime.bigint() - t0) / 1e6);
       logger.info({ tool: call.name, output: JSON.stringify(output).substring(0, 200) }, 'tool result');
       responses.push({ functionResponse: { name: call.name, response: output } });
     }
 
-    result = await chat.sendMessage(responses);
+    result = await sendTimed(responses);
     loops++;
   }
 
   return result.response.text().trim();
+};
+
+/**
+ * PR9C — streaming variant of generateReply for the VOICE SSE turn path ONLY.
+ *
+ * Mirrors generateReply's `channel === 'voice'` branch exactly (prompt diet,
+ * system prompt, tools, generationConfig with thinkingBudget 0 + output cap);
+ * the two MUST stay in sync — the WhatsApp/default path never reaches this
+ * function. Every model call uses sendMessageStream: a call is a final
+ * candidate until its FIRST streamed part turns out to be a functionCall
+ * (verified live in Phase 0: tool-round completions arrive functionCall-first
+ * with no leading prose).
+ *
+ * options:
+ *   metrics     PR9A turn timer (recordGeminiCall gains streamed:true)
+ *   signal      AbortSignal — aborts the in-flight Gemini stream (disconnect)
+ *   onToolRound invoked when a completion resolves to a tool round, BEFORE any
+ *               tool executes (the route emits the ack here; may fire once per
+ *               round — the caller de-dupes)
+ *   onDelta     invoked per text chunk of a final completion, in order
+ *
+ * Returns the full final reply text (the route persists it and emits `done`).
+ */
+const generateReplyStream = async (tenant, customer, conversation, userMessage, history, knowledgeChunks = [], facts = [], { metrics = null, signal = null, onToolRound = null, onDelta = null } = {}) => {
+  // ── Voice prompt diet — mirror of generateReply (channel === 'voice') ──
+  const promptHistory = history.slice(-envInt('VOICE_HISTORY_TURNS', 8));
+  const maxFacts = envInt('VOICE_MEMORY_FACTS_MAX', 10);
+  let promptFacts = facts;
+  if (facts.length > maxFacts) {
+    promptFacts = [...facts]
+      .sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))
+      .slice(0, maxFacts);
+  }
+
+  const model = modelProvider({
+    model: 'gemini-2.5-flash',
+    systemInstruction: buildSystemPrompt(tenant, customer, conversation, promptFacts, knowledgeChunks, 'voice'),
+    tools: TOOLS
+  });
+
+  const chatHistory = promptHistory.map(m => ({
+    role: m.sender === 'customer' ? 'user' : 'model',
+    parts: [{ text: m.content }]
+  }));
+  while (chatHistory.length && chatHistory[0].role !== 'user') {
+    chatHistory.shift();
+  }
+
+  // Same voice generationConfig as generateReply — the thinking-0 canary and
+  // the output cap apply to every streamed call (guarded by test).
+  const generationConfig = {
+    maxOutputTokens: envInt('VOICE_MAX_OUTPUT_TOKENS', 150),
+    temperature: 0.7,
+    thinkingConfig: { thinkingBudget: envInt('VOICE_THINKING_BUDGET', 0) }
+  };
+
+  const chat = model.startChat({ history: chatHistory, generationConfig });
+
+  const requestOptions = signal ? { signal } : {};
+  // The SDK only reacts to an abort that fires while a request is in flight
+  // (it adds an 'abort' listener; an ALREADY-aborted signal is ignored) — so
+  // check between calls/tools ourselves to stop the loop on disconnect.
+  const throwIfAborted = () => {
+    if (signal && signal.aborted) {
+      const err = new Error('voice turn aborted');
+      err.name = 'AbortError';
+      throw err;
+    }
+  };
+
+  let payload = userMessage;
+  let finalText = '';
+  let loops = 0;
+
+  while (true) {
+    throwIfAborted();
+    const t0 = process.hrtime.bigint();
+    const streamResult = await chat.sendMessageStream(payload, requestOptions);
+    // The SDK's aggregated-response promise rejects independently on abort;
+    // without a handler the process dies on an unhandled rejection (observed
+    // live in the Phase 0 probe).
+    streamResult.response.catch(() => {});
+
+    // Hold text until the FIRST part identifies the completion: functionCall
+    // first ⇒ tool round (no deltas ever leave this call); text first ⇒ final
+    // answer, forward every text part as it arrives.
+    let kind = null;
+    for await (const chunk of streamResult.stream) {
+      const parts = chunk.candidates?.[0]?.content?.parts || [];
+      for (const part of parts) {
+        if (kind === null) {
+          kind = part.functionCall ? 'tool' : 'text';
+          if (kind === 'tool' && onToolRound) await onToolRound();
+        }
+        if (kind === 'text' && part.text) {
+          finalText += part.text;
+          if (onDelta) await onDelta(part.text);
+        }
+      }
+    }
+
+    const agg = await streamResult.response;
+    if (metrics) {
+      metrics.recordGeminiCall({
+        latency_ms: Number(process.hrtime.bigint() - t0) / 1e6,
+        usageMetadata: agg.usageMetadata,
+        streamed: true,
+      });
+    }
+
+    const calls = agg.functionCalls();
+    if (calls && calls.length && loops < 5) {
+      if (kind === 'text') {
+        // Phase 0 says this doesn't happen (functionCall-first, no prose);
+        // if the model ever mixes, keep booking-correct: the prose was already
+        // forwarded, still execute the tools and let the next round finish.
+        logger.warn({ loops }, 'streamed completion mixed text before functionCall');
+      }
+      const responses = [];
+      for (const call of calls) {
+        throwIfAborted();
+        logger.info({ tool: call.name, args: call.args }, 'tool call');
+        const t1 = process.hrtime.bigint();
+        const output = await executeTool(call.name, call.args, tenant, customer.id);
+        if (metrics) metrics.recordToolExec(call.name, Number(process.hrtime.bigint() - t1) / 1e6);
+        logger.info({ tool: call.name, output: JSON.stringify(output).substring(0, 200) }, 'tool result');
+        responses.push({ functionResponse: { name: call.name, response: output } });
+      }
+      payload = responses;
+      loops++;
+      continue;
+    }
+
+    return finalText.trim();
+  }
 };
 
 const buildSystemPrompt = (tenant, customer, conversation, facts, knowledgeChunks = [], channel = 'whatsapp') => {
@@ -159,4 +356,4 @@ ${voiceStyle}
 `.trim();
 };
 
-module.exports = { generateReply, _setModelProvider };
+module.exports = { generateReply, generateReplyStream, _setModelProvider };
