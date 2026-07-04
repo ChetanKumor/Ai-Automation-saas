@@ -50,8 +50,24 @@ function init() {
       const result = await model.generateContent({
         contents: [{ role: 'user', parts: [{ text: `Customer message: "${text}"` }] }],
         systemInstruction: EXTRACTION_PROMPT,
-        generationConfig: { temperature: 0, maxOutputTokens: 200 },
+        // gemini-2.5-flash has thinking ON by default, which silently ate the
+        // old 200-token cap before the JSON closed (MAX_TOKENS ⇒ zero leads).
+        // Disable thinking (PR9A idiom) — extraction is structured output at
+        // temp 0, thinking adds cost and no value — and give the JSON headroom.
+        generationConfig: { temperature: 0, maxOutputTokens: 512, thinkingConfig: { thinkingBudget: 0 } },
       });
+
+      // Truncation must never be silent: if the model ran out of output budget
+      // the JSON is cut mid-object and would parse to garbage. Warn (with tenant
+      // + conversation context) and skip rather than write a partial lead.
+      const finishReason = result.response.candidates?.[0]?.finishReason;
+      if (finishReason === 'MAX_TOKENS') {
+        logger.warn(
+          { tenant_id, conversation_id, customer_id, finishReason },
+          'CRM extraction response truncated (MAX_TOKENS) — skipping lead upsert'
+        );
+        return;
+      }
 
       const raw = result.response.text().trim();
       const data = parseExtraction(raw);
