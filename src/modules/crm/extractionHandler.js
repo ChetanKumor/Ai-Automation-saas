@@ -1,6 +1,7 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const logger     = require('../../infra/logging/logger');
 const eventBus   = require('../../../core/events');
+const EVENT      = require('../../../core/eventTypes');
 const crmService = require('./crmService');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -39,7 +40,7 @@ function hasSignal(data) {
 }
 
 function init() {
-  eventBus.on('message_received', async (envelope) => {
+  eventBus.on(EVENT.MESSAGE_RECEIVED, async (envelope) => {
     const { tenant_id, customer_id, conversation_id, text, mode } = envelope.payload;
 
     if (mode === 'human') return;
