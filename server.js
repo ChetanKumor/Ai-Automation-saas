@@ -78,6 +78,7 @@ app.get('/health', async (req, res) => {
   }
 });
 const reminderCron      = require('./src/scheduler/reminderCron');
+const tenantService     = require('./src/modules/tenant/tenantService');
 const coreActions       = require('./core/coreActions');
 const crmModule         = require('./src/modules/crm');
 const collectionsModule = require('./src/modules/collections');
@@ -113,7 +114,8 @@ function shutdown(signal) {
 
     if (reminderTask) reminderTask.stop();
     if (collectionsTask) collectionsTask.stop();
-    logger.info('cron tasks stopped');
+    tenantService.stop();
+    logger.info('cron tasks stopped + tenant cache timers cleared');
 
     db.close()
       .then(() => {

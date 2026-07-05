@@ -3,6 +3,7 @@ const path       = require('path');
 const logger     = require('../infra/logging/logger');
 const db         = require('../db/db');
 const { encrypt } = require('../utils/encryption');
+const tenantService = require('../modules/tenant/tenantService');
 const router     = express.Router();
 
 const ADMIN_PUBLIC = path.join(__dirname, '../../public/admin');
@@ -263,6 +264,18 @@ router.get('/api/workflow-executions', requireAuth, async (req, res) => {
     logger.error({ err: err.message }, 'failed to fetch workflow executions');
     res.status(500).json({ error: 'Failed to fetch workflow executions' });
   }
+});
+
+// ── API: Invalidate tenant cache ────────────────────────────
+// Evict stale tenant config/credentials without a redeploy. Body: optional
+// `tenant_id` → evict that tenant; omitted → full flush. Single-instance
+// (in-process) semantics — see tenantService.invalidateTenantCache.
+router.post('/api/cache/invalidate', requireAuth, express.json(), (req, res) => {
+  // Presence, not truthiness: pass '' through as a scoped no-op rather than
+  // collapsing it to a full flush (see tenantService.invalidateTenantCache).
+  const tenantId = req.body ? req.body.tenant_id : undefined;
+  const evicted = tenantService.invalidateTenantCache(tenantId);
+  res.json({ evicted, scope: tenantId != null ? 'tenant' : 'all' });
 });
 
 module.exports = router;
