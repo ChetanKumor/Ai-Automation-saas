@@ -34,9 +34,9 @@ async function processMessage(tenant, customer, conversation, text) {
   const testWamid = 'test_' + Date.now();
   await db.query(
     `INSERT INTO messages
-       (tenant_id, conversation_id, customer_id, wamid, external_id,
+       (tenant_id, conversation_id, customer_id, external_id,
         direction, sender, content, channel)
-     VALUES ($1, $2, $3, $4, $4, 'inbound', 'customer', $5, 'whatsapp')
+     VALUES ($1, $2, $3, $4, 'inbound', 'customer', $5, 'whatsapp')
      ON CONFLICT (tenant_id, channel, external_id)
        WHERE external_id IS NOT NULL DO NOTHING`,
     [tenant.id, conversation.id, customer.id, testWamid, text]

@@ -11,7 +11,7 @@ DONE — return conversation to AI`;
 
 const normalize = (phone) => phone?.replace(/\D/g, '') || '';
 
-const handle = async (tenant, from, userText, wamid) => {
+const handle = async (tenant, from, userText) => {
   const text = userText.trim();
   const upper = text.toUpperCase();
 
@@ -141,9 +141,9 @@ async function handleMsg(tenant, ownerPhone, text) {
 
   await db.query(
     `INSERT INTO messages
-       (tenant_id, conversation_id, customer_id, wamid, external_id,
+       (tenant_id, conversation_id, customer_id, external_id,
         direction, sender, content, channel)
-     VALUES ($1, $2, $3, $4, $4, 'outbound', 'agent', $5, 'whatsapp')`,
+     VALUES ($1, $2, $3, $4, 'outbound', 'agent', $5, 'whatsapp')`,
     [tenant.id, conv.id, customer.id, sentWamid, msgBody]
   );
 

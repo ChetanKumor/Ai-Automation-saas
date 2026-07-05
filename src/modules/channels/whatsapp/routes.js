@@ -95,7 +95,7 @@ const handle = async (req, res) => {
         recentOwnerWamids.add(wamid);
         setTimeout(() => recentOwnerWamids.delete(wamid), 10 * 60 * 1000);
         logger.info({ tenantId: tenant.id, from }, 'owner message detected');
-        await ownerCommands.handle(tenant, from, msg.text.body, wamid);
+        await ownerCommands.handle(tenant, from, msg.text.body);
       } else {
         logger.info({ type, from }, 'non-text from owner — ignoring');
       }
@@ -117,7 +117,7 @@ const handle = async (req, res) => {
       if (envelope.messageType !== 'text') {
         await db.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1 AND tenant_id = $2`, [conversation.id, envelope.tenantId]);
         console.timeEnd(`${tl} total`);
-        logger.info({ tenantId: envelope.tenantId, from: envelope.identifier, wamid: envelope.externalId, msgType: envelope.messageType }, 'non-text message stored');
+        logger.info({ tenantId: envelope.tenantId, from: envelope.identifier, externalId: envelope.externalId, msgType: envelope.messageType }, 'non-text message stored');
         continue;
       }
 
@@ -194,14 +194,14 @@ const handle = async (req, res) => {
       // ── 9. STORE OUTBOUND AI MESSAGE (only after successful send) ──
       await db.query(
         `INSERT INTO messages
-           (tenant_id, conversation_id, customer_id, wamid, external_id,
+           (tenant_id, conversation_id, customer_id, external_id,
             direction, sender, content, channel, msg_type)
-         VALUES ($1, $2, $3, $4, $4, 'outbound', 'ai', $5, 'whatsapp', 'text')`,
+         VALUES ($1, $2, $3, $4, 'outbound', 'ai', $5, 'whatsapp', 'text')`,
         [envelope.tenantId, conversation.id, customer.id, sentWamid, reply]
       );
 
       console.timeEnd(`${tl} total`);
-      logger.info({ tenantId: envelope.tenantId, from: envelope.identifier, wamid: envelope.externalId }, 'message processed');
+      logger.info({ tenantId: envelope.tenantId, from: envelope.identifier, externalId: envelope.externalId }, 'message processed');
     }
 
   } catch (err) {

@@ -6,7 +6,7 @@
 --   • Multi-tenant (one platform, many businesses)
 --   • AI + Human coexistence (mode lives on each conversation)
 --   • Memory (short-term = messages, long-term = facts + summary)
---   • Idempotent message handling (wamid is UNIQUE)
+--   • Idempotent message handling (external_id is UNIQUE per tenant+channel)
 --   • Clean to extend later (workflows, billing, etc.)
 -- ============================================================
 
@@ -176,7 +176,6 @@ CREATE TABLE messages (
   conversation_id  UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   customer_id      UUID NOT NULL REFERENCES customers(id)     ON DELETE CASCADE,
 
-  wamid            TEXT,                -- legacy WhatsApp message id (retained for compatibility)
   external_id      TEXT,                -- channel-scoped message id (dedup key)
   channel          TEXT NOT NULL DEFAULT 'whatsapp',
   direction        TEXT NOT NULL
@@ -193,7 +192,7 @@ CREATE TABLE messages (
 CREATE INDEX idx_messages_conversation ON messages(conversation_id, created_at);
 CREATE INDEX idx_messages_customer     ON messages(customer_id, created_at);
 
--- Channel-scoped dedup: replaces the old wamid UNIQUE constraint
+-- Channel-scoped dedup: one row per (tenant, channel, external_id)
 CREATE UNIQUE INDEX uniq_msg_external
   ON messages(tenant_id, channel, external_id) WHERE external_id IS NOT NULL;
 

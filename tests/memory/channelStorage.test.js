@@ -66,11 +66,7 @@ async function ensureSchema() {
     await db.query(`ALTER TABLE messages ADD COLUMN media_ref TEXT`);
   }
 
-  // Backfill external_id from wamid
-  await db.query(`UPDATE messages SET external_id = wamid WHERE wamid IS NOT NULL AND external_id IS NULL`);
-
-  // Drop old wamid unique, create new index
-  await db.query(`ALTER TABLE messages DROP CONSTRAINT IF EXISTS messages_wamid_key`);
+  // Channel-scoped dedup index (external_id is the sole message id)
   const { rows: msgIdx } = await db.query(
     `SELECT indexname FROM pg_indexes WHERE indexname = 'uniq_msg_external'`
   );
@@ -111,14 +107,14 @@ describe('Channel-Agnostic Storage (PR4)', () => {
 
   // ── Relocated dedup ──────────────────────────────────────────────
 
-  it('duplicate wamid delivered twice → exactly one row', async () => {
+  it('duplicate external_id delivered twice → exactly one row', async () => {
     const wamid = 'wamid_dedup_test_001';
 
     const { rowCount: first } = await db.query(
       `INSERT INTO messages
-         (tenant_id, conversation_id, customer_id, wamid, external_id,
+         (tenant_id, conversation_id, customer_id, external_id,
           direction, sender, content, channel, msg_type)
-       VALUES ($1, $2, $3, $4, $4, 'inbound', 'customer', 'Hello', 'whatsapp', 'text')
+       VALUES ($1, $2, $3, $4, 'inbound', 'customer', 'Hello', 'whatsapp', 'text')
        ON CONFLICT (tenant_id, channel, external_id)
          WHERE external_id IS NOT NULL DO NOTHING`,
       [TENANT_A, conversationA.id, customerA.id, wamid]
@@ -127,9 +123,9 @@ describe('Channel-Agnostic Storage (PR4)', () => {
 
     const { rowCount: second } = await db.query(
       `INSERT INTO messages
-         (tenant_id, conversation_id, customer_id, wamid, external_id,
+         (tenant_id, conversation_id, customer_id, external_id,
           direction, sender, content, channel, msg_type)
-       VALUES ($1, $2, $3, $4, $4, 'inbound', 'customer', 'Hello', 'whatsapp', 'text')
+       VALUES ($1, $2, $3, $4, 'inbound', 'customer', 'Hello', 'whatsapp', 'text')
        ON CONFLICT (tenant_id, channel, external_id)
          WHERE external_id IS NOT NULL DO NOTHING`,
       [TENANT_A, conversationA.id, customerA.id, wamid]
@@ -146,13 +142,13 @@ describe('Channel-Agnostic Storage (PR4)', () => {
 
   // ── Inbound text ──────────────────────────────────────────────────
 
-  it('inbound text → channel/direction/external_id/wamid/msg_type correct', async () => {
+  it('inbound text → channel/direction/external_id/msg_type correct', async () => {
     const wamid = 'wamid_text_001';
     await db.query(
       `INSERT INTO messages
-         (tenant_id, conversation_id, customer_id, wamid, external_id,
+         (tenant_id, conversation_id, customer_id, external_id,
           direction, sender, content, channel, msg_type)
-       VALUES ($1, $2, $3, $4, $4, 'inbound', 'customer', 'Test text', 'whatsapp', 'text')
+       VALUES ($1, $2, $3, $4, 'inbound', 'customer', 'Test text', 'whatsapp', 'text')
        ON CONFLICT (tenant_id, channel, external_id)
          WHERE external_id IS NOT NULL DO NOTHING`,
       [TENANT_A, conversationA.id, customerA.id, wamid]
@@ -166,7 +162,6 @@ describe('Channel-Agnostic Storage (PR4)', () => {
     assert.equal(msg.channel, 'whatsapp');
     assert.equal(msg.direction, 'inbound');
     assert.equal(msg.external_id, wamid);
-    assert.equal(msg.wamid, wamid, 'wamid should be dual-written');
     assert.equal(msg.msg_type, 'text');
     assert.equal(msg.content, 'Test text');
     assert.equal(msg.media_ref, null);
@@ -179,9 +174,9 @@ describe('Channel-Agnostic Storage (PR4)', () => {
     const mediaId = 'wa_media_img_12345';
     await db.query(
       `INSERT INTO messages
-         (tenant_id, conversation_id, customer_id, wamid, external_id,
+         (tenant_id, conversation_id, customer_id, external_id,
           direction, sender, content, channel, msg_type, media_ref)
-       VALUES ($1, $2, $3, $4, $4, 'inbound', 'customer', 'A photo', 'whatsapp', 'image', $5)
+       VALUES ($1, $2, $3, $4, 'inbound', 'customer', 'A photo', 'whatsapp', 'image', $5)
        ON CONFLICT (tenant_id, channel, external_id)
          WHERE external_id IS NOT NULL DO NOTHING`,
       [TENANT_A, conversationA.id, customerA.id, wamid, mediaId]
@@ -201,9 +196,9 @@ describe('Channel-Agnostic Storage (PR4)', () => {
     const mediaId = 'wa_media_aud_12345';
     await db.query(
       `INSERT INTO messages
-         (tenant_id, conversation_id, customer_id, wamid, external_id,
+         (tenant_id, conversation_id, customer_id, external_id,
           direction, sender, content, channel, msg_type, media_ref)
-       VALUES ($1, $2, $3, $4, $4, 'inbound', 'customer', '[audio]', 'whatsapp', 'audio', $5)
+       VALUES ($1, $2, $3, $4, 'inbound', 'customer', '[audio]', 'whatsapp', 'audio', $5)
        ON CONFLICT (tenant_id, channel, external_id)
          WHERE external_id IS NOT NULL DO NOTHING`,
       [TENANT_A, conversationA.id, customerA.id, wamid, mediaId]
@@ -222,9 +217,9 @@ describe('Channel-Agnostic Storage (PR4)', () => {
     const mediaId = 'wa_media_doc_12345';
     await db.query(
       `INSERT INTO messages
-         (tenant_id, conversation_id, customer_id, wamid, external_id,
+         (tenant_id, conversation_id, customer_id, external_id,
           direction, sender, content, channel, msg_type, media_ref)
-       VALUES ($1, $2, $3, $4, $4, 'inbound', 'customer', 'report.pdf', 'whatsapp', 'document', $5)
+       VALUES ($1, $2, $3, $4, 'inbound', 'customer', 'report.pdf', 'whatsapp', 'document', $5)
        ON CONFLICT (tenant_id, channel, external_id)
          WHERE external_id IS NOT NULL DO NOTHING`,
       [TENANT_A, conversationA.id, customerA.id, wamid, mediaId]
@@ -242,9 +237,9 @@ describe('Channel-Agnostic Storage (PR4)', () => {
     const wamid = 'wamid_loc_001';
     await db.query(
       `INSERT INTO messages
-         (tenant_id, conversation_id, customer_id, wamid, external_id,
+         (tenant_id, conversation_id, customer_id, external_id,
           direction, sender, content, channel, msg_type)
-       VALUES ($1, $2, $3, $4, $4, 'inbound', 'customer', '[location: 17.385,78.486]', 'whatsapp', 'location')
+       VALUES ($1, $2, $3, $4, 'inbound', 'customer', '[location: 17.385,78.486]', 'whatsapp', 'location')
        ON CONFLICT (tenant_id, channel, external_id)
          WHERE external_id IS NOT NULL DO NOTHING`,
       [TENANT_A, conversationA.id, customerA.id, wamid]
@@ -260,13 +255,13 @@ describe('Channel-Agnostic Storage (PR4)', () => {
 
   // ── Outbound ──────────────────────────────────────────────────────
 
-  it('outbound → direction=outbound, external_id = returned wamid', async () => {
+  it('outbound → direction=outbound, external_id = sent id', async () => {
     const sentWamid = 'wamid_sent_001';
     await db.query(
       `INSERT INTO messages
-         (tenant_id, conversation_id, customer_id, wamid, external_id,
+         (tenant_id, conversation_id, customer_id, external_id,
           direction, sender, content, channel, msg_type)
-       VALUES ($1, $2, $3, $4, $4, 'outbound', 'ai', 'Reply text', 'whatsapp', 'text')`,
+       VALUES ($1, $2, $3, $4, 'outbound', 'ai', 'Reply text', 'whatsapp', 'text')`,
       [TENANT_A, conversationA.id, customerA.id, sentWamid]
     );
 
@@ -276,7 +271,6 @@ describe('Channel-Agnostic Storage (PR4)', () => {
     );
     assert.equal(msg.direction, 'outbound');
     assert.equal(msg.external_id, sentWamid);
-    assert.equal(msg.wamid, sentWamid, 'wamid should be dual-written');
     assert.equal(msg.channel, 'whatsapp');
   });
 
@@ -351,39 +345,6 @@ describe('Channel-Agnostic Storage (PR4)', () => {
       [TENANT_A]
     );
     assert.equal(msg.channel, 'whatsapp', 'default channel should be whatsapp');
-  });
-
-  // ── Backfill re-runnability ───────────────────────────────────────
-
-  it('external_id backfill is re-runnable', async () => {
-    const wamid = 'wamid_backfill_test';
-    await db.query(
-      `INSERT INTO messages
-         (tenant_id, conversation_id, customer_id, wamid, external_id,
-          direction, sender, content, channel)
-       VALUES ($1, $2, $3, $4, $4, 'inbound', 'customer', 'backfill test', 'whatsapp')`,
-      [TENANT_A, conversationA.id, customerA.id, wamid]
-    );
-
-    // Run backfill (same as migration 017)
-    await db.query(
-      `UPDATE messages SET external_id = wamid
-       WHERE wamid IS NOT NULL AND external_id IS NULL`
-    );
-
-    const { rows: [msg] } = await db.query(
-      `SELECT external_id FROM messages WHERE tenant_id = $1 AND wamid = $2`,
-      [TENANT_A, wamid]
-    );
-    assert.equal(msg.external_id, wamid, 'external_id should still match wamid');
-
-    // Run again — no change
-    const { rowCount } = await db.query(
-      `UPDATE messages SET external_id = wamid
-       WHERE wamid IS NOT NULL AND external_id IS NULL AND tenant_id = $1`,
-      [TENANT_A]
-    );
-    assert.equal(rowCount, 0, 're-run should update zero rows');
   });
 
   // ── getOrCreateOpenConversation channel-aware ─────────────────────

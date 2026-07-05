@@ -73,9 +73,9 @@ async function handleInbound(envelopes) {
 
     const { rowCount } = await db.query(
       `INSERT INTO messages
-         (tenant_id, conversation_id, customer_id, wamid, external_id,
+         (tenant_id, conversation_id, customer_id, external_id,
           direction, sender, content, channel, msg_type, media_ref)
-       VALUES ($1, $2, $3, $4, $4, 'inbound', 'customer', $5, $6, $7, $8)
+       VALUES ($1, $2, $3, $4, 'inbound', 'customer', $5, $6, $7, $8)
        ON CONFLICT (tenant_id, channel, external_id)
          WHERE external_id IS NOT NULL DO NOTHING`,
       [envelope.tenantId, conversation.id, customer.id, envelope.externalId,
