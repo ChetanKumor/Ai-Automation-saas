@@ -265,6 +265,10 @@ CREATE TABLE knowledge_chunks (
 
 CREATE INDEX idx_knowledge_chunks_tenant ON knowledge_chunks(tenant_id);
 
+-- Approximate-nearest-neighbour index for semantic retrieval (cosine distance).
+CREATE INDEX idx_knowledge_chunks_hnsw
+  ON knowledge_chunks USING hnsw (embedding vector_cosine_ops);
+
 
 -- ============================================================
 --  9. TENANT_ENTITIES  — flexible config store (schedules, etc.)
@@ -473,6 +477,37 @@ CREATE INDEX idx_channel_identifiers_lookup
 
 CREATE INDEX idx_channel_identifiers_customer
   ON channel_identifiers(customer_id);
+
+
+-- ============================================================
+--  18. CALL_SESSIONS  — voice channel: one row per phone call.
+--      Turns live in `messages`; this records per-call metadata.
+-- ============================================================
+CREATE TABLE call_sessions (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id         UUID NOT NULL REFERENCES tenants(id)       ON DELETE CASCADE,
+  customer_id       UUID NOT NULL REFERENCES customers(id)     ON DELETE CASCADE,
+  conversation_id   UUID          REFERENCES conversations(id) ON DELETE SET NULL,
+  provider          TEXT NOT NULL,
+  external_call_id  TEXT,
+  direction         TEXT NOT NULL CHECK (direction IN ('inbound', 'outbound')),
+  from_number       TEXT,
+  to_number         TEXT,
+  language_detected TEXT,
+  status            TEXT NOT NULL
+                      CHECK (status IN ('initiated', 'in_progress', 'completed', 'failed')),
+  started_at        TIMESTAMPTZ,
+  ended_at          TIMESTAMPTZ,
+  duration_seconds  INT,
+  recording_url     TEXT,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_call_sessions_tenant_customer
+  ON call_sessions(tenant_id, customer_id);
+
+CREATE INDEX idx_call_sessions_external
+  ON call_sessions(external_call_id);
 
 
 -- ============================================================
