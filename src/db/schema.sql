@@ -66,6 +66,12 @@ CREATE TABLE tenants (
   reminder_template_id  TEXT,           -- Meta-approved template ID (null = free-text only)
 
   active           BOOLEAN NOT NULL DEFAULT TRUE,
+
+  -- Control-plane lifecycle (migration 020). `active` stays authoritative for
+  -- runtime until Issue 17 reconciles it against `status`.
+  status           TEXT NOT NULL DEFAULT 'draft'
+                     CHECK (status IN ('draft', 'validated', 'live', 'paused')),
+
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -508,6 +514,49 @@ CREATE INDEX idx_call_sessions_tenant_customer
 
 CREATE INDEX idx_call_sessions_external
   ON call_sessions(external_call_id);
+
+
+-- ============================================================
+--  19. CONTROL PLANE  — versioned per-tenant behavior config
+--      (migration 020). All per-tenant behavior lives in one
+--      versioned JSONB config; history is append-only. The DB
+--      enforces NO JSON shape (validation is application-level,
+--      Issue 8). No runtime code reads these yet.
+-- ============================================================
+
+-- One config row per tenant (tenant_id IS the primary key).
+CREATE TABLE tenant_configs (
+  tenant_id   UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+  version     INT NOT NULL DEFAULT 1,
+  config      JSONB NOT NULL,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Append-only revision history; one row per (tenant, version).
+CREATE TABLE tenant_config_revisions (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  version     INT NOT NULL,
+  config      JSONB NOT NULL,
+  source      TEXT NOT NULL,             -- 'provision' | 'admin' | 'cli' (free text, no enum)
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (tenant_id, version)
+);
+
+CREATE INDEX idx_tenant_config_revisions_tenant_version
+  ON tenant_config_revisions (tenant_id, version DESC);
+
+-- Validation run log (per-check outcomes live in `result`).
+CREATE TABLE validation_runs (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  passed      BOOLEAN NOT NULL,
+  result      JSONB NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_validation_runs_tenant_created
+  ON validation_runs (tenant_id, created_at DESC);
 
 
 -- ============================================================
