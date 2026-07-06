@@ -4,6 +4,7 @@ const logger     = require('../infra/logging/logger');
 const db         = require('../db/db');
 const { encrypt } = require('../utils/encryption');
 const tenantService = require('../modules/tenant/tenantService');
+const configService = require('../modules/config/configService');
 const router     = express.Router();
 
 const ADMIN_PUBLIC = path.join(__dirname, '../../public/admin');
@@ -266,16 +267,26 @@ router.get('/api/workflow-executions', requireAuth, async (req, res) => {
   }
 });
 
-// ── API: Invalidate tenant cache ────────────────────────────
-// Evict stale tenant config/credentials without a redeploy. Body: optional
-// `tenant_id` → evict that tenant; omitted → full flush. Single-instance
-// (in-process) semantics — see tenantService.invalidateTenantCache.
+// ── API: Invalidate caches ──────────────────────────────────
+// Evict stale tenant credentials AND tenant config without a redeploy. Body:
+// optional `tenant_id` → evict that tenant in both caches; omitted → full flush
+// of both. Single-instance (in-process) semantics — see the two services.
+//
+// Response shape (changed in Issue 8 — now covers both caches):
+//   { scope: 'tenant'|'all', evicted: <total>, caches: { tenant, config } }
+// `evicted` remains a number (the combined total) for backward compatibility;
+// `caches` breaks it out per cache.
 router.post('/api/cache/invalidate', requireAuth, express.json(), (req, res) => {
   // Presence, not truthiness: pass '' through as a scoped no-op rather than
-  // collapsing it to a full flush (see tenantService.invalidateTenantCache).
+  // collapsing it to a full flush (see each service's invalidate function).
   const tenantId = req.body ? req.body.tenant_id : undefined;
-  const evicted = tenantService.invalidateTenantCache(tenantId);
-  res.json({ evicted, scope: tenantId != null ? 'tenant' : 'all' });
+  const tenant = tenantService.invalidateTenantCache(tenantId);
+  const config = configService.invalidateConfigCache(tenantId);
+  res.json({
+    scope: tenantId != null ? 'tenant' : 'all',
+    evicted: tenant + config,
+    caches: { tenant, config },
+  });
 });
 
 module.exports = router;

@@ -200,7 +200,8 @@ describe('POST /admin/api/cache/invalidate', () => {
     try {
       const res = await post(url, {});
       assert.equal(res.status, 200);
-      assert.deepEqual(await res.json(), { evicted: 1, scope: 'all' });
+      // Issue 8: endpoint now evicts both caches. Config cache is empty here.
+      assert.deepEqual(await res.json(), { scope: 'all', evicted: 1, caches: { tenant: 1, config: 0 } });
     } finally { server.close(); }
   });
 
@@ -211,7 +212,7 @@ describe('POST /admin/api/cache/invalidate', () => {
     try {
       const res = await post(url, { tenant_id: TENANT_A });
       assert.equal(res.status, 200);
-      assert.deepEqual(await res.json(), { evicted: 1, scope: 'tenant' });
+      assert.deepEqual(await res.json(), { scope: 'tenant', evicted: 1, caches: { tenant: 1, config: 0 } });
     } finally { server.close(); }
   });
 
@@ -220,7 +221,7 @@ describe('POST /admin/api/cache/invalidate', () => {
     try {
       const res = await post(url, { tenant_id: 'no-such-tenant' });
       assert.equal(res.status, 200);
-      assert.deepEqual(await res.json(), { evicted: 0, scope: 'tenant' });
+      assert.deepEqual(await res.json(), { scope: 'tenant', evicted: 0, caches: { tenant: 0, config: 0 } });
     } finally { server.close(); }
   });
 });
