@@ -43,8 +43,14 @@ async function dropDb(name) {
   } finally { await c.end(); }
 }
 
+// Scratch-DB prefix — MUST be disjoint from migrate.test.js's prefix.
+// node --test runs files concurrently; a shared prefix lets one file's sweep
+// DROP the other file's live scratch DB mid-test (observed as 3D000
+// "database does not exist"). Each file sweeps ONLY its own prefix.
+const SCRATCH_PREFIX = 'zyon_test_cp_';
+
 async function withScratch(fn) {
-  const name = 'zyon_test_' + crypto.randomBytes(6).toString('hex');
+  const name = SCRATCH_PREFIX + crypto.randomBytes(6).toString('hex');
   const c = admin();
   await c.connect();
   await c.query('CREATE DATABASE ' + name);
@@ -75,12 +81,12 @@ async function newTenant(cs, active = true) {
   return r.rows[0].id;
 }
 
-// Sweep any scratch DBs left by a crashed run (shared with migrate.test.js).
+// Sweep scratch DBs left by a crashed run — OWN prefix only (see above).
 async function sweep() {
   const c = admin();
   await c.connect();
   try {
-    const { rows } = await c.query("SELECT datname FROM pg_database WHERE datname LIKE 'zyon_test_%'");
+    const { rows } = await c.query("SELECT datname FROM pg_database WHERE datname LIKE 'zyon\\_test\\_cp\\_%'");
     for (const r of rows) {
       await c.query('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname=$1 AND pid<>pg_backend_pid()', [r.datname]);
       await c.query('DROP DATABASE IF EXISTS ' + r.datname);

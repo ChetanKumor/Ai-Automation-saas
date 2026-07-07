@@ -36,9 +36,15 @@ async function dropDb(name) {
   } finally { await c.end(); }
 }
 
+// Scratch-DB prefix — MUST be disjoint from controlPlane.test.js's prefix.
+// node --test runs files concurrently; a shared prefix lets one file's sweep
+// DROP the other file's live scratch DB mid-test (observed as 3D000
+// "database does not exist"). Each file sweeps ONLY its own prefix.
+const SCRATCH_PREFIX = 'zyon_test_mig_';
+
 // Run fn with a fresh, empty scratch database; always drop it afterwards.
 async function withScratch(fn) {
-  const name = 'zyon_test_' + crypto.randomBytes(6).toString('hex');
+  const name = SCRATCH_PREFIX + crypto.randomBytes(6).toString('hex');
   const c = admin();
   await c.connect();
   await c.query('CREATE DATABASE ' + name);
@@ -88,7 +94,7 @@ describe('migration runner', { skip: ADMIN ? false : 'DATABASE_URL not set' }, (
     const c = admin();
     await c.connect();
     try {
-      const { rows } = await c.query("SELECT datname FROM pg_database WHERE datname LIKE 'zyon_test_%'");
+      const { rows } = await c.query("SELECT datname FROM pg_database WHERE datname LIKE 'zyon\\_test\\_mig\\_%'");
       for (const r of rows) {
         await c.query('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname=$1 AND pid<>pg_backend_pid()', [r.datname]);
         await c.query('DROP DATABASE IF EXISTS ' + r.datname);
@@ -277,7 +283,7 @@ describe('migration runner', { skip: ADMIN ? false : 'DATABASE_URL not set' }, (
     const c = admin();
     await c.connect();
     try {
-      const { rows } = await c.query("SELECT datname FROM pg_database WHERE datname LIKE 'zyon_test_%'");
+      const { rows } = await c.query("SELECT datname FROM pg_database WHERE datname LIKE 'zyon\\_test\\_mig\\_%'");
       for (const r of rows) {
         await c.query('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname=$1 AND pid<>pg_backend_pid()', [r.datname]);
         await c.query('DROP DATABASE IF EXISTS ' + r.datname);
