@@ -344,15 +344,20 @@ describe('voice turn SSE mode (PR9C)', () => {
       if (evt.event === 'delta') controller.abort();
     }).catch(() => {}); // the fetch abort surfaces here — expected
 
-    // Server side settles asynchronously: wait for the partial row.
+    // Server side settles asynchronously: wait for the partial row AND the
+    // metrics line. The row's INSERT is visible one DB round-trip (the
+    // last_message_at UPDATE) before turn.emit() fires in the handler's
+    // finally — polling for the row alone can win that race and flake.
     let row = null;
-    for (let i = 0; i < 50 && !row; i++) {
+    let line = null;
+    for (let i = 0; i < 50 && !(row && line); i++) {
       const { rows } = await db.query(
         "SELECT content FROM messages WHERE conversation_id = $1 AND direction = 'outbound' AND channel = 'voice'",
         [conv.id]
       );
       row = rows[0] || null;
-      if (!row) await new Promise((r) => setTimeout(r, 100));
+      line = emitted.find((l) => l.call_session_id === session.id) || null;
+      if (!(row && line)) await new Promise((r) => setTimeout(r, 100));
     }
 
     // The in-flight Gemini stream was aborted via the AbortSignal (spy).
@@ -362,7 +367,6 @@ describe('voice turn SSE mode (PR9C)', () => {
     assert.ok(row, 'partial outbound persisted after disconnect');
     assert.equal(row.content, 'The first half of a long answer');
     // The turn still emitted its metrics line (no crash, clean teardown).
-    const line = emitted.find((l) => l.call_session_id === session.id);
     assert.ok(line);
     assert.equal(line.stream_mode, true);
 

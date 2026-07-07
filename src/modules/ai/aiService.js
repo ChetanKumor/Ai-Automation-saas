@@ -2,6 +2,8 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const logger = require('../../infra/logging/logger');
 const appointmentService = require('../appointment/appointmentService');
 const notificationService = require('../notification/notificationService');
+const configService = require('../config/configService');
+const { renderSystemPrompt, MINIMAL_SAFE_PROMPT } = require('../prompts');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -90,7 +92,7 @@ const generateReply = async (tenant, customer, conversation, userMessage, histor
 
   const model = modelProvider({
     model: 'gemini-2.5-flash',
-    systemInstruction: buildSystemPrompt(tenant, customer, conversation, promptFacts, knowledgeChunks, channel),
+    systemInstruction: buildSystemPrompt(tenant, customer, conversation, promptFacts, knowledgeChunks, channel, await configForPrompt(tenant)),
     tools: TOOLS
   });
 
@@ -201,7 +203,7 @@ const generateReplyStream = async (tenant, customer, conversation, userMessage, 
 
   const model = modelProvider({
     model: 'gemini-2.5-flash',
-    systemInstruction: buildSystemPrompt(tenant, customer, conversation, promptFacts, knowledgeChunks, 'voice'),
+    systemInstruction: buildSystemPrompt(tenant, customer, conversation, promptFacts, knowledgeChunks, 'voice', await configForPrompt(tenant)),
     tools: TOOLS
   });
 
@@ -302,7 +304,60 @@ const generateReplyStream = async (tenant, customer, conversation, userMessage, 
   }
 };
 
-const buildSystemPrompt = (tenant, customer, conversation, facts, knowledgeChunks = [], channel = 'whatsapp') => {
+// Prompt-head precedence (Issue 10). Order is pinned:
+//   1. tenants.ai_prompt non-empty → used VERBATIM (legacy override) + WARN
+//   2. tenant config present       → renderSystemPrompt(config, {channel})
+//   3. neither                     → MINIMAL_SAFE_PROMPT + ERROR
+// Never throws — a prompt problem must not take down a live turn.
+const hasLegacyPrompt = (tenant) =>
+  tenant.ai_prompt != null && String(tenant.ai_prompt).trim() !== '';
+
+// Distinguishes "config read threw" from "tenant has no config row": both end
+// at the safe prompt, but only the latter is a no_prompt_source ERROR (the
+// former already logged its own, more accurate, ERROR in configForPrompt).
+const CONFIG_FETCH_FAILED = Symbol('config-fetch-failed');
+
+const resolvePromptHead = (tenant, config, channel) => {
+  if (hasLegacyPrompt(tenant)) {
+    logger.warn({ scope: 'prompts', tenantId: tenant.id, event: 'legacy_prompt_override' },
+      'legacy ai_prompt overrides rendered prompt');
+    return tenant.ai_prompt;
+  }
+  if (config && config !== CONFIG_FETCH_FAILED) {
+    try {
+      return renderSystemPrompt(config, {
+        channel,
+        onWarn: (event, detail) =>
+          logger.warn({ scope: 'prompts', tenantId: tenant.id, event, ...detail }, 'prompt render warning'),
+      });
+    } catch (err) {
+      logger.error({ scope: 'prompts', tenantId: tenant.id, err: err.message },
+        'prompt render failed — using minimal safe prompt');
+      return MINIMAL_SAFE_PROMPT;
+    }
+  }
+  if (config !== CONFIG_FETCH_FAILED) {
+    logger.error({ scope: 'prompts', tenantId: tenant.id, event: 'no_prompt_source' },
+      'no tenant config and no ai_prompt — using minimal safe prompt');
+  }
+  return MINIMAL_SAFE_PROMPT;
+};
+
+// Fetch the config document only when the precedence chain can reach it (no
+// legacy override). Legacy tenants take ZERO new calls — their path is
+// byte-identical to pre-Issue-10. Config errors degrade to the safe prompt.
+const configForPrompt = async (tenant) => {
+  if (hasLegacyPrompt(tenant)) return null;
+  try {
+    return await configService.getTenantConfig(tenant.id);
+  } catch (err) {
+    logger.error({ scope: 'prompts', tenantId: tenant.id, err: err.message },
+      'config fetch failed — prompt falls back to minimal safe prompt');
+    return CONFIG_FETCH_FAILED;
+  }
+};
+
+const buildSystemPrompt = (tenant, customer, conversation, facts, knowledgeChunks = [], channel = 'whatsapp', config = null) => {
   const factLines = facts.length
     ? facts.map(f => `- ${f.key}: ${f.value}`).join('\n')
     : 'None yet.';
@@ -328,7 +383,7 @@ const buildSystemPrompt = (tenant, customer, conversation, facts, knowledgeChunk
     : '';
 
   return `
-${tenant.ai_prompt}
+${resolvePromptHead(tenant, config, channel)}
 
 Today is ${dayOfWeek}, ${todayIST} (IST — Asia/Kolkata timezone).
 
