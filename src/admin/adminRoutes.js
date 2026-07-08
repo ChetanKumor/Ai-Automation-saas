@@ -5,9 +5,30 @@ const db         = require('../db/db');
 const { encrypt } = require('../utils/encryption');
 const tenantService = require('../modules/tenant/tenantService');
 const configService = require('../modules/config/configService');
+const {
+  safeEqual,
+  securityHeaders,
+  requireAdminHeader,
+  createRateLimiter,
+} = require('./security');
 const router     = express.Router();
 
 const ADMIN_PUBLIC = path.join(__dirname, '../../public/admin');
+
+// ── Rate limiters (in-memory, per-IP, single-instance) ───────
+// Login is capped hard (brute-force defense); mutating APIs loosely (abuse
+// ceiling that won't wedge a busy operator). See security.js for semantics.
+const loginLimiter = createRateLimiter({
+  max: 5, windowMs: 15 * 60 * 1000,
+  message: 'Too many login attempts. Try again later.',
+});
+const apiLimiter = createRateLimiter({
+  max: 60, windowMs: 60 * 1000,
+  message: 'Too many requests. Slow down.',
+});
+
+// Minimal security headers on every panel page + admin API response.
+router.use(securityHeaders);
 
 // ── Auth middleware ──────────────────────────────────────────
 function requireAuth(req, res, next) {
@@ -27,17 +48,30 @@ router.get('/', (req, res) => {
 router.use(express.static(ADMIN_PUBLIC));
 
 // ── Auth endpoints ───────────────────────────────────────────
-router.post('/login', express.json(), (req, res) => {
-  if (req.body.password === process.env.ADMIN_PASSWORD) {
-    req.session.admin = true;
-    return res.json({ ok: true });
+router.post('/login', loginLimiter, express.json(), (req, res) => {
+  const supplied = req.body && req.body.password;
+  if (safeEqual(supplied, process.env.ADMIN_PASSWORD || '')) {
+    // Session fixation defense: issue a fresh session id on privilege change so a
+    // pre-login (attacker-planted) cookie can't be reused as an authenticated one.
+    return req.session.regenerate((err) => {
+      if (err) {
+        logger.error({ err: err.message }, 'session regenerate failed');
+        return res.status(500).json({ error: 'Login failed' });
+      }
+      req.session.admin = true;
+      res.json({ ok: true });
+    });
   }
-  res.status(401).json({ error: 'Wrong password' });
+  // Generic message (no user/enumeration signal) + constant ~300ms delay to blunt
+  // timing analysis and slow online brute force. Pairs with loginLimiter above.
+  setTimeout(() => res.status(401).json({ error: 'Invalid credentials' }), 300);
 });
 
+// Logout stays a GET navigation (the panel nav links to it). Not CSRF-sensitive:
+// sameSite=strict means a cross-site navigation carries no session cookie, so a
+// forged logout has nothing to destroy.
 router.get('/logout', (req, res) => {
-  req.session.destroy();
-  res.redirect('/admin');
+  req.session.destroy(() => res.redirect('/admin'));
 });
 
 // ── API: Tenants ─────────────────────────────────────────────
@@ -49,7 +83,7 @@ router.get('/api/tenants', requireAuth, async (req, res) => {
   res.json(rows);
 });
 
-router.post('/api/tenants', requireAuth, async (req, res) => {
+router.post('/api/tenants', requireAuth, apiLimiter, requireAdminHeader, async (req, res) => {
   try {
     const { business_name, phone_number_id, wa_token, waba_id, ai_prompt, ai_enabled } = req.body;
     if (!business_name) return res.status(400).json({ error: 'Business name is required' });
@@ -90,7 +124,7 @@ router.get('/api/notifications', requireAuth, async (req, res) => {
 });
 
 // ── API: Toggle tenant reminders ────────────────────────────
-router.patch('/api/tenants/:id/reminders', requireAuth, async (req, res) => {
+router.patch('/api/tenants/:id/reminders', requireAuth, apiLimiter, requireAdminHeader, async (req, res) => {
   const { id } = req.params;
   const { enabled, hours_before } = req.body;
 
@@ -276,7 +310,7 @@ router.get('/api/workflow-executions', requireAuth, async (req, res) => {
 //   { scope: 'tenant'|'all', evicted: <total>, caches: { tenant, config } }
 // `evicted` remains a number (the combined total) for backward compatibility;
 // `caches` breaks it out per cache.
-router.post('/api/cache/invalidate', requireAuth, express.json(), (req, res) => {
+router.post('/api/cache/invalidate', requireAuth, apiLimiter, requireAdminHeader, express.json(), (req, res) => {
   // Presence, not truthiness: pass '' through as a scoped no-op rather than
   // collapsing it to a full flush (see each service's invalidate function).
   const tenantId = req.body ? req.body.tenant_id : undefined;

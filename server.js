@@ -50,12 +50,28 @@ if (process.env.VOICE_ENABLED === 'true') {
 // JSON parsing for all other routes
 app.use(express.json());
 
-// Sessions (admin dashboard)
+// Sessions (admin dashboard). In-memory MemoryStore — fine at single-operator,
+// single-instance scale (same semantics as the tenant/config caches); sessions
+// reset on restart, which is also the operator-lockout recovery path.
+const isProd = process.env.NODE_ENV === 'production';
+if (isProd) {
+  // Railway (and most PaaS) terminate TLS at a proxy and forward plain HTTP with
+  // X-Forwarded-Proto. Without trusting the first proxy hop, express sees the
+  // request as insecure and NEVER sends a `secure` cookie → the operator logs in
+  // and is immediately bounced back to the login page. Gated to prod so dev over
+  // plain http still works.
+  app.set('trust proxy', 1);
+}
 app.use(session({
   secret: process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || 'dev-fallback',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 24 * 60 * 60 * 1000 }
+  cookie: {
+    httpOnly: true,      // no JS access to the session cookie
+    sameSite: 'strict',  // primary CSRF control (see adminRoutes/security.js)
+    secure: isProd,      // HTTPS-only in prod; requires trust proxy above
+    maxAge: 12 * 60 * 60 * 1000,
+  },
 }));
 
 // Admin dashboard

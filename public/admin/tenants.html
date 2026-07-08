@@ -38,9 +38,10 @@
     </div>
   </div>
 
+  <script src="/admin/app.js"></script>
   <script>
     async function load() {
-      const res = await fetch('/admin/api/tenants');
+      const res = await adminFetch('/admin/api/tenants');
       if (res.status === 401) return window.location.href = '/admin';
       const tenants = await res.json();
       const tbody = document.getElementById('tenantList');

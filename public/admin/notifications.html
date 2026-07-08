@@ -60,6 +60,7 @@
     </div>
   </div>
 
+  <script src="/admin/app.js"></script>
   <script>
     async function load() {
       const type = document.getElementById('filterType').value;
@@ -69,7 +70,7 @@
       if (status) params.set('status', status);
       params.set('limit', '100');
 
-      const res = await fetch('/admin/api/notifications?' + params);
+      const res = await adminFetch('/admin/api/notifications?' + params);
       if (res.status === 401) return window.location.href = '/admin';
       const notifs = await res.json();
       const tbody = document.getElementById('notifList');

@@ -178,10 +178,13 @@ describe('POST /admin/api/cache/invalidate', () => {
     });
   }
 
+  // X-Zyon-Admin: custom-header CSRF check now required on mutating admin APIs
+  // (Issue 18). Attached centrally; the 401-without-session case is unaffected
+  // (requireAuth rejects before the header check runs).
   function post(url, body) {
     return fetch(`${url}/admin/api/cache/invalidate`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'X-Zyon-Admin': '1' },
       body: JSON.stringify(body || {}),
     });
   }

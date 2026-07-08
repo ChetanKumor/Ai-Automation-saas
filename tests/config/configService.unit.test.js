@@ -205,8 +205,12 @@ describe('POST /admin/api/cache/invalidate — evicts BOTH caches', () => {
       const server = app.listen(0, () => resolve({ server, url: `http://127.0.0.1:${server.address().port}` }));
     });
   }
+  // X-Zyon-Admin is the custom-header CSRF check the mutating admin APIs now
+  // require (Issue 18); attach it centrally so all three cases carry it.
   const post = (url, body) => fetch(`${url}/admin/api/cache/invalidate`, {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}),
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'X-Zyon-Admin': '1' },
+    body: JSON.stringify(body || {}),
   });
 
   it('full flush evicts tenant + config and reports both counts', async () => {

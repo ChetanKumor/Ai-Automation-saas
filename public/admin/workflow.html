@@ -54,6 +54,7 @@
     </div>
   </div>
 
+  <script src="/admin/app.js"></script>
   <script>
     const STATUS_BADGE = {
       running: 'badge-yellow',
@@ -63,7 +64,7 @@
     };
 
     async function loadTenants() {
-      const res = await fetch('/admin/api/tenants');
+      const res = await adminFetch('/admin/api/tenants');
       if (res.status === 401) return window.location.href = '/admin';
       const tenants = await res.json();
       const sel = document.getElementById('tenantFilter');
@@ -82,7 +83,7 @@
       if (tenant) params.set('tenant_id', tenant);
       if (status) params.set('status', status);
 
-      const res = await fetch('/admin/api/workflow-executions?' + params);
+      const res = await adminFetch('/admin/api/workflow-executions?' + params);
       if (res.status === 401) return window.location.href = '/admin';
       const rows = await res.json();
       const tbody = document.getElementById('execList');

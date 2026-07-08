@@ -54,6 +54,7 @@
     </div>
   </div>
 
+  <script src="/admin/app.js"></script>
   <script>
     document.getElementById('tenantForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -76,7 +77,7 @@
         return;
       }
 
-      const res = await fetch('/admin/api/tenants', {
+      const res = await adminFetch('/admin/api/tenants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

@@ -53,6 +53,7 @@
     </div>
   </div>
 
+  <script src="/admin/app.js"></script>
   <script>
     const STAGE_BADGE = {
       new:       'badge-blue',
@@ -68,7 +69,7 @@
     };
 
     async function loadTenants() {
-      const res = await fetch('/admin/api/tenants');
+      const res = await adminFetch('/admin/api/tenants');
       if (res.status === 401) return window.location.href = '/admin';
       const tenants = await res.json();
       const sel = document.getElementById('tenantFilter');
@@ -87,7 +88,7 @@
       if (tenant) params.set('tenant_id', tenant);
       if (stage)  params.set('stage', stage);
 
-      const res = await fetch('/admin/api/leads?' + params);
+      const res = await adminFetch('/admin/api/leads?' + params);
       if (res.status === 401) return window.location.href = '/admin';
       const leads = await res.json();
       const tbody = document.getElementById('leadList');
