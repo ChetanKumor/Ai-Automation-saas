@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tenant — WhatsApp CRM Admin</title>
+  <link rel="stylesheet" href="/admin/style.css">
+  <style>
+    .td-grid { display:grid; grid-template-columns: 1fr; gap:20px; }
+    .issues { margin-top:12px; }
+    .issue-item { color:#b00020; font-size:13px; padding:4px 0; border-bottom:1px solid #f0d5d5; }
+    .issue-path { font-family:monospace; font-weight:600; }
+    textarea.config-editor { width:100%; min-height:360px; font-family:monospace; font-size:13px; white-space:pre; }
+    .preview-out { background:#0d1117; color:#e6edf3; padding:14px; border-radius:6px;
+      white-space:pre-wrap; font-family:monospace; font-size:12px; max-height:420px; overflow:auto; }
+    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none;
+      align-items:center; justify-content:center; z-index:50; }
+    .modal-backdrop.show { display:flex; }
+    .modal-box { background:#fff; border-radius:8px; max-width:760px; width:90%; max-height:80vh;
+      overflow:auto; padding:20px; }
+    .note { background:#fff8e1; border:1px solid #ffe08a; border-radius:6px; padding:10px 12px;
+      font-size:13px; margin-bottom:12px; }
+    .muted-sm { color:#666; font-size:12px; }
+    .toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/admin/tenants.html" class="brand">WhatsApp CRM</a>
+    <a href="/admin/leads.html">Leads</a>
+    <a href="/admin/collections.html">Collections</a>
+    <a href="/admin/notifications.html">Notifications</a>
+    <a href="/admin/logout">Logout</a>
+  </nav>
+
+  <div class="container" style="margin-top:20px;">
+    <div id="notFound" style="display:none;" class="card">
+      <h2>Tenant not found</h2>
+      <p class="text-muted">No tenant matches this id. <a href="/admin/tenants.html">Back to tenants</a>.</p>
+    </div>
+
+    <div id="detail" style="display:none;">
+      <!-- Header -->
+      <div class="flex-between mb-20">
+        <h2 id="tName" style="margin:0;">Tenant</h2>
+        <a href="/admin/tenants.html" class="btn" style="background:#eee; color:#333;">← Tenants</a>
+      </div>
+      <div class="toolbar mb-20">
+        <span>Status: <span id="tStatus" class="badge">—</span></span>
+        <span class="muted-sm">Config version: <strong id="tVersion">—</strong></span>
+        <span class="muted-sm" id="tUpdated"></span>
+      </div>
+
+      <div id="aiPromptNote" class="note" style="display:none;">
+        ⚠ This tenant has a legacy <code>ai_prompt</code> override set. The config-driven
+        prompt renderer is dormant for it until the runtime repoint (Issue 9).
+      </div>
+
+      <div class="td-grid">
+        <!-- Config editor -->
+        <div class="card">
+          <div class="flex-between mb-20">
+            <h3 style="margin:0;">Configuration</h3>
+            <div class="toolbar">
+              <button id="seedBtn" class="btn" style="display:none;">Seed defaults</button>
+              <button id="formatBtn" class="btn" style="background:#eee; color:#333;">Format</button>
+              <button id="saveBtn" class="btn btn-primary">Save</button>
+            </div>
+          </div>
+          <div id="configEmpty" class="text-muted" style="display:none; padding:12px 0;">
+            No config yet. Click <strong>Seed defaults</strong> to create one from the clinic template.
+          </div>
+          <textarea id="editor" class="config-editor" spellcheck="false" style="display:none;"></textarea>
+          <div id="saveMsg" class="muted-sm" style="margin-top:8px;"></div>
+          <div id="issues" class="issues"></div>
+        </div>
+
+        <!-- Prompt preview -->
+        <div class="card">
+          <h3 style="margin-top:0;">Prompt preview</h3>
+          <div class="note">📢 Operator: read the <strong>te</strong> and <strong>hi</strong>
+            renderings aloud to confirm they sound natural before going live.</div>
+          <div class="toolbar mb-20">
+            <label>Channel
+              <select id="pvChannel">
+                <option value="whatsapp">WhatsApp</option>
+                <option value="voice">Voice</option>
+              </select>
+            </label>
+            <label>Language
+              <select id="pvLang">
+                <option value="">(config default)</option>
+                <option value="en">en</option>
+                <option value="hi">hi</option>
+                <option value="te">te</option>
+              </select>
+            </label>
+            <button id="pvBtn" class="btn" style="background:#eee; color:#333;">Preview</button>
+            <span class="muted-sm" id="pvTokens"></span>
+          </div>
+          <pre id="pvOut" class="preview-out">Select a channel/language and click Preview.</pre>
+        </div>
+
+        <!-- Revisions -->
+        <div class="card" style="padding:0;">
+          <div style="padding:16px 20px;"><h3 style="margin:0;">Revisions</h3></div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr><th>Version</th><th>Source</th><th class="hide-mobile">Created</th><th></th></tr>
+              </thead>
+              <tbody id="revList">
+                <tr><td colspan="4" class="text-muted" style="text-align:center; padding:20px;">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Validation history (honest empty state; no controls until Issue 17) -->
+        <div class="card">
+          <h3 style="margin-top:0;">Validation history</h3>
+          <p class="text-muted" style="margin:0;">No validation runs yet. Validate/activate controls arrive in a later release.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Revision view modal -->
+  <div id="modal" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="flex-between mb-20">
+        <h3 id="modalTitle" style="margin:0;">Revision</h3>
+        <button id="modalClose" class="btn" style="background:#eee; color:#333;">Close</button>
+      </div>
+      <pre id="modalBody" class="preview-out" style="max-height:60vh;"></pre>
+    </div>
+  </div>
+
+  <script src="/admin/app.js"></script>
+  <script src="/admin/tenant-detail.js"></script>
+</body>
+</html>

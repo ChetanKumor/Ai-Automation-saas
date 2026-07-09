@@ -5,6 +5,7 @@ const db         = require('../db/db');
 const { encrypt } = require('../utils/encryption');
 const tenantService = require('../modules/tenant/tenantService');
 const configService = require('../modules/config/configService');
+const { renderSystemPrompt, estimateTokens } = require('../modules/prompts');
 const {
   safeEqual,
   securityHeaders,
@@ -321,6 +322,145 @@ router.post('/api/cache/invalidate', requireAuth, apiLimiter, requireAdminHeader
     evicted: tenant + config,
     caches: { tenant, config },
   });
+});
+
+// ── API: Tenant detail — config editor, revisions, prompt preview (Issue 25) ──
+// Thin routes over configService (writer/loader) and the prompt renderer. Status
+// stays read-only here — validate/activate controls arrive with Issues 16/17.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Guard the :id path param so a malformed UUID renders a clean 404 instead of a
+// Postgres 22P02 (invalid_text_representation) 500. A well-formed but absent id
+// still 404s naturally from the query below.
+function requireTenantId(req, res, next) {
+  if (UUID_RE.test(req.params.id)) return next();
+  res.status(404).json({ error: 'Tenant not found' });
+}
+
+// Full config + header metadata in one round trip. `has_ai_prompt` lets the page
+// warn the operator that a legacy ai_prompt override is set (the renderer is
+// dormant for that tenant until Issue 9 repoints reads).
+router.get('/api/tenants/:id/config', requireAuth, requireTenantId, async (req, res) => {
+  const { rows } = await db.query(
+    `SELECT t.business_name, t.status, (t.ai_prompt IS NOT NULL) AS has_ai_prompt,
+            c.version, c.config, c.updated_at
+     FROM tenants t
+     LEFT JOIN tenant_configs c ON c.tenant_id = t.id
+     WHERE t.id = $1`,
+    [req.params.id]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Tenant not found' });
+  const r = rows[0];
+  res.json({
+    name: r.business_name,
+    status: r.status,
+    has_ai_prompt: r.has_ai_prompt,
+    has_config: r.config != null,
+    version: r.version,
+    config: r.config,
+    updated_at: r.updated_at,
+  });
+});
+
+// Versioned write with optimistic concurrency. 422 carries Zod path-level issues;
+// 409 carries the live version so the editor can reload-and-rediff.
+router.put('/api/tenants/:id/config', requireAuth, apiLimiter, requireAdminHeader, requireTenantId, express.json(), async (req, res) => {
+  const { config, expected_version } = req.body || {};
+  if (config == null || typeof config !== 'object' || Array.isArray(config)) {
+    return res.status(400).json({ error: 'config object is required' });
+  }
+  try {
+    const { version } = await configService.writeTenantConfig(
+      req.params.id, config, 'admin', { expectedVersion: expected_version });
+    res.json({ version });
+  } catch (err) {
+    if (err.name === 'ConfigValidationError') return res.status(422).json({ issues: err.issues });
+    if (err.name === 'ConfigConflictError') return res.status(409).json({ current_version: err.currentVersion });
+    if (/tenant not found/.test(err.message)) return res.status(404).json({ error: 'Tenant not found' });
+    logger.error({ err: err.message }, 'write tenant config error');
+    res.status(500).json({ error: 'Failed to write config' });
+  }
+});
+
+// Seed clinicDefaults for a configless tenant. 409 if a config already exists —
+// this is a create, not an overwrite (use PUT to edit).
+router.post('/api/tenants/:id/config/defaults', requireAuth, apiLimiter, requireAdminHeader, requireTenantId, async (req, res) => {
+  const { rows } = await db.query('SELECT 1 FROM tenant_configs WHERE tenant_id = $1', [req.params.id]);
+  if (rows[0]) return res.status(409).json({ error: 'config already exists' });
+  try {
+    const { version } = await configService.writeTenantConfig(req.params.id, {}, 'admin');
+    res.status(201).json({ version });
+  } catch (err) {
+    if (/tenant not found/.test(err.message)) return res.status(404).json({ error: 'Tenant not found' });
+    logger.error({ err: err.message }, 'seed defaults error');
+    res.status(500).json({ error: 'Failed to seed defaults' });
+  }
+});
+
+// Revision history (newest first) — metadata only.
+router.get('/api/tenants/:id/revisions', requireAuth, requireTenantId, async (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+  const { rows } = await db.query(
+    `SELECT version, source, created_at
+     FROM tenant_config_revisions WHERE tenant_id = $1
+     ORDER BY version DESC LIMIT $2`,
+    [req.params.id, limit]
+  );
+  res.json(rows);
+});
+
+// Full config of one historical revision (for View / diff).
+router.get('/api/tenants/:id/revisions/:version', requireAuth, requireTenantId, async (req, res) => {
+  const version = Number(req.params.version);
+  if (!Number.isInteger(version)) return res.status(404).json({ error: 'Revision not found' });
+  const { rows } = await db.query(
+    'SELECT config FROM tenant_config_revisions WHERE tenant_id = $1 AND version = $2',
+    [req.params.id, version]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Revision not found' });
+  res.json(rows[0].config);
+});
+
+// Restore = append-only: write revision N's config as a NEW version (source
+// 'admin'). History never rewinds.
+router.post('/api/tenants/:id/revisions/:version/restore', requireAuth, apiLimiter, requireAdminHeader, requireTenantId, async (req, res) => {
+  const version = Number(req.params.version);
+  if (!Number.isInteger(version)) return res.status(404).json({ error: 'Revision not found' });
+  const { rows } = await db.query(
+    'SELECT config FROM tenant_config_revisions WHERE tenant_id = $1 AND version = $2',
+    [req.params.id, version]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Revision not found' });
+  try {
+    const { version: newVersion } = await configService.writeTenantConfig(
+      req.params.id, rows[0].config, 'admin');
+    res.status(201).json({ version: newVersion });
+  } catch (err) {
+    if (err.name === 'ConfigValidationError') return res.status(422).json({ issues: err.issues });
+    if (/tenant not found/.test(err.message)) return res.status(404).json({ error: 'Tenant not found' });
+    logger.error({ err: err.message }, 'restore revision error');
+    res.status(500).json({ error: 'Failed to restore revision' });
+  }
+});
+
+// Rendered system-prompt preview per channel/language. `lang` (optional) previews
+// with languages.default overridden on a COPY — never persisted.
+router.get('/api/tenants/:id/prompt-preview', requireAuth, requireTenantId, async (req, res) => {
+  const config = await configService.getTenantConfig(req.params.id);
+  if (!config) return res.status(404).json({ error: 'no config to preview' });
+
+  const channel = req.query.channel === 'voice' ? 'voice' : 'whatsapp';
+  const preview = structuredClone(config);
+  if (req.query.lang) {
+    preview.languages = preview.languages || {};
+    preview.languages.default = req.query.lang; // override on the copy only
+  }
+  try {
+    const prompt = renderSystemPrompt(preview, { channel });
+    res.json({ prompt, est_tokens: estimateTokens(prompt) });
+  } catch (err) {
+    res.status(422).json({ error: err.message });
+  }
 });
 
 module.exports = router;

@@ -53,7 +53,7 @@
 
       tbody.innerHTML = tenants.map(t => `
         <tr>
-          <td><strong>${esc(t.business_name)}</strong></td>
+          <td><a href="/admin/tenant-detail.html?id=${encodeURIComponent(t.id)}"><strong>${esc(t.business_name)}</strong></a></td>
           <td class="hide-mobile"><code>${esc(t.phone_number_id || '—')}</code></td>
           <td>
             <span class="badge ${t.active ? 'badge-green' : 'badge-red'}">

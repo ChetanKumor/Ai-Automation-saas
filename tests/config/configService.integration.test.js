@@ -135,6 +135,37 @@ describe('configService writer (integration)', { skip: ADMIN ? false : 'DATABASE
     assert.deepEqual(stored, config, 'the whole document was stored');
   });
 
+  it('expectedVersion match → writes the next version (optimistic concurrency)', async () => {
+    const t = await newTenant();
+    const r1 = await configService.writeTenantConfig(t, {}, 'admin');            // v1, no guard
+    const r2 = await configService.writeTenantConfig(
+      t, { retention_days: 90 }, 'admin', { expectedVersion: 1 });               // guard matches head=1
+    assert.deepEqual([r1.version, r2.version], [1, 2]);
+    const head = (await db.query('SELECT version FROM tenant_configs WHERE tenant_id=$1', [t])).rows[0];
+    assert.equal(head.version, 2);
+  });
+
+  it('expectedVersion match on a configless tenant is 0', async () => {
+    const t = await newTenant();
+    const { version } = await configService.writeTenantConfig(t, {}, 'admin', { expectedVersion: 0 });
+    assert.equal(version, 1);
+  });
+
+  it('expectedVersion mismatch → ConfigConflictError, nothing written', async () => {
+    const t = await newTenant();
+    await configService.writeTenantConfig(t, {}, 'admin');                       // head = 1
+    await assert.rejects(
+      configService.writeTenantConfig(t, { retention_days: 90 }, 'admin', { expectedVersion: 0 }),
+      (err) => {
+        assert.equal(err.name, 'ConfigConflictError');
+        assert.equal(err.currentVersion, 1, 'carries the live head version');
+        return true;
+      });
+    assert.equal(await count('tenant_config_revisions', t), 1, 'no extra revision written');
+    const head = (await db.query('SELECT version FROM tenant_configs WHERE tenant_id=$1', [t])).rows[0];
+    assert.equal(head.version, 1, 'head unchanged');
+  });
+
   it('unknown tenant → throws, nothing written', async () => {
     const fakeId = '00000000-0000-0000-0000-0000000000ff';
     await assert.rejects(configService.writeTenantConfig(fakeId, {}, 'cli'), /tenant not found/);

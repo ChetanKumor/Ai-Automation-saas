@@ -40,6 +40,18 @@ class ConfigValidationError extends Error {
   }
 }
 
+// Thrown by writeTenantConfig when the caller passed an `expectedVersion` that no
+// longer matches the tenant's current head (optimistic concurrency — Issue 25).
+// Carries the live version so the admin PUT can return 409 { current_version }
+// and the editor can offer a reload-and-rediff. Nothing is written.
+class ConfigConflictError extends Error {
+  constructor(currentVersion) {
+    super('tenant config version conflict');
+    this.name = 'ConfigConflictError';
+    this.currentVersion = currentVersion;
+  }
+}
+
 function isPlainObject(v) {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
@@ -62,9 +74,17 @@ function deepMerge(base, overlay) {
 // Write a tenant's config. `source` is free text for the revision log
 // ('provision' | 'admin' | 'cli'). Returns { version, config }. Throws
 // ConfigValidationError (nothing written) if the merged document is invalid.
-async function writeTenantConfig(tenantId, input, source) {
+//
+// `opts.expectedVersion` (optional) enables optimistic concurrency: when set, the
+// write asserts the tenant's current head version equals it (0 = no config yet)
+// under the same FOR UPDATE lock that serializes writers, throwing
+// ConfigConflictError (nothing written) on mismatch. Omit it for the historical
+// unconditional-write behavior — existing callers (backfill/provision) are
+// unaffected.
+async function writeTenantConfig(tenantId, input, source, opts = {}) {
   if (!tenantId) throw new Error('writeTenantConfig: tenantId is required');
   if (!source) throw new Error('writeTenantConfig: source is required');
+  const { expectedVersion } = opts;
 
   // Write-materialize: merge defaults in, validate the whole document strict.
   const parsed = configSchema.safeParse(deepMerge(clinicDefaults, input || {}));
@@ -85,7 +105,14 @@ async function writeTenantConfig(tenantId, input, source) {
 
     const { rows: current } = await client.query(
       'SELECT version FROM tenant_configs WHERE tenant_id = $1', [tenantId]);
-    version = current[0] ? current[0].version + 1 : 1;
+    const currentVersion = current[0] ? current[0].version : 0;
+
+    // Optimistic concurrency: reject a write built against a stale view. Checked
+    // inside the lock so the compared version can't shift under us.
+    if (expectedVersion != null && expectedVersion !== currentVersion) {
+      throw new ConfigConflictError(currentVersion);
+    }
+    version = currentVersion + 1;
 
     // Append the immutable revision, then move the head. UNIQUE(tenant_id,
     // version) is the backstop should two writers ever race past the lock.
@@ -173,6 +200,7 @@ module.exports = {
   getTenantConfig,
   invalidateConfigCache,
   ConfigValidationError,
+  ConfigConflictError,
   clinicDefaults,
   configSchema,
   deepMerge, // exported for a focused array-replace/object-merge unit test
