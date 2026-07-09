@@ -226,10 +226,43 @@
     $('pvTokens').textContent = '≈ ' + data.est_tokens + ' tokens';
   });
 
+  // ── Validation history (Issue 16) ──────────────────────────────────────────
+  // Renders each persisted run's stored `result` (checks + skipped) inline.
+  const SEV_COLOR = { pass: '#2e7d32', warn: '#b7791f', fail: '#b00020' };
+  async function loadValidationRuns() {
+    const res = await adminFetch(`/admin/api/tenants/${encodeURIComponent(TID)}/validation-runs?limit=10`);
+    if (!res.ok) return;
+    const runs = await res.json();
+    const el = $('valRuns');
+    if (!runs.length) {
+      el.innerHTML = '<p class="text-muted" style="margin:0;">No validation runs yet.</p>';
+      return;
+    }
+    el.innerHTML = runs.map((run) => {
+      const r = run.result || {};
+      const checks = (r.checks || []).map((c) =>
+        `<div class="issue-item"><span style="color:${SEV_COLOR[c.severity] || '#333'}; font-weight:600;">${esc((c.severity || '').toUpperCase())}</span> <span class="issue-path">${esc(c.name)}</span> — ${esc(c.detail)}</div>`
+      ).join('');
+      const skipped = (r.skipped || []).map((s) =>
+        `<div class="issue-item"><span class="muted-sm">SKIP</span> <span class="issue-path">${esc(s.name)}</span> — ${esc(s.reason)}</div>`
+      ).join('');
+      const badge = run.passed ? 'badge badge-green' : 'badge badge-red';
+      return `
+        <div style="border:1px solid #eee; border-radius:8px; padding:12px; margin-bottom:12px;">
+          <div class="flex-between" style="margin-bottom:8px;">
+            <span class="${badge}">${run.passed ? 'PASSED' : 'FAILED'}</span>
+            <span class="muted-sm">${new Date(run.created_at).toLocaleString()} · ${esc(r.duration_ms)}ms · v${esc(r.service_version)}</span>
+          </div>
+          ${checks}
+          ${skipped}
+        </div>`;
+    }).join('');
+  }
+
   // ── Boot ───────────────────────────────────────────────────────────────────
   (async function init() {
     if (!TID) { $('notFound').style.display = 'block'; return; }
     const ok = await loadConfig();
-    if (ok) loadRevisions();
+    if (ok) { loadRevisions(); loadValidationRuns(); }
   })();
 })();

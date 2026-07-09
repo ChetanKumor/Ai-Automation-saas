@@ -120,10 +120,11 @@
           </div>
         </div>
 
-        <!-- Validation history (honest empty state; no controls until Issue 17) -->
+        <!-- Validation history (Issue 16; runs populate via CLI. Controls in Issue 17) -->
         <div class="card">
           <h3 style="margin-top:0;">Validation history</h3>
-          <p class="text-muted" style="margin:0;">No validation runs yet. Validate/activate controls arrive in a later release.</p>
+          <p class="text-muted" style="margin:0 0 12px;">Runs are produced by <code>scripts/validate-tenant.js</code>. Validate/activate controls arrive in a later release.</p>
+          <div id="valRuns"></div>
         </div>
       </div>
     </div>

@@ -633,4 +633,18 @@ router.get('/api/tenants/:id/prompt-preview', requireAuth, requireTenantId, asyn
   }
 });
 
+// Validation history (Issue 16) — read-only list of past runs, newest first.
+// The panel renders each run's stored `result` (checks/skipped) inline. No
+// validate/activate controls here — those arrive with Issue 17.
+router.get('/api/tenants/:id/validation-runs', requireAuth, requireTenantId, async (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 50);
+  const { rows } = await db.query(
+    `SELECT id, passed, result, created_at
+     FROM validation_runs WHERE tenant_id = $1
+     ORDER BY created_at DESC LIMIT $2`,
+    [req.params.id, limit]
+  );
+  res.json(rows);
+});
+
 module.exports = router;

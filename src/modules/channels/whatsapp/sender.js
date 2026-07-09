@@ -32,4 +32,19 @@ const sendMessage = async (tenant, toPhone, text) => {
   }
 };
 
-module.exports = { sendMessage };
+// Cheapest possible liveness probe: a GET on the phone-number node reading a
+// single field. No message is sent — this only proves the phone_number_id
+// resolves and the (decrypted) token is accepted by Meta. Used by the
+// validation service's whatsapp.live check. Resolves to the verified_name on
+// success; throws (the axios error, detail already shaped by the caller) on any
+// non-2xx. `tenant` needs { phone_number_id, wa_token } (decrypted token).
+const pingNumber = async (tenant) => {
+  const res = await axios.get(`${BASE}/${tenant.phone_number_id}`, {
+    params: { fields: 'verified_name,display_phone_number' },
+    headers: { Authorization: `Bearer ${tenant.wa_token}` },
+    timeout: 15_000,
+  });
+  return res.data?.verified_name || res.data?.display_phone_number || 'ok';
+};
+
+module.exports = { sendMessage, pingNumber };

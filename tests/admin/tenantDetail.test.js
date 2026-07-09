@@ -294,4 +294,39 @@ describe('tenant detail admin API (route-level)', { skip: ADMIN ? false : 'DATAB
     const res = await req(server, { method: 'GET', path: P(t, '/prompt-preview?channel=whatsapp'), cookie });
     assert.equal(res.status, 404);
   });
+
+  // ── Validation history (Issue 16) — read path the panel renders ──────────────
+  it('GET validation-runs → 401 unauthenticated', async () => {
+    const t = await newTenant();
+    const res = await req(server, { method: 'GET', path: P(t, '/validation-runs') });
+    assert.equal(res.status, 401);
+  });
+
+  it('validation-runs returns persisted runs newest-first with the stored result shape', async () => {
+    const t = await newTenant();
+    // Seed two runs directly (the service is exercised in its own suite; here we
+    // only assert the panel's read contract).
+    const mkResult = (passed) => JSON.stringify({
+      checks: [{ name: 'config.exists', severity: passed ? 'pass' : 'fail', passed, detail: 'x' }],
+      skipped: [{ name: 'voice.config', reason: 'voice.enabled is false' }],
+      duration_ms: 5, service_version: '1.0.0',
+    });
+    await db.query(`INSERT INTO validation_runs (tenant_id, passed, result) VALUES ($1, false, $2)`, [t, mkResult(false)]);
+    await db.query(`INSERT INTO validation_runs (tenant_id, passed, result) VALUES ($1, true, $2)`, [t, mkResult(true)]);
+
+    const res = await req(server, { method: 'GET', path: P(t, '/validation-runs'), cookie });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.length, 2);
+    assert.equal(res.body[0].passed, true, 'newest (passed) run first');
+    assert.deepEqual(res.body[0].result.checks[0].name, 'config.exists');
+    assert.equal(res.body[0].result.skipped[0].reason, 'voice.enabled is false');
+    assert.equal(res.body[0].result.service_version, '1.0.0');
+  });
+
+  it('validation-runs on a tenant with no runs → empty array', async () => {
+    const t = await newTenant();
+    const res = await req(server, { method: 'GET', path: P(t, '/validation-runs'), cookie });
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, []);
+  });
 });
