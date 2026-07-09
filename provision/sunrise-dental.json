@@ -1,0 +1,37 @@
+{
+  "slug": "sunrise-dental",
+  "business_name": "Sunrise Dental Care",
+  "whatsapp": {
+    "phone_number_id": "100000000000001",
+    "waba_id": "200000000000002"
+  },
+  "config": {
+    "business": {
+      "display_name": "Sunrise Dental Care",
+      "timezone": "Asia/Kolkata"
+    },
+    "greeting": {
+      "en": "Hello and welcome to Sunrise Dental Care! How can I help you smile today?"
+    },
+    "hours": {
+      "sat": { "open": "09:00", "close": "16:00" },
+      "sun": { "closed": true }
+    },
+    "booking": {
+      "slot_minutes": 30,
+      "advance_days": 45
+    },
+    "escalation": {
+      "enabled": true,
+      "phone_numbers": ["+919000000001"]
+    },
+    "notifications": {
+      "owner_numbers": ["+919000000001"],
+      "on_booking": true
+    },
+    "personality": {
+      "style": "warm_professional",
+      "custom_instructions": "Reassure nervous patients; mention same-day emergency slots when relevant."
+    }
+  }
+}

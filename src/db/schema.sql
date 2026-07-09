@@ -45,6 +45,12 @@ CREATE TABLE tenants (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   business_name    TEXT NOT NULL,
 
+  -- Provisioning idempotency key (migration 021). Nullable so credential-less
+  -- and legacy inserts keep working; UNIQUE so a slug names exactly one tenant.
+  -- Chosen over phone_number_id because voice-first tenants may have no PNID at
+  -- provision time.
+  slug             TEXT UNIQUE,
+
   -- WhatsApp / Meta credentials
   phone_number_id  TEXT UNIQUE,        -- Meta WhatsApp phone number id
   wa_token         TEXT,               -- Meta access token (encrypt in production)
@@ -163,6 +169,10 @@ CREATE TABLE conversations (
 
 CREATE INDEX idx_conversations_customer      ON conversations(customer_id);
 CREATE INDEX idx_conversations_tenant_status ON conversations(tenant_id, status);
+-- Serves the admin conversations list (Issue 26): filter by tenant, keyset
+-- paginate + ORDER BY (updated_at DESC, id DESC). The composite order lets the
+-- planner satisfy both the WHERE and the ORDER BY from the index — no Sort node.
+CREATE INDEX idx_conversations_tenant_updated ON conversations(tenant_id, updated_at DESC, id DESC);
 
 -- Guarantee only ONE open conversation per customer per tenant at a time.
 CREATE UNIQUE INDEX uniq_open_conversation

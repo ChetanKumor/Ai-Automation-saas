@@ -103,4 +103,35 @@ function stop() {
   timers.clear();
 }
 
-module.exports = { getByPhoneNumberId, invalidateTenantCache, stop };
+// Shared tenant-row insert (extracted for Issue 15 so the admin panel and the
+// provision CLI create tenants through one place). `runner` is anything with a
+// `.query(text, params)` — the db Pool for the panel, or a transaction client
+// for provisioning (so tenant + config land atomically). Column set is fixed;
+// every field defaults to what the DB defaults were before extraction, so the
+// panel's historical insert (which omitted slug/active/status) is byte-identical
+// to calling this with those left undefined. Does no encryption — the caller
+// passes an already-encrypted wa_token if any.
+async function insertTenant(runner, fields = {}) {
+  const {
+    business_name,
+    slug = null,
+    phone_number_id = null,
+    wa_token = null,
+    waba_id = null,
+    ai_prompt = null,
+    ai_enabled = true,
+    active = true,      // DB default; provisioning passes false (born inactive)
+    status = 'draft',   // DB default; provisioning is explicit about it
+  } = fields;
+  if (!business_name) throw new Error('insertTenant: business_name is required');
+  const { rows } = await runner.query(
+    `INSERT INTO tenants
+       (business_name, slug, phone_number_id, wa_token, waba_id, ai_prompt, ai_enabled, active, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     RETURNING id, business_name, created_at`,
+    [business_name, slug, phone_number_id, wa_token, waba_id, ai_prompt, ai_enabled, active, status]
+  );
+  return rows[0];
+}
+
+module.exports = { getByPhoneNumberId, invalidateTenantCache, stop, insertTenant };

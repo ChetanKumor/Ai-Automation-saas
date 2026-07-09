@@ -91,13 +91,17 @@ router.post('/api/tenants', requireAuth, apiLimiter, requireAdminHeader, async (
 
     const encryptedToken = wa_token ? encrypt(wa_token) : null;
 
-    const { rows } = await db.query(
-      `INSERT INTO tenants (business_name, phone_number_id, wa_token, waba_id, ai_prompt, ai_enabled)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, business_name, created_at`,
-      [business_name, phone_number_id || null, encryptedToken, waba_id || null, ai_prompt || null, ai_enabled !== false]
-    );
-    res.status(201).json(rows[0]);
+    // Shared insert path (Issue 15). Omitting slug/active/status keeps the DB
+    // defaults this route always relied on — behavior is unchanged.
+    const tenant = await tenantService.insertTenant(db, {
+      business_name,
+      phone_number_id: phone_number_id || null,
+      wa_token: encryptedToken,
+      waba_id: waba_id || null,
+      ai_prompt: ai_prompt || null,
+      ai_enabled: ai_enabled !== false,
+    });
+    res.status(201).json(tenant);
   } catch (err) {
     logger.error({ err: err.message }, 'create tenant error');
     res.status(500).json({ error: 'Failed to create tenant' });
