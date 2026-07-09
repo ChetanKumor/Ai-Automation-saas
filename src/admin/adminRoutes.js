@@ -324,10 +324,176 @@ router.post('/api/cache/invalidate', requireAuth, apiLimiter, requireAdminHeader
   });
 });
 
+// Shared UUID guard for path params (used by conversations + tenant detail).
+// A malformed id renders a clean 404 instead of a Postgres 22P02 500.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// ── API: Conversations — read-only cross-channel thread view (Issue 26) ──────
+// Topology (verified against 016/017/018 + the voice bridge in internalVoice.js):
+// there is ONE open conversation per (tenant, customer) — the voice worker
+// resolves the caller by phone and REUSES their existing open conversation, then
+// bridges the call_session to conversation_id. So a single conversation can hold
+// both WhatsApp and voice messages; `channel` is a per-MESSAGE fact (messages.channel),
+// and call_sessions join cleanly on conversation_id. The UI reflects this: channel
+// chips per message, channel(s) aggregated per row, call-session cards inline.
+//
+// Strictly read-only: GETs only, no send/takeover/status mutation anywhere here.
+const CONV_STATUSES = ['open', 'closed', 'pending'];
+const MSG_CHANNELS  = ['whatsapp', 'voice'];
+
+// Cursor = "<updated_at ISO>|<uuid>", opaque to the client. Tuple comparison on
+// (updated_at, id) gives a stable, gap-free walk even when timestamps tie.
+function encodeCursor(row) {
+  return Buffer.from(`${row.updated_at.toISOString()}|${row.id}`, 'utf8').toString('base64');
+}
+function decodeCursor(raw) {
+  try {
+    const [ts, id] = Buffer.from(String(raw), 'base64').toString('utf8').split('|');
+    if (!ts || !UUID_RE.test(id) || Number.isNaN(Date.parse(ts))) return null;
+    return { ts, id };
+  } catch (_) { return null; }
+}
+
+// List: filter bar over tenant/channel/status + cursor pagination on (updated_at, id).
+router.get('/api/conversations', requireAuth, async (req, res) => {
+  const { tenant_id, channel, status } = req.query;
+  if (status && !CONV_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status filter' });
+  if (channel && !MSG_CHANNELS.includes(channel)) return res.status(400).json({ error: 'Invalid channel filter' });
+
+  const limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 100);
+  const params = [];
+  let where = 'WHERE 1=1';
+
+  if (tenant_id) { params.push(tenant_id); where += ` AND c.tenant_id = $${params.length}`; }
+  if (status)    { params.push(status);    where += ` AND c.status = $${params.length}`; }
+  if (channel) {
+    params.push(channel);
+    where += ` AND EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.channel = $${params.length})`;
+  }
+  if (req.query.before) {
+    const cur = decodeCursor(req.query.before);
+    if (!cur) return res.status(400).json({ error: 'Invalid cursor' });
+    params.push(cur.ts); const tsIdx = params.length;
+    params.push(cur.id); const idIdx = params.length;
+    where += ` AND (c.updated_at, c.id) < ($${tsIdx}::timestamptz, $${idIdx}::uuid)`;
+  }
+  params.push(limit + 1); // one extra row tells us whether a next page exists
+
+  try {
+    const { rows } = await db.query(
+      `SELECT c.id, c.tenant_id, c.status, c.updated_at,
+              t.business_name AS tenant_name,
+              cust.name AS customer_name, cust.phone AS customer_phone,
+              (SELECT count(*)::int FROM messages m WHERE m.conversation_id = c.id) AS message_count,
+              (SELECT array_agg(DISTINCT m.channel) FROM messages m WHERE m.conversation_id = c.id) AS channels,
+              lm.content AS last_content, lm.msg_type AS last_msg_type
+       FROM conversations c
+       JOIN tenants t   ON t.id = c.tenant_id
+       JOIN customers cust ON cust.id = c.customer_id
+       LEFT JOIN LATERAL (
+         SELECT content, msg_type FROM messages m
+         WHERE m.conversation_id = c.id
+         ORDER BY m.created_at DESC, m.id DESC LIMIT 1
+       ) lm ON true
+       ${where}
+       ORDER BY c.updated_at DESC, c.id DESC
+       LIMIT $${params.length}`,
+      params
+    );
+
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    res.json({
+      rows: page.map((r) => ({
+        id: r.id,
+        tenant_id: r.tenant_id,
+        tenant_name: r.tenant_name,
+        customer_display: r.customer_name || r.customer_phone || '—',
+        channels: r.channels || [],
+        status: r.status,
+        message_count: r.message_count,
+        // Never leak a raw media payload into the list — non-text collapses to its type.
+        preview: previewOf(r.last_content, r.last_msg_type),
+        updated_at: r.updated_at,
+      })),
+      next_before: hasMore ? encodeCursor(page[page.length - 1]) : null,
+    });
+  } catch (err) {
+    logger.error({ err: err.message }, 'failed to list conversations');
+    res.status(500).json({ error: 'Failed to list conversations' });
+  }
+});
+
+// ~80-char preview; media/non-text messages render as a "[type]" placeholder.
+function previewOf(content, msgType) {
+  if (msgType && msgType !== 'text') return `[${msgType}]`;
+  const s = (content || '').replace(/\s+/g, ' ').trim();
+  return s.length > 80 ? s.slice(0, 80) + '…' : s;
+}
+
+// Detail: meta + ordered messages + linked call_sessions (by conversation_id).
+router.get('/api/conversations/:id', requireAuth, async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Conversation not found' });
+  const id = req.params.id;
+  try {
+    const { rows: metaRows } = await db.query(
+      `SELECT c.id, c.tenant_id, c.channel, c.mode, c.status, c.created_at, c.updated_at,
+              t.business_name AS tenant_name,
+              cust.name AS customer_name, cust.phone AS customer_phone
+       FROM conversations c
+       JOIN tenants t   ON t.id = c.tenant_id
+       JOIN customers cust ON cust.id = c.customer_id
+       WHERE c.id = $1`,
+      [id]
+    );
+    if (!metaRows[0]) return res.status(404).json({ error: 'Conversation not found' });
+    const meta = metaRows[0];
+
+    // Newest 500 (capped for big-thread query cost), re-ordered ascending for reading.
+    const { rows: messages } = await db.query(
+      `SELECT id, direction, sender, channel, msg_type, content, created_at, external_id
+       FROM (
+         SELECT id, direction, sender, channel, msg_type, content, created_at, external_id
+         FROM messages WHERE conversation_id = $1
+         ORDER BY created_at DESC, id DESC LIMIT 500
+       ) sub
+       ORDER BY created_at ASC, id ASC`,
+      [id]
+    );
+
+    const { rows: callSessions } = await db.query(
+      `SELECT id, direction, provider, status, language_detected,
+              started_at, ended_at, duration_seconds
+       FROM call_sessions WHERE conversation_id = $1
+       ORDER BY started_at ASC NULLS LAST, created_at ASC`,
+      [id]
+    );
+
+    res.json({
+      id: meta.id,
+      tenant_id: meta.tenant_id,
+      tenant_name: meta.tenant_name,
+      customer_display: meta.customer_name || meta.customer_phone || '—',
+      customer_phone: meta.customer_phone,
+      channel: meta.channel,
+      mode: meta.mode,
+      status: meta.status,
+      created_at: meta.created_at,
+      updated_at: meta.updated_at,
+      message_count: messages.length,
+      messages,
+      call_sessions: callSessions,
+    });
+  } catch (err) {
+    logger.error({ err: err.message }, 'failed to fetch conversation');
+    res.status(500).json({ error: 'Failed to fetch conversation' });
+  }
+});
+
 // ── API: Tenant detail — config editor, revisions, prompt preview (Issue 25) ──
 // Thin routes over configService (writer/loader) and the prompt renderer. Status
 // stays read-only here — validate/activate controls arrive with Issues 16/17.
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// (UUID_RE is defined above, shared with the conversations routes.)
 
 // Guard the :id path param so a malformed UUID renders a clean 404 instead of a
 // Postgres 22P02 (invalid_text_representation) 500. A well-formed but absent id

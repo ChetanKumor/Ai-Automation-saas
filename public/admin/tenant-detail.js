@@ -39,6 +39,8 @@
 
     $('tName').textContent = data.name || 'Tenant';
     document.title = `${data.name || 'Tenant'} — Admin`;
+    // Deep link into this tenant's filtered conversations list (Issue 26).
+    $('convLink').href = `/admin/conversations.html?tenant_id=${encodeURIComponent(TID)}`;
     const badge = $('tStatus');
     badge.textContent = data.status || '—';
     badge.className = 'badge ' + (data.status === 'live' ? 'badge-green'

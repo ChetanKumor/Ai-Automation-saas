@@ -27,6 +27,7 @@
 <body>
   <nav>
     <a href="/admin/tenants.html" class="brand">WhatsApp CRM</a>
+    <a href="/admin/conversations.html">Conversations</a>
     <a href="/admin/leads.html">Leads</a>
     <a href="/admin/collections.html">Collections</a>
     <a href="/admin/notifications.html">Notifications</a>
@@ -43,7 +44,10 @@
       <!-- Header -->
       <div class="flex-between mb-20">
         <h2 id="tName" style="margin:0;">Tenant</h2>
-        <a href="/admin/tenants.html" class="btn" style="background:#eee; color:#333;">← Tenants</a>
+        <div style="display:flex; gap:8px;">
+          <a id="convLink" href="/admin/conversations.html" class="btn btn-primary">Conversations →</a>
+          <a href="/admin/tenants.html" class="btn" style="background:#eee; color:#333;">← Tenants</a>
+        </div>
       </div>
       <div class="toolbar mb-20">
         <span>Status: <span id="tStatus" class="badge">—</span></span>

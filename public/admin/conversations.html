@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conversations — WhatsApp CRM Admin</title>
+  <link rel="stylesheet" href="/admin/style.css">
+  <style>
+    /* Channel chips reuse the badge palette (WhatsApp green, voice blue). */
+    .chip { font-size:11px; padding:2px 7px; border-radius:10px; margin-right:4px; text-transform:capitalize; }
+    .chip-whatsapp { background:#e6f4ea; color:#137333; }
+    .chip-voice    { background:#e8f0fe; color:#1a56c4; }
+    .chip-other    { background:#eee; color:#555; }
+    tr.conv-row { cursor:pointer; }
+    tr.conv-row:hover { background:#f7f7f9; }
+
+    /* Thread view */
+    .thread { display:flex; flex-direction:column; gap:10px; padding:6px 2px; }
+    .bubble-row { display:flex; }
+    .bubble-row.inbound  { justify-content:flex-start; }
+    .bubble-row.outbound { justify-content:flex-end; }
+    .bubble { max-width:72%; padding:8px 12px; border-radius:12px; font-size:14px;
+      word-break:break-word; overflow-wrap:anywhere; white-space:pre-wrap; }
+    .bubble.inbound  { background:#fff; border:1px solid #e2e2e6; border-bottom-left-radius:3px; }
+    .bubble.outbound { background:#dcf8c6; border-bottom-right-radius:3px; }
+    .bubble .meta { display:block; margin-top:5px; font-size:11px; color:#888; }
+    .type-badge { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.03em;
+      color:#8a6d00; background:#fff3cd; border-radius:4px; padding:1px 5px; margin-right:6px; }
+    .call-card { align-self:center; max-width:80%; width:100%; background:#f0f4ff; border:1px solid #cdd8f5;
+      border-radius:10px; padding:10px 14px; font-size:13px; }
+    .call-card h4 { margin:0 0 6px; font-size:13px; color:#1a56c4; }
+    .call-card .kv { color:#444; }
+    .call-card .kv span { color:#888; }
+    .empty-thread { text-align:center; color:#888; padding:40px 0; }
+    #convDetail { display:none; }
+    .backlink { background:#eee; color:#333; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/admin/tenants.html" class="brand">WhatsApp CRM</a>
+    <a href="/admin/conversations.html">Conversations</a>
+    <a href="/admin/leads.html">Leads</a>
+    <a href="/admin/collections.html">Collections</a>
+    <a href="/admin/appointments.html">Appointments</a>
+    <a href="/admin/workflow.html">Workflow</a>
+    <a href="/admin/notifications.html">Notifications</a>
+    <a href="/admin/logout">Logout</a>
+  </nav>
+
+  <div class="container">
+    <!-- ── List view ─────────────────────────────────────────── -->
+    <div id="convList">
+      <div class="flex-between mb-20" style="margin-top:20px;">
+        <h2>Conversations</h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <select id="tenantFilter" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+            <option value="">All tenants</option>
+          </select>
+          <select id="channelFilter" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+            <option value="">All channels</option>
+            <option value="whatsapp">WhatsApp</option>
+            <option value="voice">Voice</option>
+          </select>
+          <select id="statusFilter" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+            <option value="">All statuses</option>
+            <option value="open">Open</option>
+            <option value="closed">Closed</option>
+            <option value="pending">Pending</option>
+          </select>
+          <button id="refreshBtn" class="btn" style="background:#eee; color:#333;">Refresh</button>
+        </div>
+      </div>
+
+      <div class="card" style="padding:0; overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Customer</th>
+              <th>Channels</th>
+              <th>Last message</th>
+              <th class="hide-mobile">Msgs</th>
+              <th>Status</th>
+              <th class="hide-mobile">Business</th>
+              <th class="hide-mobile">Updated</th>
+            </tr>
+          </thead>
+          <tbody id="convRows">
+            <tr><td colspan="7" class="text-muted" style="text-align:center; padding:24px;">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="text-align:center; margin:16px 0;">
+        <button id="loadMoreBtn" class="btn btn-primary" style="display:none;">Load more</button>
+      </div>
+    </div>
+
+    <!-- ── Detail view ───────────────────────────────────────── -->
+    <div id="convDetail">
+      <div class="flex-between mb-20" style="margin-top:20px;">
+        <h2 id="dTitle" style="margin:0;">Conversation</h2>
+        <button id="backBtn" class="btn backlink">← Back to list</button>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div id="dMeta" class="text-muted" style="font-size:13px;"></div>
+      </div>
+      <div class="card">
+        <div id="dThread" class="thread"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/admin/app.js"></script>
+  <script src="/admin/conversations.js"></script>
+</body>
+</html>
