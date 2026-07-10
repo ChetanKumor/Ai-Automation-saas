@@ -263,3 +263,18 @@ describe('security headers', () => {
     assert.equal(res.headers['referrer-policy'], 'no-referrer');
   });
 });
+
+// ── Correlation id (Issue 21) — admin is a public edge: always fresh ─────────
+describe('correlation id on admin responses', () => {
+  it('every admin response carries a fresh adm_ id; a supplied header is ignored', async () => {
+    const server = await listen(buildAdminApp());
+    const spoof = 'call_' + 'ee'.repeat(8);
+    const res = await req(server, {
+      method: 'GET', path: '/admin/api/tenants',
+      headers: { 'X-Correlation-Id': spoof },
+    });
+    server.close();
+    assert.match(res.headers['x-correlation-id'], /^adm_[0-9a-f]{16}$/);
+    assert.notEqual(res.headers['x-correlation-id'], spoof);
+  });
+});

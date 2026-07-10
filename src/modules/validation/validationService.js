@@ -34,6 +34,8 @@ const { getRelevantChunks } = require('../knowledge/knowledgeService');
 const { pingNumber } = require('../channels/whatsapp/sender');
 const { checkScriptedTurn } = require('./scriptedTurnCheck');
 const { decrypt } = require('../../utils/encryption');
+const requestContext = require('../../core/requestContext');
+const logger = require('../../infra/logging/logger');
 
 const SERVICE_VERSION = '1.0.0';
 
@@ -291,6 +293,21 @@ function skipReason(def, ctx, skipSet, skippedNames) {
 // object stored in validation_runs.result (plus the top-level `passed`).
 async function validateTenant(tenantId, opts = {}) {
   if (!tenantId) throw new Error('validateTenant: tenantId is required');
+  // One probe_ correlation id per validation run (Issue 21): every log line
+  // the run causes — including the scripted-turn probe's brain/tool calls —
+  // is instantly distinguishable from real traffic in the logs. Logged BEFORE
+  // entering the probe context so this join line still carries the caller's
+  // id (e.g. the adm_ id of the panel request that triggered the run) —
+  // without it, grepping the triggering chain would never reach the run.
+  const probeId = requestContext.newCorrelationId('probe');
+  logger.info({ probe_correlation_id: probeId, tenantId }, 'validation run starting');
+  return requestContext.runWith(
+    { correlationId: probeId, channel: 'validation' },
+    () => runValidation(tenantId, opts)
+  );
+}
+
+async function runValidation(tenantId, opts) {
   const started = Date.now();
 
   const { rows: trows } = await db.query(

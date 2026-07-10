@@ -105,4 +105,41 @@ describe('Webhook signature verification', () => {
     assert.equal(res._status, 401);
     assert.ok(!nextCalled);
   });
+
+  // ── Correlation id (Issue 21) — public edge, over the real route stack ─────
+  describe('correlation id on the webhook edge', () => {
+    const express = require('express');
+    let server, baseUrl;
+
+    before(async () => {
+      const app = express();
+      app.use('/webhook', express.raw({ type: 'application/json' }),
+        require('../../src/modules/channels/whatsapp/routes'));
+      await new Promise((r) => { server = app.listen(0, r); });
+      baseUrl = `http://127.0.0.1:${server.address().port}`;
+    });
+
+    after(async () => {
+      if (server) await new Promise((r) => server.close(r));
+    });
+
+    it('ACK carries a fresh wa_ id; a spoofed X-Correlation-Id is ignored', async () => {
+      // A status-only delivery: valid signature, ACKed 200, no message pipeline.
+      const raw = JSON.stringify({ entry: [{ changes: [{ value: { statuses: [] } }] }] });
+      const spoof = 'call_' + 'ee'.repeat(8);
+      const res = await fetch(`${baseUrl}/webhook`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-hub-signature-256': makeSignature(raw),
+          'x-correlation-id': spoof,
+        },
+        body: raw,
+      });
+      assert.equal(res.status, 200);
+      const id = res.headers.get('x-correlation-id');
+      assert.match(id, /^wa_[0-9a-f]{16}$/, 'public edge must always generate fresh');
+      assert.notEqual(id, spoof);
+    });
+  });
 });

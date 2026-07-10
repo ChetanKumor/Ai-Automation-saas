@@ -81,16 +81,23 @@ class BrainClient:
         self._timeout = timeout
         self._client = client  # when provided (tests), we do not own its lifecycle
 
-    def _headers(self, raw: bytes) -> dict:
-        return {
+    def _headers(self, raw: bytes, correlation_id: Optional[str] = None) -> dict:
+        headers = {
             "content-type": "application/json",
             "x-internal-signature": sign(raw, self._secret),
         }
+        # Issue 21: echo the call's correlation id (from the call/start
+        # response) so the brain stitches every turn/end into one chain.
+        if correlation_id:
+            headers["x-correlation-id"] = correlation_id
+        return headers
 
-    async def _post(self, path: str, payload: dict) -> dict:
+    async def _post(
+        self, path: str, payload: dict, *, correlation_id: Optional[str] = None
+    ) -> dict:
         # Sign the EXACT bytes we send so Node's raw-body HMAC verify matches.
         raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-        headers = self._headers(raw)
+        headers = self._headers(raw, correlation_id)
         url = f"{self._base_url}{path}"
 
         # Injected client (tests) wins; otherwise the shared keepalive client.
@@ -115,7 +122,12 @@ class BrainClient:
         )
 
     async def delegate_turn(
-        self, call_session_id: str, language: Optional[str], transcript: str
+        self,
+        call_session_id: str,
+        language: Optional[str],
+        transcript: str,
+        *,
+        correlation_id: Optional[str] = None,
     ) -> dict:
         """Delegate ONE finalized turn. Returns { reply_text, end_call, language }."""
         return await self._post(
@@ -126,6 +138,7 @@ class BrainClient:
                 "language": language,
                 "transcript": transcript,
             },
+            correlation_id=correlation_id,
         )
 
     async def stream_turn(
@@ -135,6 +148,7 @@ class BrainClient:
         transcript: str,
         *,
         max_s: float = 60.0,
+        correlation_id: Optional[str] = None,
     ) -> AsyncIterator[Tuple[str, dict]]:
         """PR9C — delegate ONE finalized turn in SSE mode; yields (event, data)
         tuples in wire order: ack / delta / done / error.
@@ -155,7 +169,7 @@ class BrainClient:
             "stream": True,
         }
         raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-        headers = {**self._headers(raw), "accept": "text/event-stream"}
+        headers = {**self._headers(raw, correlation_id), "accept": "text/event-stream"}
         url = f"{self._base_url}/internal/voice/turn"
         client = self._client or _get_shared_client()
 
@@ -197,7 +211,12 @@ class BrainClient:
             raise BrainError(f"/internal/voice/turn (stream) -> {type(exc).__name__}: {exc}") from exc
 
     async def call_end(
-        self, call_session_id: str, status: str, duration_seconds: Optional[float]
+        self,
+        call_session_id: str,
+        status: str,
+        duration_seconds: Optional[float],
+        *,
+        correlation_id: Optional[str] = None,
     ) -> dict:
         """Close the call_session. status is "completed" | "failed".
 
@@ -212,4 +231,5 @@ class BrainClient:
                     None if duration_seconds is None else int(round(duration_seconds))
                 ),
             },
+            correlation_id=correlation_id,
         )

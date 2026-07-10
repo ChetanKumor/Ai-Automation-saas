@@ -104,6 +104,7 @@ class CallState:
 
     call_session_id: str
     started_at: float = field(default_factory=time.monotonic)
+    correlation_id: Optional[str] = None  # Issue 21: the call's chain id, from /call/start
     language: Optional[str] = None      # effective language (STT-detected / brain)
     failed: bool = False                # a delegate_turn failed → call ends 'failed'
     end_requested: bool = False         # brain asked to end (or the failure path)
@@ -193,16 +194,20 @@ class BrainAgent(Agent):
         t0 = time.perf_counter()
         try:
             decision = await self._brain.delegate_turn(
-                call.call_session_id, call.language, transcript
+                call.call_session_id, call.language, transcript,
+                correlation_id=call.correlation_id,
             )
         except BrainError as exc:
             # Never dead air, no retries: speak the static apology, end 'failed'.
-            logger.error("delegate_turn failed: %s", exc)
+            logger.error("delegate_turn failed: %s correlation_id=%s", exc, call.correlation_id)
             call.failed = True
             yield apology_for(call.language)
             self._signal_end()
             return
-        logger.info("delegate_rtt_ms=%.1f", (time.perf_counter() - t0) * 1000.0)
+        logger.info(
+            "delegate_rtt_ms=%.1f correlation_id=%s",
+            (time.perf_counter() - t0) * 1000.0, call.correlation_id,
+        )
 
         reply = (decision.get("reply_text") or "").strip()
         language = decision.get("language")
@@ -243,7 +248,8 @@ class BrainAgent(Agent):
         done: Optional[dict] = None
         try:
             events = self._brain.stream_turn(
-                call.call_session_id, call.language, transcript, max_s=_turn_max_s()
+                call.call_session_id, call.language, transcript,
+                max_s=_turn_max_s(), correlation_id=call.correlation_id,
             )
             try:
                 async for name, data in events:
@@ -269,12 +275,15 @@ class BrainAgent(Agent):
                 raise BrainError("SSE stream ended without a done event")
         except BrainError as exc:
             # Never dead air, no retries: speak the static apology, end 'failed'.
-            logger.error("stream_turn failed: %s", exc)
+            logger.error("stream_turn failed: %s correlation_id=%s", exc, call.correlation_id)
             call.failed = True
             yield apology_for(call.language)
             self._signal_end()
             return
-        logger.info("stream_turn_total_ms=%.1f", (time.perf_counter() - t0) * 1000.0)
+        logger.info(
+            "stream_turn_total_ms=%.1f correlation_id=%s",
+            (time.perf_counter() - t0) * 1000.0, call.correlation_id,
+        )
 
         # Same decision handling as the JSON path; language only affects the
         # NEXT turn's synthesis (mid-stream switching is not supported).
@@ -311,20 +320,37 @@ async def entrypoint(ctx: JobContext) -> None:
     # Bridge the call: identity resolves ONCE here. A returning customer is matched
     # by phone and reuses their conversation/memory (cross-channel continuity).
     started = await brain.call_start(tenant_id, caller_id)
-    call = CallState(call_session_id=started["call_session_id"], language=language_prior)
-    logger.info(
-        "call bridged: call_session=%s customer=%s conversation=%s",
-        started.get("call_session_id"), started.get("customer_id"), started.get("conversation_id"),
+    call = CallState(
+        call_session_id=started["call_session_id"],
+        correlation_id=started.get("correlation_id"),
+        language=language_prior,
     )
+    logger.info(
+        "call bridged: call_session=%s customer=%s conversation=%s correlation_id=%s",
+        started.get("call_session_id"), started.get("customer_id"),
+        started.get("conversation_id"), call.correlation_id,
+    )
+    if not call.correlation_id:
+        # Deploy skew (older brain): with no id to echo, every turn/end post
+        # gets a FRESH server-side correlation id and the call fragments into
+        # unlinked chains. Warn loudly so the skew is visible before an
+        # incident needs the logs.
+        logger.warning("call_start returned no correlation_id — call chain will fragment")
 
     # Close the call_session on ANY terminal (clean disconnect or error).
     async def _on_shutdown():
         status = "failed" if call.failed else "completed"
         try:
-            await brain.call_end(call.call_session_id, status, call.duration_s())
-            logger.info("call ended: %s (%.1fs)", status, call.duration_s())
+            await brain.call_end(
+                call.call_session_id, status, call.duration_s(),
+                correlation_id=call.correlation_id,
+            )
+            logger.info(
+                "call ended: %s (%.1fs) correlation_id=%s",
+                status, call.duration_s(), call.correlation_id,
+            )
         except BrainError as exc:
-            logger.error("call_end failed: %s", exc)
+            logger.error("call_end failed: %s correlation_id=%s", exc, call.correlation_id)
         finally:
             # PR9A: release the shared keepalive HTTP client with the job.
             await aclose_shared_client()

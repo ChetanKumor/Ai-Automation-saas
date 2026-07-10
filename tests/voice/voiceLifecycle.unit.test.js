@@ -52,6 +52,57 @@ describe('internal voice endpoints — auth + validation (no DB)', () => {
     assert.equal(res.status, 401);
   });
 
+  // ── Correlation id (Issue 21) — trusted internal edge ──────────────────────
+  // These ride the 400 short-circuit paths (authenticated, no DB) to prove the
+  // real route stack adopts/echoes X-Correlation-Id behind HMAC.
+  it('adopts a well-formed X-Correlation-Id from the (HMAC-authed) worker', async () => {
+    const supplied = 'call_' + 'ab'.repeat(8);
+    const raw = JSON.stringify({ status: 'completed' });
+    const res = await fetch(`${baseUrl}/internal/voice/call/end`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-internal-signature': hmac.sign(raw, SECRET),
+        'x-correlation-id': supplied,
+      },
+      body: raw,
+    });
+    assert.equal(res.status, 400);
+    assert.equal(res.headers.get('x-correlation-id'), supplied);
+  });
+
+  it('generates a fresh call_ id when the header is malformed or absent', async () => {
+    const raw = JSON.stringify({ status: 'completed' });
+    for (const extra of [{}, { 'x-correlation-id': 'garbage!!' }]) {
+      const res = await fetch(`${baseUrl}/internal/voice/call/end`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-internal-signature': hmac.sign(raw, SECRET),
+          ...extra,
+        },
+        body: raw,
+      });
+      assert.equal(res.status, 400);
+      assert.match(res.headers.get('x-correlation-id'), /^call_[0-9a-f]{16}$/);
+    }
+  });
+
+  it('an unauthenticated request gets no correlation header (id sits behind HMAC)', async () => {
+    const raw = JSON.stringify({ call_session_id: 'x', status: 'completed' });
+    const res = await fetch(`${baseUrl}/internal/voice/call/end`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-internal-signature': 'sha256=deadbeef',
+        'x-correlation-id': 'call_' + 'ab'.repeat(8),
+      },
+      body: raw,
+    });
+    assert.equal(res.status, 401);
+    assert.equal(res.headers.get('x-correlation-id'), null);
+  });
+
   // ── Validation (authenticated, but short-circuits before DB) ───────────────
   it('call/start with missing caller_id → 400', async () => {
     const res = await post('/call/start', { tenant_id: 'T' });

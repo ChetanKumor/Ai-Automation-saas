@@ -33,6 +33,11 @@ const apiLimiter = createRateLimiter({
 // Minimal security headers on every panel page + admin API response.
 router.use(securityHeaders);
 
+// Correlation context (Issue 21). Admin is a public (session-authed) edge:
+// always a fresh adm_ id, never adopted from the request.
+const requestContext = require('../core/requestContext');
+router.use(requestContext.middleware({ prefix: 'adm', channel: 'admin' }));
+
 // ── Auth middleware ──────────────────────────────────────────
 function requireAuth(req, res, next) {
   if (req.session && req.session.admin) return next();

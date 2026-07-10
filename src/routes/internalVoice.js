@@ -11,6 +11,7 @@ const identityService     = require('../modules/identity/identityService');
 const conversationService = require('../modules/conversation/conversationService');
 const voiceChannelAdapter = require('../modules/channels/voice/voiceChannelAdapter');
 const hmac                = require('../utils/hmac');
+const requestContext      = require('../core/requestContext');
 const { createTurnTimer } = require('../infra/logging/turnMetrics');
 const eventBus            = require('../../core/events');
 const EVENT               = require('../../core/eventTypes');
@@ -498,6 +499,10 @@ async function handleCallStart(req, res) {
       call_session_id: session.id,
       customer_id: customer.id,
       conversation_id: conversation.id,
+      // Issue 21: the call's correlation id. The worker keeps it in its
+      // per-call state, echoes it (X-Correlation-Id) on every turn/end post,
+      // and stamps its own log lines with it.
+      correlation_id: requestContext.get()?.correlationId ?? null,
     });
   } catch (err) {
     logger.error({ err: err.message }, 'internal voice call/start failed');
@@ -551,9 +556,16 @@ async function handleCallEnd(req, res) {
   }
 }
 
-router.post('/call/start', express.raw({ type: '*/*' }), authenticate, handleCallStart);
-router.post('/call/end',   express.raw({ type: '*/*' }), authenticate, handleCallEnd);
-router.post('/turn',       express.raw({ type: '*/*' }), authenticate, handleTurn);
+// Correlation context (Issue 21). These endpoints sit behind HMAC auth, so a
+// worker-supplied X-Correlation-Id is trusted and ADOPTED (the worker echoes
+// the call_ id it got from /call/start on every turn/end); absent or
+// malformed, a fresh call_ id is generated. Mounted AFTER authenticate — an
+// unauthenticated caller can never place an id into our logs.
+const correlation = requestContext.middleware({ prefix: 'call', channel: 'voice', trusted: true });
+
+router.post('/call/start', express.raw({ type: '*/*' }), authenticate, correlation, handleCallStart);
+router.post('/call/end',   express.raw({ type: '*/*' }), authenticate, correlation, handleCallEnd);
+router.post('/turn',       express.raw({ type: '*/*' }), authenticate, correlation, handleTurn);
 
 module.exports = router;
 module.exports._authenticate = authenticate;

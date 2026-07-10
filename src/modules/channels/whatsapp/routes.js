@@ -9,8 +9,13 @@ const sender              = require('./sender');
 const ownerCommands       = require('./ownerCommands');
 const adapter             = require('./adapter');
 const { handleInbound, dispatchOutbound } = require('../index');
+const requestContext        = require('../../../core/requestContext');
 
 const router = express.Router();
+
+// Correlation context (Issue 21). The webhook is a PUBLIC edge: always
+// generate a fresh wa_ id — never adopt a supplied X-Correlation-Id.
+const correlation = requestContext.middleware({ prefix: 'wa', channel: 'whatsapp' });
 
 const recentOwnerWamids = new Set();
 
@@ -210,7 +215,7 @@ const handle = async (req, res) => {
 };
 
 router.get('/',  verify);
-router.post('/', verifySignature, handle);
+router.post('/', correlation, verifySignature, handle);
 
 module.exports = router;
 module.exports._verifySignature = verifySignature;
