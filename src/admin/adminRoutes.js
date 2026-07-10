@@ -4,6 +4,8 @@ const logger     = require('../infra/logging/logger');
 const db         = require('../db/db');
 const { encrypt } = require('../utils/encryption');
 const tenantService = require('../modules/tenant/tenantService');
+const lifecycleService = require('../modules/tenant/lifecycleService');
+const { CHECK_NAMES } = require('../modules/validation/validationService');
 const configService = require('../modules/config/configService');
 const { renderSystemPrompt, estimateTokens } = require('../modules/prompts');
 const {
@@ -633,9 +635,87 @@ router.get('/api/tenants/:id/prompt-preview', requireAuth, requireTenantId, asyn
   }
 });
 
+// ── API: Tenant lifecycle — validate / activate / pause (Issue 17) ───────────
+// Thin routes over lifecycleService.transition (the single status+active writer).
+// Guard failures are NOT 500s: they are the expected answer to "may I go live?",
+// so they return 409 with the structured { code, error } the panel renders
+// verbatim. A missing tenant is 404. Only an unexpected throw is a 500.
+//
+//   code ∈ NOT_VALIDATED | STALE_VALIDATION | VALIDATION_FAILED:<check> | INVALID_TRANSITION
+//
+// POST /validate carries the full run in the body on BOTH outcomes (200 passed,
+// 409 failed) so the panel can render the check table without a second fetch.
+function lifecycleError(res, err, what) {
+  if (err.name !== 'LifecycleError') {
+    logger.error({ err: err.message }, `${what} failed`);
+    return res.status(500).json({ error: `Failed to ${what}` });
+  }
+  if (err.code === 'NOT_FOUND') return res.status(404).json({ error: 'Tenant not found' });
+  return res.status(409).json({
+    code: err.code,
+    error: err.message,
+    ...(err.from ? { from: err.from } : {}),
+    ...(err.run ? { run: err.run } : {}),
+    ...(err.validated_at ? { validated_at: err.validated_at } : {}),
+    ...(err.config_updated_at ? { config_updated_at: err.config_updated_at } : {}),
+  });
+}
+
+// Run the full catalog; on pass the tenant moves to `validated`. Optional body
+// { skip: ["kb.populated", …] } mirrors the CLI's --skip, including its `kb` /
+// `turn` aliases. An unknown name is a 400, never a silent no-op: skipping is how
+// an operator declines a check, and a typo that quietly RUNS the live scripted-turn
+// check (spending model calls) is exactly the surprise we owe them protection from.
+const SKIP_ALIASES = { kb: ['kb.populated', 'kb.retrieval'], turn: ['turn.scripted'] };
+
+function expandSkips(names) {
+  const out = [];
+  for (const n of names) {
+    if (SKIP_ALIASES[n]) out.push(...SKIP_ALIASES[n]);
+    else if (CHECK_NAMES.includes(n)) out.push(n);
+    else {
+      const err = new Error(`unknown skip name '${n}'`);
+      err.validNames = [...CHECK_NAMES, ...Object.keys(SKIP_ALIASES)];
+      throw err;
+    }
+  }
+  return [...new Set(out)];
+}
+
+router.post('/api/tenants/:id/validate', requireAuth, apiLimiter, requireAdminHeader, requireTenantId, express.json(), async (req, res) => {
+  const raw = Array.isArray(req.body && req.body.skip) ? req.body.skip : [];
+  let skip;
+  try {
+    skip = expandSkips(raw);
+  } catch (err) {
+    return res.status(400).json({ error: err.message, valid: err.validNames });
+  }
+  try {
+    const out = await lifecycleService.transition(req.params.id, 'validate', { validate: { skip } });
+    res.json(out);
+  } catch (err) {
+    lifecycleError(res, err, 'validate tenant');
+  }
+});
+
+router.post('/api/tenants/:id/activate', requireAuth, apiLimiter, requireAdminHeader, requireTenantId, async (req, res) => {
+  try {
+    res.json(await lifecycleService.transition(req.params.id, 'activate'));
+  } catch (err) {
+    lifecycleError(res, err, 'activate tenant');
+  }
+});
+
+router.post('/api/tenants/:id/pause', requireAuth, apiLimiter, requireAdminHeader, requireTenantId, async (req, res) => {
+  try {
+    res.json(await lifecycleService.transition(req.params.id, 'pause'));
+  } catch (err) {
+    lifecycleError(res, err, 'pause tenant');
+  }
+});
+
 // Validation history (Issue 16) — read-only list of past runs, newest first.
-// The panel renders each run's stored `result` (checks/skipped) inline. No
-// validate/activate controls here — those arrive with Issue 17.
+// The panel renders each run's stored `result` (checks/skipped) inline.
 router.get('/api/tenants/:id/validation-runs', requireAuth, requireTenantId, async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 50);
   const { rows } = await db.query(

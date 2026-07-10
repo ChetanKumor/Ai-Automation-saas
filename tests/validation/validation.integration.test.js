@@ -8,7 +8,8 @@
 // prompt.renders and consent.lines — necessarily co-trip config.schema on a
 // stale doc; those assert INCLUSION, noted inline). Network checks are always
 // mocked here (deps injection); the one LIVE embedding retrieval is a manual
-// §10 command, not part of this suite.
+// §10 command, not part of this suite. The dynamic turn.scripted check (Issue 17)
+// is always skipped here — see the `run` helper — and lives in its own suite.
 //
 // Disjoint DB-name prefix (zyon_test_val_) so a concurrent sweep in another file
 // can't drop our DB mid-run. Skips when DATABASE_URL is unset.
@@ -149,7 +150,15 @@ describe('validationService (integration)', { skip: ADMIN ? false : 'DATABASE_UR
   // reference, so mutating raw.hours would poison clinicDefaults for later tests.
   const materialize = (overrides) => structuredClone(deepMerge(clinicDefaults, overrides || PASS_OVERRIDES));
 
-  const run = (id, extra = {}) => validation.validateTenant(id, { deps: DEPS, ...extra });
+  // This suite is the STATIC catalog matrix. turn.scripted is the one dynamic check
+  // — it spends live model calls and books/deletes a synthetic appointment — so it
+  // is always skipped here (extra.skip is merged, never allowed to un-skip it) and
+  // is covered end-to-end in tests/lifecycle/lifecycle.integration.test.js instead.
+  const run = (id, extra = {}) => validation.validateTenant(id, {
+    deps: DEPS,
+    ...extra,
+    skip: ['turn.scripted', ...(extra.skip || [])],
+  });
   const failNames = (r) => r.checks.filter((c) => c.severity === 'fail').map((c) => c.name);
   const byName = (r) => Object.fromEntries(r.checks.map((c) => [c.name, c]));
   const skipMap = (r) => Object.fromEntries(r.skipped.map((s) => [s.name, s.reason]));

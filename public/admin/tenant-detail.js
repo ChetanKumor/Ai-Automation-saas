@@ -27,6 +27,14 @@
 
   function setDirty(v) { dirty = v; }
 
+  // Status badge — shared by the initial load and every lifecycle transition.
+  function setStatusBadge(status) {
+    const badge = $('tStatus');
+    badge.textContent = status || '—';
+    badge.className = 'badge ' + (status === 'live' ? 'badge-green'
+      : status === 'paused' ? 'badge-red' : '');
+  }
+
   // ── Load header + config ───────────────────────────────────────────────────
   async function loadConfig() {
     const res = await adminFetch(`/admin/api/tenants/${encodeURIComponent(TID)}/config`);
@@ -41,10 +49,7 @@
     document.title = `${data.name || 'Tenant'} — Admin`;
     // Deep link into this tenant's filtered conversations list (Issue 26).
     $('convLink').href = `/admin/conversations.html?tenant_id=${encodeURIComponent(TID)}`;
-    const badge = $('tStatus');
-    badge.textContent = data.status || '—';
-    badge.className = 'badge ' + (data.status === 'live' ? 'badge-green'
-      : data.status === 'paused' ? 'badge-red' : '');
+    setStatusBadge(data.status);
     $('tVersion').textContent = data.version != null ? data.version : '—';
     $('tUpdated').textContent = data.updated_at
       ? 'Updated ' + new Date(data.updated_at).toLocaleString() : '';
@@ -258,6 +263,66 @@
         </div>`;
     }).join('');
   }
+
+  // ── Lifecycle: validate / activate / pause (Issue 17) ──────────────────────
+  // Every guard refusal comes back as 409 { code, error }. We render the code and
+  // the server's message VERBATIM — the operator sees exactly what the service
+  // said (e.g. "STALE_VALIDATION — config changed since validation — re-validate"),
+  // never a UI paraphrase of it.
+  function lcMsg(text, isErr) {
+    const el = $('lcMsg');
+    el.textContent = text || '';
+    el.style.color = isErr ? '#b00020' : '#2e7d32';
+  }
+
+  // Reuse the validation-history renderer's severity colouring for an inline run.
+  function renderRun(run) {
+    const el = $('lcRun');
+    if (!run || !run.checks) { el.innerHTML = ''; return; }
+    el.innerHTML = (run.checks || []).map((c) =>
+      `<div class="issue-item"><span style="color:${SEV_COLOR[c.severity] || '#333'}; font-weight:600;">${esc((c.severity || '').toUpperCase())}</span> <span class="issue-path">${esc(c.name)}</span> — ${esc(c.detail)}</div>`
+    ).join('') + (run.skipped || []).map((s) =>
+      `<div class="issue-item"><span class="muted-sm">SKIP</span> <span class="issue-path">${esc(s.name)}</span> — ${esc(s.reason)}</div>`
+    ).join('');
+  }
+  function clearRun() { $('lcRun').innerHTML = ''; }
+
+  const LC_BTNS = ['lcValidate', 'lcActivate', 'lcPause'];
+  function lcBusy(busy) { LC_BTNS.forEach((id) => { $(id).disabled = busy; }); }
+
+  async function lifecycle(action, confirmText) {
+    if (confirmText && !window.confirm(confirmText)) return;
+    clearRun();
+    lcBusy(true);
+    lcMsg(action === 'validate' ? 'Validating… (the scripted-turn check makes live model calls)' : 'Working…', false);
+    try {
+      const res = await adminFetch(`/admin/api/tenants/${encodeURIComponent(TID)}/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        setStatusBadge(data.to);
+        renderRun(data.run);
+        lcMsg(`${action} ✓  ${data.from} → ${data.to} (active=${data.active})`, false);
+        loadValidationRuns();
+        return;
+      }
+      // 409 guard refusal (or 404/500) — show the service's own words.
+      renderRun(data.run);
+      lcMsg(data.code ? `${data.code} — ${data.error}` : (data.error || `${action} failed (${res.status})`), true);
+      if (data.run) loadValidationRuns(); // a failed run is still persisted history
+    } finally {
+      lcBusy(false);
+    }
+  }
+
+  $('lcValidate').addEventListener('click', () => lifecycle('validate'));
+  $('lcActivate').addEventListener('click', () => lifecycle('activate'));
+  $('lcPause').addEventListener('click', () => lifecycle('pause',
+    'Pause this tenant? It goes offline immediately — inbound messages get no AI reply until it is re-validated and re-activated.'));
 
   // ── Boot ───────────────────────────────────────────────────────────────────
   (async function init() {

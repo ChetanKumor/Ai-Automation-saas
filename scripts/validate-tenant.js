@@ -13,8 +13,10 @@
 //   node scripts/validate-tenant.js sunrise-dental --json
 //
 // The --skip aliases: `kb` expands to both kb.populated + kb.retrieval (the
-// common "no dev embedding key" case). Any other name must be an exact check
-// name; an unknown one errors and lists the valid names.
+// common "no dev embedding key" case); `turn` expands to turn.scripted (the one
+// dynamic check — it spends live model calls and books/deletes a synthetic
+// appointment). Any other name must be an exact check name; an unknown one
+// errors and lists the valid names.
 //
 // Exit codes: 0 = run passed · 1 = run failed (≥1 fail) · 2 = internal error
 //   (bad args / DB down / tenant not found — the run never produced a verdict).
@@ -29,8 +31,11 @@ const {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// `kb` is a convenience alias for the two KB checks.
-const SKIP_ALIASES = { kb: ['kb.populated', 'kb.retrieval'] };
+// Convenience aliases: `kb` for the two KB checks, `turn` for the dynamic one.
+const SKIP_ALIASES = {
+  kb: ['kb.populated', 'kb.retrieval'],
+  turn: ['turn.scripted'],
+};
 
 function parseArgs(argv) {
   const args = argv.slice(2);
@@ -56,7 +61,7 @@ function expandSkips(names) {
   for (const n of names) {
     if (SKIP_ALIASES[n]) out.push(...SKIP_ALIASES[n]);
     else if (CHECK_NAMES.includes(n)) out.push(n);
-    else fatal(`Unknown --skip name '${n}'. Valid: ${CHECK_NAMES.join(', ')} (alias: kb)`);
+    else fatal(`Unknown --skip name '${n}'. Valid: ${CHECK_NAMES.join(', ')} (aliases: kb, turn)`);
   }
   return [...new Set(out)];
 }

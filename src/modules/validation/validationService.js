@@ -15,17 +15,24 @@
 //   • Stored `result` shape: { checks:[{name,severity,passed,detail}],
 //     skipped:[{name,reason}], duration_ms, service_version }.
 //
-// READ-ONLY except one write: the `validation_runs` INSERT. No status writes,
-// no config writes, no cache pokes. The service NEVER throws on a broken tenant
-// — a check that throws records `fail` + `internal_error…` and the run
-// continues. (It DOES throw for a non-existent tenant: there's no valid FK to
-// persist a run against — the CLI resolves slug/id to an existing tenant first.)
+// No status writes, no config writes, no cache pokes — status transitions live
+// entirely in tenant/lifecycleService.js (Issue 17's single writer). The service
+// NEVER throws on a broken tenant — a check that throws records `fail` +
+// `internal_error…` and the run continues. (It DOES throw for a non-existent
+// tenant: there's no valid FK to persist a run against — the CLI resolves
+// slug/id to an existing tenant first.)
+//
+// Writes it DOES make: the `validation_runs` INSERT, and — inside the dynamic
+// `turn.scripted` check only — a synthetic customer's conversation/messages/
+// appointment, every row of which that check deletes before returning (it fails
+// if anything survives). See scriptedTurnCheck.js. All other checks are read-only.
 
 const db = require('../../db/db');
 const { getTenantConfig, configSchema } = require('../config/configService');
 const { renderSystemPrompt, estimateTokens } = require('../prompts');
 const { getRelevantChunks } = require('../knowledge/knowledgeService');
 const { pingNumber } = require('../channels/whatsapp/sender');
+const { checkScriptedTurn } = require('./scriptedTurnCheck');
 const { decrypt } = require('../../utils/encryption');
 
 const SERVICE_VERSION = '1.0.0';
@@ -55,9 +62,12 @@ const fail = (detail) => ({ severity: 'fail', detail });
 // Each entry: { name, fn(ctx), requiresConfig?, channel?, gate?, skippable? }.
 //   requiresConfig  — auto-skip (prerequisite_failed) when the tenant has no config.
 //   gate(config)    — enabled-driven skip when it returns false (channel toggled off).
+//   gateReason      — override the gate's skip wording (defaults to `<channel>.enabled is false`).
 //   skippable       — may be named in opts.skip (explicit skip).
 // Order matters: checks run top-to-bottom; kb.retrieval keys off kb.populated's
-// skip decision, so kb.populated must precede it.
+// skip decision, so kb.populated must precede it. turn.scripted runs LAST — it is
+// the only check that spends live model calls, so every cheap static check has
+// already had its say by the time we get there.
 const CHECKS = [
   { name: 'config.exists', fn: checkConfigExists },
   { name: 'config.schema', requiresConfig: true, fn: checkConfigSchema },
@@ -74,6 +84,12 @@ const CHECKS = [
   { name: 'voice.config', requiresConfig: true, channel: 'voice',
     gate: (c) => !!(c.voice && c.voice.enabled), fn: checkVoiceConfig },
   { name: 'tenant.legacy_prompt', fn: checkLegacyPrompt },
+  // Issue 17 — the one DYNAMIC check. Appended; every name above is unchanged.
+  // Gated on the booking master toggle, skippable via `--skip turn`.
+  { name: 'turn.scripted', requiresConfig: true, skippable: true,
+    gate: (c) => !!(c.tools && c.tools.booking),
+    gateReason: 'tools.booking is false',
+    fn: checkScriptedTurn },
 ];
 
 const CHECK_NAMES = CHECKS.map((c) => c.name);
@@ -257,7 +273,7 @@ function skipReason(def, ctx, skipSet, skippedNames) {
     return 'kb.populated was skipped';
   }
   if (def.gate && ctx.config && !def.gate(ctx.config)) {
-    return `${def.channel}.enabled is false`;
+    return def.gateReason || `${def.channel}.enabled is false`;
   }
   return null;
 }
