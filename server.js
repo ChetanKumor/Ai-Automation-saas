@@ -106,8 +106,12 @@ collectionsModule.init();
 workflowEngine.init();
 
 const PORT = process.env.PORT || 3000;
-const server = app.listen(PORT, () => {
-  logger.info({ port: PORT }, 'server started');
+// Bind explicitly on 0.0.0.0 (all IPv4 interfaces). Railway routes traffic to the
+// container over IPv4; relying on Node's default host risks binding IPv6-only on
+// some images. Explicit 0.0.0.0 is the platform-recommended conformance.
+const HOST = process.env.HOST || '0.0.0.0';
+const server = app.listen(PORT, HOST, () => {
+  logger.info({ host: HOST, port: PORT }, 'server started');
 });
 
 const reminderTask = reminderCron.start();

@@ -20,6 +20,16 @@ describe('Graceful shutdown', () => {
       stop() { steps.push('collections.stop'); },
     };
 
+    // Issue 22 retention cron — the newest registered timer; the drain MUST cover it.
+    const mockTraceRetentionTask = {
+      stop() { steps.push('traceRetention.stop'); },
+    };
+
+    // Tenant TTL cache holds per-entry setTimeout handles cleared via stop().
+    const mockTenantService = {
+      stop() { steps.push('tenant.stop'); },
+    };
+
     const mockDb = {
       close() {
         steps.push('pool.end');
@@ -39,6 +49,8 @@ describe('Graceful shutdown', () => {
 
         if (mockReminderTask) mockReminderTask.stop();
         if (mockCollectionsTask) mockCollectionsTask.stop();
+        if (mockTraceRetentionTask) mockTraceRetentionTask.stop();
+        mockTenantService.stop();
 
         mockDb.close()
           .then(() => {
@@ -61,6 +73,8 @@ describe('Graceful shutdown', () => {
       'server.closed',
       'reminder.stop',
       'collections.stop',
+      'traceRetention.stop',
+      'tenant.stop',
       'pool.end',
       'exit(0)',
     ]);
