@@ -40,6 +40,7 @@ function createTurnTimer({ call_session_id = null, tenant_id = null } = {}) {
   const geminiCalls = [];
   const toolCalls = [];
   const extra = {}; // PR9C: top-level annotations (stream_mode, ack_emitted_ms, first_delta_ms)
+  let openStage = null; // Issue 22: the stage currently in flight (error attribution)
 
   return {
     turn_id: ids.turn_id,
@@ -56,16 +57,25 @@ function createTurnTimer({ call_session_id = null, tenant_id = null } = {}) {
     /** Start a named stage; call the returned closure to record its duration. */
     start(name) {
       const s = nowMs();
-      return () => { stages[name] = round(nowMs() - s); };
+      openStage = name;
+      return () => {
+        stages[name] = round(nowMs() - s);
+        if (openStage === name) openStage = null;
+      };
     },
+
+    /** The stage whose end-closure hasn't run yet, or null between stages.
+     * Used by the trace collector to attribute an error to where it happened. */
+    currentStage() { return openStage; },
 
     /** Record an externally-measured duration (e.g. fetch_parallel sub-timings). */
     record(name, ms) { stages[name] = round(ms); },
 
     /** One Gemini model call: latency + token usage (thinking tokens when the
      * API returns usageMetadata.thoughtsTokenCount; absent ⇒ 0 thinking).
-     * streamed marks SSE-mode calls made via sendMessageStream (PR9C). */
-    recordGeminiCall({ latency_ms, usageMetadata, streamed = false }) {
+     * streamed marks SSE-mode calls made via sendMessageStream (PR9C).
+     * model + finish_reason (Issue 22) feed the trace row's llm meta. */
+    recordGeminiCall({ latency_ms, usageMetadata, streamed = false, model = null, finish_reason = null }) {
       const n = geminiCalls.length + 1;
       const u = usageMetadata || null;
       geminiCalls.push({
@@ -76,29 +86,39 @@ function createTurnTimer({ call_session_id = null, tenant_id = null } = {}) {
         thinking_tokens: u ? (u.thoughtsTokenCount ?? 0) : null,
         total_tokens: u ? (u.totalTokenCount ?? null) : null,
         streamed: !!streamed,
+        model,
+        finish_reason,
       });
       stages[`gemini_call_${n}`] = round(latency_ms);
     },
 
-    /** One tool execution inside the model loop, named. */
-    recordToolExec(name, latency_ms) {
+    /** One tool execution inside the model loop, named. `outcome` (Issue 22)
+     * is a compact status object ({status, error?, success?}) — never the tool
+     * output itself. */
+    recordToolExec(name, latency_ms, outcome = null) {
       const n = toolCalls.length + 1;
-      toolCalls.push({ n, name, latency_ms: round(latency_ms) });
+      toolCalls.push({ n, name, latency_ms: round(latency_ms), outcome });
       stages[`tool_exec_${n}_${name}`] = round(latency_ms);
     },
 
-    /** Emit the single structured log line for this turn. */
-    emit() {
-      emitFn({
+    /** The full per-turn payload (ids + stages + gemini + tools + total). The
+     * trace writer reads this; emit() logs exactly the same object. */
+    snapshot() {
+      return {
         turn_id: ids.turn_id,
         call_session_id: ids.call_session_id,
         tenant_id: ids.tenant_id,
         ...extra,
-        stages,
-        gemini: { calls: geminiCalls },
-        tools: toolCalls,
+        stages: { ...stages },
+        gemini: { calls: [...geminiCalls] },
+        tools: [...toolCalls],
         total_node_ms: round(nowMs() - t0),
-      });
+      };
+    },
+
+    /** Emit the single structured log line for this turn. */
+    emit() {
+      emitFn(this.snapshot());
     },
   };
 }

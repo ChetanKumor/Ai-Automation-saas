@@ -59,6 +59,7 @@ const appointmentService = require('../appointment/appointmentService');
 const aiService = require('../ai/aiService');
 const conversationService = require('../conversation/conversationService');
 const { assembleConversationContext } = require('../conversation/contextAssembler');
+const traces = require('../traces/collector');
 
 // A reserved, clearly-fake, E.164-valid number. NANP area code 999 is permanently
 // unassigned and 555-01xx is the reserved fictional exchange, so this can never
@@ -86,18 +87,14 @@ function istDateString(daysAhead) {
   return new Date(Date.now() + daysAhead * 86400000).toLocaleDateString('en-CA', { timeZone: IST });
 }
 
-// Collector implementing the two methods aiService.generateReply calls on
-// `metrics`. This is the tool-call evidence seam: every executed tool lands here
-// with its name and latency, so "the booking tool was invoked" is observed, not
-// inferred from the row alone.
-function makeCollector() {
-  return {
-    toolCalls: [],
-    geminiCalls: [],
-    recordGeminiCall({ latency_ms }) { this.geminiCalls.push(latency_ms); },
-    recordToolExec(name, latency_ms) { this.toolCalls.push({ name, latency_ms }); },
-  };
-}
+// Tool-call evidence now comes from the turn-trace collector's timer (Issue
+// 22): each probe turn opens a real trace (channel 'voice', probe_ correlation
+// id) whose PR9A timer doubles as the `metrics` collector generateReply calls.
+// Every executed tool lands in the timer with its name and latency, so "the
+// booking tool was invoked" is observed, not inferred from the row alone —
+// and the probe turn leaves the same turn_traces row a live turn leaves.
+// (Probe traces survive synthetic cleanup by design — the conversation FK is
+// SET NULL — and age out via retention like everything else.)
 
 // Furthest-first hunt for a bookable slot from the tenant's own schedules.
 // Returns { doctor, date, time, iso } or null.
@@ -225,9 +222,14 @@ async function residue(tenantId, customerId, preNotifIds) {
 }
 
 // One scripted user turn through the turn core: persist inbound, assemble the
-// same context the route assembles, run the brain, persist outbound.
-async function runOneTurn(deps, tenantForBrain, customer, conversation, transcript, collector) {
+// same context the route assembles, run the brain, persist outbound. Each turn
+// opens its own trace collector and flushes it AWAITED (the probe is not a hot
+// path, and awaiting closes the race between the fire-and-forget insert and
+// the synthetic cleanup's cascade).
+async function runOneTurn(deps, tenantForBrain, customer, conversation, transcript) {
   const { id: tenantId } = tenantForBrain;
+  const trace = traces.open({ channel: 'voice', tenantId, conversationId: conversation.id });
+
   await db.query(
     `INSERT INTO messages (tenant_id, conversation_id, customer_id, direction, sender, content, channel, msg_type)
      VALUES ($1, $2, $3, 'inbound', 'customer', $4, 'voice', 'text')`,
@@ -238,9 +240,16 @@ async function runOneTurn(deps, tenantForBrain, customer, conversation, transcri
   });
 
   const t0 = Date.now();
-  const reply = await deps.generateReply(
-    tenantForBrain, customer, conversation, transcript, history, knowledgeChunks, facts,
-    { channel: 'voice', metrics: collector });
+  let reply;
+  try {
+    reply = await deps.generateReply(
+      tenantForBrain, customer, conversation, transcript, history, knowledgeChunks, facts,
+      { channel: 'voice', metrics: trace.timer });
+  } catch (err) {
+    trace.setErrorFromException(err, 'generate_reply');
+    await trace.flush();
+    throw err;
+  }
   const latency = Date.now() - t0;
 
   await db.query(
@@ -248,7 +257,8 @@ async function runOneTurn(deps, tenantForBrain, customer, conversation, transcri
      VALUES ($1, $2, $3, 'outbound', 'ai', $4, 'voice', 'text')`,
     [tenantId, conversation.id, customer.id, reply]);
 
-  return { reply, latency };
+  await trace.flush();
+  return { reply, latency, tools: trace.timer.snapshot().tools };
 }
 
 // ── The check ────────────────────────────────────────────────────────────────
@@ -298,7 +308,7 @@ async function runScriptedTurn(ctx) {
   const preNotifIds = await bookingNotificationIds(tenantId);
 
   let customer = null;
-  const collector = makeCollector();
+  const toolCalls = []; // accumulated across turns (from each turn's trace timer)
   const turns = [];
   let appt = null;
 
@@ -307,17 +317,18 @@ async function runScriptedTurn(ctx) {
     const conversation = await deps.getOrCreateOpenConversation(tenantId, customer.id, 'voice');
 
     for (const transcript of script) {
-      const { reply, latency } = await runOneTurn(deps, tenantForBrain, customer, conversation, transcript, collector);
+      const { reply, latency, tools } = await runOneTurn(deps, tenantForBrain, customer, conversation, transcript);
+      toolCalls.push(...tools);
       turns.push({ transcript, reply, latency_ms: latency });
       appt = await bookedAppointment(tenantId, customer.id);
       if (appt) break; // booked — no need to spend another model call
     }
 
     const lastReply = turns.length ? turns[turns.length - 1].reply : '';
-    const booked = collector.toolCalls.filter((c) => c.name === 'book_appointment');
+    const booked = toolCalls.filter((c) => c.name === 'book_appointment');
     const latencies = turns.map((t) => `${t.latency_ms}ms`).join('/');
-    const toolSummary = collector.toolCalls.length
-      ? collector.toolCalls.map((c) => `${c.name}(${Math.round(c.latency_ms)}ms)`).join(', ')
+    const toolSummary = toolCalls.length
+      ? toolCalls.map((c) => `${c.name}(${Math.round(c.latency_ms)}ms)`).join(', ')
       : 'none';
 
     if (!lastReply || !lastReply.trim()) {

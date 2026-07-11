@@ -94,6 +94,7 @@ app.get('/health', async (req, res) => {
   }
 });
 const reminderCron      = require('./src/scheduler/reminderCron');
+const traceRetention    = require('./src/modules/traces/retentionCron');
 const tenantService     = require('./src/modules/tenant/tenantService');
 const coreActions       = require('./core/coreActions');
 const crmModule         = require('./src/modules/crm');
@@ -111,6 +112,7 @@ const server = app.listen(PORT, () => {
 
 const reminderTask = reminderCron.start();
 const collectionsTask = collectionsModule.cronTask;
+const traceRetentionTask = traceRetention.start();
 
 let shuttingDown = false;
 
@@ -130,6 +132,7 @@ function shutdown(signal) {
 
     if (reminderTask) reminderTask.stop();
     if (collectionsTask) collectionsTask.stop();
+    if (traceRetentionTask) traceRetentionTask.stop();
     tenantService.stop();
     logger.info('cron tasks stopped + tenant cache timers cleared');
 

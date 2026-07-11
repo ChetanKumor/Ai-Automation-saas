@@ -13,6 +13,7 @@ const voiceChannelAdapter = require('../modules/channels/voice/voiceChannelAdapt
 const hmac                = require('../utils/hmac');
 const requestContext      = require('../core/requestContext');
 const { createTurnTimer } = require('../infra/logging/turnMetrics');
+const traces              = require('../modules/traces/collector');
 const eventBus            = require('../../core/events');
 const EVENT               = require('../../core/eventTypes');
 
@@ -94,6 +95,12 @@ async function handleTurn(req, res) {
   // emitted in the finally below on every exit path. No response-shape change.
   const turn = createTurnTimer({ call_session_id });
 
+  // Turn trace (Issue 22): wraps the SAME timer (no second timing system) and
+  // rides the request's ALS context so aiService/contextAssembler capture
+  // provenance without threading. Flushed in the finally — after res.json has
+  // handed the reply to the worker (TTS dispatch), success or failure.
+  const trace = traces.open({ channel: 'voice', timer: turn, callSessionId: call_session_id });
+
   try {
     const endHydrate = turn.start('hydrate_validate');
 
@@ -107,6 +114,7 @@ async function handleTurn(req, res) {
 
     const { tenant_id, customer_id, conversation_id } = session;
     turn.set({ tenant_id });
+    trace.setIds({ tenant_id, conversation_id });
     if (!customer_id || !conversation_id) {
       return res.status(409).json({ error: 'call session not bridged to a customer/conversation' });
     }
@@ -202,9 +210,12 @@ async function handleTurn(req, res) {
     return res.json({ reply_text, end_call: false, language: effectiveLanguage });
   } catch (err) {
     logger.error({ err: err.message }, 'internal voice turn failed');
+    // Failed turns trace too — this is precisely when a trace is needed.
+    trace.setErrorFromException(err);
     return res.status(500).json({ error: 'turn failed' });
   } finally {
     turn.emit();
+    trace.flush();
   }
 }
 
@@ -240,6 +251,9 @@ async function handleTurnSSE(req, res) {
 
   const turn = createTurnTimer({ call_session_id });
   turn.annotate({ stream_mode: true });
+
+  // Turn trace (Issue 22) — same wiring as the JSON branch (intentional mirror).
+  const trace = traces.open({ channel: 'voice', timer: turn, callSessionId: call_session_id });
 
   // Disconnect plumbing. `finished` is set right before the normal res.end()
   // so the close listener only fires for a premature client disconnect.
@@ -288,6 +302,7 @@ async function handleTurnSSE(req, res) {
 
     const { tenant_id, customer_id, conversation_id } = session;
     turn.set({ tenant_id });
+    trace.setIds({ tenant_id, conversation_id });
     if (!customer_id || !conversation_id) {
       return res.status(409).json({ error: 'call session not bridged to a customer/conversation' });
     }
@@ -416,6 +431,7 @@ async function handleTurnSSE(req, res) {
       return;
     }
     logger.error({ err: err.message }, 'internal voice turn (sse) failed');
+    trace.setErrorFromException(err);
     if (!streaming) {
       return res.status(500).json({ error: 'turn failed' });
     }
@@ -424,6 +440,7 @@ async function handleTurnSSE(req, res) {
     res.end();
   } finally {
     turn.emit();
+    trace.flush();
   }
 }
 

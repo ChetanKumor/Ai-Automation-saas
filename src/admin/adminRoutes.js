@@ -7,6 +7,7 @@ const tenantService = require('../modules/tenant/tenantService');
 const lifecycleService = require('../modules/tenant/lifecycleService');
 const { CHECK_NAMES } = require('../modules/validation/validationService');
 const configService = require('../modules/config/configService');
+const tracesQuery = require('../modules/traces/queryService');
 const { renderSystemPrompt, estimateTokens } = require('../modules/prompts');
 const {
   safeEqual,
@@ -730,6 +731,62 @@ router.get('/api/tenants/:id/validation-runs', requireAuth, requireTenantId, asy
     [req.params.id, limit]
   );
   res.json(rows);
+});
+
+// ── API: Turn traces (Issue 22) — thin read-only queries ─────────────────────
+// The queryable twin of the correlation-id log chains. Issue 27's viewer page
+// consumes exactly these two endpoints; no UI here.
+
+// List traces, newest first. Requires at least one filter; each filter is
+// shape-validated (400 on garbage — a malformed UUID must not 500 as a
+// Postgres 22P02, and a malformed correlation id is a caller bug, not an
+// empty result).
+router.get('/api/traces', requireAuth, async (req, res) => {
+  const { conversation_id, correlation_id, tenant_id, limit } = req.query;
+
+  if (!conversation_id && !correlation_id && !tenant_id) {
+    return res.status(400).json({ error: 'Provide at least one filter: conversation_id, correlation_id or tenant_id' });
+  }
+  if (conversation_id !== undefined && !UUID_RE.test(conversation_id)) {
+    return res.status(400).json({ error: 'conversation_id must be a UUID' });
+  }
+  if (tenant_id !== undefined && !UUID_RE.test(tenant_id)) {
+    return res.status(400).json({ error: 'tenant_id must be a UUID' });
+  }
+  if (correlation_id !== undefined && !requestContext.isValidCorrelationId(correlation_id)) {
+    return res.status(400).json({ error: 'correlation_id must look like <prefix>_<16 hex>' });
+  }
+  const parsedLimit = limit === undefined ? 50 : Number(limit);
+  if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 200) {
+    return res.status(400).json({ error: 'limit must be an integer between 1 and 200' });
+  }
+
+  try {
+    const rows = await tracesQuery.listTraces({
+      conversationId: conversation_id,
+      correlationId: correlation_id,
+      tenantId: tenant_id,
+      limit: parsedLimit,
+    });
+    res.json(rows);
+  } catch (err) {
+    logger.error({ err: err.message }, 'failed to list turn traces');
+    res.status(500).json({ error: 'Failed to list traces' });
+  }
+});
+
+router.get('/api/traces/:turn_id', requireAuth, async (req, res) => {
+  if (!UUID_RE.test(req.params.turn_id)) {
+    return res.status(400).json({ error: 'turn_id must be a UUID' });
+  }
+  try {
+    const trace = await tracesQuery.getTrace(req.params.turn_id);
+    if (!trace) return res.status(404).json({ error: 'Trace not found' });
+    res.json(trace);
+  } catch (err) {
+    logger.error({ err: err.message }, 'failed to fetch turn trace');
+    res.status(500).json({ error: 'Failed to fetch trace' });
+  }
 });
 
 module.exports = router;

@@ -26,8 +26,10 @@ async function storeChunks(tenantId, chunks, source) {
 
 async function getRelevantChunks(tenantId, query, topK = 3) {
   const queryEmbedding = await embed(query);
+  // `id` rides along for trace retrieval provenance (Issue 22) — every
+  // consumer reads only content/similarity, so this is capture-only.
   const { rows } = await db.query(
-    `SELECT content, 1 - (embedding <=> $2::vector) AS similarity
+    `SELECT id, content, 1 - (embedding <=> $2::vector) AS similarity
      FROM knowledge_chunks
      WHERE tenant_id = $1
      ORDER BY embedding <=> $2::vector

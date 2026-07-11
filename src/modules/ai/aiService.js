@@ -1,11 +1,15 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const crypto = require('crypto');
 const logger = require('../../infra/logging/logger');
 const appointmentService = require('../appointment/appointmentService');
 const notificationService = require('../notification/notificationService');
 const configService = require('../config/configService');
+const traces = require('../traces/collector');
 const { renderSystemPrompt, MINIMAL_SAFE_PROMPT } = require('../prompts');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+const GEMINI_MODEL = 'gemini-2.5-flash';
 
 // Injectable model factory. Production uses Gemini; tests can script the tool
 // loop deterministically without a live model. Not a business-logic seam.
@@ -90,9 +94,12 @@ const generateReply = async (tenant, customer, conversation, userMessage, histor
     }
   }
 
+  const systemInstruction = await resolveSystemInstruction(
+    tenant, customer, conversation, promptFacts, knowledgeChunks, channel);
+
   const model = modelProvider({
-    model: 'gemini-2.5-flash',
-    systemInstruction: buildSystemPrompt(tenant, customer, conversation, promptFacts, knowledgeChunks, channel, await configForPrompt(tenant)),
+    model: GEMINI_MODEL,
+    systemInstruction,
     tools: TOOLS
   });
 
@@ -141,6 +148,8 @@ const generateReply = async (tenant, customer, conversation, userMessage, histor
       metrics.recordGeminiCall({
         latency_ms: Number(process.hrtime.bigint() - t0) / 1e6,
         usageMetadata: result.response.usageMetadata,
+        model: GEMINI_MODEL,
+        finish_reason: finishReasonOf(result.response),
       });
     }
     return result;
@@ -157,7 +166,7 @@ const generateReply = async (tenant, customer, conversation, userMessage, histor
       logger.info({ tool: call.name, args: call.args }, 'tool call');
       const t0 = process.hrtime.bigint();
       const output = await executeTool(call.name, call.args, tenant, customer.id);
-      if (metrics) metrics.recordToolExec(call.name, Number(process.hrtime.bigint() - t0) / 1e6);
+      if (metrics) metrics.recordToolExec(call.name, Number(process.hrtime.bigint() - t0) / 1e6, toolOutcome(output));
       logger.info({ tool: call.name, output: JSON.stringify(output).substring(0, 200) }, 'tool result');
       responses.push({ functionResponse: { name: call.name, response: output } });
     }
@@ -201,9 +210,12 @@ const generateReplyStream = async (tenant, customer, conversation, userMessage, 
       .slice(0, maxFacts);
   }
 
+  const systemInstruction = await resolveSystemInstruction(
+    tenant, customer, conversation, promptFacts, knowledgeChunks, 'voice');
+
   const model = modelProvider({
-    model: 'gemini-2.5-flash',
-    systemInstruction: buildSystemPrompt(tenant, customer, conversation, promptFacts, knowledgeChunks, 'voice', await configForPrompt(tenant)),
+    model: GEMINI_MODEL,
+    systemInstruction,
     tools: TOOLS
   });
 
@@ -274,6 +286,8 @@ const generateReplyStream = async (tenant, customer, conversation, userMessage, 
         latency_ms: Number(process.hrtime.bigint() - t0) / 1e6,
         usageMetadata: agg.usageMetadata,
         streamed: true,
+        model: GEMINI_MODEL,
+        finish_reason: finishReasonOf(agg),
       });
     }
 
@@ -291,7 +305,7 @@ const generateReplyStream = async (tenant, customer, conversation, userMessage, 
         logger.info({ tool: call.name, args: call.args }, 'tool call');
         const t1 = process.hrtime.bigint();
         const output = await executeTool(call.name, call.args, tenant, customer.id);
-        if (metrics) metrics.recordToolExec(call.name, Number(process.hrtime.bigint() - t1) / 1e6);
+        if (metrics) metrics.recordToolExec(call.name, Number(process.hrtime.bigint() - t1) / 1e6, toolOutcome(output));
         logger.info({ tool: call.name, output: JSON.stringify(output).substring(0, 200) }, 'tool result');
         responses.push({ functionResponse: { name: call.name, response: output } });
       }
@@ -317,30 +331,70 @@ const hasLegacyPrompt = (tenant) =>
 // former already logged its own, more accurate, ERROR in configForPrompt).
 const CONFIG_FETCH_FAILED = Symbol('config-fetch-failed');
 
+// Returns { head, mode } — mode is the trace-provenance label (Issue 22):
+// 'legacy' (verbatim ai_prompt override), 'rendered' (config-rendered), or
+// 'default' (minimal safe prompt, whatever the reason).
 const resolvePromptHead = (tenant, config, channel) => {
   if (hasLegacyPrompt(tenant)) {
     logger.warn({ scope: 'prompts', tenantId: tenant.id, event: 'legacy_prompt_override' },
       'legacy ai_prompt overrides rendered prompt');
-    return tenant.ai_prompt;
+    return { head: tenant.ai_prompt, mode: 'legacy' };
   }
   if (config && config !== CONFIG_FETCH_FAILED) {
     try {
-      return renderSystemPrompt(config, {
+      const head = renderSystemPrompt(config, {
         channel,
         onWarn: (event, detail) =>
           logger.warn({ scope: 'prompts', tenantId: tenant.id, event, ...detail }, 'prompt render warning'),
       });
+      return { head, mode: 'rendered' };
     } catch (err) {
       logger.error({ scope: 'prompts', tenantId: tenant.id, err: err.message },
         'prompt render failed — using minimal safe prompt');
-      return MINIMAL_SAFE_PROMPT;
+      return { head: MINIMAL_SAFE_PROMPT, mode: 'default' };
     }
   }
   if (config !== CONFIG_FETCH_FAILED) {
     logger.error({ scope: 'prompts', tenantId: tenant.id, event: 'no_prompt_source' },
       'no tenant config and no ai_prompt — using minimal safe prompt');
   }
-  return MINIMAL_SAFE_PROMPT;
+  return { head: MINIMAL_SAFE_PROMPT, mode: 'default' };
+};
+
+// Finish reason of a Gemini response (aggregated or unary) for trace llm meta —
+// one definition so the streamed and unary capture paths stay in lockstep.
+const finishReasonOf = (response) => response?.candidates?.[0]?.finishReason ?? null;
+
+// Compact tool outcome for the trace row: status + the tool's own error string
+// (+ success flag when the tool reports one) — NEVER the tool output itself.
+const toolOutcome = (output) => {
+  if (!output || typeof output !== 'object') return { status: 'ok' };
+  if (output.error) return { status: 'error', error: String(output.error) };
+  return output.success !== undefined
+    ? { status: 'ok', success: !!output.success }
+    : { status: 'ok' };
+};
+
+// Fetch config, build the system prompt, and record its provenance onto the
+// active trace collector (Issue 22) — the ONE prompt-preparation path both
+// generateReply and generateReplyStream call, so provenance can never diverge
+// between the two intentional mirrors. Provenance is sha256 of the FINAL
+// system prompt + the tenant-config version + which precedence branch produced
+// the head. The hash is always computed (legacy included); the full text never
+// reaches the trace. Provenance is a no-op outside a traced turn.
+const resolveSystemInstruction = async (tenant, customer, conversation, facts, knowledgeChunks, channel) => {
+  const { text, mode } = buildSystemPrompt(
+    tenant, customer, conversation, facts, knowledgeChunks, channel, await configForPrompt(tenant));
+
+  const trace = traces.current();
+  if (trace) {
+    trace.setPrompt({
+      hash: crypto.createHash('sha256').update(text).digest('hex'),
+      config_version: mode === 'rendered' ? configService.getCachedConfigVersion(tenant.id) : null,
+      mode,
+    });
+  }
+  return text;
 };
 
 // Fetch the config document only when the precedence chain can reach it (no
@@ -357,6 +411,9 @@ const configForPrompt = async (tenant) => {
   }
 };
 
+// Returns { text, mode }: the full system prompt plus the provenance mode of
+// its head (see resolvePromptHead). Internal — both generateReply variants
+// destructure it.
 const buildSystemPrompt = (tenant, customer, conversation, facts, knowledgeChunks = [], channel = 'whatsapp', config = null) => {
   const factLines = facts.length
     ? facts.map(f => `- ${f.key}: ${f.value}`).join('\n')
@@ -382,8 +439,10 @@ const buildSystemPrompt = (tenant, customer, conversation, facts, knowledgeChunk
 - Speak times and dates naturally (e.g. "ten thirty in the morning", "Wednesday the fifth")`
     : '';
 
-  return `
-${resolvePromptHead(tenant, config, channel)}
+  const { head, mode } = resolvePromptHead(tenant, config, channel);
+
+  const text = `
+${head}
 
 Today is ${dayOfWeek}, ${todayIST} (IST — Asia/Kolkata timezone).
 
@@ -409,6 +468,8 @@ Appointment booking rules:
 - Politely decline past dates or past times today
 ${voiceStyle}
 `.trim();
+
+  return { text, mode };
 };
 
 module.exports = { generateReply, generateReplyStream, _setModelProvider };

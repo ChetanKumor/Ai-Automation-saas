@@ -150,7 +150,7 @@ async function getTenantConfig(tenantId) {
   if (hit && (Date.now() - hit.ts) < TTL_MS) return hit.config; // fresh cache hit — no DB, no timer
 
   const { rows } = await db.query(
-    'SELECT config FROM tenant_configs WHERE tenant_id = $1', [tenantId]);
+    'SELECT config, version FROM tenant_configs WHERE tenant_id = $1', [tenantId]);
 
   if (!rows[0]) {
     cache.delete(tenantId); // drop any now-stale entry (tenant/config deleted between fills)
@@ -172,8 +172,18 @@ async function getTenantConfig(tenantId) {
       'stored tenant config failed current schema — returning stored doc as-is');
   }
 
-  cache.set(tenantId, { config, ts: Date.now() });
+  cache.set(tenantId, { config, version: rows[0].version, ts: Date.now() });
   return config;
+}
+
+// The cached config's version, or null when nothing is cached for this tenant.
+// Synchronous by design: the only consumer (prompt provenance, Issue 22) calls
+// it immediately after an awaited getTenantConfig, so the entry is warm. A
+// null here means "version unknown" and is recorded as such — provenance must
+// never add a DB round-trip to the turn.
+function getCachedConfigVersion(tenantId) {
+  const hit = cache.get(tenantId);
+  return hit ? (hit.version ?? null) : null;
 }
 
 // Evict cached config. With a tenantId → evict just that entry. No arg
@@ -198,6 +208,7 @@ function invalidateConfigCache(tenantId) {
 module.exports = {
   writeTenantConfig,
   getTenantConfig,
+  getCachedConfigVersion,
   invalidateConfigCache,
   ConfigValidationError,
   ConfigConflictError,

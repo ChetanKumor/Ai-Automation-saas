@@ -4,6 +4,7 @@ const db               = require('../../db/db');
 const logger           = require('../../infra/logging/logger');
 const knowledgeService = require('../knowledge/knowledgeService');
 const customerService  = require('../customer/customerService');
+const traces           = require('../traces/collector');
 
 /**
  * Shared conversation context-assembly helper — the SINGLE retrieval path that
@@ -59,6 +60,18 @@ async function assembleConversationContext({ tenantId, conversationId, customerI
       [tenantId, customerId]
     )),
   ]);
+
+  // Trace retrieval provenance (Issue 22): chunk ids + scores only — never
+  // chunk content (content already lives in knowledge_chunks). This is the
+  // SINGLE capture point for both channels, riding the ALS context; outside a
+  // traced turn current() is null and this is a no-op. No retrieval (KB-less
+  // tenant, RAG failure) records null, not [].
+  const trace = traces.current();
+  if (trace) {
+    trace.setRetrieval(knowledgeChunks.length
+      ? knowledgeChunks.map((c) => ({ chunk_id: c.id ?? null, score: c.similarity ?? null }))
+      : null);
+  }
 
   return { knowledgeChunks, history, facts };
 }
