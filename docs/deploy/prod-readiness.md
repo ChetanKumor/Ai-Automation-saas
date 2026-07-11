@@ -48,6 +48,8 @@ secret manager); N = non-sensitive. **Required?** is for *this* deploy
 | `SARVAM_API_KEY`, `SARVAM_BASE_URL` | Sarvam STT/TTS. | No | Y / N | Voice-deferred (Issues 11–14). |
 | `VOICE_INTERNAL_SECRET` | HMAC secret for `/internal/voice`. | No | Y | Voice-deferred; **required once `VOICE_ENABLED=true`.** |
 | `VOICE_THINKING_BUDGET`, `VOICE_MAX_OUTPUT_TOKENS`, `VOICE_HISTORY_TURNS`, `VOICE_MEMORY_FACTS_MAX` | Voice turn-latency knobs (PR9A). | No | N | Voice-deferred; sane code defaults (0 / 150 / 8 / 10). |
+| `TURN_BUDGET_MS` | Server-side deadline for one JSON voice turn (Issue 29). | No | N | Leave unset (default 8000). **Pinned relationship: must stay strictly BELOW the worker's `VOICE_TURN_TIMEOUT_S` (default 10s)** — the server gives up first, so the worker's apology only fires after the server stopped spending. Change the pair together. |
+| `DB_STATEMENT_TIMEOUT_MS` | Postgres `statement_timeout` for the app pool (Issue 29). | No | N | Leave unset (default 5000). Applies to every pooled session incl. crons (measured under it at launch scale); the migration runner builds its own client and is exempt, so `db:genesis`/`db:migrate` DDL is never killed by it. |
 | `TEST_CUSTOMER_PHONE`, `TEST_TENANT_PHONE_ID`, `VOICE_DEV_*`, `VOICE_TENANT_ID` | Dev/seed scripts only. | No | N | **Never set in prod** — referenced solely under `scripts/` (seed/test-chat), not in the runtime path. |
 
 **Flagged: dev values that must NOT reach prod** — `DATABASE_URL` (dev

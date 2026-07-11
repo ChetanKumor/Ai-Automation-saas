@@ -5,6 +5,18 @@
 // never touch the turn. Every failure (FK race with a tenant delete, pool
 // down, bad row) lands in a WARN carrying the correlation id, and the
 // returned promise resolves regardless.
+//
+// `error` column envelope (JSONB, schema untouched by Issue 29):
+//   NULL                      — clean success
+//   { stage, message, status }
+//                             — turn failed (collector.setErrorFromException)
+//   { outcome:'aborted', abort_reason:'client_gone'|'deadline',
+//     aborted_after_commit:boolean, stage, message }
+//                             — abort signal fired during the turn
+//                               (collector.setAbort, Issue 29 / V-011).
+//                               aborted_after_commit=true: a mutating tool had
+//                               executed, so the turn completed persistence
+//                               regardless; false: reply generation stopped.
 
 const db = require('../../db/db');
 const logger = require('../../infra/logging/logger');

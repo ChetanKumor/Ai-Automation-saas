@@ -280,4 +280,4 @@ if (require.main === module) {
   main(process.argv);
 }
 
-module.exports = { genesis, migrate, status, main, checksum, listMigrations, hasUserTables, trackingExists, CREATE_TRACKING };
+module.exports = { genesis, migrate, status, main, checksum, listMigrations, hasUserTables, trackingExists, makeClient, CREATE_TRACKING };

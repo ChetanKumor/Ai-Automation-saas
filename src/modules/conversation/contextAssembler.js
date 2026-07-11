@@ -34,13 +34,19 @@ const traces           = require('../traces/collector');
  * @param {string}  args.customerId
  * @param {string}  args.text            The inbound user text (for RAG retrieval).
  * @param {number} [args.ragTopK=3]      Number of knowledge chunks to retrieve.
+ * @param {AbortSignal} [args.signal]    Issue 29: the voice turn's combined
+ *                                       close/deadline signal — bounds the RAG
+ *                                       embedding call. An abort surfaces as a
+ *                                       caught RAG failure (empty chunks); the
+ *                                       reply loop's own checkpoint then stops
+ *                                       the turn. Absent ⇒ unchanged.
  * @param {Function} [args.onTiming]     Optional (name, ms) sink for per-source
  *                                       sub-timings (knowledge/history/memory).
  *                                       Observability only — absent ⇒ identical
  *                                       behavior to before.
  * @returns {Promise<{ knowledgeChunks: Array, history: Array, facts: Array }>}
  */
-async function assembleConversationContext({ tenantId, conversationId, customerId, text, ragTopK = 3, onTiming = null }) {
+async function assembleConversationContext({ tenantId, conversationId, customerId, text, ragTopK = 3, signal = null, onTiming = null }) {
   // When a timing sink is provided, measure each parallel source individually
   // (values/rejections pass through unchanged); otherwise leave promises as-is.
   const timed = (name, promise) => {
@@ -50,7 +56,7 @@ async function assembleConversationContext({ tenantId, conversationId, customerI
   };
 
   const [knowledgeChunks, history, { rows: facts }] = await Promise.all([
-    timed('knowledge', knowledgeService.getRelevantChunks(tenantId, text, ragTopK).catch((err) => {
+    timed('knowledge', knowledgeService.getRelevantChunks(tenantId, text, ragTopK, { signal }).catch((err) => {
       logger.error({ tenantId, err: err.message }, 'RAG failed (continuing without)');
       return [];
     })),

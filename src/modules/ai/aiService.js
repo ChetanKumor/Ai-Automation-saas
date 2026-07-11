@@ -18,6 +18,19 @@ function _setModelProvider(fn) {
   modelProvider = fn || ((config) => genAI.getGenerativeModel(config));
 }
 
+// Tool registry metadata (Issue 29), keyed by declaration name. `mutating`
+// marks tools whose execution commits external state (bookings, notifications)
+// — the reply loop's point of no return: once ANY mutating tool has EXECUTED
+// (regardless of its reported outcome — a "failed" booking may still have
+// side effects), abort checks stop and the turn completes persistence
+// unconditionally. Read-only tools never cross the line. Every declaration in
+// TOOLS must have an entry here.
+const TOOL_META = {
+  check_availability: { mutating: false },
+  book_appointment:   { mutating: true },
+};
+const isMutatingTool = (name) => TOOL_META[name]?.mutating === true;
+
 const TOOLS = [{
   functionDeclarations: [
     {
@@ -50,10 +63,34 @@ const TOOLS = [{
   ]
 }];
 
+// Fail fast at load: every declared tool must state its mutability in
+// TOOL_META — a missing entry would silently default to non-mutating and skip
+// the point of no return (a torn-write hazard, not a style nit).
+for (const d of TOOLS[0].functionDeclarations) {
+  if (!(d.name in TOOL_META)) {
+    throw new Error(`TOOL_META missing entry for tool: ${d.name} — declare its mutability`);
+  }
+}
+
 // Read an optional integer env knob at call time (tests can set/unset per case).
 const envInt = (name, fallback) => {
   const v = parseInt(process.env[name], 10);
   return Number.isFinite(v) ? v : fallback;
+};
+
+// The ONE abort-check idiom for BOTH turn paths (Issue 29) — generateReply
+// (JSON) and generateReplyStream (SSE) share it, and the voice route uses it
+// for its pre-fetch checkpoint. Needed because the installed SDK
+// (@google/generative-ai@0.24.1) only reacts to an abort that fires while a
+// request is in flight (it adds an 'abort' listener; an ALREADY-aborted
+// signal is ignored) — so the loop must check between calls/tools itself.
+// Safe to call at any await point: it throws synchronously, never rejects late.
+const throwIfAborted = (signal) => {
+  if (signal && signal.aborted) {
+    const err = new Error('voice turn aborted');
+    err.name = 'AbortError';
+    throw err;
+  }
 };
 
 async function executeTool(name, args, tenant, customerId) {
@@ -76,7 +113,7 @@ async function executeTool(name, args, tenant, customerId) {
   }
 }
 
-const generateReply = async (tenant, customer, conversation, userMessage, history, knowledgeChunks = [], facts = [], { channel = 'whatsapp', metrics = null } = {}) => {
+const generateReply = async (tenant, customer, conversation, userMessage, history, knowledgeChunks = [], facts = [], { channel = 'whatsapp', metrics = null, signal = null, onCommitted = null } = {}) => {
   // ── Voice prompt diet (channel === 'voice' ONLY; default path untouched) ──
   // History: keep the last VOICE_HISTORY_TURNS entries (one entry = one stored
   // message). Facts: keep the VOICE_MEMORY_FACTS_MAX most recently updated
@@ -138,12 +175,21 @@ const generateReply = async (tenant, customer, conversation, userMessage, histor
     generationConfig
   });
 
+  // Point of no return (Issue 29): flips when a MUTATING tool (TOOL_META)
+  // executes. From then on: no abort checks, and Gemini calls drop the signal
+  // — aborting between a committed booking and its persisted/spoken
+  // confirmation would manufacture a torn write worse than the slow turn
+  // being cancelled. The route learns of the crossing via onCommitted.
+  let committed = false;
+
   // Observability-only seam: when a metrics collector is passed (voice turn
   // path), record per-call latency + token usage and per-tool timings. The
   // WhatsApp path passes no collector — zero change there.
   const sendTimed = async (payload) => {
     const t0 = process.hrtime.bigint();
-    const result = await chat.sendMessage(payload);
+    const result = (signal && !committed)
+      ? await chat.sendMessage(payload, { signal })
+      : await chat.sendMessage(payload);
     if (metrics) {
       metrics.recordGeminiCall({
         latency_ms: Number(process.hrtime.bigint() - t0) / 1e6,
@@ -155,6 +201,10 @@ const generateReply = async (tenant, customer, conversation, userMessage, histor
     return result;
   };
 
+  // Abort checkpoints (Issue 29): before EVERY Gemini call and before EVERY
+  // tool execution, until the point of no return. No signal (WhatsApp path,
+  // pre-Issue-29 callers) ⇒ every check is a no-op — behavior unchanged.
+  throwIfAborted(signal);
   let result = await sendTimed(userMessage);
   let loops = 0;
 
@@ -163,14 +213,20 @@ const generateReply = async (tenant, customer, conversation, userMessage, histor
     const responses = [];
 
     for (const call of calls) {
+      if (!committed) throwIfAborted(signal);
       logger.info({ tool: call.name, args: call.args }, 'tool call');
       const t0 = process.hrtime.bigint();
       const output = await executeTool(call.name, call.args, tenant, customer.id);
       if (metrics) metrics.recordToolExec(call.name, Number(process.hrtime.bigint() - t0) / 1e6, toolOutcome(output));
       logger.info({ tool: call.name, output: JSON.stringify(output).substring(0, 200) }, 'tool result');
+      if (!committed && isMutatingTool(call.name)) {
+        committed = true;
+        if (onCommitted) onCommitted();
+      }
       responses.push({ functionResponse: { name: call.name, response: output } });
     }
 
+    if (!committed) throwIfAborted(signal);
     result = await sendTimed(responses);
     loops++;
   }
@@ -238,23 +294,18 @@ const generateReplyStream = async (tenant, customer, conversation, userMessage, 
   const chat = model.startChat({ history: chatHistory, generationConfig });
 
   const requestOptions = signal ? { signal } : {};
-  // The SDK only reacts to an abort that fires while a request is in flight
-  // (it adds an 'abort' listener; an ALREADY-aborted signal is ignored) — so
-  // check between calls/tools ourselves to stop the loop on disconnect.
-  const throwIfAborted = () => {
-    if (signal && signal.aborted) {
-      const err = new Error('voice turn aborted');
-      err.name = 'AbortError';
-      throw err;
-    }
-  };
+  // Abort checks between calls/tools use the shared module-level
+  // throwIfAborted (Issue 29) — one idiom for both turn paths. Note: the SSE
+  // path deliberately keeps its pre-Issue-29 semantics (abort checked before
+  // every tool, partial persisted on disconnect) — the JSON path's
+  // point-of-no-return applies only there; unify when SSE goes live.
 
   let payload = userMessage;
   let finalText = '';
   let loops = 0;
 
   while (true) {
-    throwIfAborted();
+    throwIfAborted(signal);
     const t0 = process.hrtime.bigint();
     const streamResult = await chat.sendMessageStream(payload, requestOptions);
     // The SDK's aggregated-response promise rejects independently on abort;
@@ -301,7 +352,7 @@ const generateReplyStream = async (tenant, customer, conversation, userMessage, 
       }
       const responses = [];
       for (const call of calls) {
-        throwIfAborted();
+        throwIfAborted(signal);
         logger.info({ tool: call.name, args: call.args }, 'tool call');
         const t1 = process.hrtime.bigint();
         const output = await executeTool(call.name, call.args, tenant, customer.id);
@@ -472,4 +523,4 @@ ${voiceStyle}
   return { text, mode };
 };
 
-module.exports = { generateReply, generateReplyStream, _setModelProvider };
+module.exports = { generateReply, generateReplyStream, throwIfAborted, _setModelProvider };

@@ -4,11 +4,17 @@ const db = require('../../db/db');
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const embeddingModel = genAI.getGenerativeModel({ model: 'gemini-embedding-001' });
 
-async function embed(text) {
-  const result = await embeddingModel.embedContent({
+// `signal` (Issue 29): the voice turn's combined close/deadline AbortSignal —
+// aborts the in-flight embedding fetch. Absent (WhatsApp path, ingestion),
+// behavior is unchanged.
+async function embed(text, signal = null) {
+  const request = {
     content: { parts: [{ text }] },
     outputDimensionality: 768
-  });
+  };
+  const result = signal
+    ? await embeddingModel.embedContent(request, { signal })
+    : await embeddingModel.embedContent(request);
   return result.embedding.values;
 }
 
@@ -24,8 +30,8 @@ async function storeChunks(tenantId, chunks, source) {
   return chunks.length;
 }
 
-async function getRelevantChunks(tenantId, query, topK = 3) {
-  const queryEmbedding = await embed(query);
+async function getRelevantChunks(tenantId, query, topK = 3, { signal = null } = {}) {
+  const queryEmbedding = await embed(query, signal);
   // `id` rides along for trace retrieval provenance (Issue 22) — every
   // consumer reads only content/similarity, so this is capture-only.
   const { rows } = await db.query(

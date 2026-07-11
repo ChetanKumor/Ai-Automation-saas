@@ -55,6 +55,18 @@ const VOICE_ACK_COPY = {
 
 const ackTextFor = (language) => VOICE_ACK_COPY[language] || VOICE_ACK_COPY['en-IN'];
 
+// ── Issue 29: coordinated turn budget ────────────────────────────────────────
+// The server-side deadline for one JSON turn. MUST stay strictly BELOW the
+// worker's patience (voice-agent/agent.py TURN_TIMEOUT_S, env
+// VOICE_TURN_TIMEOUT_S, default 10s): the server always gives up FIRST, so the
+// worker's static apology only ever fires after the server has stopped
+// spending. 8000 < 10000 is the pinned relationship — change them together.
+// Read at call time so tests can vary it per case.
+const turnBudgetMs = () => {
+  const v = parseInt(process.env.TURN_BUDGET_MS, 10);
+  return Number.isFinite(v) && v > 0 ? v : 8000;
+};
+
 /** Belt and braces: the worker opts into SSE with BOTH the Accept header and a
  * body flag. Anything else takes the JSON branch untouched. */
 function wantsStream(req) {
@@ -100,6 +112,34 @@ async function handleTurn(req, res) {
   // provenance without threading. Flushed in the finally — after res.json has
   // handed the reply to the worker (TTS dispatch), success or failure.
   const trace = traces.open({ channel: 'voice', timer: turn, callSessionId: call_session_id });
+
+  // ── Issue 29: cancellation + deadline (V-001/V-003) ──
+  // ONE combined abort source, same plumbing as the SSE branch: the client
+  // going away (res 'close' before we finished — the worker timed out or the
+  // call died) and the server-side turn budget both abort the same controller.
+  // The signal reaches every Gemini call, the RAG embedding call, and the
+  // reply loop's checkpoints (aiService). DB statements are bounded separately
+  // by the pool's statement_timeout (db.js).
+  //
+  // abort_reason precedence is decided at RECORD time, not abort time:
+  // client_gone wins whenever the client is known to be gone, even if the
+  // deadline timer technically fired first (double-abort race).
+  let finished = false;    // set in the finally — the close listener then no-ops
+  let clientGone = false;
+  let committed = false;   // a mutating tool executed (point of no return)
+  const abortController = new AbortController();
+  // NOTE: res.on('close'), not req.on('close') — the request's 'close' fires
+  // when the body is fully consumed (immediately here); the response's fires
+  // when the connection actually goes away (same finding as the SSE branch).
+  res.on('close', () => {
+    if (finished) return;
+    clientGone = true;
+    abortController.abort();
+  });
+  const budgetTimer = setTimeout(() => abortController.abort(), turnBudgetMs());
+  budgetTimer.unref();
+  const signal = abortController.signal;
+  const abortReason = () => (clientGone ? 'client_gone' : 'deadline');
 
   try {
     const endHydrate = turn.start('hydrate_validate');
@@ -177,6 +217,11 @@ async function handleTurn(req, res) {
       return res.json({ reply_text: '', end_call: false, language: effectiveLanguage });
     }
 
+    // Abort checkpoint (Issue 29). Placed AFTER the inbound persist by design:
+    // the inbound message always persists once hydrated — the caller spoke, it
+    // happened; reply generation (fetch + Gemini + tools) is what stops.
+    aiService.throwIfAborted(signal);
+
     // SHARED context-assembly path — the same helper the WhatsApp route uses.
     const endFetch = turn.start('fetch_parallel');
     const { knowledgeChunks, history, facts } = await assembleConversationContext({
@@ -184,6 +229,7 @@ async function handleTurn(req, res) {
       conversationId: conversation_id,
       customerId: customer_id,
       text: transcript,
+      signal,
       onTiming: (name, ms) => turn.record(`fetch_parallel_${name}`, ms),
     });
     endFetch();
@@ -193,10 +239,12 @@ async function handleTurn(req, res) {
     // tool_exec_<n>_<name> land in this turn's stages).
     const reply_text = await aiService.generateReply(
       tenant, customer, conversation, transcript, history, knowledgeChunks, facts,
-      { channel: 'voice', metrics: turn }
+      { channel: 'voice', metrics: turn, signal, onCommitted: () => { committed = true; } }
     );
 
-    // Persist the outbound voice turn (channel='voice').
+    // Persist the outbound voice turn (channel='voice'). Unconditional even if
+    // the abort fired mid-generation past the point of no return: a committed
+    // booking whose confirmation never persisted is a torn write (Issue 29).
     const endPersistOut = turn.start('persist_outbound');
     await db.query(
       `INSERT INTO messages
@@ -207,13 +255,35 @@ async function handleTurn(req, res) {
     await db.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1 AND tenant_id = $2`, [conversation_id, tenant_id]);
     endPersistOut();
 
+    if (signal.aborted) {
+      // The turn completed despite an abort firing after the last checkpoint
+      // (typically past the point of no return). Trace it honestly (V-011);
+      // still answer if the socket is alive — the worker may not have given
+      // up yet (budget 8s < worker 10s) and the real reply beats an apology.
+      trace.setAbort({ reason: abortReason(), afterCommit: committed });
+      logger.info({ abort_reason: abortReason(), aborted_after_commit: committed },
+        'internal voice turn: completed after abort signal');
+      if (clientGone) return;
+    }
     return res.json({ reply_text, end_call: false, language: effectiveLanguage });
   } catch (err) {
+    if (signal.aborted && !committed) {
+      // Cancelled turn (client gone or budget exceeded before any mutating
+      // tool ran) — an expected outcome, not a failure. Distinct error body;
+      // the worker treats any non-2xx as BrainError (static apology).
+      trace.setAbort({ reason: abortReason(), afterCommit: false });
+      logger.info({ err: err.message, abort_reason: abortReason() }, 'internal voice turn aborted');
+      if (clientGone) return;
+      return res.status(503).json({ error: 'turn aborted' });
+    }
     logger.error({ err: err.message }, 'internal voice turn failed');
     // Failed turns trace too — this is precisely when a trace is needed.
     trace.setErrorFromException(err);
+    if (clientGone) return;
     return res.status(500).json({ error: 'turn failed' });
   } finally {
+    finished = true;
+    clearTimeout(budgetTimer);
     turn.emit();
     trace.flush();
   }

@@ -76,6 +76,22 @@ function open({ channel, timer = null, tenantId = null, conversationId = null, c
       };
     },
 
+    /** Aborted turn (Issue 29, closes V-011's shadow): the abort signal
+     * (client disconnect or turn budget) fired during this turn. Recorded in
+     * the SAME error envelope — schema untouched; envelope shape documented
+     * in writer.js. afterCommit=true means the turn crossed the point of no
+     * return (a mutating tool had executed) and completed persistence anyway;
+     * false means reply generation was stopped. */
+    setAbort({ reason, afterCommit = false }) {
+      this.error = {
+        outcome: 'aborted',
+        abort_reason: reason,                  // 'client_gone' | 'deadline'
+        aborted_after_commit: !!afterCommit,
+        stage: t.currentStage() ?? null,
+        message: 'voice turn aborted',
+      };
+    },
+
     /**
      * Persist the trace. Idempotent — the first call wins; the returned
      * promise never rejects (failures are WARNed inside the writer), so

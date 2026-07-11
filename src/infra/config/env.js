@@ -47,4 +47,14 @@ module.exports = {
   VOICE_MAX_OUTPUT_TOKENS: process.env.VOICE_MAX_OUTPUT_TOKENS, // default 150
   VOICE_HISTORY_TURNS: process.env.VOICE_HISTORY_TURNS,         // default 8
   VOICE_MEMORY_FACTS_MAX: process.env.VOICE_MEMORY_FACTS_MAX,   // default 10
+
+  // Turn cancellation + deadlines (Issue 29) — optional, sane defaults.
+  // TURN_BUDGET_MS: server-side deadline for one JSON voice turn (default
+  // 8000). PINNED RELATIONSHIP: must stay strictly BELOW the worker's
+  // VOICE_TURN_TIMEOUT_S (voice-agent/agent.py, default 10s) so the server
+  // always gives up before the worker's apology fires — change them together.
+  // DB_STATEMENT_TIMEOUT_MS: Postgres statement_timeout for the app pool
+  // (default 5000). The migration runner uses its own client and is exempt.
+  TURN_BUDGET_MS: process.env.TURN_BUDGET_MS,
+  DB_STATEMENT_TIMEOUT_MS: process.env.DB_STATEMENT_TIMEOUT_MS,
 };
