@@ -1,6 +1,44 @@
 const db = require('../../db/db');
+const configService = require('../config/configService');
+const { clinicDefaults } = require('../config/defaults');
+const logger = require('../../infra/logging/logger');
 
 const IST = 'Asia/Kolkata';
+
+function hhmmToMinutes(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
+// The booking slot grid (minutes) for a tenant — the SINGLE source shared by
+// checkAvailability (which slots to offer) and bookAppointment (which times to
+// accept). Sourced from config.booking.slot_minutes; a configless tenant or a
+// stale doc missing the field falls back to clinicDefaults with a
+// config_fallback WARN (the V-002 pattern). The two callers MUST resolve the
+// grid the same way — a slot we never offered must never book (V-008).
+async function resolveSlotMinutes(tenantId) {
+  const config = await configService.getTenantConfig(tenantId);
+  const slot = config?.booking?.slot_minutes;
+  if (Number.isInteger(slot) && slot > 0) return slot;
+
+  const fallback = clinicDefaults.booking.slot_minutes;
+  logger.warn(
+    { scope: 'config_fallback', tenant_id: tenantId, slot_minutes: fallback,
+      reason: config === null ? 'no_config' : 'field_missing' },
+    'booking.slot_minutes missing from tenant config — using clinicDefaults'
+  );
+  return fallback;
+}
+
+// Grid alignment in the tenant timezone frame. `slotTime` and `start` are both
+// IST wall-clock 'HH:MM' — the frame the schedule is expressed in and the frame
+// checkAvailability offers slots in (a stored timestamptz is reconverted to IST
+// before this check). A time is on-grid iff it is an exact slotMinutes multiple
+// from the schedule start. Range ([start, end)) is enforced by the caller's
+// hours check; this is purely the grid-step test. Reject, never snap (V-008).
+function isOnGrid(slotTime, start, slotMinutes) {
+  return (hhmmToMinutes(slotTime) - hhmmToMinutes(start)) % slotMinutes === 0;
+}
 
 function todayIST() {
   return new Date().toLocaleDateString('en-CA', { timeZone: IST });
@@ -52,11 +90,15 @@ async function checkAvailability(tenantId, dateStr) {
   const isToday = dateStr === today;
   const currentTime = isToday ? nowHHMM() : '00:00';
 
+  // Grid size from config (V-008): the SAME source bookAppointment validates
+  // against, so every slot offered here is a slot booking will accept.
+  const slotMinutes = await resolveSlotMinutes(tenantId);
+
   const results = [];
   for (const sched of schedules) {
     if (!sched.days.includes(dayName)) continue;
 
-    const allSlots = generateSlots(sched.start, sched.end, sched.slot_minutes);
+    const allSlots = generateSlots(sched.start, sched.end, slotMinutes);
 
     const { rows: booked } = await db.query(
       `SELECT appointment_time FROM appointments
@@ -111,6 +153,20 @@ async function bookAppointment(tenantId, customerId, doctorName, appointmentTime
     return { success: false, error: `${doctorName} works ${sched.start}–${sched.end}. ${slotTime} is outside hours.` };
   }
 
+  // Grid alignment (V-008): uniq_doctor_slot only blocks EXACT-timestamp
+  // collisions, so an off-grid time (10:07 against a 30-min grid) inserts
+  // cleanly and overlaps a neighbouring booking. Reject off-grid times with a
+  // tool-friendly error and let the LLM re-offer real slots — never snap the
+  // caller's requested time silently. Grid derivation is shared with
+  // checkAvailability, so this only bounces model drift / races.
+  const slotMinutes = await resolveSlotMinutes(tenantId);
+  if (!isOnGrid(slotTime, sched.start, slotMinutes)) {
+    return {
+      success: false,
+      error: `${slotTime} is not on the schedule grid (${slotMinutes}-minute slots starting ${sched.start}). Offer the caller the nearest available slots from check_availability.`,
+    };
+  }
+
   if (patientName) {
     await db.query(
       "UPDATE customers SET name = $1 WHERE id = $2 AND (name IS NULL OR name = '')",
@@ -144,4 +200,8 @@ async function bookAppointment(tenantId, customerId, doctorName, appointmentTime
   }
 }
 
-module.exports = { checkAvailability, bookAppointment, getSchedules };
+module.exports = {
+  checkAvailability, bookAppointment, getSchedules,
+  // exported for tests / grid-parity coverage (V-008)
+  generateSlots, resolveSlotMinutes, isOnGrid,
+};
