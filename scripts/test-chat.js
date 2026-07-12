@@ -17,9 +17,23 @@ const TENANT_PHONE_ID = process.env.TEST_TENANT_PHONE_ID || '1210047605526057';
 const TEST_CUSTOMER_PHONE = process.env.TEST_CUSTOMER_PHONE || '919999900000';
 
 async function processMessage(tenant, customer, conversation, text) {
+  // Persist the inbound message FIRST (as the real turn paths do), so history can
+  // exclude it by id (V-009) rather than by position.
+  const testWamid = 'test_' + Date.now();
+  const { rows: [inbound] } = await db.query(
+    `INSERT INTO messages
+       (tenant_id, conversation_id, customer_id, external_id,
+        direction, sender, content, channel)
+     VALUES ($1, $2, $3, $4, 'inbound', 'customer', $5, 'whatsapp')
+     ON CONFLICT (tenant_id, channel, external_id)
+       WHERE external_id IS NOT NULL DO NOTHING
+     RETURNING id`,
+    [tenant.id, conversation.id, customer.id, testWamid, text]
+  );
+
   const [knowledgeChunks, history, { rows: facts }] = await Promise.all([
     knowledgeService.getRelevantChunks(tenant.id, text, 3).catch(() => []),
-    customerService.getRecentMessages(tenant.id, conversation.id),
+    customerService.getRecentMessages(tenant.id, conversation.id, inbound.id),
     db.query(
       `SELECT key, value FROM customer_memory WHERE tenant_id = $1 AND customer_id = $2 ORDER BY key`,
       [tenant.id, customer.id]
@@ -30,17 +44,6 @@ async function processMessage(tenant, customer, conversation, text) {
     tenant, customer, conversation, text, history, knowledgeChunks, facts
   );
 
-  // Store both messages so history builds up across turns
-  const testWamid = 'test_' + Date.now();
-  await db.query(
-    `INSERT INTO messages
-       (tenant_id, conversation_id, customer_id, external_id,
-        direction, sender, content, channel)
-     VALUES ($1, $2, $3, $4, 'inbound', 'customer', $5, 'whatsapp')
-     ON CONFLICT (tenant_id, channel, external_id)
-       WHERE external_id IS NOT NULL DO NOTHING`,
-    [tenant.id, conversation.id, customer.id, testWamid, text]
-  );
   await db.query(
     `INSERT INTO messages
        (tenant_id, conversation_id, customer_id, direction, sender, content, channel)

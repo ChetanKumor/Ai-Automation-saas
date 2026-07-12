@@ -230,13 +230,16 @@ async function runOneTurn(deps, tenantForBrain, customer, conversation, transcri
   const { id: tenantId } = tenantForBrain;
   const trace = traces.open({ channel: 'voice', tenantId, conversationId: conversation.id });
 
-  await db.query(
+  const { rows: [inbound] } = await db.query(
     `INSERT INTO messages (tenant_id, conversation_id, customer_id, direction, sender, content, channel, msg_type)
-     VALUES ($1, $2, $3, 'inbound', 'customer', $4, 'voice', 'text')`,
+     VALUES ($1, $2, $3, 'inbound', 'customer', $4, 'voice', 'text')
+     RETURNING id`,
     [tenantId, conversation.id, customer.id, transcript]);
 
   const { knowledgeChunks, history, facts } = await deps.assembleConversationContext({
-    tenantId, conversationId: conversation.id, customerId: customer.id, text: transcript,
+    tenantId, conversationId: conversation.id, customerId: customer.id,
+    currentMessageId: inbound.id, // V-009: exclude this turn's inbound row by id
+    text: transcript,
   });
 
   const t0 = Date.now();

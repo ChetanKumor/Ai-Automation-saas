@@ -22,8 +22,8 @@ describe('assembleConversationContext (shared context helper)', () => {
       seen.rag = { tenantId, text, topK };
       return [{ content: 'clinic hours 9-6' }];
     });
-    mock.method(customerService, 'getRecentMessages', async (tenantId, conversationId) => {
-      seen.history = { tenantId, conversationId };
+    mock.method(customerService, 'getRecentMessages', async (tenantId, conversationId, excludeMessageId) => {
+      seen.history = { tenantId, conversationId, excludeMessageId };
       return [{ sender: 'customer', content: 'hi' }];
     });
     mock.method(db, 'query', async (text, params) => {
@@ -35,6 +35,7 @@ describe('assembleConversationContext (shared context helper)', () => {
       tenantId: 'T1',
       conversationId: 'C1',
       customerId: 'U1',
+      currentMessageId: 'M1',
       text: 'what are your hours?',
     });
 
@@ -44,7 +45,8 @@ describe('assembleConversationContext (shared context helper)', () => {
 
     // RAG gets the inbound text + default topK of 3 (matches the WhatsApp path).
     assert.deepEqual(seen.rag, { tenantId: 'T1', text: 'what are your hours?', topK: 3 });
-    assert.deepEqual(seen.history, { tenantId: 'T1', conversationId: 'C1' });
+    // V-009: the current message's id is threaded to history exclusion.
+    assert.deepEqual(seen.history, { tenantId: 'T1', conversationId: 'C1', excludeMessageId: 'M1' });
     // Memory facts are tenant- AND customer-scoped, key-ordered.
     assert.match(seen.facts.text, /FROM customer_memory/);
     assert.match(seen.facts.text, /ORDER BY key/);
@@ -57,7 +59,7 @@ describe('assembleConversationContext (shared context helper)', () => {
     mock.method(db, 'query', async () => ({ rows: [{ key: 'lang', value: 'te' }] }));
 
     const out = await assembleConversationContext({
-      tenantId: 'T1', conversationId: 'C1', customerId: 'U1', text: 'hello',
+      tenantId: 'T1', conversationId: 'C1', customerId: 'U1', currentMessageId: 'M1', text: 'hello',
     });
 
     assert.deepEqual(out.knowledgeChunks, []);
@@ -71,7 +73,18 @@ describe('assembleConversationContext (shared context helper)', () => {
     mock.method(customerService, 'getRecentMessages', async () => []);
     mock.method(db, 'query', async () => ({ rows: [] }));
 
-    await assembleConversationContext({ tenantId: 'T', conversationId: 'C', customerId: 'U', text: 'x', ragTopK: 5 });
+    await assembleConversationContext({ tenantId: 'T', conversationId: 'C', customerId: 'U', currentMessageId: 'M', text: 'x', ragTopK: 5 });
     assert.equal(topKSeen, 5);
+  });
+
+  it('requires currentMessageId — throws rather than silently regressing to the positional race (V-009)', async () => {
+    mock.method(customerService, 'getRecentMessages', async () => []);
+    mock.method(knowledgeService, 'getRelevantChunks', async () => []);
+    mock.method(db, 'query', async () => ({ rows: [] }));
+
+    await assert.rejects(
+      assembleConversationContext({ tenantId: 'T', conversationId: 'C', customerId: 'U', text: 'x' }),
+      /currentMessageId is required/,
+    );
   });
 });

@@ -118,7 +118,7 @@ const handle = async (req, res) => {
     const results = await handleInbound(envelopes);
 
     // ── WA-SPECIFIC REPLY PATH (identical to previous inline logic) ──
-    for (const { envelope, customer, conversation, timerLabel: tl } of results) {
+    for (const { envelope, customer, conversation, timerLabel: tl, messageId } of results) {
       // ── NON-TEXT: stored, but no AI reply ──────────────────────────
       if (envelope.messageType !== 'text') {
         await db.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1 AND tenant_id = $2`, [conversation.id, envelope.tenantId]);
@@ -175,6 +175,7 @@ const handle = async (req, res) => {
           tenantId: envelope.tenantId,
           conversationId: conversation.id,
           customerId: customer.id,
+          currentMessageId: messageId, // V-009: exclude this turn's inbound row by id
           text: userText,
           onTiming: (name, ms) => trace.timer.record(`fetch_parallel_${name}`, ms),
         });

@@ -322,6 +322,8 @@ describe('handleInbound (channel-agnostic ingest)', () => {
     assert.equal(msg.direction, 'inbound');
     assert.equal(msg.msg_type, 'text');
     assert.equal(msg.content, 'Hello from test');
+    // V-009: the inserted row's id is threaded out for history exclusion by id.
+    assert.equal(results[0].messageId, msg.id);
 
     assert.equal(emitted.length, 1);
     assert.equal(emitted[0].payload.text, 'Hello from test');

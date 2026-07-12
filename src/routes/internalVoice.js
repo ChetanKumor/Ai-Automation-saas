@@ -185,7 +185,8 @@ async function handleTurn(req, res) {
     endHydrate();
 
     // Persist the inbound voice turn (channel='voice') BEFORE fetching history —
-    // getRecentMessages OFFSET-1's past this just-inserted row, exactly as WhatsApp does.
+    // its id (inbound.id) is threaded to getRecentMessages so history excludes this
+    // exact row by id (V-009), exactly as the WhatsApp path does.
     const endPersistIn = turn.start('persist_inbound');
     const { rows: [inbound] } = await db.query(
       `INSERT INTO messages
@@ -231,6 +232,7 @@ async function handleTurn(req, res) {
       tenantId: tenant_id,
       conversationId: conversation_id,
       customerId: customer_id,
+      currentMessageId: inbound.id, // V-009: exclude this turn's inbound row by id
       text: transcript,
       signal,
       onTiming: (name, ms) => turn.record(`fetch_parallel_${name}`, ms),
@@ -441,6 +443,7 @@ async function handleTurnSSE(req, res) {
       tenantId: tenant_id,
       conversationId: conversation_id,
       customerId: customer_id,
+      currentMessageId: inbound.id, // V-009: exclude this turn's inbound row by id
       text: transcript,
       onTiming: (name, ms) => turn.record(`fetch_parallel_${name}`, ms),
     });

@@ -11,14 +11,34 @@ const findOrCreate = async (tenantId, phone) => {
   return rows[0];
 };
 
-const getRecentMessages = async (tenantId, conversationId, limit = 10) => {
+/**
+ * Recent message history for a conversation, oldest-first, EXCLUDING the current
+ * turn's just-inserted inbound message by its id.
+ *
+ * V-009: the incumbent excluded the current message with `OFFSET 1`, which assumes
+ * the newest row IS the current one. On the shared cross-channel conversation that
+ * is a race — a WhatsApp message landing while a voice turn hydrates makes OFFSET 1
+ * drop the WRONG (concurrent) row while the current message duplicates into history.
+ * We exclude by the known inserted id instead: no OFFSET, no ordering assumption.
+ *
+ * `excludeMessageId` is REQUIRED (throws if absent) so no caller can silently
+ * regress to the positional race. Ordering/limit semantics are otherwise unchanged.
+ *
+ * @param {string} tenantId
+ * @param {string} conversationId
+ * @param {string} excludeMessageId  id of the current turn's inbound message row.
+ * @param {number} [limit=10]
+ */
+const getRecentMessages = async (tenantId, conversationId, excludeMessageId, limit = 10) => {
+  if (!excludeMessageId) {
+    throw new Error('getRecentMessages: excludeMessageId is required (V-009: exclude current message by id, not OFFSET 1)');
+  }
   const { rows } = await db.query(
     `SELECT sender, content FROM messages
-     WHERE tenant_id = $1 AND conversation_id = $2
+     WHERE tenant_id = $1 AND conversation_id = $2 AND id <> $3
      ORDER BY created_at DESC
-     OFFSET 1
-     LIMIT $3`,
-    [tenantId, conversationId, limit]
+     LIMIT $4`,
+    [tenantId, conversationId, excludeMessageId, limit]
   );
   return rows.reverse(); // oldest first for AI context
 };

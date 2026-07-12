@@ -17,7 +17,7 @@ const traces           = require('../traces/collector');
  *
  *   - knowledgeChunks : RAG chunks for `text` (best-effort; [] on failure)
  *   - history         : recent message history, oldest-first, EXCLUDING the
- *                       just-inserted inbound row (getRecentMessages OFFSET 1)
+ *                       current turn's just-inserted inbound row (by id — V-009)
  *   - facts           : the customer's long-term memory rows, key-ordered
  *                       (each row also carries updated_at so the voice channel
  *                       can cap to the most recent facts; prompt text built
@@ -32,6 +32,11 @@ const traces           = require('../traces/collector');
  * @param {string}  args.tenantId
  * @param {string}  args.conversationId
  * @param {string}  args.customerId
+ * @param {string}  args.currentMessageId  V-009: id of the current turn's inbound
+ *                                       message row, excluded from history by id
+ *                                       (not OFFSET 1). REQUIRED — every turn path
+ *                                       inserts the inbound row first and knows its
+ *                                       id; absence throws rather than racing.
  * @param {string}  args.text            The inbound user text (for RAG retrieval).
  * @param {number} [args.ragTopK=3]      Number of knowledge chunks to retrieve.
  * @param {AbortSignal} [args.signal]    Issue 29: the voice turn's combined
@@ -46,7 +51,10 @@ const traces           = require('../traces/collector');
  *                                       behavior to before.
  * @returns {Promise<{ knowledgeChunks: Array, history: Array, facts: Array }>}
  */
-async function assembleConversationContext({ tenantId, conversationId, customerId, text, ragTopK = 3, signal = null, onTiming = null }) {
+async function assembleConversationContext({ tenantId, conversationId, customerId, currentMessageId, text, ragTopK = 3, signal = null, onTiming = null }) {
+  if (!currentMessageId) {
+    throw new Error('assembleConversationContext: currentMessageId is required (V-009: history excludes the current message by id)');
+  }
   // When a timing sink is provided, measure each parallel source individually
   // (values/rejections pass through unchanged); otherwise leave promises as-is.
   const timed = (name, promise) => {
@@ -60,7 +68,7 @@ async function assembleConversationContext({ tenantId, conversationId, customerI
       logger.error({ tenantId, err: err.message }, 'RAG failed (continuing without)');
       return [];
     })),
-    timed('history', customerService.getRecentMessages(tenantId, conversationId)),
+    timed('history', customerService.getRecentMessages(tenantId, conversationId, currentMessageId)),
     timed('memory', db.query(
       `SELECT key, value, updated_at FROM customer_memory WHERE tenant_id = $1 AND customer_id = $2 ORDER BY key`,
       [tenantId, customerId]

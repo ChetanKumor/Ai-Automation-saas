@@ -71,13 +71,17 @@ async function handleInbound(envelopes) {
     );
     console.timeEnd(`${timerLabel} conversation`);
 
-    const { rowCount } = await db.query(
+    // RETURNING id yields the inserted row's UUID on a real insert (V-009: the
+    // turn path threads it to history exclusion); on an idempotency conflict the
+    // clause returns no row and rowCount is 0, exactly as before.
+    const { rowCount, rows: [inserted] } = await db.query(
       `INSERT INTO messages
          (tenant_id, conversation_id, customer_id, external_id,
           direction, sender, content, channel, msg_type, media_ref)
        VALUES ($1, $2, $3, $4, 'inbound', 'customer', $5, $6, $7, $8)
        ON CONFLICT (tenant_id, channel, external_id)
-         WHERE external_id IS NOT NULL DO NOTHING`,
+         WHERE external_id IS NOT NULL DO NOTHING
+       RETURNING id`,
       [envelope.tenantId, conversation.id, customer.id, envelope.externalId,
        envelope.text, envelope.channel, envelope.messageType, envelope.mediaRef || null]
     );
@@ -100,7 +104,7 @@ async function handleInbound(envelopes) {
       msg_type: envelope.messageType,
     });
 
-    results.push({ envelope, customer, conversation, timerLabel });
+    results.push({ envelope, customer, conversation, timerLabel, messageId: inserted.id });
   }
 
   return results;
