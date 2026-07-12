@@ -15,6 +15,8 @@ const conversationService = require('../../src/modules/conversation/conversation
 const voiceAdapter        = require('../../src/modules/channels/voice/voiceChannelAdapter');
 const turnMetrics         = require('../../src/infra/logging/turnMetrics');
 const internalVoice       = require('../../src/routes/internalVoice');
+const eventBus            = require('../../core/events');
+const EVENT               = require('../../core/eventTypes');
 
 // PR9C: the opt-in SSE turn mode through the REAL route + DB — event protocol
 // (ack/delta/done order), flag-off byte-identity, disconnect abort + partial
@@ -212,6 +214,8 @@ describe('voice turn SSE mode (PR9C)', () => {
 
   it('(1) tool turn: ack -> deltas -> done; done after outbound persistence; ack text from constants', async () => {
     const { session, conv } = await seedCall('+919000000021');
+    const messagesReceived = [];
+    const offMR = eventBus.on(EVENT.MESSAGE_RECEIVED, (e) => messagesReceived.push(e.payload));
     const date = istDateString(1);
     aiService._setModelProvider(scriptedModel(bookingScript({
       date, appointmentTime: `${date}T10:30:00+05:30`,
@@ -262,6 +266,14 @@ describe('voice turn SSE mode (PR9C)', () => {
       assert.equal(c.thinking_tokens, 0); // (6) canary
     }
     assert.deepEqual(line.tools.map((t) => t.name), ['check_availability', 'book_appointment']);
+
+    // message.received from the SSE emit site carries channel + msg_type
+    // (V-002 — the extraction policy gate reads these).
+    offMR();
+    const mr = messagesReceived.find((p) => p.conversation_id === conv.id);
+    assert.ok(mr, 'message.received emitted for the SSE voice turn');
+    assert.equal(mr.channel, 'voice');
+    assert.equal(mr.msg_type, 'text');
   });
 
   it('(2) plain turn: NO ack, deltas -> done', async () => {

@@ -94,6 +94,10 @@ async function handleInbound(envelopes) {
       message_id: envelope.externalId,
       text: envelope.text,
       mode: conversation.mode,
+      // Channel/type travel ON the event (V-002): subscribers must never infer
+      // the channel — the extraction policy gate reads these two fields.
+      channel: envelope.channel,
+      msg_type: envelope.messageType,
     });
 
     results.push({ envelope, customer, conversation, timerLabel });

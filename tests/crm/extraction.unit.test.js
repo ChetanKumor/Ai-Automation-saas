@@ -40,6 +40,29 @@ require.cache[crmPath] = {
   },
 };
 
+// ── config/tenant service stubs — the V-002 gate reads both; keep the DB
+// out of a unit test. Defaults-shaped policy (whatsapp per_message, voice
+// off) and an ai_enabled tenant, so the pre-gate tests behave as before. ──
+const configPath = require.resolve('../../src/modules/config/configService');
+require.cache[configPath] = {
+  id: configPath,
+  filename: configPath,
+  loaded: true,
+  exports: {
+    getTenantConfig: async () => ({ crm: { extraction: { whatsapp: 'per_message', voice: 'off' } } }),
+  },
+};
+
+const tenantPath = require.resolve('../../src/modules/tenant/tenantService');
+require.cache[tenantPath] = {
+  id: tenantPath,
+  filename: tenantPath,
+  loaded: true,
+  exports: {
+    getById: async () => ({ id: 'T1', ai_enabled: true }),
+  },
+};
+
 // ── logger stub — capture warn/error without pino in the way ────────────
 const loggerPath = require.resolve('../../src/infra/logging/logger');
 let warnCalls = [];
@@ -71,6 +94,8 @@ function emitMessage() {
     conversation_id: 'CV1',
     text: 'I want a 2BHK flat, budget 50 lakh',
     mode: 'ai',
+    channel: 'whatsapp',
+    msg_type: 'text',
   });
 }
 
@@ -136,5 +161,6 @@ describe('CRM extraction — generation config + truncation guard (unit)', () =>
     assert.equal(customerId, 'C1');
     assert.equal(data.name, 'Vikram');
     assert.equal(data.intent_level, 'high');
+    assert.equal(data.source, 'whatsapp', 'lead source is the envelope channel, not a hardcode');
   });
 });

@@ -1,8 +1,11 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const logger     = require('../../infra/logging/logger');
-const eventBus   = require('../../../core/events');
-const EVENT      = require('../../../core/eventTypes');
-const crmService = require('./crmService');
+const logger        = require('../../infra/logging/logger');
+const eventBus      = require('../../../core/events');
+const EVENT         = require('../../../core/eventTypes');
+const crmService    = require('./crmService');
+const configService = require('../config/configService');
+const tenantService = require('../tenant/tenantService');
+const { clinicDefaults } = require('../config/defaults');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -39,13 +42,73 @@ function hasSignal(data) {
   return data && (data.name || data.requirement || data.budget || data.intent_level);
 }
 
+// Resolve the tenant's extraction policy for a channel from the cached config
+// read (V-002). No config row, or a stale pre-schema doc missing the field,
+// falls back to clinicDefaults for that channel (whatsapp per_message, voice
+// off) with a config_fallback WARN. An unknown channel resolves to undefined
+// and is therefore skipped by the caller's per_message check.
+async function resolvePolicy(tenant_id, channel) {
+  const config = await configService.getTenantConfig(tenant_id);
+  const policy = config?.crm?.extraction?.[channel];
+  if (policy !== undefined) return policy;
+
+  const fallback = clinicDefaults.crm.extraction[channel];
+  logger.warn(
+    { scope: 'config_fallback', tenant_id, channel, policy: fallback ?? null,
+      reason: config === null ? 'no_config' : 'field_missing' },
+    'extraction policy missing from tenant config — using clinicDefaults'
+  );
+  return fallback;
+}
+
 function init() {
   eventBus.on(EVENT.MESSAGE_RECEIVED, async (envelope) => {
-    const { tenant_id, customer_id, conversation_id, text, mode } = envelope.payload;
+    const { tenant_id, customer_id, conversation_id, text, mode, channel, msg_type } = envelope.payload;
 
     if (mode === 'human') return;
 
     try {
+      // A missing msg_type is an envelope-contract violation (every emit site
+      // sets it) — same WARN visibility as a missing channel, so a future emit
+      // site that forgets it can't silently kill extraction for its channel.
+      if (msg_type === undefined) {
+        logger.warn({ tenant_id, conversation_id }, 'CRM extraction skipped: MESSAGE_RECEIVED envelope has no msg_type');
+        return;
+      }
+
+      // Only text carries extractable lead signal (Issue 3 guard).
+      if (msg_type !== 'text') {
+        logger.debug({ tenant_id, conversation_id, msg_type }, 'CRM extraction skipped: non-text message');
+        return;
+      }
+
+      // Channel comes from the envelope only — never inferred (V-002). Every
+      // emit site sets it; its absence is an envelope-contract violation.
+      if (!channel) {
+        logger.warn({ tenant_id, conversation_id }, 'CRM extraction skipped: MESSAGE_RECEIVED envelope has no channel');
+        return;
+      }
+
+      // Per-channel policy gate (V-002). Only 'per_message' runs; 'on_close'
+      // (close-triggered extraction) is a future feature and treated as skip
+      // for now, exactly like 'off'.
+      const policy = await resolvePolicy(tenant_id, channel);
+      if (policy !== 'per_message') {
+        logger.debug({ tenant_id, conversation_id, channel, policy: policy ?? null }, 'CRM extraction skipped by policy');
+        return;
+      }
+
+      // Owner's AI kill-switch applies to extraction too (Issue 3 guard).
+      // Cached read — warm on any path that just served this tenant.
+      const tenant = await tenantService.getById(tenant_id);
+      if (!tenant || !tenant.ai_enabled) {
+        logger.debug(
+          { tenant_id, conversation_id, reason: tenant ? 'ai_enabled_false' : 'tenant_unavailable' },
+          'CRM extraction skipped: ai_enabled off, or tenant inactive/missing'
+        );
+        return;
+      }
+
       const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
       const result = await model.generateContent({
         contents: [{ role: 'user', parts: [{ text: `Customer message: "${text}"` }] }],
@@ -84,7 +147,7 @@ function init() {
         requirement: data.requirement,
         budget: data.budget,
         intent_level: data.intent_level,
-        source: 'whatsapp',
+        source: channel, // the envelope's channel — never hardcoded (V-002)
       });
 
       if (!lead) return;

@@ -55,6 +55,26 @@ const getByPhoneNumberId = async (phoneNumberId) => {
   return rows[0];
 };
 
+// Cached tenant lookup by tenant id. Rides the same phone_number_id-keyed
+// cache: a warm entry (the webhook/voice path just resolved this tenant) is
+// found by scanning row.id — zero DB queries, same scan invalidateTenantCache
+// uses. A miss falls back to the existing id → phone_number_id two-step
+// (adapter.send / internalVoice pattern), which warms the cache for next time.
+const getById = async (tenantId) => {
+  if (!tenantId) return null;
+
+  for (const row of cache.values()) {
+    if (row.id === tenantId) return row;
+  }
+
+  const { rows: [t] } = await db.query(
+    'SELECT phone_number_id FROM tenants WHERE id = $1 AND active = true',
+    [tenantId]
+  );
+  if (!t || !t.phone_number_id) return null;
+  return getByPhoneNumberId(t.phone_number_id);
+};
+
 // Evict a single key's cache entry and its expiry timer. Safe if absent.
 function evictKey(phoneNumberId) {
   const handle = timers.get(phoneNumberId);
@@ -134,4 +154,4 @@ async function insertTenant(runner, fields = {}) {
   return rows[0];
 }
 
-module.exports = { getByPhoneNumberId, invalidateTenantCache, stop, insertTenant };
+module.exports = { getByPhoneNumberId, getById, invalidateTenantCache, stop, insertTenant };

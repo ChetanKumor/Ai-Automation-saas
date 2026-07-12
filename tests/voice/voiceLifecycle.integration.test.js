@@ -177,15 +177,18 @@ describe('PR7 voice lifecycle — identity, turn-from-session, event parity', ()
 
     const ev = received.find((p) => p.conversation_id === start.json.conversation_id);
     assert.ok(ev, 'voice turn emitted message.received');
-    // Same payload keys handleInbound emits for a WhatsApp inbound message.
+    // Same payload keys handleInbound emits for a WhatsApp inbound message
+    // (channel + msg_type ride the event since Issue 30 / V-002).
     assert.deepEqual(
       Object.keys(ev).sort(),
-      ['conversation_id', 'customer_id', 'message_id', 'mode', 'tenant_id', 'text'].sort()
+      ['channel', 'conversation_id', 'customer_id', 'message_id', 'mode', 'msg_type', 'tenant_id', 'text'].sort()
     );
     assert.equal(ev.tenant_id, TENANT_ID);
     assert.equal(ev.customer_id, start.json.customer_id);
     assert.equal(ev.text, 'Do you have appointments today?');
     assert.equal(ev.mode, 'ai');
+    assert.equal(ev.channel, 'voice');
+    assert.equal(ev.msg_type, 'text');
   });
 
   it('call/end: closes the session (completed) and emits call.ended', async () => {

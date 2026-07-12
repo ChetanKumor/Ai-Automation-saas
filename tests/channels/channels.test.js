@@ -325,6 +325,9 @@ describe('handleInbound (channel-agnostic ingest)', () => {
 
     assert.equal(emitted.length, 1);
     assert.equal(emitted[0].payload.text, 'Hello from test');
+    // V-002: channel + msg_type ride the event from this emit site.
+    assert.equal(emitted[0].payload.channel, 'whatsapp');
+    assert.equal(emitted[0].payload.msg_type, 'text');
   });
 
   it('duplicate externalId is skipped (dedup)', async () => {
