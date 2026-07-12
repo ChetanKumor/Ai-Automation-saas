@@ -60,6 +60,7 @@ let baseUrl;
 let knowledgeMock;
 const started = [];
 const ended = [];
+const messagesReceived = [];
 
 async function cleanup() {
   await db.query('DELETE FROM messages WHERE tenant_id = $1', [TENANT_ID]);
@@ -118,6 +119,7 @@ describe('Voice turn → existing brain (the PR6 proof; no telephony, no audio)'
 
     eventBus.on(EVENT.CALL_STARTED, (e) => started.push(e.payload));
     eventBus.on(EVENT.CALL_ENDED, (e) => ended.push(e.payload));
+    eventBus.on(EVENT.MESSAGE_RECEIVED, (e) => messagesReceived.push(e.payload));
 
     const app = express();
     app.use('/internal/voice', require('../../src/routes/internalVoice'));
@@ -197,6 +199,14 @@ describe('Voice turn → existing brain (the PR6 proof; no telephony, no audio)'
     // 7. call.started / call.ended emitted on the existing bus for this session.
     assert.ok(started.find((p) => p.call_session_id === session.id), 'call.started emitted');
     assert.ok(ended.find((p) => p.call_session_id === session.id && p.status === 'completed'), 'call.ended emitted');
+
+    // 8. message.received from the JSON-turn emit site carries channel +
+    //    msg_type (V-002 — the extraction policy gate reads these).
+    const mr = messagesReceived.find((p) => p.conversation_id === conv.id);
+    assert.ok(mr, 'message.received emitted for the voice turn');
+    assert.equal(mr.channel, 'voice');
+    assert.equal(mr.msg_type, 'text');
+    assert.equal(mr.text, transcript);
   }
 
   it('Telugu "book appointment" transcript books via the same tool/guards', async () => {

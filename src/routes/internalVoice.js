@@ -208,6 +208,9 @@ async function handleTurn(req, res) {
       message_id: inbound.id,
       text: transcript,
       mode: conversation.mode,
+      // Channel/type on the event (V-002) — mirrors the row just inserted.
+      channel: 'voice',
+      msg_type: 'text',
     });
 
     // Same mode/ai_enabled gate as the WhatsApp path.
@@ -416,6 +419,9 @@ async function handleTurnSSE(req, res) {
       message_id: inbound.id,
       text: transcript,
       mode: conversation.mode,
+      // Channel/type on the event (V-002) — mirrors the row just inserted.
+      channel: 'voice',
+      msg_type: 'text',
     });
 
     // Same mode/ai_enabled gate as the JSON branch — expressed as an SSE turn

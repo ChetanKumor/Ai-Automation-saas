@@ -96,7 +96,7 @@ const toolsSchema = z.object({
 const crmSchema = z.object({
   extraction: z.object({
     whatsapp: z.enum(['per_message', 'off']).default('per_message'),      // when to run CRM extraction on WhatsApp messages
-    voice: z.enum(['per_message', 'on_close', 'off']).default('off'),     // voice extraction — OFF by default (per-utterance burns a Gemini call, Issue 3)
+    voice: z.enum(['per_message', 'on_close', 'off']).default('off'),     // voice extraction — OFF by default (per-utterance burns a Gemini call, Issue 3); 'on_close' is accepted but enforced as skip for now — close-triggered extraction is a future feature (Issue 30)
   }).strict(),
 }).strict();
 
