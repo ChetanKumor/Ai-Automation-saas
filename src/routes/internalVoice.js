@@ -632,7 +632,7 @@ async function handleCallEnd(req, res) {
 
   try {
     const { rows: [row] } = await db.query(
-      'SELECT tenant_id FROM call_sessions WHERE id = $1', [call_session_id]
+      'SELECT tenant_id, status FROM call_sessions WHERE id = $1', [call_session_id]
     );
     if (!row) return res.status(404).json({ error: 'call session not found' });
 
@@ -640,7 +640,19 @@ async function handleCallEnd(req, res) {
       status,
       durationSeconds: d,
     });
-    if (!session) return res.status(404).json({ error: 'call session not found' });
+
+    // Terminal-transition guard (V-004): the row exists (SELECT above) but the
+    // UPDATE touched nothing → the session was already terminal. This is an
+    // idempotent no-op: respond 200, do NOT re-emit call.ended, leave the
+    // recorded status/duration untouched. A duplicate or late call/end (worker
+    // restart mid-teardown, retried delivery) lands here.
+    if (!session) {
+      logger.debug(
+        { call_session_id, from: row.status, to: status },
+        'internal voice call/end: no-op (session already terminal)'
+      );
+      return res.json({ ok: true });
+    }
 
     return res.json({ ok: true });
   } catch (err) {

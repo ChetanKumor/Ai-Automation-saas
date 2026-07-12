@@ -37,8 +37,16 @@ async function create({
 }
 
 /**
- * Update a call session. Only provided fields change (COALESCE). Tenant-scoped.
- * @returns {Promise<Object|null>} the updated row, or null if not found
+ * Terminal-transition guard (V-004). A call_session leaves 'in_progress' exactly
+ * once: in_progress → completed | failed. The guard is the SQL itself
+ * (WHERE status = 'in_progress'), so it is atomic under concurrency — two
+ * parallel call/end deliveries race in the database and exactly one wins the
+ * UPDATE. Only provided fields change (COALESCE). Tenant-scoped.
+ *
+ * @returns {Promise<Object|null>} the updated row, or null when nothing was
+ *   updated — i.e. the session is unknown/wrong-tenant OR already terminal
+ *   (the caller distinguishes these; a terminal row must NOT be re-emitted or
+ *   have its duration overwritten).
  */
 async function updateStatus(id, tenantId, {
   status = null,
@@ -54,7 +62,7 @@ async function updateStatus(id, tenantId, {
        duration_seconds  = COALESCE($5, duration_seconds),
        recording_url     = COALESCE($6, recording_url),
        language_detected = COALESCE($7, language_detected)
-     WHERE id = $1 AND tenant_id = $2
+     WHERE id = $1 AND tenant_id = $2 AND status = 'in_progress'
      RETURNING *`,
     [id, tenantId, status, endedAt, durationSeconds, recordingUrl, languageDetected]
   );

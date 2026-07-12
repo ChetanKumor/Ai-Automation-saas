@@ -61,7 +61,10 @@ async function startSession({
 
 /**
  * End a call: mark the call_session completed (or failed) and emit call.ended.
- * @returns {Promise<Object|null>} the updated row
+ * The terminal-transition guard lives in callSessions.updateStatus (V-004): a
+ * null return means no transition happened (already terminal) — so call.ended
+ * fires only on an ACTUAL transition, exactly once per call.
+ * @returns {Promise<Object|null>} the updated row, or null if no transition
  */
 async function endSession(callSessionId, tenantId, {
   status = 'completed',
@@ -72,8 +75,10 @@ async function endSession(callSessionId, tenantId, {
   const session = await callSessions.updateStatus(callSessionId, tenantId, {
     status, endedAt: new Date(), durationSeconds, recordingUrl, languageDetected,
   });
-  if (session) voiceEvents.emitCallEnded(session);
-  logger.info({ callSessionId, tenantId }, 'voice call ended');
+  if (session) {
+    voiceEvents.emitCallEnded(session);
+    logger.info({ callSessionId, tenantId }, 'voice call ended');
+  }
   return session;
 }
 

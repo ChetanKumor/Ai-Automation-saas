@@ -279,4 +279,71 @@ describe('PR7 voice lifecycle — identity, turn-from-session, event parity', ()
     });
     assert.equal(res.status, 404);
   });
+
+  // V-004: terminal states are immutable and call/end is idempotent — exactly
+  // one terminal transition and exactly one call.ended emission, ever.
+  it('call/end (V-004): double end → one transition, one emission, duration immutable', async () => {
+    const caller = '+919000000710';
+    const start = await signedPost('/call/start', { tenant_id: TENANT_ID, caller_id: caller, channel: 'voice' });
+    const id = start.json.call_session_id;
+
+    const first = await signedPost('/call/end', { call_session_id: id, status: 'completed', duration_seconds: 42 });
+    await tick();
+    assert.equal(first.status, 200);
+    assert.equal(ended.filter((p) => p.call_session_id === id).length, 1, 'one call.ended after first end');
+
+    // Second end: different status + duration, must be a 200 no-op that changes nothing.
+    const second = await signedPost('/call/end', { call_session_id: id, status: 'failed', duration_seconds: 7 });
+    await tick();
+    assert.equal(second.status, 200);
+    assert.equal(second.json.ok, true);
+    assert.equal(ended.filter((p) => p.call_session_id === id).length, 1, 'no second call.ended');
+
+    const closed = await callSessions.get(id, TENANT_ID);
+    assert.equal(closed.status, 'completed');       // not flipped to failed
+    assert.equal(closed.duration_seconds, 42);      // not overwritten to 7
+  });
+
+  it('call/end (V-004): failed→completed is blocked (terminal is immutable)', async () => {
+    const caller = '+919000000711';
+    const start = await signedPost('/call/start', { tenant_id: TENANT_ID, caller_id: caller, channel: 'voice' });
+    const id = start.json.call_session_id;
+
+    await signedPost('/call/end', { call_session_id: id, status: 'failed', duration_seconds: 3 });
+    await tick();
+    const emissionsAfterFail = ended.filter((p) => p.call_session_id === id).length;
+    assert.equal(emissionsAfterFail, 1);
+
+    const retry = await signedPost('/call/end', { call_session_id: id, status: 'completed', duration_seconds: 99 });
+    await tick();
+    assert.equal(retry.status, 200);
+    assert.equal(ended.filter((p) => p.call_session_id === id).length, 1, 'no extra call.ended');
+
+    const closed = await callSessions.get(id, TENANT_ID);
+    assert.equal(closed.status, 'failed');          // not flipped to completed
+    assert.equal(closed.duration_seconds, 3);       // not overwritten to 99
+  });
+
+  it('call/end (V-004): concurrent double end → exactly one transition + emission', async () => {
+    const caller = '+919000000712';
+    const start = await signedPost('/call/start', { tenant_id: TENANT_ID, caller_id: caller, channel: 'voice' });
+    const id = start.json.call_session_id;
+
+    // Two parallel deliveries race in the DB; the guard lets exactly one win.
+    const [a, b] = await Promise.all([
+      signedPost('/call/end', { call_session_id: id, status: 'completed', duration_seconds: 30 }),
+      signedPost('/call/end', { call_session_id: id, status: 'failed', duration_seconds: 5 }),
+    ]);
+    await tick();
+
+    assert.equal(a.status, 200);
+    assert.equal(b.status, 200);
+    assert.equal(ended.filter((p) => p.call_session_id === id).length, 1, 'exactly one call.ended under concurrency');
+
+    const closed = await callSessions.get(id, TENANT_ID);
+    assert.ok(['completed', 'failed'].includes(closed.status));
+    // Whichever delivery won, the row is internally consistent (its status pairs
+    // with its own duration — never a torn mix of the two racers).
+    assert.equal(closed.duration_seconds, closed.status === 'completed' ? 30 : 5);
+  });
 });
