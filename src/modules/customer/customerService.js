@@ -1,12 +1,14 @@
 const db = require('../../db/db');
+const { normalizePhone } = require('../../utils/phone');
 
 const findOrCreate = async (tenantId, phone) => {
+  const canonical = normalizePhone(phone);
   const { rows } = await db.query(
     `INSERT INTO customers (tenant_id, phone, last_seen_at)
      VALUES ($1, $2, NOW())
      ON CONFLICT (tenant_id, phone) DO UPDATE SET last_seen_at = NOW()
      RETURNING *`,
-    [tenantId, phone]
+    [tenantId, canonical]
   );
   return rows[0];
 };

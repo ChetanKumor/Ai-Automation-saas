@@ -36,11 +36,9 @@ const { checkScriptedTurn } = require('./scriptedTurnCheck');
 const { decrypt } = require('../../utils/encryption');
 const requestContext = require('../../core/requestContext');
 const logger = require('../../infra/logging/logger');
+const { E164_RE } = require('../../utils/phone');
 
 const SERVICE_VERSION = '1.0.0';
-
-// E.164: leading '+', a non-zero country digit, then up to 14 more digits.
-const E164_RE = /^\+[1-9]\d{1,14}$/;
 
 // Estimated system-prompt token budgets, per channel. Over budget → WARN
 // (never a fail): a fat prompt is a cost/latency smell, not a correctness bug.

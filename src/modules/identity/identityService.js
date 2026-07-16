@@ -4,6 +4,7 @@ const db        = require('../../db/db');
 const eventBus  = require('../../../core/events');
 const EVENT     = require('../../../core/eventTypes');
 const logger    = require('../../infra/logging/logger');
+const { normalizePhone } = require('../../utils/phone');
 
 const CHANNEL_TYPES = Object.freeze(['whatsapp', 'voice', 'sms', 'email', 'instagram']);
 const PHONE_CHANNELS = new Set(['whatsapp', 'voice', 'sms']);
@@ -17,6 +18,13 @@ function validateChannelType(channelType) {
 async function resolveCustomer({ tenantId, channelType, identifier, profile }) {
   validateChannelType(channelType);
 
+  // Normalize phone identifiers to E.164 before any DB operation so the same
+  // physical number always maps to the same row regardless of how it arrived
+  // (WhatsApp wa_id = bare digits; voice caller_id = +CC...).
+  const canonical = PHONE_CHANNELS.has(channelType)
+    ? normalizePhone(identifier)
+    : identifier;
+
   // 1. Direct lookup via channel_identifiers
   const { rows: ciRows } = await db.query(
     `SELECT ci.customer_id, c.*
@@ -25,7 +33,7 @@ async function resolveCustomer({ tenantId, channelType, identifier, profile }) {
      WHERE ci.tenant_id = $1
        AND ci.channel_type = $2
        AND ci.identifier = $3`,
-    [tenantId, channelType, identifier]
+    [tenantId, channelType, canonical]
   );
 
   if (ciRows.length > 0) {
@@ -43,12 +51,12 @@ async function resolveCustomer({ tenantId, channelType, identifier, profile }) {
        WHERE tenant_id = $1 AND phone = $2
        ORDER BY id
        LIMIT 1`,
-      [tenantId, identifier]
+      [tenantId, canonical]
     );
 
     if (phoneRows.length > 1) {
       logger.warn(
-        { tenantId, phone: identifier },
+        { tenantId, phone: canonical },
         'multiple customers found for phone — using oldest'
       );
     }
@@ -60,7 +68,7 @@ async function resolveCustomer({ tenantId, channelType, identifier, profile }) {
         `INSERT INTO channel_identifiers (tenant_id, customer_id, channel_type, identifier)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (tenant_id, channel_type, identifier) DO NOTHING`,
-        [tenantId, customer.id, channelType, identifier]
+        [tenantId, customer.id, channelType, canonical]
       );
 
       await db.query(
@@ -72,7 +80,7 @@ async function resolveCustomer({ tenantId, channelType, identifier, profile }) {
         tenant_id: tenantId,
         customer_id: customer.id,
         channel_type: channelType,
-        identifier,
+        identifier: canonical,
       });
 
       return customer;
@@ -96,14 +104,14 @@ async function resolveCustomer({ tenantId, channelType, identifier, profile }) {
        VALUES ($1, $2, $3, NOW())
        ON CONFLICT (tenant_id, phone) DO UPDATE SET last_seen_at = NOW()
        RETURNING *`,
-      [tenantId, identifier, profile?.name || null]
+      [tenantId, canonical, profile?.name || null]
     );
 
     const { rowCount: ciInserted } = await client.query(
       `INSERT INTO channel_identifiers (tenant_id, customer_id, channel_type, identifier)
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (tenant_id, channel_type, identifier) DO NOTHING`,
-      [tenantId, newCustomer.id, channelType, identifier]
+      [tenantId, newCustomer.id, channelType, canonical]
     );
 
     if (ciInserted === 0) {
@@ -115,7 +123,7 @@ async function resolveCustomer({ tenantId, channelType, identifier, profile }) {
          WHERE ci.tenant_id = $1
            AND ci.channel_type = $2
            AND ci.identifier = $3`,
-        [tenantId, channelType, identifier]
+        [tenantId, channelType, canonical]
       );
 
       return winner;
@@ -127,7 +135,7 @@ async function resolveCustomer({ tenantId, channelType, identifier, profile }) {
       tenant_id: tenantId,
       customer_id: newCustomer.id,
       channel_type: channelType,
-      identifier,
+      identifier: canonical,
     });
 
     return newCustomer;

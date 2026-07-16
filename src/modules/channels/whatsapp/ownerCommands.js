@@ -2,14 +2,13 @@ const db                  = require('../../../db/db');
 const logger              = require('../../../infra/logging/logger');
 const sender              = require('./sender');
 const conversationService = require('../../conversation/conversationService');
+const { normalizePhone }  = require('../../../utils/phone');
 
 const HELP_TEXT = `Zyon Admin Commands:
 TAKEOVER <phone> — take over a conversation
 STATUS — see active handoffs
 MSG <text> — send message to active customer
 DONE — return conversation to AI`;
-
-const normalize = (phone) => phone?.replace(/\D/g, '') || '';
 
 const handle = async (tenant, from, userText) => {
   const text = userText.trim();
@@ -46,9 +45,11 @@ const handle = async (tenant, from, userText) => {
 
 async function handleTakeover(tenant, ownerPhone, text) {
   const rawPhone = text.slice('TAKEOVER '.length).trim();
-  const customerPhone = normalize(rawPhone);
-  if (!customerPhone) {
-    return reply(tenant, ownerPhone, '❌ Usage: TAKEOVER <phone number>');
+  let customerPhone;
+  try {
+    customerPhone = normalizePhone(rawPhone);
+  } catch {
+    return reply(tenant, ownerPhone, '❌ Invalid phone number. Use E.164 format (e.g. +919999999999)');
   }
 
   // Auto-release previous handoff so it doesn't stay stuck in human mode
@@ -103,7 +104,7 @@ async function handleTakeover(tenant, ownerPhone, text) {
   );
 
   await reply(tenant, ownerPhone,
-    `✅ You're now handling +${customerPhone}.\nTheir messages will forward to you.\nReply: MSG <text> to respond to them.\nType DONE when you want AI to resume.`
+    `✅ You're now handling ${customerPhone}.\nTheir messages will forward to you.\nReply: MSG <text> to respond to them.\nType DONE when you want AI to resume.`
   );
   logger.info({ tenantId: tenant.id, customerPhone }, 'TAKEOVER: owner took over');
 }
@@ -210,7 +211,7 @@ async function handleStatus(tenant, ownerPhone) {
     const since = new Date(r.updated_at).toLocaleTimeString('en-IN', {
       hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata'
     });
-    return `• +${r.phone} (since ${since})`;
+    return `• ${r.phone} (since ${since})`;
   });
 
   await reply(tenant, ownerPhone, `Active handoffs:\n${lines.join('\n')}`);

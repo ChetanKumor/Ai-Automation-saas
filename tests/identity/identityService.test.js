@@ -80,7 +80,7 @@ describe('Identity Service', () => {
 
     assert.ok(customer.id, 'should return a customer with id');
     assert.equal(customer.tenant_id, TENANT_A);
-    assert.equal(customer.phone, '919876543210');
+    assert.equal(customer.phone, '+919876543210');
     assert.equal(customer.name, 'Test User');
 
     assert.equal(emitted.length, 1, 'should emit customer.created');
@@ -88,7 +88,7 @@ describe('Identity Service', () => {
 
     const { rows: ciRows } = await db.query(
       'SELECT * FROM channel_identifiers WHERE tenant_id = $1 AND identifier = $2',
-      [TENANT_A, '919876543210']
+      [TENANT_A, '+919876543210']
     );
     assert.equal(ciRows.length, 1, 'should create channel_identifier');
     assert.equal(ciRows[0].channel_type, 'whatsapp');
@@ -232,13 +232,13 @@ describe('Identity Service', () => {
 
     const { rows: customers } = await db.query(
       'SELECT * FROM customers WHERE tenant_id = $1 AND phone = $2',
-      [TENANT_A, phone]
+      [TENANT_A, '+' + phone]
     );
     // May be 1 or 2 customer rows (the second racer might create before the CI conflict),
     // but the channel_identifier should resolve to exactly one
     const { rows: ciRows } = await db.query(
       'SELECT DISTINCT customer_id FROM channel_identifiers WHERE tenant_id = $1 AND channel_type = $2 AND identifier = $3',
-      [TENANT_A, 'whatsapp', phone]
+      [TENANT_A, 'whatsapp', '+' + phone]
     );
     assert.equal(ciRows.length, 1, 'should have exactly one channel_identifier');
   });
@@ -282,7 +282,7 @@ describe('Identity Service', () => {
 
     const { rows: before } = await db.query(
       'SELECT COUNT(*)::int AS cnt FROM channel_identifiers WHERE tenant_id = $1 AND identifier = $2',
-      [TENANT_A, '914444444444']
+      [TENANT_A, '+914444444444']
     );
 
     // Run again — should be idempotent
@@ -300,7 +300,7 @@ describe('Identity Service', () => {
 
     const { rows: afterRun } = await db.query(
       'SELECT COUNT(*)::int AS cnt FROM channel_identifiers WHERE tenant_id = $1 AND identifier = $2',
-      [TENANT_A, '914444444444']
+      [TENANT_A, '+914444444444']
     );
 
     assert.equal(before[0].cnt, afterRun[0].cnt, 'backfill should be idempotent');
@@ -315,7 +315,7 @@ describe('Identity Service', () => {
       env.IDENTITY_RESOLUTION_ENABLED = false;
       const customer = await customerService.findOrCreate(TENANT_A, phone);
       assert.ok(customer.id);
-      assert.equal(customer.phone, phone);
+      assert.equal(customer.phone, '+' + phone);
     } finally {
       env.IDENTITY_RESOLUTION_ENABLED = saved;
     }
@@ -336,12 +336,12 @@ describe('Identity Service', () => {
       });
 
       assert.ok(customer.id);
-      assert.equal(customer.phone, phone);
+      assert.equal(customer.phone, '+' + phone);
       assert.equal(customer.name, 'Flag Test');
 
       const { rows } = await db.query(
         'SELECT * FROM channel_identifiers WHERE tenant_id = $1 AND identifier = $2',
-        [TENANT_A, phone]
+        [TENANT_A, '+' + phone]
       );
       assert.equal(rows.length, 1, 'should create channel_identifier via identity path');
     } finally {
