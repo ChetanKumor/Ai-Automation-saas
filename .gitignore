@@ -154,3 +154,7 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 >>>>>>> 1a7b8f062315057373a66493f1d7fd96cc85c01b
+
+# Database dump artifacts (never commit)
+backups/
+*.dump
