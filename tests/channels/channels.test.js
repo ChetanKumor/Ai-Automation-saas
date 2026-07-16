@@ -141,7 +141,7 @@ describe('WA adapter parseInbound', () => {
   it('text message produces correct envelope', () => {
     const waValue = {
       metadata: { phone_number_id: 'pnid_test' },
-      contacts: [{ profile: { name: 'Test User' } }],
+      contacts: [{ wa_id: '919876543210', profile: { name: 'Test User' } }],
       messages: [{
         id: 'wamid_text_123',
         from: '919876543210',
@@ -287,7 +287,6 @@ describe('handleInbound (channel-agnostic ingest)', () => {
 
   after(async () => {
     await cleanup();
-    await db.close();
   });
 
   it('stores inbound text and emits message.received', async () => {
@@ -456,5 +455,132 @@ describe('Status callbacks handled as before', () => {
     };
     const envelopes = waAdapter.parseInbound(waValue, TENANT_ID);
     assert.equal(envelopes.length, 0);
+  });
+});
+
+// ── F-005: parseInbound multi-message (RED before fix) ─────────────
+
+describe('parseInbound multi-message (F-005)', () => {
+  const waAdapter = require('../../src/modules/channels/whatsapp/adapter');
+
+  it('two messages in one value → two envelopes', () => {
+    const waValue = {
+      contacts: [{ wa_id: '919876543210', profile: { name: 'Alice' } }],
+      messages: [
+        { id: 'wamid_multi_a', from: '919876543210', type: 'text', text: { body: 'First' } },
+        { id: 'wamid_multi_b', from: '919876543210', type: 'text', text: { body: 'Second' } },
+      ],
+    };
+    const envelopes = waAdapter.parseInbound(waValue, TENANT_ID);
+    assert.equal(envelopes.length, 2, 'both messages should produce envelopes');
+    assert.equal(envelopes[0].externalId, 'wamid_multi_a');
+    assert.equal(envelopes[0].text, 'First');
+    assert.equal(envelopes[1].externalId, 'wamid_multi_b');
+    assert.equal(envelopes[1].text, 'Second');
+  });
+
+  it('malformed second message (null text body) → only first returned', () => {
+    const waValue = {
+      messages: [
+        { id: 'wamid_good', from: '919876543210', type: 'text', text: { body: 'Good' } },
+        { id: 'wamid_bad',  from: '919876543210', type: 'text', text: {} },
+      ],
+    };
+    const envelopes = waAdapter.parseInbound(waValue, TENANT_ID);
+    assert.equal(envelopes.length, 1, 'null-text message should be skipped, good message kept');
+    assert.equal(envelopes[0].externalId, 'wamid_good');
+  });
+
+  it('different senders in one value → both envelopes with correct identifier', () => {
+    const waValue = {
+      contacts: [
+        { wa_id: '919876543210', profile: { name: 'Alice' } },
+        { wa_id: '919999999999', profile: { name: 'Bob' } },
+      ],
+      messages: [
+        { id: 'wamid_alice', from: '919876543210', type: 'text', text: { body: 'Hi from Alice' } },
+        { id: 'wamid_bob',   from: '919999999999', type: 'text', text: { body: 'Hi from Bob' } },
+      ],
+    };
+    const envelopes = waAdapter.parseInbound(waValue, TENANT_ID);
+    assert.equal(envelopes.length, 2);
+    assert.equal(envelopes[0].identifier, '919876543210');
+    assert.equal(envelopes[1].identifier, '919999999999');
+  });
+
+  it('three messages in value → three envelopes in order', () => {
+    const waValue = {
+      messages: [
+        { id: 'wamid_1', from: '919876543210', type: 'text', text: { body: 'One' } },
+        { id: 'wamid_2', from: '919876543210', type: 'audio', audio: { id: 'aud_1' } },
+        { id: 'wamid_3', from: '919876543210', type: 'image', image: { id: 'img_1', caption: 'Photo' } },
+      ],
+    };
+    const envelopes = waAdapter.parseInbound(waValue, TENANT_ID);
+    assert.equal(envelopes.length, 3);
+    assert.equal(envelopes[0].messageType, 'text');
+    assert.equal(envelopes[1].messageType, 'audio');
+    assert.equal(envelopes[2].messageType, 'image');
+  });
+});
+
+// ── F-005: handleInbound batch isolation (RED before fix) ──────────
+
+describe('handleInbound batch error isolation (F-005)', () => {
+  const { handleInbound } = require('../../src/modules/channels');
+
+  const ISO_TENANT_ID = '00000000-0000-0000-0000-cccccccc0002';
+
+  before(async () => {
+    await db.query(
+      `INSERT INTO tenants (id, business_name, phone_number_id, active, ai_enabled)
+       VALUES ($1, 'Isolation Test Clinic', 'pnid_iso_test', true, true)
+       ON CONFLICT (id) DO NOTHING`,
+      [ISO_TENANT_ID]
+    );
+  });
+
+  after(async () => {
+    await db.query('DELETE FROM messages     WHERE tenant_id = $1', [ISO_TENANT_ID]);
+    await db.query('DELETE FROM conversations WHERE tenant_id = $1', [ISO_TENANT_ID]);
+    await db.query('DELETE FROM channel_identifiers WHERE tenant_id = $1', [ISO_TENANT_ID]);
+    await db.query('DELETE FROM customers    WHERE tenant_id = $1', [ISO_TENANT_ID]);
+    await db.query('DELETE FROM tenants      WHERE id = $1', [ISO_TENANT_ID]);
+    await db.close();
+  });
+
+  it('bad envelope (null identifier) does not abort good envelope in same batch', async () => {
+    const good = {
+      tenantId: ISO_TENANT_ID,
+      channel: 'whatsapp',
+      direction: 'inbound',
+      identifier: '919100000010',
+      externalId: 'wamid_iso_good_001',
+      messageType: 'text',
+      text: 'I am the good one',
+      mediaRef: null,
+      timestamp: Date.now(),
+    };
+    const bad = {
+      tenantId: ISO_TENANT_ID,
+      channel: 'whatsapp',
+      direction: 'inbound',
+      identifier: null,           // null phone → NOT NULL constraint violation
+      externalId: 'wamid_iso_bad_001',
+      messageType: 'text',
+      text: 'I am broken',
+      mediaRef: null,
+      timestamp: Date.now(),
+    };
+
+    // bad is first; currently throws and good is never processed
+    const results = await handleInbound([bad, good]);
+
+    const { rows } = await db.query(
+      `SELECT external_id FROM messages WHERE tenant_id = $1 AND external_id = $2`,
+      [ISO_TENANT_ID, 'wamid_iso_good_001']
+    );
+    assert.equal(rows.length, 1, 'good message should be stored even though bad message failed');
+    assert.equal(results.length, 1, 'results should contain only the good envelope');
   });
 });

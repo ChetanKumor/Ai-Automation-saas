@@ -44,26 +44,31 @@ function verifyWebhook(req) {
 }
 
 function parseInbound(waValue, tenantId) {
-  const msg = waValue.messages?.[0];
-  if (!msg) return [];
+  const messages = waValue.messages;
+  if (!messages || !messages.length) return [];
 
-  const extracted = extractMessageContent(msg);
-  if (!extracted) return [];
+  const contacts = waValue.contacts || [];
 
-  const waProfileName = waValue.contacts?.[0]?.profile?.name || null;
+  return messages.map(msg => {
+    const extracted = extractMessageContent(msg);
+    if (!extracted) return null;
 
-  return [{
-    tenantId,
-    channel: 'whatsapp',
-    direction: 'inbound',
-    identifier: msg.from,
-    externalId: msg.id,
-    messageType: extracted.msgType,
-    text: extracted.content,
-    mediaRef: extracted.mediaRef,
-    profile: waProfileName ? { name: waProfileName } : undefined,
-    timestamp: Date.now(),
-  }];
+    const contact      = contacts.find(c => c.wa_id === msg.from);
+    const profileName  = contact?.profile?.name || null;
+
+    return {
+      tenantId,
+      channel: 'whatsapp',
+      direction: 'inbound',
+      identifier: msg.from,
+      externalId: msg.id,
+      messageType: extracted.msgType,
+      text: extracted.content,
+      mediaRef: extracted.mediaRef,
+      profile: profileName ? { name: profileName } : undefined,
+      timestamp: Date.now(),
+    };
+  }).filter(Boolean);
 }
 
 async function send({ tenantId, customerId, payload }) {
