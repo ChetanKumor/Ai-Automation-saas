@@ -159,13 +159,9 @@ async function handleTurn(req, res) {
       return res.status(409).json({ error: 'call session not bridged to a customer/conversation' });
     }
 
-    // Hydrate tenant (decrypted creds + cache) — same pattern as the WhatsApp adapter.
-    const { rows: [t] } = await db.query(
-      'SELECT phone_number_id FROM tenants WHERE id = $1 AND active = true', [tenant_id]
-    );
-    if (!t) return res.status(404).json({ error: 'tenant not found' });
-    const tenant = await tenantService.getByPhoneNumberId(t.phone_number_id);
-    if (!tenant) return res.status(404).json({ error: 'tenant credentials not found' });
+    // Hydrate tenant by id — supports voice-only tenants (phone_number_id NULL).
+    const tenant = await tenantService.getById(tenant_id);
+    if (!tenant) return res.status(404).json({ error: 'tenant not found' });
 
     // Validate the customer + conversation belong to this tenant.
     const { rows: [customer] } = await db.query(
@@ -382,12 +378,9 @@ async function handleTurnSSE(req, res) {
       return res.status(409).json({ error: 'call session not bridged to a customer/conversation' });
     }
 
-    const { rows: [t] } = await db.query(
-      'SELECT phone_number_id FROM tenants WHERE id = $1 AND active = true', [tenant_id]
-    );
-    if (!t) return res.status(404).json({ error: 'tenant not found' });
-    const tenant = await tenantService.getByPhoneNumberId(t.phone_number_id);
-    if (!tenant) return res.status(404).json({ error: 'tenant credentials not found' });
+    // Hydrate tenant by id — supports voice-only tenants (phone_number_id NULL).
+    const tenant = await tenantService.getById(tenant_id);
+    if (!tenant) return res.status(404).json({ error: 'tenant not found' });
 
     const { rows: [customer] } = await db.query(
       'SELECT * FROM customers WHERE id = $1 AND tenant_id = $2', [customer_id, tenant_id]

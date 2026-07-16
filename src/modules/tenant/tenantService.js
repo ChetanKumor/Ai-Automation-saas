@@ -9,8 +9,11 @@ const logger = require('../../infra/logging/logger');
 // Railway instance). invalidateTenantCache() evicts *this* process's copy only
 // — there is no cross-instance fan-out. Multi-instance invalidation is
 // explicitly out of scope; revisit if we ever scale horizontally.
-const cache = new Map();   // phone_number_id -> tenant row (with decrypted wa_token)
-const timers = new Map();  // phone_number_id -> expiry Timeout handle
+// Cache key is phone_number_id for WA tenants, or `id:<uuid>` for voice-only
+// tenants (phone_number_id NULL). invalidateTenantCache scans by row.id so the
+// key format is transparent to callers.
+const cache = new Map();   // cacheKey -> tenant row (wa_token lazily decrypted when non-null)
+const timers = new Map();  // cacheKey -> expiry Timeout handle
 
 const TTL_MS = 5 * 60 * 1000;
 
@@ -46,20 +49,21 @@ const getByPhoneNumberId = async (phoneNumberId) => {
 
   if (!rows[0]) return null;
 
-  rows[0].wa_token = decrypt(rows[0].wa_token);
+  // Lazy: only decrypt when wa_token is present — voice-only tenants have it NULL.
+  if (rows[0].wa_token) rows[0].wa_token = decrypt(rows[0].wa_token);
 
-  // Cache for 5 minutes (caches decrypted token — avoids repeated decryption)
   cache.set(phoneNumberId, rows[0]);
   armExpiry(phoneNumberId);
 
   return rows[0];
 };
 
-// Cached tenant lookup by tenant id. Rides the same phone_number_id-keyed
-// cache: a warm entry (the webhook/voice path just resolved this tenant) is
-// found by scanning row.id — zero DB queries, same scan invalidateTenantCache
-// uses. A miss falls back to the existing id → phone_number_id two-step
-// (adapter.send / internalVoice pattern), which warms the cache for next time.
+// Cached tenant lookup by id. Warm entries are found by scanning row.id (zero
+// DB queries). On a cold miss, fetches the full row directly by id — this works
+// for voice-only tenants (phone_number_id NULL) where the previous two-step
+// id → phone_number_id → getByPhoneNumberId path returned null. Cache key is
+// phone_number_id when non-null (so a subsequent WA getByPhoneNumberId is also
+// a cache hit) or `id:<uuid>` for voice-only tenants.
 const getById = async (tenantId) => {
   if (!tenantId) return null;
 
@@ -67,12 +71,17 @@ const getById = async (tenantId) => {
     if (row.id === tenantId) return row;
   }
 
-  const { rows: [t] } = await db.query(
-    'SELECT phone_number_id FROM tenants WHERE id = $1 AND active = true',
+  const { rows: [row] } = await db.query(
+    `SELECT id, business_name, phone_number_id, wa_token, ai_prompt, ai_enabled, owner_notify_phone, active_handoff_customer
+     FROM tenants WHERE id = $1 AND active = true`,
     [tenantId]
   );
-  if (!t || !t.phone_number_id) return null;
-  return getByPhoneNumberId(t.phone_number_id);
+  if (!row) return null;
+  if (row.wa_token) row.wa_token = decrypt(row.wa_token);
+  const cacheKey = row.phone_number_id ?? `id:${tenantId}`;
+  cache.set(cacheKey, row);
+  armExpiry(cacheKey);
+  return row;
 };
 
 // Evict a single key's cache entry and its expiry timer. Safe if absent.
