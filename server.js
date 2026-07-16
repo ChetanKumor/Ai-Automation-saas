@@ -102,7 +102,9 @@ const collectionsModule = require('./src/modules/collections');
 const workflowEngine    = require('./src/modules/workflow/workflowEngine');
 coreActions.init();
 crmModule.init();
-collectionsModule.init();
+if (process.env.COLLECTIONS_ENABLED === 'true') {
+  collectionsModule.init();
+}
 workflowEngine.init();
 
 const PORT = process.env.PORT || 3000;

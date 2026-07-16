@@ -213,6 +213,9 @@ router.get('/api/leads', requireAuth, async (req, res) => {
 
 // ── API: Collections / Payment Schedules ────────────────────
 router.get('/api/collections', requireAuth, async (req, res) => {
+  if (process.env.COLLECTIONS_ENABLED !== 'true') {
+    return res.status(503).json({ error: 'Collections feature is disabled' });
+  }
   try {
     const { tenant_id, status, limit = 50 } = req.query;
 

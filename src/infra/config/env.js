@@ -33,6 +33,9 @@ module.exports = {
   SESSION_SECRET: process.env.SESSION_SECRET,
   PORT: process.env.PORT || 3000,
   IDENTITY_RESOLUTION_ENABLED: process.env.IDENTITY_RESOLUTION_ENABLED === 'true',
+  // Collections / payment reminders — OFF by default (patient-facing reputational risk).
+  // Set COLLECTIONS_ENABLED=true to restore cron + actions + admin API.
+  COLLECTIONS_ENABLED: process.env.COLLECTIONS_ENABLED === 'true',
 
   // Voice channel (PR6) — all optional; off by default. With VOICE_ENABLED off,
   // nothing voice-related is wired and the WhatsApp path is unchanged.
