@@ -1,0 +1,74 @@
+{
+  "captured_at": "2026-07-17T05:34:55.988Z",
+  "stt": {
+    "request_id": "20260717_006a8c12-8ef0-4748-8908-6523130c107f",
+    "transcript": "హాయ్, నాకు అపాయింట్మెంట్ బుక్ చేద్దామని ఉంది. డాక్టర్ ఎప్పుడు అవైలబుల్ గా ఉన్నారు రేపు?",
+    "language_code": "te-IN",
+    "language_probability": 1
+  },
+  "turn": {
+    "transcript": "హాయ్, నాకు అపాయింట్మెంట్ బుక్ చేద్దామని ఉంది. డాక్టర్ ఎప్పుడు అవైలబుల్ గా ఉన్నారు రేపు?",
+    "reply": "నమస్తే! రేపు, అంటే శనివారం, డాక్టర్ రావు ఉదయం 9 గంటల నుండి సాయంత్రం 5:30 వరకు అందుబాటులో ఉన్నారు. మీకు ఏ సమయం కావాలి?",
+    "latency_ms": 2986,
+    "tools": [
+      {
+        "n": 1,
+        "name": "check_availability",
+        "latency_ms": 229.13,
+        "outcome": {
+          "status": "ok"
+        }
+      }
+    ],
+    "language": "te-IN"
+  },
+  "availability": {
+    "available": [
+      {
+        "doctor": "Dr. Rao",
+        "date": "2026-07-18",
+        "day": "Sat",
+        "free_slots": [
+          "09:00",
+          "09:30",
+          "10:00",
+          "10:30",
+          "11:00",
+          "11:30",
+          "12:00",
+          "12:30",
+          "13:00",
+          "13:30",
+          "14:00",
+          "14:30",
+          "15:00",
+          "15:30",
+          "16:00",
+          "16:30",
+          "17:00",
+          "17:30"
+        ]
+      }
+    ]
+  },
+  "appointment": {
+    "id": "8667b5bc-6509-46df-bf30-051478bd4a95",
+    "doctor_name": "Dr. Rao",
+    "appointment_time": "2026-07-18T03:30:00.000Z",
+    "appointment_time_ist": "Saturday, 18 July 2026 at 9:00 am",
+    "status": "booked",
+    "date": "2026-07-18",
+    "time": "09:00",
+    "patient_name": "Sravani Reddy",
+    "patient_phone": "+919701234567"
+  },
+  "ok": true,
+  "residue": {
+    "customers": 0,
+    "conversations": 0,
+    "messages": 0,
+    "appointments": 0,
+    "call_sessions": 0,
+    "channel_identifiers": 0
+  }
+}

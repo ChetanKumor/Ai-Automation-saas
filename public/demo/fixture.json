@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "title": "Telugu voice booking — Smile Dental",
+  "captured_at": "2026-07-17T11:04:55+05:30",
+  "note": "Two-pane demo fixture. The CALL-side Telugu is REAL Sarvam STT + REAL brain output — never hand-typed or edited. See `provenance`.",
+  "patient": {
+    "name": "Sravani Reddy",
+    "phone": "+919701234567",
+    "language": "te-IN"
+  },
+  "call": [
+    {
+      "speaker": "caller",
+      "lang": "te-IN",
+      "text": "హాయ్, నాకు అపాయింట్మెంట్ బుక్ చేద్దామని ఉంది. డాక్టర్ ఎప్పుడు అవైలబుల్ గా ఉన్నారు రేపు?",
+      "english_gloss": "Hi, I'd like to book an appointment. When is the doctor available tomorrow?",
+      "ts": "2026-07-17T11:04:52+05:30",
+      "source": "sarvam_stt"
+    },
+    {
+      "speaker": "ai",
+      "lang": "te-IN",
+      "text": "నమస్తే! రేపు, అంటే శనివారం, డాక్టర్ రావు ఉదయం 9 గంటల నుండి సాయంత్రం 5:30 వరకు అందుబాటులో ఉన్నారు. మీకు ఏ సమయం కావాలి?",
+      "english_gloss": "Namaste! Tomorrow — Saturday — Dr. Rao is available from 9:00 AM to 5:30 PM. What time would you like?",
+      "ts": "2026-07-17T11:04:55+05:30",
+      "source": "brain",
+      "tools": ["check_availability"]
+    }
+  ],
+  "whatsapp": [
+    {
+      "direction": "outbound",
+      "sender": "clinic",
+      "lang": "en",
+      "text": "Hi Sravani, this is Smile Dental. Your appointment with Dr. Rao is confirmed for tomorrow, Sat 18 Jul, at 9:00 AM. Reply CANCEL to cancel.",
+      "ts": "2026-07-17T11:10:00+05:30"
+    },
+    {
+      "direction": "inbound",
+      "sender": "customer",
+      "lang": "en",
+      "text": "Thank you! See you tomorrow.",
+      "ts": "2026-07-17T11:12:30+05:30"
+    },
+    {
+      "direction": "outbound",
+      "sender": "clinic",
+      "lang": "en",
+      "text": "Reminder: your appointment with Dr. Rao is today at 9:00 AM. See you soon!",
+      "ts": "2026-07-18T08:00:00+05:30"
+    }
+  ],
+  "appointment": {
+    "id": "8667b5bc-6509-46df-bf30-051478bd4a95",
+    "doctor_name": "Dr. Rao",
+    "patient_name": "Sravani Reddy",
+    "date": "2026-07-18",
+    "time": "09:00",
+    "appointment_time": "2026-07-18T03:30:00.000Z",
+    "appointment_time_ist": "Saturday, 18 July 2026 at 9:00 am",
+    "status": "booked",
+    "tenant": "Smile Dental (Voice Dev)"
+  },
+  "provenance": {
+    "caller_transcript": "REAL. Sarvam Saaras STT output (model=saaras:v3, mode=transcribe, language_code=unknown → detected te-IN, probability 1.0) on founder-recorded audio demo-audio/booking.wav, captured 2026-07-17 via scripts/demo/capture_stt.py. Verbatim, never edited. This is the SAME model+mode the live voice worker uses (voice-agent/agent.py, livekit-plugins-sarvam). Sarvam request_id 20260717_006a8c12-8ef0-4748-8908-6523130c107f.",
+    "ai_reply": "REAL. Output of aiService.generateReply(channel='voice') — the same brain the voice route runs — on the transcript above, against tenant 'Smile Dental (Voice Dev)'. One Gemini turn: the model called check_availability(date=2026-07-18) then answered in Telugu. Verbatim, never edited. Captured via scripts/demo/capture_turn.js.",
+    "appointment": "REAL appointments row (id 8667b5bc-6509-46df-bf30-051478bd4a95), booked via appointmentService.bookAppointment at the first offered slot for Dr. Rao tomorrow (09:00 IST, 2026-07-18). Per the DEMO-00 decision it was booked PROGRAMMATICALLY (not brain-driven), because the founder's single utterance was an availability question and a brain-driven booking needs ≥2 caller turns (confirm-first-book-second). The synthetic patient + this row were then purged from the dev DB (residue verified 0); the values above are what the row held at capture time.",
+    "whatsapp": "HAND-AUTHORED English for the same patient. Only the CALL side is required to be STT-captured; the WhatsApp side is illustrative.",
+    "english_gloss": "Translations of the Telugu call lines, for display/reviewers only. The authoritative call text is the Telugu `text` field."
+  }
+}
