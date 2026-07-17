@@ -62,6 +62,14 @@ if (isProd) {
   // plain http still works.
   app.set('trust proxy', 1);
 }
+
+// Owner-facing portal (PORTAL-P1-S1). Mounted BEFORE the global admin session
+// below so that session never runs for /portal — the portal router carries its
+// OWN session (cookie `portal.sid`) and never shares admin auth. Path-scoped,
+// parallel system. Backend only in v1; pages arrive in S2. `trust proxy` above
+// is app-level, so the portal's prod `secure` cookie still works behind the proxy.
+app.use('/portal', require('./src/portal/routes'));
+
 app.use(session({
   secret: process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || 'dev-fallback',
   resave: false,

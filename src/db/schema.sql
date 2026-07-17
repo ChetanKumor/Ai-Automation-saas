@@ -101,6 +101,11 @@ CREATE TABLE users (
                    CHECK (role IN ('owner', 'admin', 'agent')),
 
   active         BOOLEAN NOT NULL DEFAULT TRUE,
+
+  -- Portal owner auth (migration 023). Stamped by portal login on success.
+  -- password_hash (above) holds a scrypt-encoded string for portal accounts.
+  last_login_at  TIMESTAMPTZ,
+
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
