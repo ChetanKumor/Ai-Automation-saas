@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sign in · Receptionist portal</title>
+  <meta name="description" content="Sign in to manage your clinic's AI receptionist.">
+  <link rel="stylesheet" href="./fonts/fonts.css">
+  <link rel="stylesheet" href="./tokens.css">
+  <style>
+    body { display: grid; place-items: center; min-height: 100vh; padding: 24px; }
+    .login { width: 100%; max-width: 380px; }
+    .login__brand {
+      display: flex; align-items: center; gap: 10px;
+      justify-content: center; margin-bottom: 22px;
+    }
+    .login__brand .brand__name { font-size: 16px; }
+    .login__card { padding: 26px 26px 24px; }
+    .login__title { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
+    .login__sub { color: var(--muted); font-size: 13.5px; margin-top: 4px; margin-bottom: 20px; }
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
+    .field input {
+      width: 100%; font: 400 14.5px/1.4 var(--sans); color: var(--ink);
+      padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-xs);
+      background: #fff; outline: none; transition: border-color .12s, box-shadow .12s;
+    }
+    .field input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-100); }
+    .login__error {
+      display: none; margin-bottom: 14px; font-size: 13px; font-weight: 500;
+      color: var(--red); background: var(--red-050); border: 1px solid var(--red-100);
+      border-radius: var(--radius-xs); padding: 9px 12px; line-height: 1.45;
+    }
+    .login__foot { text-align: center; color: var(--faint); font-size: 12px; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="login">
+    <div class="login__brand">
+      <span class="brand__mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path fill="currentColor" d="M10 3h4a1 1 0 0 1 1 1v5h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5v5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h5V4a1 1 0 0 1 1-1Z"/></svg>
+      </span>
+      <span class="brand__name">Prantivo</span>
+    </div>
+
+    <div class="card login__card">
+      <div class="login__title">Sign in</div>
+      <div class="login__sub">Manage your clinic’s AI receptionist.</div>
+
+      <div class="login__error" id="error" role="alert"></div>
+
+      <form id="form" novalidate>
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" autocomplete="username"
+                 autocapitalize="none" spellcheck="false" autofocus required>
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn--primary btn--block" id="submit">Sign in</button>
+      </form>
+    </div>
+
+    <div class="login__foot">Need access? Prantivo sets up your account.</div>
+  </div>
+
+  <script>
+    'use strict';
+    const form = document.getElementById('form');
+    const errEl = document.getElementById('error');
+    const btn = document.getElementById('submit');
+
+    function showError(msg) {
+      errEl.textContent = msg;
+      errEl.style.display = 'block';
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errEl.style.display = 'none';
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      if (!email || !password) { showError('Enter your email and password to sign in.'); return; }
+
+      btn.disabled = true;
+      btn.textContent = 'Signing in…';
+      let res;
+      try {
+        res = await fetch('/portal/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+      } catch (_) {
+        btn.disabled = false; btn.textContent = 'Sign in';
+        showError('Can’t reach the server. Check your connection and try again.');
+        return;
+      }
+
+      if (res.ok) { window.location.replace('index.html'); return; }
+
+      btn.disabled = false;
+      btn.textContent = 'Sign in';
+      if (res.status === 429) {
+        showError('Too many sign-in attempts. Wait a few minutes, then try again.');
+      } else {
+        // Server returns a single generic 401 (no account-existence oracle); the
+        // copy names what to check rather than apologising or going vague.
+        showError('That email and password don’t match. Check them and try again.');
+      }
+    });
+  </script>
+</body>
+</html>

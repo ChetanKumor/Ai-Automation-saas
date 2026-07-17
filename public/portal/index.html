@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Home · Receptionist portal</title>
+  <meta name="description" content="Your AI receptionist's readiness — what's ready and what still needs your attention before you go live.">
+  <link rel="stylesheet" href="./fonts/fonts.css">
+  <link rel="stylesheet" href="./tokens.css">
+  <link rel="stylesheet" href="./home.css">
+</head>
+<body data-page="home">
+  <div class="app" id="app">
+    <div class="side__scrim"></div>
+
+    <!-- Sidebar (nav injected by shell.js) -->
+    <aside class="side">
+      <div class="side__brand">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M10 3h4a1 1 0 0 1 1 1v5h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5v5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h5V4a1 1 0 0 1 1-1Z"/></svg>
+        </span>
+        <div>
+          <div class="brand__name" id="clinicName">Your clinic</div>
+          <div class="brand__sub">AI receptionist</div>
+        </div>
+      </div>
+      <nav class="side__nav" id="nav"></nav>
+      <div class="side__foot">
+        <button class="btn btn--ghost btn--block" id="logout" type="button">Log out</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <header class="top">
+        <button class="top__burger" id="burger" type="button" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="top__spacer"></div>
+        <div id="lifecycle"></div>
+      </header>
+
+      <main class="content">
+        <div class="page-head">
+          <h1 class="page-head__title">Readiness</h1>
+          <p class="page-head__sub">What's ready and what still needs your attention before your receptionist goes live.</p>
+        </div>
+
+        <!-- Status banner + ring + checks injected here -->
+        <div id="banner"></div>
+        <section class="card" id="readinessCard">
+          <div class="state-msg">Loading your readiness…</div>
+        </section>
+        <div id="checks"></div>
+      </main>
+    </div>
+  </div>
+
+  <script src="./shell.js"></script>
+  <script src="./home.js"></script>
+</body>
+</html>

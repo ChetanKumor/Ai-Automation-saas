@@ -158,3 +158,6 @@ vite.config.ts.timestamp-*
 # Database dump artifacts (never commit)
 backups/
 *.dump
+
+# Portal screenshot evidence (regenerate via scripts/portal/shoot.js)
+scripts/portal/shots/

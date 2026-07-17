@@ -20,6 +20,7 @@ const db = require('../db/db');
 const logger = require('../infra/logging/logger');
 const { securityHeaders, createRateLimiter } = require('../admin/security');
 const { verifyPassword, requirePortalAuth, hashPassword } = require('./auth');
+const validationService = require('../modules/validation/validationService');
 
 const router = express.Router();
 
@@ -139,6 +140,42 @@ router.get('/api/me', requirePortalAuth, async (req, res) => {
   } catch (err) {
     logger.error({ err: err.message }, 'portal /me failed');
     res.status(500).json({ error: 'Failed to load account' });
+  }
+});
+
+// ── GET /portal/api/readiness ────────────────────────────────────────────────
+// The Home page's data source (PORTAL-P1-S2). Returns the tenant's lifecycle
+// status + its LATEST validation run — read-only, and for the SESSION'S tenant
+// ONLY (INV-1): tenantId comes from req.portalUser, never from the request. This
+// route NEVER triggers a new validation run (that stays operator/lifecycle-only);
+// it reads whatever the last run recorded, or null if none has ever run.
+//
+// Owner-safe projection: only each check's `name` + `severity` cross the wire —
+// not the raw `detail` strings, which carry operator phrasing. The owner sees the
+// friendly copy map (spec §5.1) rendered client-side; the operator keeps the full
+// catalog + details in the admin panel.
+router.get('/api/readiness', requirePortalAuth, async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  try {
+    const { rows } = await db.query('SELECT status FROM tenants WHERE id = $1', [tenantId]);
+    const tenant = rows[0];
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    const latest = await validationService.getLatestValidation(tenantId);
+    let run = null;
+    if (latest) {
+      const result = latest.result || {};
+      run = {
+        passed: latest.passed,
+        created_at: latest.created_at,
+        checks: (result.checks || []).map((c) => ({ name: c.name, severity: c.severity })),
+        skipped: (result.skipped || []).map((s) => ({ name: s.name })),
+      };
+    }
+    res.json({ status: tenant.status, run });
+  } catch (err) {
+    logger.error({ err: err.message }, 'portal readiness failed');
+    res.status(500).json({ error: 'Failed to load readiness' });
   }
 });
 
