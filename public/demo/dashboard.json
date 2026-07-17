@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "title": "Clinic snapshot — Smile Dental",
+  "note": "DEMO-02 sales-demo fixture. Static, internally-consistent demo numbers for a clinic ~1 year in. Invariants: booked <= calls_this_week; after_hours <= calls_this_week; language split sums to calls_this_week; calls_per_day sums to calls_this_week.",
+  "clinic": "Smile Dental",
+  "week_label": "This week · Mon 13 – Sat 18 Jul",
+  "stats": {
+    "calls_this_week": 143,
+    "booked_by_ai": 89,
+    "after_hours_caught": 37,
+    "handled_without_staff_pct": 88,
+    "avg_response_seconds": 7
+  },
+  "languages": [
+    { "label": "Telugu", "count": 94 },
+    { "label": "Hindi", "count": 30 },
+    { "label": "English", "count": 19 }
+  ],
+  "calls_per_day": [
+    { "day": "Mon", "calls": 24 },
+    { "day": "Tue", "calls": 21 },
+    { "day": "Wed", "calls": 26 },
+    { "day": "Thu", "calls": 19 },
+    { "day": "Fri", "calls": 28 },
+    { "day": "Sat", "calls": 25 }
+  ]
+}

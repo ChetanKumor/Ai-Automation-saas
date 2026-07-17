@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "title": "Conversations inbox — Smile Dental",
+  "note": "DEMO-02 sales-demo fixture. Sravani Reddy is the ONE real captured patient (her row opens the timeline). Every other row is synthetic. Snippets are short English SUMMARIES of what the AI did — NOT verbatim transcripts, and NEVER fabricated Telugu. The `language` badge reflects the call/chat language; the snippet stays in English on purpose.",
+  "clinic": "Smile Dental",
+  "today": "2026-07-17",
+  "threads": [
+    {
+      "id": "sravani",
+      "name": "Sravani Reddy",
+      "channel": "voice",
+      "language": "Telugu",
+      "status": "handled",
+      "snippet": "Booked with Dr. Rao — Sat 18 Jul, 9:00 AM",
+      "ts": "2026-07-17T11:04:00+05:30",
+      "real": true,
+      "href": "./index.html"
+    },
+    {
+      "id": "anjali",
+      "name": "Anjali Verma",
+      "channel": "whatsapp",
+      "language": "Hindi",
+      "status": "handled",
+      "snippet": "Cleaning confirmed, reminder scheduled",
+      "ts": "2026-07-17T10:47:00+05:30"
+    },
+    {
+      "id": "rahul",
+      "name": "Rahul Mehta",
+      "channel": "voice",
+      "language": "English",
+      "status": "handled",
+      "snippet": "Asked clinic timings — shared 9 AM–5:30 PM",
+      "ts": "2026-07-17T10:22:00+05:30"
+    },
+    {
+      "id": "priya",
+      "name": "Priya Nair",
+      "channel": "whatsapp",
+      "language": "English",
+      "status": "needs_staff",
+      "snippet": "Insurance claim question — handed to reception",
+      "ts": "2026-07-17T09:58:00+05:30"
+    },
+    {
+      "id": "karthik",
+      "name": "Karthik Reddy",
+      "channel": "voice",
+      "language": "Telugu",
+      "status": "handled",
+      "snippet": "Rescheduled appointment to Mon, 4:00 PM",
+      "ts": "2026-07-17T09:31:00+05:30"
+    },
+    {
+      "id": "sneha",
+      "name": "Sneha Iyer",
+      "channel": "whatsapp",
+      "language": "English",
+      "status": "handled",
+      "snippet": "Sent pre-appointment instructions",
+      "ts": "2026-07-17T09:12:00+05:30"
+    },
+    {
+      "id": "irfan",
+      "name": "Mohammed Irfan",
+      "channel": "voice",
+      "language": "Hindi",
+      "status": "handled",
+      "snippet": "Booked consultation — Fri, 11:30 AM",
+      "ts": "2026-07-16T18:20:00+05:30"
+    },
+    {
+      "id": "deepika",
+      "name": "Deepika Rao",
+      "channel": "voice",
+      "language": "Telugu",
+      "status": "needs_staff",
+      "snippet": "Wants treatment-plan cost — handed to Dr. Rao",
+      "ts": "2026-07-16T17:05:00+05:30"
+    },
+    {
+      "id": "vikram",
+      "name": "Vikram Singh",
+      "channel": "whatsapp",
+      "language": "English",
+      "status": "handled",
+      "snippet": "Confirmed root-canal follow-up",
+      "ts": "2026-07-16T16:41:00+05:30"
+    },
+    {
+      "id": "lakshmi",
+      "name": "Lakshmi Menon",
+      "channel": "voice",
+      "language": "Telugu",
+      "status": "handled",
+      "snippet": "Asked directions — shared clinic location",
+      "ts": "2026-07-16T15:18:00+05:30"
+    },
+    {
+      "id": "arjun",
+      "name": "Arjun Das",
+      "channel": "whatsapp",
+      "language": "English",
+      "status": "handled",
+      "snippet": "Requested invoice copy — sent",
+      "ts": "2026-07-16T12:03:00+05:30"
+    }
+  ]
+}

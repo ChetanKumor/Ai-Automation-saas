@@ -1,0 +1,131 @@
+/* DEMO-02 — Clinic snapshot. Reuses shared.css tokens/chrome. */
+
+/* ── Stat cards ── */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.card {
+  min-width: 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.card__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.card__icon {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--teal-050);
+  color: var(--teal);
+}
+.card__icon svg { width: 18px; height: 18px; }
+.card__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  line-height: 1.3;
+}
+.card__value {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.card__unit { font-size: 15px; font-weight: 600; color: var(--muted); margin-left: 3px; }
+.card__note { font-size: 12px; color: var(--muted); line-height: 1.4; }
+
+/* Hero card — after-hours caught (the ROI number) */
+.card--hero {
+  background: linear-gradient(135deg, var(--teal) 0%, var(--teal-700) 100%);
+  border-color: var(--teal);
+  color: #fff;
+}
+.card--hero .card__icon { background: rgba(255, 255, 255, .16); color: #fff; }
+.card--hero .card__label { color: rgba(255, 255, 255, .85); }
+.card--hero .card__value { color: #fff; }
+.card--hero .card__unit { color: rgba(255, 255, 255, .8); }
+.card--hero .card__note { color: rgba(255, 255, 255, .82); }
+
+/* Language split card spans wider, holds its own mini-bar */
+.card--lang { grid-column: span 1; }
+.lang-split { display: flex; flex-direction: column; gap: 8px; margin-top: 2px; }
+.lang-row { display: grid; grid-template-columns: 58px 1fr 34px; align-items: center; gap: 9px; }
+.lang-row__name { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.lang-row__track { display: block; height: 8px; border-radius: 999px; background: var(--bg); overflow: hidden; }
+.lang-row__fill { display: block; height: 100%; border-radius: 999px; }
+.lang-row__fill--te { background: var(--teal); }
+.lang-row__fill--hi { background: #db2777; }
+.lang-row__fill--en { background: #2563eb; }
+.lang-row__val { font-size: 12px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+
+/* ── Calls-per-day panel ── */
+.panel {
+  margin-top: 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px 20px 20px;
+}
+.panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.panel__title { font-size: 15px; font-weight: 700; }
+.panel__sub { color: var(--muted); font-size: 12.5px; }
+
+.chart {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  align-items: end;
+  gap: 12px;
+  height: 168px;
+}
+.bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  height: 100%;
+  min-width: 0;
+}
+.bar__val { font-size: 12px; font-weight: 700; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.bar__col {
+  width: 100%;
+  max-width: 46px;
+  background: linear-gradient(180deg, var(--teal-100) 0%, var(--teal) 100%);
+  border-radius: 8px 8px 4px 4px;
+  min-height: 6px;
+}
+.bar__day { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+
+/* ── Mobile: single-column cards, shorter chart ── */
+@media (max-width: 720px) {
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 460px) {
+  .stats { grid-template-columns: 1fr; }
+  .card__value { font-size: 28px; }
+  .chart { height: 140px; gap: 8px; }
+  .bar__col { max-width: 38px; }
+}

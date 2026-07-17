@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Smile Dental — clinic snapshot</title>
+  <meta name="description" content="A weekly snapshot of the AI receptionist: calls handled, appointments booked, and the after-hours calls a front desk would have missed.">
+  <link rel="stylesheet" href="./fonts/fonts.css">
+  <link rel="stylesheet" href="./shared.css">
+  <link rel="stylesheet" href="./dashboard.css">
+</head>
+<body>
+  <div class="wrap">
+
+    <!-- Clinic brand strip + live status -->
+    <div class="topbar">
+      <span class="brand__mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path fill="currentColor" d="M10 3h4a1 1 0 0 1 1 1v5h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5v5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h5V4a1 1 0 0 1 1-1Z"/></svg>
+      </span>
+      <span class="brand__name">Smile Dental</span>
+      <span class="live"><span class="live__dot" aria-hidden="true"></span>AI receptionist · live</span>
+      <span class="topbar__date" id="weekLabel"></span>
+    </div>
+
+    <!-- Shared nav -->
+    <nav class="nav" aria-label="Demo screens">
+      <a class="nav__link nav__link--active" href="./dashboard.html" aria-current="page">Snapshot</a>
+      <a class="nav__link" href="./inbox.html">Inbox</a>
+      <a class="nav__link" href="./index.html">Patient thread</a>
+    </nav>
+
+    <div class="page-head">
+      <div class="page-head__title">Clinic snapshot</div>
+      <div class="page-head__sub" id="roiLine"></div>
+    </div>
+
+    <!-- Stat cards (injected) -->
+    <section class="stats" id="stats" aria-label="Weekly stats"></section>
+
+    <!-- Calls-per-day bar row (injected) -->
+    <section class="panel" aria-label="Calls per day">
+      <div class="panel__head">
+        <div class="panel__title">Calls per day</div>
+        <div class="panel__sub" id="chartSub"></div>
+      </div>
+      <div class="chart" id="chart"></div>
+    </section>
+
+    <p class="list-foot" id="foot"></p>
+  </div>
+
+  <script src="./dashboard.js"></script>
+</body>
+</html>

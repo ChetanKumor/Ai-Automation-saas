@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Smile Dental — conversations inbox</title>
+  <meta name="description" content="Every patient conversation the AI receptionist handled — voice and WhatsApp, across Telugu, Hindi and English. Escalated to staff when needed.">
+  <link rel="stylesheet" href="./fonts/fonts.css">
+  <link rel="stylesheet" href="./shared.css">
+  <link rel="stylesheet" href="./inbox.css">
+</head>
+<body>
+  <div class="wrap">
+
+    <!-- Clinic brand strip + live status -->
+    <div class="topbar">
+      <span class="brand__mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path fill="currentColor" d="M10 3h4a1 1 0 0 1 1 1v5h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5v5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h5V4a1 1 0 0 1 1-1Z"/></svg>
+      </span>
+      <span class="brand__name">Smile Dental</span>
+      <span class="live"><span class="live__dot" aria-hidden="true"></span>AI receptionist · live</span>
+      <span class="topbar__date" id="topDate"></span>
+    </div>
+
+    <!-- Shared nav -->
+    <nav class="nav" aria-label="Demo screens">
+      <a class="nav__link" href="./dashboard.html">Snapshot</a>
+      <a class="nav__link nav__link--active" href="./inbox.html" aria-current="page">Inbox</a>
+      <a class="nav__link" href="./index.html">Patient thread</a>
+    </nav>
+
+    <div class="page-head">
+      <div class="page-head__title">Conversations</div>
+      <div class="page-head__sub" id="inboxSub"></div>
+    </div>
+
+    <!-- Filter chips (client-side, static list) -->
+    <div class="filters" id="filters" role="tablist" aria-label="Filter conversations">
+      <button class="filter is-active" data-filter="all" role="tab" aria-selected="true">All</button>
+      <button class="filter" data-filter="voice" role="tab" aria-selected="false">Voice</button>
+      <button class="filter" data-filter="whatsapp" role="tab" aria-selected="false">WhatsApp</button>
+      <button class="filter filter--alert" data-filter="needs_staff" role="tab" aria-selected="false">Needs staff</button>
+    </div>
+
+    <!-- Thread list (injected) -->
+    <main class="list" id="list" aria-label="Patient conversations"></main>
+
+    <p class="list-foot" id="listFoot"></p>
+  </div>
+
+  <script src="./inbox.js"></script>
+</body>
+</html>
