@@ -1,4 +1,5 @@
 const express    = require('express');
+const crypto     = require('crypto');
 const path       = require('path');
 const logger     = require('../infra/logging/logger');
 const db         = require('../db/db');
@@ -9,6 +10,10 @@ const { CHECK_NAMES } = require('../modules/validation/validationService');
 const configService = require('../modules/config/configService');
 const tracesQuery = require('../modules/traces/queryService');
 const { renderSystemPrompt, estimateTokens } = require('../modules/prompts');
+// Reuse the portal's scrypt hashing for operator-created owner accounts (S3) — the
+// single hashing path, never duplicated. auth.js lazy-requires db, so pulling it in
+// here does not bind a pg Pool as an import side effect.
+const { hashPassword } = require('../portal/auth');
 const {
   safeEqual,
   securityHeaders,
@@ -735,6 +740,79 @@ router.get('/api/tenants/:id/validation-runs', requireAuth, requireTenantId, asy
   );
   res.json(rows);
 });
+
+// ── API: Owner portal account (PORTAL-P1-S3) ─────────────────────────────────
+// Operator-assisted account creation (spec §3): there is NO self-signup. This
+// creates ONE owner account for the tenant with a server-generated temporary
+// password that is returned EXACTLY ONCE in the response and is never persisted in
+// plaintext nor logged. The owner then signs into /portal with it. Password reset
+// in v1 is the operator running this again — but a re-create is REJECTED here while
+// an account exists (duplicate email per tenant), so a reset today is a deliberate
+// operator action against a removed account, not this route. Hashing reuses the
+// portal scrypt path (no duplicated crypto).
+//
+// This is an ADMIN route (cross-tenant operator surface): the tenant comes from the
+// path :id, which is correct here — INV-1 (tenant-from-session-only) is a PORTAL
+// invariant, not an admin one.
+
+// Deliberately permissive email shape: one @, a dot in the domain, no whitespace.
+// We guard obvious garbage before storing; we are not the arbiter of deliverable
+// addresses (there is no email sending in v1).
+const OWNER_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Temp password: 12 random bytes → base64url (16 chars, ~96 bits of entropy). Long
+// enough that guessing is a non-issue, short enough to hand over, and copy-pasted
+// via the button in the UI. Only its scrypt hash is stored — this value is shown
+// once and then unrecoverable.
+function generateTempPassword() {
+  return crypto.randomBytes(12).toString('base64url');
+}
+
+router.post('/api/tenants/:id/owner',
+  requireAuth, apiLimiter, requireAdminHeader, requireTenantId, express.json(),
+  async (req, res) => {
+    const raw = req.body && typeof req.body.email === 'string' ? req.body.email.trim() : '';
+    // Store lowercased so it matches portal login, which lowercases the input and
+    // looks up on lower(email).
+    const email = raw.toLowerCase();
+    if (!email || !OWNER_EMAIL_RE.test(email)) {
+      return res.status(400).json({ error: 'A valid email address is required.' });
+    }
+
+    try {
+      // requireTenantId only shape-checks the UUID — confirm the tenant exists so a
+      // stray id is a clean 404 rather than an FK-violation 500.
+      const t = await db.query('SELECT id FROM tenants WHERE id = $1', [req.params.id]);
+      if (!t.rows[0]) return res.status(404).json({ error: 'Tenant not found' });
+
+      // Clear up-front rejection for the common case; the UNIQUE (tenant_id, email)
+      // constraint is the race backstop, caught as 23505 below.
+      const dup = await db.query(
+        'SELECT 1 FROM users WHERE tenant_id = $1 AND lower(email) = $2',
+        [req.params.id, email]);
+      if (dup.rows[0]) {
+        return res.status(409).json({ error: 'An account with this email already exists for this clinic.' });
+      }
+
+      const password = generateTempPassword();
+      const { rows } = await db.query(
+        `INSERT INTO users (tenant_id, email, password_hash, role, active)
+         VALUES ($1, $2, $3, 'owner', true) RETURNING id`,
+        [req.params.id, email, hashPassword(password)]);
+
+      // Log the creation WITHOUT the password (it is never logged) — ids + email only.
+      logger.info({ tenantId: req.params.id, userId: rows[0].id, email }, 'owner portal account created');
+
+      // The temporary password crosses the wire exactly here, once.
+      res.status(201).json({ ok: true, email, user_id: rows[0].id, password });
+    } catch (err) {
+      if (err.code === '23505') { // create/create race lost the unique constraint
+        return res.status(409).json({ error: 'An account with this email already exists for this clinic.' });
+      }
+      logger.error({ err: err.message }, 'create owner account error');
+      res.status(500).json({ error: 'Failed to create owner account' });
+    }
+  });
 
 // ── API: Turn traces (Issue 22) — thin read-only queries ─────────────────────
 // The queryable twin of the correlation-id log chains. Issue 27's viewer page

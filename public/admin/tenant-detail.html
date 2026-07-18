@@ -71,6 +71,35 @@
         <div id="lcRun" class="issues"></div>
       </div>
 
+      <!-- Owner portal account (PORTAL-P1-S3). Operator-assisted account creation:
+           email in → server generates a one-time temp password shown once below. -->
+      <div class="card mb-20">
+        <div class="mb-20">
+          <h3 style="margin:0 0 4px;">Owner portal account</h3>
+          <span class="muted-sm">Create the clinic owner's login for the configuration portal.
+            The temporary password is shown once — share it securely.</span>
+        </div>
+        <div class="toolbar" style="align-items:flex-end;">
+          <div class="form-group" style="margin:0; flex:1; min-width:220px;">
+            <label for="ownerEmail">Owner email</label>
+            <input type="email" id="ownerEmail" autocomplete="off" autocapitalize="none"
+                   spellcheck="false" placeholder="owner@clinic.example">
+          </div>
+          <button id="ownerCreateBtn" class="btn btn-primary">Create account</button>
+        </div>
+        <div id="ownerMsg" class="muted-sm" style="margin-top:10px;"></div>
+
+        <!-- Password-shown-once panel. Green note = success; hidden until created. -->
+        <div id="ownerResult" class="note" style="display:none; background:#e8f5e9; border-color:#a5d6a7; margin-top:12px;">
+          <div style="margin-bottom:8px;">Account created for <strong id="ownerResultEmail"></strong>. Temporary password:</div>
+          <div class="flex-between" style="gap:10px;">
+            <code id="ownerPassword" style="font-size:15px; font-weight:700; letter-spacing:.02em; word-break:break-all;"></code>
+            <button id="ownerCopyBtn" class="btn btn-sm" style="background:#fff; color:#333; border:1px solid #a5d6a7;">Copy</button>
+          </div>
+          <div class="muted-sm" style="margin-top:8px;">Share this with the clinic owner securely; it cannot be shown again.</div>
+        </div>
+      </div>
+
       <div id="aiPromptNote" class="note" style="display:none;">
         ⚠ This tenant has a legacy <code>ai_prompt</code> override set. The config-driven
         prompt renderer is dormant for it until the runtime repoint (Issue 9).

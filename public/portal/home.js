@@ -253,6 +253,15 @@
       `<div class="state-msg">We couldn’t load your readiness just now. Refresh the page to try again.</div>`;
   }
 
+  // Blocker count for the header Go-live control: material checks that ran and did
+  // NOT pass (= ring total − ring passed). Returns {} when there's no run so the
+  // control renders plain-disabled rather than claiming "0 items".
+  function blockersFrom(run) {
+    if (!run || !run.checks) return {};
+    const { passed, total } = computeScore(run.checks);
+    return { blockers: total - passed };
+  }
+
   // ── Boot ───────────────────────────────────────────────────────────────────
   async function main() {
     try {
@@ -271,7 +280,10 @@
       return;
     }
 
-    window.Portal.renderLifecycle(data.status);
+    // Header Go-live control gets the blocker count (material checks not green) so
+    // its disabled state can name the reason. Derived here from the readiness
+    // payload; when no run exists yet the count is unknown (plain disabled control).
+    window.Portal.renderLifecycle(data.status, blockersFrom(data.run));
     renderBanner(data.status);
     if (!data.run) { renderEmpty(); return; }
     renderReadiness(data.run);

@@ -315,6 +315,14 @@ a { color: var(--teal); }
 .btn--ghost { border-color: transparent; background: none; color: var(--muted); }
 .btn--ghost:hover { background: var(--bg); color: var(--ink); }
 
+/* ── Header Go-live control (PORTAL-P1-S3) ───────────────────────────────────
+ * Display-only this session (§5.13/S18 wires the real transition). Disabled here
+ * reads as reduced-emphasis + not-allowed, with the blocker count sitting to its
+ * left so the owner sees WHY it isn't yet actionable. */
+.golive { display: inline-flex; align-items: center; gap: 12px; }
+.golive__reason { font-size: 12.5px; font-weight: 600; color: var(--amber); white-space: nowrap; }
+.golive .btn[disabled], .golive .btn[aria-disabled="true"] { cursor: not-allowed; }
+
 /* ============================================================================
  * Toast (bottom-right, auto-dismiss) — shared with future save flows
  * ========================================================================== */

@@ -324,6 +324,63 @@
   $('lcPause').addEventListener('click', () => lifecycle('pause',
     'Pause this tenant? It goes offline immediately — inbound messages get no AI reply until it is re-validated and re-activated.'));
 
+  // ── Owner portal account (PORTAL-P1-S3) ────────────────────────────────────
+  // Operator creates the owner's portal login here; the server returns a one-time
+  // temp password we reveal below with a copy button. adminFetch attaches the CSRF
+  // header the route requires.
+  function ownerMsg(text, isErr) {
+    const el = $('ownerMsg');
+    el.textContent = text || '';
+    el.style.color = isErr ? '#b00020' : '#2e7d32';
+  }
+
+  $('ownerCreateBtn').addEventListener('click', async () => {
+    const email = $('ownerEmail').value.trim();
+    ownerMsg('');
+    $('ownerResult').style.display = 'none';
+    if (!email) { ownerMsg('Enter the owner’s email address.', true); return; }
+
+    $('ownerCreateBtn').disabled = true;
+    try {
+      const res = await adminFetch(`/admin/api/tenants/${encodeURIComponent(TID)}/owner`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 201) {
+        $('ownerResultEmail').textContent = data.email;
+        $('ownerPassword').textContent = data.password;
+        $('ownerResult').style.display = 'block';
+        ownerMsg('Account created — copy the temporary password now.', false);
+        $('ownerEmail').value = '';
+        return;
+      }
+      // 400 (bad email), 409 (duplicate), 404 (absent tenant), 5xx — show the
+      // server's message verbatim; it names the fix.
+      ownerMsg(data.error || ('Create failed (' + res.status + ')'), true);
+    } finally {
+      $('ownerCreateBtn').disabled = false;
+    }
+  });
+
+  $('ownerCopyBtn').addEventListener('click', async () => {
+    const pw = $('ownerPassword').textContent;
+    try {
+      await navigator.clipboard.writeText(pw);
+      $('ownerCopyBtn').textContent = 'Copied';
+      setTimeout(() => { $('ownerCopyBtn').textContent = 'Copy'; }, 1500);
+    } catch (_) {
+      // Clipboard API can be unavailable (insecure context / denied) — fall back to
+      // selecting the text so the operator can copy it manually.
+      const range = document.createRange();
+      range.selectNodeContents($('ownerPassword'));
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  });
+
   // ── Boot ───────────────────────────────────────────────────────────────────
   (async function init() {
     if (!TID) { $('notFound').style.display = 'block'; return; }

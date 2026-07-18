@@ -76,20 +76,35 @@
     }).join('');
   }
 
-  // State-aware header control (display-only this session — no lifecycle writes).
-  function renderLifecycle(status) {
+  // State-aware header control (display-only this session — no lifecycle writes;
+  // §5.13/S18 wires the real go-live). `opts.blockers` (optional) is the count of
+  // material readiness checks not yet green, derived by the caller from the
+  // readiness payload; when > 0 it renders beside a visibly-disabled Go live as
+  // the reason the control isn't actionable.
+  function renderLifecycle(status, opts) {
     const host = $('#lifecycle');
     if (!host) return;
     const meta = LIFECYCLE[status] || LIFECYCLE.draft;
     if (meta.control === 'live') {
       host.innerHTML = `<span class="badge badge--ok"><span class="badge__dot"></span>Live</span>`;
-    } else if (meta.control === 'paused') {
-      host.innerHTML = `<span class="badge badge--warn">Paused</span>`;
-    } else {
-      // draft / validated → a Go live control, disabled this session.
-      host.innerHTML = `<button class="btn btn--primary" disabled aria-disabled="true"
-        title="Finish setup, then go live from here">Go live</button>`;
+      return;
     }
+    if (meta.control === 'paused') {
+      host.innerHTML = `<span class="badge badge--warn">Paused</span>`;
+      return;
+    }
+    // draft / validated → a Go live control, disabled this session.
+    const blockers = opts && Number.isInteger(opts.blockers) ? opts.blockers : null;
+    const blocked = blockers != null && blockers > 0;
+    const reason = blocked
+      ? `<span class="golive__reason">${blockers} ${blockers === 1 ? 'item needs' : 'items need'} your attention</span>`
+      : '';
+    const title = blocked
+      ? 'Finish the highlighted setup items, then go live'
+      : 'Prantivo completes go-live with you';
+    host.innerHTML =
+      `<div class="golive">${reason}<button class="btn btn--primary" disabled aria-disabled="true"
+        title="${title}">Go live</button></div>`;
   }
 
   function wireChrome() {

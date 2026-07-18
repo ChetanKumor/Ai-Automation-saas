@@ -63,7 +63,14 @@
       </form>
     </div>
 
-    <div class="login__foot">Need access? Prantivo sets up your account.</div>
+    <!-- Operator-assisted v1: no self-serve reset (spec §9). login.html is served
+         statically, so it can't read an env-configured support number; there is no
+         support-WhatsApp number env in v1, so this is the plain-text branch of the
+         "wa.me link if the number exists, else text" rule. -->
+    <div class="login__foot">
+      <div>Forgot your password? Message Prantivo on WhatsApp to reset it.</div>
+      <div style="margin-top:4px;">Need access? Prantivo sets up your account.</div>
+    </div>
   </div>
 
   <script>

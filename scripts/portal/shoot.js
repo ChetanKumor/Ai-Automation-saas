@@ -1,10 +1,15 @@
 'use strict';
 
 /* ============================================================================
- * PORTAL-P1-S2 screenshot evidence — dev tooling, not shipped runtime.
+ * PORTAL-P1 screenshot evidence — dev tooling, not shipped runtime.
  *
- * Produces the four DoD screenshots against a REAL, freshly-validated tenant:
+ * S2 shots against a REAL, freshly-validated tenant:
  *   login (desktop + 380px)  ·  home/readiness (desktop + 380px)
+ * S3 additions:
+ *   • home shot doubles as the disabled Go-live + "N items need your attention"
+ *     evidence (the seeded tenant has failing checks → blockers > 0);
+ *   • an ADMIN "create owner account" shot driven through the real admin panel:
+ *     type an email → click Create → the one-time temp password panel appears.
  *
  * It stands up a THROWAWAY scratch DB (genesis) so it never touches neondb,
  * seeds a tenant + owner + a real tenant_config, then runs the REAL
@@ -94,7 +99,7 @@ async function waitForSelector(cdp, sid, expr, tries = 60) {
   throw new Error('selector never appeared: ' + expr);
 }
 
-async function shoot(cdp, { url, out, width, height, mobile, cookie, port, waitFor }) {
+async function shoot(cdp, { url, out, width, height, mobile, cookie, port, waitFor, afterReady }) {
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   await cdp.send('Page.enable', {}, sessionId);
@@ -112,6 +117,8 @@ async function shoot(cdp, { url, out, width, height, mobile, cookie, port, waitF
   await cdp.send('Page.navigate', { url }, sessionId);
   await loaded;
   await waitForSelector(cdp, sessionId, waitFor);
+  // Optional interaction (e.g. fill a form + click) driven over CDP before capture.
+  if (afterReady) await afterReady(cdp, sessionId);
   await sleep(1300); // ring fill (.9s) + fonts settle
 
   const metrics = await cdp.send('Page.getLayoutMetrics', {}, sessionId);
@@ -126,17 +133,18 @@ async function shoot(cdp, { url, out, width, height, mobile, cookie, port, waitF
   console.log('  ✓', path.basename(out), `(${Math.round(size.width)}×${Math.round(size.height)})`);
 }
 
-// ── HTTP login → portal.sid cookie ───────────────────────────────────────────
-function loginCookie(port, email, password) {
+// ── HTTP login → session cookie ──────────────────────────────────────────────
+// Generic over both auth surfaces: `path` + the cookie name we expect back.
+function loginCookieVia(port, path, cookieName, body) {
   return new Promise((resolve, reject) => {
-    const payload = JSON.stringify({ email, password });
+    const payload = JSON.stringify(body);
     const r = http.request({
-      host: '127.0.0.1', port, method: 'POST', path: '/portal/api/login',
+      host: '127.0.0.1', port, method: 'POST', path,
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
     }, (res) => {
       const set = res.headers['set-cookie'] || [];
-      const c = set.find((s) => s.startsWith('portal.sid='));
-      if (!c) return reject(new Error('no portal.sid cookie (login ' + res.statusCode + ')'));
+      const c = set.find((s) => s.startsWith(cookieName + '='));
+      if (!c) return reject(new Error(`no ${cookieName} cookie (login ${res.statusCode})`));
       const kv = c.split(';')[0];
       const eq = kv.indexOf('=');
       resolve({ name: kv.slice(0, eq), value: kv.slice(eq + 1) });
@@ -145,6 +153,10 @@ function loginCookie(port, email, password) {
     r.write(payload); r.end();
   });
 }
+const loginCookie = (port, email, password) =>
+  loginCookieVia(port, '/portal/api/login', 'portal.sid', { email, password });
+const adminLoginCookie = (port, password) =>
+  loginCookieVia(port, '/admin/login', 'connect.sid', { password });
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 (async () => {
@@ -166,6 +178,8 @@ function loginCookie(port, email, password) {
     // Bind everything to the scratch DB before first require of db/services.
     process.env.DATABASE_URL = scratchCs;
     process.env.LOG_LEVEL = 'silent';
+    process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'shoot-admin-pass';
+    if (!process.env.ENCRYPTION_KEY) process.env.ENCRYPTION_KEY = 'a'.repeat(64);
     db = require('../../src/db/db');
     const { hashPassword } = require('../../src/portal/auth');
     const configService = require('../../src/modules/config/configService');
@@ -196,16 +210,33 @@ function loginCookie(port, email, password) {
     const passed = run.checks.filter((c) => c.severity !== 'fail').length;
     console.log(`validation run: ${passed}/${run.checks.length} checks not-failed, skipped ${run.skipped.length}`);
 
-    // Real /portal router + static serving (mirrors server.js for these paths).
+    // A SECOND clinic with NO owner yet — the subject of the admin create-owner shot.
+    const meadow = await db.query("INSERT INTO tenants (business_name, active) VALUES ($1, true) RETURNING id",
+      ['Meadow Physiotherapy']);
+    const meadowId = meadow.rows[0].id;
+    await configService.writeTenantConfig(meadowId, {
+      business: { display_name: 'Meadow Physiotherapy' },
+    }, 'shoot');
+
+    // Real /portal + /admin routers + static serving (mirrors server.js for these
+    // paths). Admin needs its session middleware mounted before the router.
     const express = require('express');
+    const session = require('express-session');
     const app = express();
     app.use('/portal', require('../../src/portal/routes'));
+    app.use(session({
+      secret: 'shoot-secret-abcdefghijklmnopqrstuvwx',
+      resave: false, saveUninitialized: false,
+      cookie: { httpOnly: true, sameSite: 'strict', secure: false, maxAge: 12 * 3600 * 1000 },
+    }));
+    app.use('/admin', require('../../src/admin/adminRoutes'));
     app.use(express.static(path.join(__dirname, '../../public')));
     server = await new Promise((res) => { const s = app.listen(0, () => res(s)); });
     const port = server.address().port;
     console.log('server on', port);
 
     const cookie = await loginCookie(port, email, password);
+    const adminCookie = await adminLoginCookie(port, process.env.ADMIN_PASSWORD);
 
     // Launch Chrome (reduced motion → deterministic ring/pulse).
     const udd = fs.mkdtempSync(path.join(os.tmpdir(), 'portal-shot-'));
@@ -230,6 +261,23 @@ function loginCookie(port, email, password) {
     await shoot(cdp, { url: `${base}/index.html`, out: path.join(OUT, 'home-mobile.png'),
       width: 380, height: 820, mobile: true, cookie, port,
       waitFor: "document.querySelector('.ring')||document.querySelector('.empty')" });
+
+    // S3: admin "create owner account" — fill the email, click Create, wait for the
+    // one-time password panel, then capture. Uses the admin connect.sid cookie.
+    await shoot(cdp, {
+      url: `http://127.0.0.1:${port}/admin/tenant-detail.html?id=${meadowId}`,
+      out: path.join(OUT, 's3-admin-create-owner.png'),
+      width: 1280, height: 900, cookie: adminCookie, port,
+      waitFor: "document.getElementById('ownerCreateBtn') && document.getElementById('detail').style.display==='block'",
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression: "document.getElementById('ownerEmail').value='owner@meadowphysio.example';"
+            + "document.getElementById('ownerCreateBtn').click();",
+        }, sid);
+        await waitForSelector(c, sid,
+          "document.getElementById('ownerResult') && getComputedStyle(document.getElementById('ownerResult')).display!=='none'");
+      },
+    });
 
     console.log('done →', OUT);
   } finally {
