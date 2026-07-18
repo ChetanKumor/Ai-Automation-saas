@@ -338,4 +338,162 @@ router.post('/api/config/identity', requirePortalAuth, express.json(), async (re
   }
 });
 
+// ── Config section: hours (Hours & holidays, PORTAL-P2-S5) ───────────────────
+// The second owner-writable surface; it COPIES the identity pattern above (read
+// current → merge partial → configService write with actorUserId → return
+// { section, version, readiness }). Storage home is `hours.*`
+// (per-day open/close-or-closed grid + holidays[]). Spec §5.3 also lists an
+// after-hours message and an emergency contact number; both were DEFERRED for S5
+// (no schema home — the after-hours field doesn't exist on `escalation`, and
+// escalation numbers live on Safety & handoff / S10). This page ships the grid +
+// holidays only, against the schema exactly as it stands.
+const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+const DAY_LABEL = {
+  mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday',
+  fri: 'Friday', sat: 'Saturday', sun: 'Sunday',
+};
+const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;   // 24h HH:MM (mirrors schema.js HHMM)
+const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;          // YYYY-MM-DD (mirrors schema.js YMD)
+// Visible defaults for a day with no stored times (or a closed day's hidden
+// inputs) so the grid never renders blank time fields.
+const DEFAULT_OPEN = '09:00';
+const DEFAULT_CLOSE = '18:00';
+
+function isPlainObject(v) {
+  return v !== null && typeof v === 'object' && !Array.isArray(v);
+}
+
+// A real calendar date (the YMD regex alone would accept 2026-13-45). Kept strict
+// here for an owner-friendly 400; the schema only regex-checks the shape.
+function isRealDate(s) {
+  const [y, m, d] = s.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
+// Owner-safe projection of the hours section. Days become a uniform
+// { key, closed, open, close } shape (a closed day still carries visible default
+// times for when the owner re-opens it); holidays are normalized to
+// { date, name } and sorted ascending by date (client re-sorts on render too).
+function projectHours(config) {
+  const h = (config && config.hours) || {};
+  const days = DAYS.map((key) => {
+    const d = h[key];
+    if (d && d.closed === true) return { key, closed: true, open: DEFAULT_OPEN, close: DEFAULT_CLOSE };
+    if (d && typeof d.open === 'string' && typeof d.close === 'string') {
+      return { key, closed: false, open: d.open, close: d.close };
+    }
+    return { key, closed: false, open: DEFAULT_OPEN, close: DEFAULT_CLOSE };
+  });
+  const holidays = Array.isArray(h.holidays)
+    ? h.holidays
+      .filter((x) => x && typeof x.date === 'string')
+      .map((x) => ({ date: x.date, name: typeof x.name === 'string' ? x.name : '' }))
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    : [];
+  return { days, holidays };
+}
+
+// GET the session tenant's hours section (INV-1: tenant from req.portalUser only).
+router.get('/api/config/hours', requirePortalAuth, async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  try {
+    const config = await getConfigForSession(tenantId);
+    const version = config ? (configService.getCachedConfigVersion(tenantId) || 0) : 0;
+    res.json({ hours: projectHours(config), version });
+  } catch (err) {
+    logger.error({ err: err.message }, 'portal hours GET failed');
+    res.status(500).json({ error: 'Failed to load hours' });
+  }
+});
+
+// POST a full hours update. Same contract as identity: validated here with
+// owner-friendly messages AND re-validated by configService (the real gate,
+// INV-2); the revision records the acting owner (INV-4). Returns
+// { section, version, readiness }.
+router.post('/api/config/hours', requirePortalAuth, express.json(), async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  const body = req.body || {};
+  const fields = [];
+
+  // Days: build a complete 7-day block; each day is EITHER {closed:true} or
+  // {open,close} (the schema's strict discriminated union). close must be after
+  // open on an open day.
+  const rawDays = isPlainObject(body.days) ? body.days : {};
+  const hoursOut = {};
+  for (const key of DAYS) {
+    const d = isPlainObject(rawDays[key]) ? rawDays[key] : {};
+    if (d.closed === true) { hoursOut[key] = { closed: true }; continue; }
+    const open = typeof d.open === 'string' ? d.open.trim() : '';
+    const close = typeof d.close === 'string' ? d.close.trim() : '';
+    if (!HHMM_RE.test(open) || !HHMM_RE.test(close)) {
+      fields.push({ field: `days.${key}`, message: `Set opening and closing times for ${DAY_LABEL[key]}, or mark it closed.` });
+      continue;
+    }
+    if (open >= close) {
+      fields.push({ field: `days.${key}`, message: `${DAY_LABEL[key]}: closing time must be later than the opening time.` });
+      continue;
+    }
+    hoursOut[key] = { open, close };
+  }
+
+  // Holidays: each row needs a real date; the label (schema `name`) is optional
+  // (≤120). Duplicate dates are rejected. A wholly empty row is an unfilled input,
+  // skipped silently. The row index rides on the error so the page marks the row.
+  const rawHols = Array.isArray(body.holidays) ? body.holidays : [];
+  const holidaysOut = [];
+  const seen = new Set();
+  rawHols.forEach((h, i) => {
+    const date = h && typeof h.date === 'string' ? h.date.trim() : '';
+    const name = h && typeof h.name === 'string' ? h.name.trim() : '';
+    if (!date && !name) return; // unfilled row
+    if (!YMD_RE.test(date) || !isRealDate(date)) {
+      fields.push({ field: `holidays.${i}`, message: 'Pick a valid date for this holiday.' });
+      return;
+    }
+    if (name.length > 120) {
+      fields.push({ field: `holidays.${i}`, message: 'Holiday name must be 120 characters or fewer.' });
+      return;
+    }
+    if (seen.has(date)) {
+      fields.push({ field: `holidays.${i}`, message: `You’ve already added a holiday on ${date}. Each date can appear only once.` });
+      return;
+    }
+    seen.add(date);
+    const entry = { date };
+    if (name) entry.name = name; // schema `name` is optional + min(1): omit when blank
+    holidaysOut.push(entry);
+  });
+
+  if (fields.length) {
+    return res.status(400).json({ error: 'Please fix the highlighted items.', fields });
+  }
+
+  // Stable stored order, oldest first.
+  holidaysOut.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+  try {
+    // Read-merge (S4 rule): preserve every OTHER section. Unlike identity, hours is
+    // REPLACED wholesale (shallow) rather than deep-merged — a day schedule is a
+    // discriminated union that must not merge across branches (configService does
+    // the same on the clinicDefaults side; both are required to close a day cleanly).
+    const current = await getConfigForSession(tenantId);
+    const next = { ...(current || {}), hours: { ...hoursOut, holidays: holidaysOut } };
+
+    const { version, config } = await configService.writeTenantConfig(tenantId, next, 'portal', {
+      actorUserId: req.portalUser.id, // INV-4
+    });
+
+    const readiness = await readinessSnapshot(tenantId);
+    res.json({ section: projectHours(config), version, readiness });
+  } catch (err) {
+    if (err.name === 'ConfigValidationError') {
+      return res.status(422).json({ error: 'Some hours couldn’t be saved.', issues: err.issues });
+    }
+    if (/tenant not found/.test(err.message || '')) return res.status(404).json({ error: 'Tenant not found' });
+    logger.error({ err: err.message }, 'portal hours POST failed');
+    res.status(500).json({ error: 'Failed to save hours' });
+  }
+});
+
 module.exports = router;

@@ -1,0 +1,155 @@
+/* ============================================================================
+ * Hours & holidays — page-specific styles (PORTAL-P2-S5)
+ *
+ * The shared field/card/button vocabulary lives in tokens.css. Only the two
+ * controls unique to this page are here: the per-day hours row (open/close time
+ * inputs + a "Closed" toggle) and the holiday rows (date + optional label, with
+ * past dates quietly de-emphasised). Same tokens, same quiet surface.
+ *
+ * Mobile is the hard case: a 7-day time grid must STACK, never shrink. Below
+ * 560px each day row becomes a small vertical stack (name → times → toggle).
+ * ========================================================================== */
+
+/* Loading / error placeholder (home.css isn't linked here, so define locally) */
+.state-msg { color: var(--muted); font-size: 14px; padding: 8px 2px; }
+.state-msg--error { color: var(--red); }
+
+/* ── Weekly hours ── */
+.days { display: flex; flex-direction: column; }
+.day {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  border-top: 1px solid var(--line-2);
+}
+.day:first-child { padding-top: 4px; border-top: none; }
+.day:last-child { padding-bottom: 2px; }
+
+.day__name { flex: 0 0 92px; font-weight: 600; font-size: 14px; color: var(--ink); }
+.day__body { flex: 1; min-width: 0; display: flex; align-items: center; }
+.day__times { display: flex; align-items: center; gap: 10px; }
+.day__time { width: 128px; }
+.day__to { color: var(--muted); font-size: 13px; }
+.day__closed-label { display: none; color: var(--faint); font-size: 13.5px; font-style: italic; }
+
+/* Closed toggle — a plain checkbox with a label; teal accent to match the theme. */
+.day__toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+.day__toggle input {
+  width: 16px; height: 16px;
+  accent-color: var(--teal);
+  cursor: pointer;
+}
+
+/* Closed state: hide the time inputs, show the italic "Closed all day" note. */
+.day--closed .day__times { display: none; }
+.day--closed .day__closed-label { display: inline; }
+.day--closed .day__name { color: var(--ink-2); }
+.day--closed .day__toggle { color: var(--ink-2); font-weight: 600; }
+
+/* Per-row error (wraps to its own full-width line under the row). */
+.day__error {
+  display: none;
+  flex-basis: 100%;
+  width: 100%;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--red);
+  line-height: 1.45;
+}
+.day.is-invalid .day__error { display: block; }
+.day.is-invalid .day__time {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px var(--red-050);
+}
+
+/* ── Holidays ── */
+.holidays { display: flex; flex-direction: column; gap: 8px; }
+.holiday-row {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+}
+.holiday__date { min-width: 0; }
+.holiday__name { min-width: 0; }
+.holiday__past {
+  display: none;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--faint);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+.holiday-row--past { opacity: .68; }
+.holiday-row--past .holiday__past { display: inline-block; }
+
+.holiday__remove {
+  flex: none;
+  width: 42px; height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: var(--radius-xs);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.holiday__remove:hover { background: var(--red-050); border-color: var(--red-100); color: var(--red); }
+.holiday__remove svg { width: 16px; height: 16px; }
+
+.holiday__error {
+  display: none;
+  grid-column: 1 / -1;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--red);
+  line-height: 1.45;
+}
+.holiday-row.is-invalid .holiday__error { display: block; }
+.holiday-row.is-invalid .holiday__date,
+.holiday-row.is-invalid .holiday__name {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px var(--red-050);
+}
+
+.holidays__add { margin-top: 12px; }
+.holidays__add svg { width: 14px; height: 14px; }
+.holidays__empty { margin: 4px 0 0; }
+
+/* ── Mobile: stack the day grid; never shrink it (spec: true ~380px) ── */
+@media (max-width: 560px) {
+  .day {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 9px;
+  }
+  .day__name { flex: none; font-size: 13.5px; }
+  .day__times { width: 100%; }
+  .day__time { flex: 1 1 0; width: auto; }
+  .day__toggle { align-self: flex-start; }
+
+  .holiday-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .holiday__date { grid-column: 1 / -1; }
+  .holiday__name { grid-column: 1 / 2; }
+  .holiday__remove { grid-column: 2 / 3; }
+  .holiday__past { display: none !important; }
+}

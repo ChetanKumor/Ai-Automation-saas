@@ -92,7 +92,20 @@ async function writeTenantConfig(tenantId, input, source, opts = {}) {
   const { expectedVersion, actorUserId = null } = opts;
 
   // Write-materialize: merge defaults in, validate the whole document strict.
-  const parsed = configSchema.safeParse(deepMerge(clinicDefaults, input || {}));
+  const materialized = deepMerge(clinicDefaults, input || {});
+  // hours.<day> is a discriminated union (`{closed:true}` XOR `{open,close}`).
+  // deepMerge is key-ADDITIVE (it never removes keys), so switching a day's branch
+  // — closing a default-open day, or opening the default-closed Sunday — would
+  // UNION the two members into `{open,close,closed:true}`, which matches NEITHER
+  // strict branch and fails validation. A discriminated union must REPLACE, not
+  // deep-merge, so shallow-merge the hours block: each supplied day (and the
+  // holidays array) overwrites its materialized default wholesale, while days the
+  // caller omits keep the default. (Latent until PORTAL-P2-S5: the only prior
+  // hours writes — provisioning — never changed a day's shape from the default.)
+  if (isPlainObject(input) && isPlainObject(input.hours)) {
+    materialized.hours = { ...materialized.hours, ...input.hours };
+  }
+  const parsed = configSchema.safeParse(materialized);
   if (!parsed.success) throw new ConfigValidationError(parsed.error);
   const config = parsed.data;
 

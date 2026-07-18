@@ -40,7 +40,7 @@
   const NAV = [
     { id: 'home',        label: 'Home',            icon: I.home,     href: 'index.html' },
     { id: 'profile',     label: 'Clinic profile',  icon: I.building, href: 'clinic-profile.html' },
-    { id: 'hours',       label: 'Hours & holidays', icon: I.clock,   soon: true },
+    { id: 'hours',       label: 'Hours & holidays', icon: I.clock,   href: 'hours.html' },
     { id: 'pricing',     label: 'Pricing',         icon: I.tag,      soon: true },
     { id: 'doctors',     label: 'Doctors',         icon: I.doctor,   soon: true },
     { id: 'booking',     label: 'Booking rules',   icon: I.calendar, soon: true },

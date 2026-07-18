@@ -94,6 +94,43 @@ describe('deepMerge — arrays replace, objects merge', () => {
   });
 });
 
+// writeTenantConfig materializes input onto clinicDefaults, whose hours have mon–sat
+// OPEN and sun CLOSED. hours.<day> is a discriminated union ({closed:true} XOR
+// {open,close}); a key-additive deepMerge across the two branches would pollute a
+// day into {open,close,closed:true} and fail the strict schema. The writer must
+// shallow-merge the hours block so a branch switch REPLACES the default. Here the
+// stubbed getClient has no tenant row, so a merged doc that VALIDATES reaches the DB
+// step and fails with "tenant not found"; a doc that fails validation throws
+// ConfigValidationError first — that difference is exactly what we assert.
+describe('writeTenantConfig — hours discriminated-union is replaced, not merged', () => {
+  const reachedDb = (e) => e.name !== 'ConfigValidationError' && /tenant not found/.test(e.message);
+  const isValidationError = (e) => e.name === 'ConfigValidationError';
+
+  it('closing a default-OPEN day validates (branch switch open → closed)', async () => {
+    await assert.rejects(
+      configService.writeTenantConfig(TENANT_A, { hours: { mon: { closed: true } } }, 'test'),
+      reachedDb, 'closing Monday must not pollute the union');
+  });
+
+  it('opening the default-CLOSED Sunday validates (branch switch closed → open)', async () => {
+    await assert.rejects(
+      configService.writeTenantConfig(TENANT_A, { hours: { sun: { open: '10:00', close: '13:00' } } }, 'test'),
+      reachedDb, 'opening Sunday must not pollute the union');
+  });
+
+  it('a genuinely bad interval (open >= close) is still rejected by the schema', async () => {
+    await assert.rejects(
+      configService.writeTenantConfig(TENANT_A, { hours: { mon: { open: '18:00', close: '09:00' } } }, 'test'),
+      isValidationError, 'open >= close is a real validation failure, not swallowed by the fix');
+  });
+
+  it('a supplied holidays array replaces the default and validates', async () => {
+    await assert.rejects(
+      configService.writeTenantConfig(TENANT_A, { hours: { holidays: [{ date: '2026-01-26', name: 'Republic Day' }] } }, 'test'),
+      reachedDb, 'holidays replace wholesale and the doc validates');
+  });
+});
+
 describe('getTenantConfig — cache + TTL', () => {
   it('DB hit on first read, cache hit on second', async () => {
     configRows[TENANT_A] = storedDoc();

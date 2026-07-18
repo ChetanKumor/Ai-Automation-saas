@@ -208,6 +208,17 @@ const adminLoginCookie = (port, password) =>
       languages: { supported: ['te', 'hi', 'en'], default: 'te' },
       notifications: { owner_numbers: ['+919000000001'] },
       escalation: { enabled: true, phone_numbers: ['+919000000002'] },
+      // Hours: a short Wednesday + a closed Saturday (varied grid), plus one past
+      // and one upcoming holiday so the S5 shot shows both the closed-day render
+      // and the past-date de-emphasis.
+      hours: {
+        wed: { open: '09:00', close: '13:00' },
+        sat: { closed: true },
+        holidays: [
+          { date: '2026-08-15', name: 'Independence Day' },
+          { date: '2026-01-26', name: 'Republic Day' },
+        ],
+      },
     }, 'shoot');
 
     const run = await validationService.validateTenant(tenantId, {
@@ -293,6 +304,30 @@ const adminLoginCookie = (port, password) =>
             + "document.getElementById('saveBtn').click();})();",
         }, sid);
         await waitForSelector(c, sid, "document.querySelector('.field.is-invalid')");
+      },
+    });
+
+    // S5: hours & holidays — the second config-write page. Desktop + 380px show the
+    // loaded 7-day grid (Wednesday short, Saturday closed) + the holiday rows (one
+    // past, de-emphasised). The third shot captures the validation state (Wednesday
+    // close-before-open → Save → an inline per-row error that names the fix).
+    const hoursReady = "document.getElementById('hoursForm') && !document.getElementById('hoursForm').hidden";
+    await shoot(cdp, { url: `${base}/hours.html`, out: path.join(OUT, 's5-hours-desktop.png'),
+      width: 1280, height: 1100, cookie, port, waitFor: hoursReady });
+    await shoot(cdp, { url: `${base}/hours.html`, out: path.join(OUT, 's5-hours-mobile.png'),
+      width: 380, height: 1000, mobile: true, cookie, port, waitFor: hoursReady });
+    await shoot(cdp, {
+      url: `${base}/hours.html`, out: path.join(OUT, 's5-hours-error.png'),
+      width: 1280, height: 1100, cookie, port, waitFor: hoursReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression:
+            "(function(){var w=document.querySelector('.day[data-day=\"wed\"]');"
+            + "w.querySelector('[data-role=\"open\"]').value='18:00';"
+            + "w.querySelector('[data-role=\"close\"]').value='09:00';"
+            + "document.getElementById('saveBtn').click();})();",
+        }, sid);
+        await waitForSelector(c, sid, "document.querySelector('.day.is-invalid')");
       },
     });
 
