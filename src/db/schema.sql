@@ -553,7 +553,8 @@ CREATE TABLE tenant_config_revisions (
   tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   version     INT NOT NULL,
   config      JSONB NOT NULL,
-  source      TEXT NOT NULL,             -- 'provision' | 'admin' | 'cli' (free text, no enum)
+  source      TEXT NOT NULL,             -- 'provision' | 'admin' | 'cli' | 'portal' (free text, no enum)
+  actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL, -- acting user (INV-4); NULL for operator/CLI writes (migration 024)
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (tenant_id, version)
 );

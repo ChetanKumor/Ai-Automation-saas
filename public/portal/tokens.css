@@ -321,7 +321,91 @@ a { color: var(--teal); }
  * left so the owner sees WHY it isn't yet actionable. */
 .golive { display: inline-flex; align-items: center; gap: 12px; }
 .golive__reason { font-size: 12.5px; font-weight: 600; color: var(--amber); white-space: nowrap; }
+/* When the owner has nothing left and the wait is on Prantivo — quiet, no count. */
+.golive__reason--muted { color: var(--muted); font-weight: 500; }
 .golive .btn[disabled], .golive .btn[aria-disabled="true"] { cursor: not-allowed; }
+
+/* ============================================================================
+ * Forms — the shared field vocabulary (PORTAL-P2-S4)
+ *
+ * Established by the Clinic profile page and inherited by every config page:
+ * a card holds one or more `.field` rows, each a label + control + help/error,
+ * and its own footer with a Save button. Quiet by default; the only colour is
+ * the teal focus ring and the red error state. No new visual language — same
+ * tokens as card/btn/badge above.
+ * ========================================================================== */
+.field { margin-top: var(--s-4); }
+.field:first-child { margin-top: 0; }
+.field__label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.field__opt { font-weight: 500; color: var(--faint); margin-left: 6px; }
+.field__help { font-size: 12.5px; color: var(--muted); margin: 0 0 8px; line-height: 1.5; }
+
+.input {
+  width: 100%;
+  font: 400 14px/1.5 var(--sans);
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  padding: 9px 12px;
+  transition: border-color .12s, box-shadow .12s;
+}
+.input::placeholder { color: var(--faint); }
+.input:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px var(--teal-050);
+}
+textarea.input { resize: vertical; min-height: 74px; }
+
+/* Invalid state — border + a named message beneath. Errors name the fix (§4). */
+.input--invalid, .input--invalid:focus {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px var(--red-050);
+}
+.field__error {
+  display: none;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--red);
+  margin-top: 6px;
+  line-height: 1.45;
+}
+.field.is-invalid .field__error { display: block; }
+
+/* Read-only, non-editable value (e.g. timezone — a v1 constant) */
+.field__static {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--ink-2);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  padding: 9px 12px;
+}
+.field__note { font-size: 12px; color: var(--faint); margin-top: 6px; }
+
+/* Card footer: Save on the right, a quiet saved/version note on the left. */
+.card__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-5);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line-2);
+}
+.card__foot .btn { margin-left: auto; }
+.save-note { font-size: 12.5px; color: var(--muted); }
+.save-note--saved { color: var(--green-700); font-weight: 600; }
+.save-note--dirty { color: var(--amber); font-weight: 600; }
 
 /* ============================================================================
  * Toast (bottom-right, auto-dismiss) — shared with future save flows

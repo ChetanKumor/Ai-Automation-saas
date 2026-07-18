@@ -26,6 +26,18 @@ const businessSchema = z.object({
   display_name: z.string().min(1).max(120),   // business name shown to customers on chat/voice
   vertical: z.literal('clinic'),              // product vertical — only 'clinic' exists in v1
   timezone: z.string().min(1).default('Asia/Kolkata'), // IANA tz used for hours/booking arithmetic
+  // ── Owner-facing identity fields (PORTAL-P2-S4). All DEFAULTED so a config
+  // written before these existed still validates on read (Zod fills the default;
+  // an absent key is not a strict violation). They live in the JSONB config
+  // document — no DDL. `phone_numbers` are patient-facing clinic contacts, kept
+  // distinct from escalation/owner-notification numbers (those are behaviour, not
+  // identity) and never rendered into the prompt (see templates/clinic.js).
+  address: z.string().max(500).default(''),   // clinic street address (patient-facing)
+  landmark: z.string().max(200).default(''),  // nearby landmark to help patients find it
+  website: z.string().max(300)                // optional public website — '' or an http(s) URL
+    .refine((v) => v === '' || /^https?:\/\/\S+\.\S+/.test(v), { message: 'website must start with http:// or https://' })
+    .default(''),
+  phone_numbers: z.array(E164).max(10).default([]), // public clinic contact numbers (E.164)
 }).strict();
 
 // ── languages ────────────────────────────────────────────────────────────────

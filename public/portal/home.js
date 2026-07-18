@@ -253,13 +253,31 @@
       `<div class="state-msg">We couldn’t load your readiness just now. Refresh the page to try again.</div>`;
   }
 
-  // Blocker count for the header Go-live control: material checks that ran and did
-  // NOT pass (= ring total − ring passed). Returns {} when there's no run so the
-  // control renders plain-disabled rather than claiming "0 items".
-  function blockersFrom(run) {
+  // Inputs for the header Go-live control (spec §5.13 rider). The control speaks to
+  // the OWNER, so its blocker count is only the owner's own to-do — material checks
+  // the owner acts on that are still failing — NOT operator-run gaps. When the
+  // owner has nothing left but Prantivo's material checks (WhatsApp/voice/test
+  // call) aren't green yet, `operatorPending` flips so the control reads "Waiting
+  // on Prantivo" (no number) instead of claiming the owner has items. Returns {}
+  // with no run so the control renders plain-disabled rather than claiming "0".
+  function lifecycleInputsFrom(run) {
     if (!run || !run.checks) return {};
-    const { passed, total } = computeScore(run.checks);
-    return { blockers: total - passed };
+    let blockers = 0;
+    for (const c of run.checks) {
+      const m = metaFor(c.name);
+      if (m.material && m.actor === 'owner' && c.severity === 'fail') blockers += 1;
+    }
+    // An operator material check counts as pending when it failed in the run OR
+    // was skipped (hasn't run yet — e.g. the scripted test call before go-live).
+    const opFailing = run.checks.some((c) => {
+      const m = metaFor(c.name);
+      return m.material && m.actor === 'operator' && c.severity === 'fail';
+    });
+    const opSkipped = (run.skipped || []).some((s) => {
+      const m = metaFor(s.name);
+      return m.material && m.actor === 'operator';
+    });
+    return { blockers, operatorPending: opFailing || opSkipped };
   }
 
   // ── Boot ───────────────────────────────────────────────────────────────────
@@ -280,10 +298,10 @@
       return;
     }
 
-    // Header Go-live control gets the blocker count (material checks not green) so
-    // its disabled state can name the reason. Derived here from the readiness
-    // payload; when no run exists yet the count is unknown (plain disabled control).
-    window.Portal.renderLifecycle(data.status, blockersFrom(data.run));
+    // Header Go-live control: owner-actionable blocker count + operator-pending
+    // flag, derived from the readiness payload (spec §5.13 rider). When no run
+    // exists yet both are unknown (plain disabled control).
+    window.Portal.renderLifecycle(data.status, lifecycleInputsFrom(data.run));
     renderBanner(data.status);
     if (!data.run) { renderEmpty(); return; }
     renderReadiness(data.run);

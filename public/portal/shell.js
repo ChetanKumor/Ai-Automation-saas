@@ -39,7 +39,7 @@
   // Only Home is built this session; the rest are inert "Soon" rows.
   const NAV = [
     { id: 'home',        label: 'Home',            icon: I.home,     href: 'index.html' },
-    { id: 'profile',     label: 'Clinic profile',  icon: I.building, soon: true },
+    { id: 'profile',     label: 'Clinic profile',  icon: I.building, href: 'clinic-profile.html' },
     { id: 'hours',       label: 'Hours & holidays', icon: I.clock,   soon: true },
     { id: 'pricing',     label: 'Pricing',         icon: I.tag,      soon: true },
     { id: 'doctors',     label: 'Doctors',         icon: I.doctor,   soon: true },
@@ -77,10 +77,16 @@
   }
 
   // State-aware header control (display-only this session — no lifecycle writes;
-  // §5.13/S18 wires the real go-live). `opts.blockers` (optional) is the count of
-  // material readiness checks not yet green, derived by the caller from the
-  // readiness payload; when > 0 it renders beside a visibly-disabled Go live as
-  // the reason the control isn't actionable.
+  // §5.13/S18 wires the real go-live). The caller derives, from the readiness
+  // payload:
+  //   opts.blockers        — count of OWNER-actionable material checks still
+  //                          failing (the owner's own to-do). > 0 → "N items need
+  //                          your attention" (amber), the actionable reason.
+  //   opts.operatorPending — true when the owner has nothing left but material
+  //                          checks Prantivo runs (WhatsApp/voice/test call) are
+  //                          not yet green → "Waiting on Prantivo" (no number).
+  // Precedence: owner items first (what the owner can act on), then the operator
+  // wait. When both are absent every material check is green (S18 enables go-live).
   function renderLifecycle(status, opts) {
     const host = $('#lifecycle');
     if (!host) return;
@@ -95,16 +101,77 @@
     }
     // draft / validated → a Go live control, disabled this session.
     const blockers = opts && Number.isInteger(opts.blockers) ? opts.blockers : null;
-    const blocked = blockers != null && blockers > 0;
-    const reason = blocked
-      ? `<span class="golive__reason">${blockers} ${blockers === 1 ? 'item needs' : 'items need'} your attention</span>`
-      : '';
-    const title = blocked
-      ? 'Finish the highlighted setup items, then go live'
-      : 'Prantivo completes go-live with you';
+    const operatorPending = !!(opts && opts.operatorPending);
+    let reason = '';
+    let title = 'Prantivo completes go-live with you';
+    if (blockers != null && blockers > 0) {
+      reason = `<span class="golive__reason">${blockers} ${blockers === 1 ? 'item needs' : 'items need'} your attention</span>`;
+      title = 'Finish the highlighted setup items, then go live';
+    } else if (operatorPending) {
+      reason = `<span class="golive__reason golive__reason--muted">Waiting on Prantivo</span>`;
+      title = 'Prantivo completes the remaining go-live steps with you';
+    }
     host.innerHTML =
       `<div class="golive">${reason}<button class="btn btn--primary" disabled aria-disabled="true"
         title="${title}">Go live</button></div>`;
+  }
+
+  // Check classification for the header Go-live control (actor + material only —
+  // NOT the owner copy, which lives on Home in home.js). This is the shared
+  // source every page uses to derive the header state; Home additionally renders
+  // the full per-check list from its own copy map. Mirrors the frozen validation
+  // catalog (validationService CHECK_NAMES).
+  const CHECK_CLASS = {
+    'config.exists':        { actor: 'system',   material: true },
+    'config.schema':        { actor: 'system',   material: true },
+    'prompt.renders':       { actor: 'system',   material: true },
+    'hours.sane':           { actor: 'owner',    material: true },
+    'numbers.e164':         { actor: 'owner',    material: true },
+    'consent.lines':        { actor: 'system',   material: true },
+    'kb.populated':         { actor: 'owner',    material: true },
+    'kb.retrieval':         { actor: 'owner',    material: true },
+    'doctor.schedule':      { actor: 'owner',    material: true },
+    'whatsapp.config':      { actor: 'operator', material: true },
+    'whatsapp.live':        { actor: 'operator', material: true },
+    'voice.config':         { actor: 'operator', material: true },
+    'turn.scripted':        { actor: 'operator', material: true },
+    'tenant.legacy_prompt': { actor: 'system',   material: false },
+  };
+  const classOf = (name) => CHECK_CLASS[name] || { actor: 'system', material: true };
+
+  // Derive the header control's inputs from a readiness run (spec §5.13 rider):
+  // owner-actionable material failures (the owner's to-do) and whether the only
+  // remaining material gaps are operator-run. Returns {} for no run.
+  function deriveGoLive(run) {
+    if (!run || !run.checks) return {};
+    let blockers = 0;
+    for (const c of run.checks) {
+      const m = classOf(c.name);
+      if (m.material && m.actor === 'owner' && c.severity === 'fail') blockers += 1;
+    }
+    const opFailing = run.checks.some((c) => {
+      const m = classOf(c.name);
+      return m.material && m.actor === 'operator' && c.severity === 'fail';
+    });
+    const opSkipped = (run.skipped || []).some((s) => {
+      const m = classOf(s.name);
+      return m.material && m.actor === 'operator';
+    });
+    return { blockers, operatorPending: opFailing || opSkipped };
+  }
+
+  // Populate the header Go-live control on pages OTHER than Home (Home renders its
+  // own, richer, from its readiness fetch, so we skip it to avoid a double render).
+  // Pure chrome: any failure leaves the header empty and never blocks the page.
+  async function renderHeaderLifecycle() {
+    try { await window.Portal.me; } catch (_) { return; }
+    if (activeId === 'home') return;
+    try {
+      const res = await fetch('/portal/api/readiness', { headers: { Accept: 'application/json' } });
+      if (!res.ok) return;
+      const data = await res.json();
+      renderLifecycle(data.status, deriveGoLive(data.run));
+    } catch (_) { /* header stays empty — non-critical */ }
   }
 
   function wireChrome() {
@@ -152,5 +219,9 @@
     icons: I,
     me: bootstrap(),
     renderLifecycle,
+    deriveGoLive,
   };
+
+  // Header go-live control on non-home pages (Home renders its own from home.js).
+  renderHeaderLifecycle();
 })();

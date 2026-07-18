@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Clinic profile · Receptionist portal</title>
+  <meta name="description" content="Your clinic's name, address, contact numbers and languages — the facts your AI receptionist uses when talking to patients.">
+  <link rel="stylesheet" href="./fonts/fonts.css">
+  <link rel="stylesheet" href="./tokens.css">
+  <link rel="stylesheet" href="./clinic-profile.css">
+</head>
+<body data-page="profile">
+  <div class="app" id="app">
+    <div class="side__scrim"></div>
+
+    <!-- Sidebar (nav injected by shell.js) -->
+    <aside class="side">
+      <div class="side__brand">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M10 3h4a1 1 0 0 1 1 1v5h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5v5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h5V4a1 1 0 0 1 1-1Z"/></svg>
+        </span>
+        <div>
+          <div class="brand__name" id="clinicName">Your clinic</div>
+          <div class="brand__sub">AI receptionist</div>
+        </div>
+      </div>
+      <nav class="side__nav" id="nav"></nav>
+      <div class="side__foot">
+        <button class="btn btn--ghost btn--block" id="logout" type="button">Log out</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <header class="top">
+        <button class="top__burger" id="burger" type="button" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="top__spacer"></div>
+        <div id="lifecycle"></div>
+      </header>
+
+      <main class="content">
+        <div class="page-head">
+          <h1 class="page-head__title">Clinic profile</h1>
+          <p class="page-head__sub">Your clinic's name, address and contact details — the facts your receptionist uses when talking to patients.</p>
+        </div>
+
+        <!-- Loading / error placeholder (replaced once the form loads) -->
+        <section class="card" id="loadCard">
+          <div class="state-msg" id="loadMsg">Loading your clinic profile…</div>
+        </section>
+
+        <!-- Profile form (revealed by JS once values are loaded) -->
+        <section class="card" id="profileCard" hidden>
+          <form id="profileForm" novalidate>
+            <div class="card__title">Clinic details</div>
+            <p class="card__sub">Patients see and hear these, so keep them accurate.</p>
+
+            <div class="field" data-field="display_name">
+              <label class="field__label" for="display_name">Clinic name</label>
+              <input class="input" id="display_name" name="display_name" type="text" maxlength="120"
+                     autocomplete="organization" placeholder="e.g. Sunrise Dental Clinic">
+              <div class="field__error" id="err-display_name"></div>
+            </div>
+
+            <div class="field" data-field="address">
+              <label class="field__label" for="address">Address <span class="field__opt">optional</span></label>
+              <textarea class="input" id="address" name="address" maxlength="500"
+                        placeholder="Street, area, city, PIN code"></textarea>
+              <div class="field__error" id="err-address"></div>
+            </div>
+
+            <div class="field" data-field="landmark">
+              <label class="field__label" for="landmark">Landmark <span class="field__opt">optional</span></label>
+              <p class="field__help">A nearby landmark helps patients find you.</p>
+              <input class="input" id="landmark" name="landmark" type="text" maxlength="200"
+                     placeholder="e.g. opposite City Hospital">
+              <div class="field__error" id="err-landmark"></div>
+            </div>
+
+            <div class="field" data-field="website">
+              <label class="field__label" for="website">Website <span class="field__opt">optional</span></label>
+              <input class="input" id="website" name="website" type="url" inputmode="url" maxlength="300"
+                     placeholder="https://myclinic.in">
+              <div class="field__error" id="err-website"></div>
+            </div>
+
+            <div class="field" data-field="phone_numbers">
+              <label class="field__label">Phone numbers</label>
+              <p class="field__help">The numbers patients can call. Include the country code, e.g. +91 98765 43210.</p>
+              <div class="phones" id="phones"></div>
+              <button class="btn btn--ghost phones__add" id="addPhone" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                Add a number
+              </button>
+              <div class="field__error" id="err-phone_numbers"></div>
+            </div>
+
+            <div class="field" data-field="languages">
+              <label class="field__label">Languages your receptionist speaks</label>
+              <p class="field__help">Turn on every language your patients use. At least one is required.</p>
+              <div class="langs" id="langs"></div>
+              <div class="field__error" id="err-languages"></div>
+            </div>
+
+            <div class="field">
+              <label class="field__label">Timezone</label>
+              <div class="field__static">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                Asia/Kolkata (IST)
+              </div>
+              <div class="field__note">Set to India Standard Time. This isn't changeable in v1.</div>
+            </div>
+
+            <div class="card__foot">
+              <span class="save-note" id="saveNote"></span>
+              <button class="btn btn--primary" id="saveBtn" type="submit">Save changes</button>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast-host" id="toastHost"></div>
+
+  <script src="./shell.js"></script>
+  <script src="./clinic-profile.js"></script>
+</body>
+</html>

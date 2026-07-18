@@ -198,7 +198,14 @@ const adminLoginCookie = (port, password) =>
       [tenantId, email, hashPassword(password), 'owner']);
 
     await configService.writeTenantConfig(tenantId, {
-      business: { display_name: 'Sunrise Dental' },
+      business: {
+        display_name: 'Sunrise Dental',
+        address: '2nd Floor, Pearl Plaza, Ameerpet, Hyderabad 500016',
+        landmark: 'above HDFC Bank, opposite Ameerpet Metro',
+        website: 'https://sunrisedental.in',
+        phone_numbers: ['+919876543210', '+914023456789'],
+      },
+      languages: { supported: ['te', 'hi', 'en'], default: 'te' },
       notifications: { owner_numbers: ['+919000000001'] },
       escalation: { enabled: true, phone_numbers: ['+919000000002'] },
     }, 'shoot');
@@ -261,6 +268,33 @@ const adminLoginCookie = (port, password) =>
     await shoot(cdp, { url: `${base}/index.html`, out: path.join(OUT, 'home-mobile.png'),
       width: 380, height: 820, mobile: true, cookie, port,
       waitFor: "document.querySelector('.ring')||document.querySelector('.empty')" });
+
+    // S4: clinic profile — the first config-write page. Desktop + 380px show the
+    // loaded form (the seeded tenant carries real identity values); the third shot
+    // captures the field-level validation state (empty name + a malformed phone →
+    // Save → inline errors that name the fix).
+    await shoot(cdp, { url: `${base}/clinic-profile.html`, out: path.join(OUT, 's4-profile-desktop.png'),
+      width: 1280, height: 1000, cookie, port,
+      waitFor: "document.getElementById('profileCard') && !document.getElementById('profileCard').hidden" });
+    await shoot(cdp, { url: `${base}/clinic-profile.html`, out: path.join(OUT, 's4-profile-mobile.png'),
+      width: 380, height: 900, mobile: true, cookie, port,
+      waitFor: "document.getElementById('profileCard') && !document.getElementById('profileCard').hidden" });
+    await shoot(cdp, {
+      url: `${base}/clinic-profile.html`, out: path.join(OUT, 's4-profile-error.png'),
+      width: 1280, height: 1000, cookie, port,
+      waitFor: "document.getElementById('profileCard') && !document.getElementById('profileCard').hidden",
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression:
+            "(function(){document.getElementById('display_name').value='';"
+            + "var ph=document.querySelector('.phone-row .input');"
+            + "if(!ph){document.getElementById('addPhone').click();ph=document.querySelector('.phone-row .input');}"
+            + "ph.value='not a phone';"
+            + "document.getElementById('saveBtn').click();})();",
+        }, sid);
+        await waitForSelector(c, sid, "document.querySelector('.field.is-invalid')");
+      },
+    });
 
     // S3: admin "create owner account" — fill the email, click Create, wait for the
     // one-time password panel, then capture. Uses the admin connect.sid cookie.

@@ -18,6 +18,10 @@ const clinicDefaults = {
     display_name: 'New Clinic',
     vertical: 'clinic',
     timezone: 'Asia/Kolkata',
+    address: '',
+    landmark: '',
+    website: '',
+    phone_numbers: [],
   },
   languages: {
     supported: ['te', 'hi', 'en'],
