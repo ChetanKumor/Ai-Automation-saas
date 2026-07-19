@@ -496,4 +496,239 @@ router.post('/api/config/hours', requirePortalAuth, express.json(), async (req, 
   }
 });
 
+// ── Config section: pricing (Pricing, PORTAL-P2-S6) ──────────────────────────
+// The third owner-writable surface, same pattern as identity/hours (read current
+// → replace this section → configService write with actorUserId → return
+// { section, version, readiness }). Storage home is `pricing.*`.
+//
+// This page closes an observed product gap: on a live Telugu call a patient asked
+// what a visit costs and the receptionist correctly refused to invent a number,
+// because no price data existed anywhere. What is saved here renders into the
+// prompt's bounded FACTS block (templates/clinic.js) and is quoted verbatim.
+//
+// Discounts are deliberately absent (spec §9) — a free-text discount field invites
+// the receptionist into price negotiation.
+const PAYMENT_METHODS = ['upi', 'cash', 'card'];
+const INSURANCE_STANCES = ['not_accepted', 'selected_insurers', 'note'];
+const MAX_TREATMENTS = 50;
+const MAX_FEE = 10000000; // ₹1 crore — mirrors the schema's FEE cap
+
+// Owner-safe projection of the pricing section. Fees stay null when unset (never
+// coerced to 0 — "not configured" and "free" are different facts), and every
+// treatment gets a uniform shape so the page never has to defend against holes.
+function projectPricing(config) {
+  const p = (config && config.pricing) || {};
+  const ins = (p && p.insurance) || {};
+  const num = (v) => (typeof v === 'number' ? v : null);
+  return {
+    consultation_fee: num(p.consultation_fee),
+    follow_up_fee: num(p.follow_up_fee),
+    emergency_fee: num(p.emergency_fee),
+    payment_methods: Array.isArray(p.payment_methods)
+      ? p.payment_methods.filter((m) => PAYMENT_METHODS.includes(m))
+      : [],
+    insurance: {
+      stance: INSURANCE_STANCES.includes(ins.stance) ? ins.stance : 'not_accepted',
+      note: typeof ins.note === 'string' ? ins.note : '',
+    },
+    treatments: Array.isArray(p.treatments)
+      ? p.treatments
+        .filter((t) => t && typeof t.name === 'string' && typeof t.price === 'number')
+        .map((t) => ({
+          name: t.name,
+          price: t.price,
+          price_from: t.price_from === true,
+          duration_minutes: num(t.duration_minutes),
+          notes: typeof t.notes === 'string' ? t.notes : '',
+          archived: t.archived === true,
+        }))
+      : [],
+  };
+}
+
+// Parse one fee input. The form sends a string ('' = cleared) or a number.
+// Returns { ok, value }; value === null means "not configured", which the prompt
+// omits entirely rather than quoting. 0 is a legitimate price (free) and is kept.
+//
+// A string must be PLAIN DIGITS. Number() alone would happily read '1e5' as
+// 100000 and ' 12 ' as 12 — an owner who typed either made a mistake, and this
+// is the one field where silently storing a number nobody meant is exactly the
+// failure we are here to prevent (it would then be quoted to patients as fact).
+function parseFee(raw) {
+  if (raw === null || raw === undefined || raw === '') return { ok: true, value: null };
+  let n;
+  if (typeof raw === 'number') {
+    n = raw;
+  } else {
+    const s = String(raw).trim();
+    if (!/^\d+$/.test(s)) return { ok: false, value: null };
+    n = Number(s);
+  }
+  if (!Number.isInteger(n) || n < 0 || n > MAX_FEE) return { ok: false, value: null };
+  return { ok: true, value: n };
+}
+
+// GET the session tenant's pricing section (INV-1: tenant from req.portalUser only).
+router.get('/api/config/pricing', requirePortalAuth, async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  try {
+    const config = await getConfigForSession(tenantId);
+    const version = config ? (configService.getCachedConfigVersion(tenantId) || 0) : 0;
+    res.json({ pricing: projectPricing(config), version });
+  } catch (err) {
+    logger.error({ err: err.message }, 'portal pricing GET failed');
+    res.status(500).json({ error: 'Failed to load pricing' });
+  }
+});
+
+// POST a full pricing update. Validated here with owner-friendly messages AND
+// re-validated by configService (the real gate, INV-2); the revision records the
+// acting owner (INV-4). Returns { section, version, readiness }.
+router.post('/api/config/pricing', requirePortalAuth, express.json(), async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  const body = req.body || {};
+  const fields = [];
+
+  // ── Fees ──
+  const FEE_LABEL = {
+    consultation_fee: 'consultation fee',
+    follow_up_fee: 'follow-up fee',
+    emergency_fee: 'emergency visit fee',
+  };
+  const fees = {};
+  for (const key of Object.keys(FEE_LABEL)) {
+    const parsed = parseFee(body[key]);
+    if (!parsed.ok) {
+      fields.push({ field: key, message: `Enter the ${FEE_LABEL[key]} as a whole number of rupees — for example 500. Leave it blank if you don’t charge one.` });
+    } else fees[key] = parsed.value;
+  }
+
+  // ── Payment methods (a SET — de-duplicated, unknown values rejected) ──
+  const rawMethods = Array.isArray(body.payment_methods) ? body.payment_methods : [];
+  const methods = [];
+  for (const m of rawMethods) {
+    if (!PAYMENT_METHODS.includes(m)) {
+      fields.push({ field: 'payment_methods', message: 'Choose payment methods from UPI, cash, and card.' });
+      break;
+    }
+    if (!methods.includes(m)) methods.push(m);
+  }
+
+  // ── Insurance: a stance that promises detail must carry it ──
+  const rawIns = isPlainObject(body.insurance) ? body.insurance : {};
+  const stance = INSURANCE_STANCES.includes(rawIns.stance) ? rawIns.stance : 'not_accepted';
+  const insNote = typeof rawIns.note === 'string' ? rawIns.note.trim() : '';
+  if (rawIns.stance !== undefined && !INSURANCE_STANCES.includes(rawIns.stance)) {
+    fields.push({ field: 'insurance.stance', message: 'Choose how your clinic handles insurance.' });
+  }
+  if (stance !== 'not_accepted' && !insNote) {
+    fields.push({
+      field: 'insurance.note',
+      message: stance === 'selected_insurers'
+        ? 'List the insurers you accept, so your receptionist can name them.'
+        : 'Write what your receptionist should tell patients about insurance.',
+    });
+  }
+  if (insNote.length > 300) {
+    fields.push({ field: 'insurance.note', message: 'Keep the insurance note to 300 characters or fewer.' });
+  }
+
+  // ── Treatments ──
+  // Validation applies to ARCHIVED rows too: archiving retires a row from the
+  // prompt, it does not exempt it from being well-formed. Only the duplicate-name
+  // rule is active-only, so a retired name can be reused later.
+  const rawTreatments = Array.isArray(body.treatments) ? body.treatments : [];
+  const treatments = [];
+  const seenName = new Map(); // lowercased active name -> row index
+  if (rawTreatments.length > MAX_TREATMENTS) {
+    fields.push({ field: 'treatments', message: `You can list up to ${MAX_TREATMENTS} treatments. Archive the ones you no longer offer.` });
+  }
+  rawTreatments.slice(0, MAX_TREATMENTS).forEach((t, i) => {
+    const row = isPlainObject(t) ? t : {};
+    const name = typeof row.name === 'string' ? row.name.trim() : '';
+    const archived = row.archived === true;
+    const priceRaw = row.price;
+    const isBlank = !name && (priceRaw === '' || priceRaw === null || priceRaw === undefined);
+    if (isBlank) return; // an untouched empty row is an unfilled input, not an error
+
+    if (!name) {
+      fields.push({ field: `treatments.${i}.name`, message: 'Name this treatment as patients would ask for it.' });
+    } else if (name.length > 120) {
+      fields.push({ field: `treatments.${i}.name`, message: 'Treatment name must be 120 characters or fewer.' });
+    } else if (!archived) {
+      const key = name.toLowerCase();
+      if (seenName.has(key)) {
+        fields.push({ field: `treatments.${i}.name`, message: `You’ve already listed “${name}”. Rename or archive one of them.` });
+      } else seenName.set(key, i);
+    }
+
+    const price = parseFee(priceRaw);
+    if (!price.ok || price.value === null) {
+      fields.push({ field: `treatments.${i}.price`, message: 'Enter this treatment’s price as a whole number of rupees — for example 1500.' });
+    }
+
+    // Duration is optional; when given it must be plain digits in 1–480 (same
+    // strictness as a fee — see parseFee).
+    let duration = null;
+    if (row.duration_minutes !== '' && row.duration_minutes !== null && row.duration_minutes !== undefined) {
+      const parsed = parseFee(row.duration_minutes);
+      const d = parsed.value;
+      if (!parsed.ok || d === null || d <= 0 || d > 480) {
+        fields.push({ field: `treatments.${i}.duration_minutes`, message: 'Enter how many minutes this takes (1–480), or leave it blank.' });
+      } else duration = d;
+    }
+
+    const notes = typeof row.notes === 'string' ? row.notes.trim() : '';
+    if (notes.length > 300) {
+      fields.push({ field: `treatments.${i}.notes`, message: 'Keep the note to 300 characters or fewer.' });
+    }
+
+    treatments.push({
+      name,
+      price: price.value === null ? 0 : price.value, // placeholder; a bad price already failed above
+      price_from: row.price_from === true,
+      duration_minutes: duration,
+      notes,
+      archived,
+    });
+  });
+
+  if (fields.length) {
+    return res.status(400).json({ error: 'Please fix the highlighted items.', fields });
+  }
+
+  try {
+    // Read-merge (S4 rule): preserve every OTHER section. The `pricing` branch is
+    // REPLACED wholesale — the route always builds a complete section, so replacing
+    // is what makes a cleared fee actually clear and a removed treatment actually
+    // disappear. (deepMerge already replaces arrays wholesale, but replacing the
+    // whole branch means treatments can never be element-merged even if that
+    // changed.)
+    const current = await getConfigForSession(tenantId);
+    const next = {
+      ...(current || {}),
+      pricing: {
+        ...fees,
+        payment_methods: methods,
+        insurance: { stance, note: stance === 'not_accepted' ? '' : insNote },
+        treatments,
+      },
+    };
+
+    const { version, config } = await configService.writeTenantConfig(tenantId, next, 'portal', {
+      actorUserId: req.portalUser.id, // INV-4
+    });
+
+    const readiness = await readinessSnapshot(tenantId);
+    res.json({ section: projectPricing(config), version, readiness });
+  } catch (err) {
+    if (err.name === 'ConfigValidationError') {
+      return res.status(422).json({ error: 'Some prices couldn’t be saved.', issues: err.issues });
+    }
+    if (/tenant not found/.test(err.message || '')) return res.status(404).json({ error: 'Tenant not found' });
+    logger.error({ err: err.message }, 'portal pricing POST failed');
+    res.status(500).json({ error: 'Failed to save pricing' });
+  }
+});
+
 module.exports = router;

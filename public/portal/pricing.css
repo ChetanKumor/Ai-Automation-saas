@@ -1,0 +1,234 @@
+/* ============================================================================
+ * Pricing — page-specific styles (PORTAL-P2-S6)
+ *
+ * The shared field/card/button vocabulary lives in tokens.css. Only the controls
+ * unique to this page are here: the ₹-prefixed money input, the treatment rows,
+ * and the payment-method pills. Same tokens, same quiet surface.
+ *
+ * Mobile is the hard case. A treatment carries five inputs (name, price,
+ * duration, "starts at", note) which cannot survive as a shrunken table at
+ * ~380px — so below 640px each row STACKS into a small card with full-width
+ * controls. Never a horizontally-scrolling table.
+ * ========================================================================== */
+
+/* Loading / error placeholder (home.css isn't linked here, so define locally) */
+.state-msg { color: var(--muted); font-size: 14px; padding: 8px 2px; }
+.state-msg--error { color: var(--red); }
+
+/* ── Money input: a ₹ sign sitting inside the field ── */
+.money { position: relative; }
+.money__sym {
+  position: absolute;
+  left: 11px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--faint);
+  font-size: 14px;
+  line-height: 1;
+  pointer-events: none;
+}
+.money__input { padding-left: 25px; }
+/* While the owner is typing an amount, the sign reads as part of it. */
+.money:focus-within .money__sym { color: var(--ink-2); }
+
+/* ── Standard fees: three across on desktop, stacked on narrow ── */
+.fees {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+.fees .field { margin-top: 0; }
+
+/* ── Treatment rows ── */
+.treatments { display: flex; flex-direction: column; gap: 10px; }
+
+.tr {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  background: var(--card);
+  transition: border-color .12s, background .12s, opacity .12s;
+}
+.tr__main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 116px 96px auto;
+  gap: 8px;
+  align-items: center;
+}
+.tr__name { min-width: 0; }
+.tr__price-wrap { min-width: 0; }
+
+/* Duration: a number with a trailing "min" unit inside the field. */
+.tr__dur-wrap { position: relative; min-width: 0; }
+.tr__dur { padding-right: 34px; }
+.tr__dur-unit {
+  position: absolute;
+  right: 10px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.tr__archive {
+  flex: none;
+  width: 38px; height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: var(--radius-xs);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.tr__archive:hover { background: var(--amber-050); border-color: var(--amber-200); color: var(--amber); }
+.tr__archive svg { width: 16px; height: 16px; }
+
+/* Second line: the archived tag, the "starts at" flag, and an optional note.
+   Flex (not grid) because the tag comes and goes with the archived state. */
+.tr__extra {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.tr__notes { flex: 1 1 220px; min-width: 0; font-size: 13px; padding: 7px 10px; }
+
+.chk {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.chk input { width: 15px; height: 15px; accent-color: var(--teal); cursor: pointer; flex: none; }
+
+/* Archived rows: retained for history, quietly de-emphasised, never in the
+   prompt. Hidden entirely unless "Show archived" is on. */
+.tr--archived { background: var(--bg); opacity: .72; }
+.tr--archived .tr__archive:hover { background: var(--teal-050); border-color: var(--teal-100); color: var(--teal); }
+.tr--hidden { display: none; }
+.tr__tag {
+  display: none;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--faint);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+.tr--archived .tr__tag { display: inline-block; }
+
+/* Per-row error, full width beneath the row. */
+.tr__error {
+  display: none;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--red);
+  line-height: 1.45;
+  margin-top: 7px;
+}
+.tr.is-invalid { border-color: var(--red); }
+.tr.is-invalid .tr__error { display: block; }
+.tr .input--invalid { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-050); }
+
+.treatments__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.treatments__foot .btn svg { width: 14px; height: 14px; }
+.show-archived {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+.show-archived input { width: 15px; height: 15px; accent-color: var(--teal); cursor: pointer; }
+.treatments__empty { margin: 10px 0 0; }
+#treatmentsError { margin: 8px 0 0; }
+#treatmentsError:not(:empty) { display: block; }
+
+/* ── Payment method pills (mirrors the language toggles on Clinic profile) ── */
+.pays { display: flex; flex-wrap: wrap; gap: 8px; }
+.pay-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font: 600 13.5px/1 var(--sans);
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.pay-toggle:hover { background: var(--bg); }
+.pay-toggle__check {
+  width: 16px; height: 16px;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid var(--faint);
+  display: grid;
+  place-items: center;
+  color: transparent;
+}
+.pay-toggle__check svg { width: 11px; height: 11px; }
+.pay-toggle[aria-pressed="true"] {
+  background: var(--teal-050);
+  border-color: var(--teal-100);
+  color: var(--teal-700);
+}
+.pay-toggle[aria-pressed="true"] .pay-toggle__check {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: #fff;
+}
+
+/* Native select adopts the shared .input look. */
+select.input {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  background-size: 15px;
+  padding-right: 34px;
+  cursor: pointer;
+}
+
+/* ── Mobile: stack everything; never shrink a table (spec: true ~380px) ── */
+@media (max-width: 640px) {
+  .fees { grid-template-columns: minmax(0, 1fr); gap: var(--s-3); }
+
+  /* Name takes its own full-width line; price, duration and the archive button
+     share the next one. Everything stays in normal grid flow — no overlap, no
+     horizontal scroll. */
+  .tr { padding: 12px; }
+  .tr__main {
+    grid-template-columns: minmax(0, 1fr) 104px auto;
+    gap: 8px;
+  }
+  .tr__name { grid-column: 1 / -1; }
+  .tr__price-wrap { grid-column: 1 / 2; }
+  .tr__dur-wrap { grid-column: 2 / 3; }
+  .tr__archive { grid-column: 3 / 4; }
+  .tr__notes { flex: 1 1 100%; }
+}

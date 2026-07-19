@@ -219,6 +219,23 @@ const adminLoginCookie = (port, password) =>
           { date: '2026-01-26', name: 'Republic Day' },
         ],
       },
+      // Pricing (S6): real fees + a treatment list that exercises every row
+      // variant — a "starts at" price, a duration, a note, and one ARCHIVED row
+      // so the "Show archived (1)" toggle appears and the archived styling shows.
+      pricing: {
+        consultation_fee: 500,
+        follow_up_fee: 300,
+        emergency_fee: 1200,
+        payment_methods: ['upi', 'cash', 'card'],
+        insurance: { stance: 'selected_insurers', note: 'Star Health, HDFC Ergo, Niva Bupa' },
+        treatments: [
+          { name: 'Root canal', price: 4000, price_from: true, duration_minutes: 45 },
+          { name: 'Teeth cleaning', price: 1500, duration_minutes: 30, notes: 'includes polishing' },
+          { name: 'Tooth extraction', price: 2500, duration_minutes: 20 },
+          { name: 'Dental crown', price: 6000, price_from: true },
+          { name: 'Teeth whitening', price: 3500, archived: true },
+        ],
+      },
     }, 'shoot');
 
     const run = await validationService.validateTenant(tenantId, {
@@ -328,6 +345,31 @@ const adminLoginCookie = (port, password) =>
             + "document.getElementById('saveBtn').click();})();",
         }, sid);
         await waitForSelector(c, sid, "document.querySelector('.day.is-invalid')");
+      },
+    });
+
+    // S6: pricing — the third config-write page. Desktop + 380px show the loaded
+    // fees, the treatment rows (a "starts at" price, durations, a note) and the
+    // payment/insurance card; the archived row sits behind "Show archived (1)".
+    // The third shot captures two validation states at once: a non-integer fee and
+    // a duplicate ACTIVE treatment name → Save → inline errors that name the fix.
+    const pricingReady = "document.getElementById('pricingForm') && !document.getElementById('pricingForm').hidden";
+    await shoot(cdp, { url: `${base}/pricing.html`, out: path.join(OUT, 's6-pricing-desktop.png'),
+      width: 1280, height: 1200, cookie, port, waitFor: pricingReady });
+    await shoot(cdp, { url: `${base}/pricing.html`, out: path.join(OUT, 's6-pricing-mobile.png'),
+      width: 380, height: 1000, mobile: true, cookie, port, waitFor: pricingReady });
+    await shoot(cdp, {
+      url: `${base}/pricing.html`, out: path.join(OUT, 's6-pricing-error.png'),
+      width: 1280, height: 1200, cookie, port, waitFor: pricingReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression:
+            "(function(){document.getElementById('consultation_fee').value='12.5';"
+            + "var rows=document.querySelectorAll('.tr');"
+            + "rows[1].querySelector('.tr__name').value=rows[0].querySelector('.tr__name').value;"
+            + "document.getElementById('saveBtn').click();})();",
+        }, sid);
+        await waitForSelector(c, sid, "document.querySelector('.tr.is-invalid')");
       },
     });
 

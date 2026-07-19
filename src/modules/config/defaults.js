@@ -42,6 +42,22 @@ const clinicDefaults = {
     sun: { closed: true },
     holidays: [],
   },
+  // Deliberately EMPTY (PORTAL-P2-S6). A fresh clinic has no prices we could
+  // honestly invent, and an empty price list renders NO pricing block in the
+  // prompt at all — so the receptionist keeps refusing to quote a number until
+  // the owner enters real ones. A "sample" fee here would be a lie the
+  // receptionist would state as fact.
+  pricing: {
+    consultation_fee: null,
+    follow_up_fee: null,
+    emergency_fee: null,
+    payment_methods: [],
+    insurance: {
+      stance: 'not_accepted',
+      note: '',
+    },
+    treatments: [],
+  },
   booking: {
     slot_minutes: 30,
     advance_days: 30,

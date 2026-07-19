@@ -7,8 +7,11 @@
 // which the hook site wires to the logger).
 //
 // Section order is a tested product invariant:
-//   role/identity → clinic facts → greeting + consent → personality →
+//   role/identity → clinic facts → prices → greeting + consent → personality →
 //   custom_instructions → guardrails LAST.
+// The prices section is omitted entirely when nothing is priced (see
+// pricingFacts) — an unpriced clinic renders exactly the prompt it did before
+// the pricing section existed.
 // The guardrail block is hardcoded and always renders after operator text, so
 // custom_instructions can never displace or countermand it by position.
 //
@@ -74,6 +77,89 @@ function hoursSummary(hours) {
   });
   if ((hours.holidays || []).length > 0) parts.push('holiday closures apply');
   return parts.join('; ');
+}
+
+// ── Pricing FACTS block (PORTAL-P2-S6) ──────────────────────────────────────
+// A BOUNDED, explicit price list. Prices are the one class of fact where a
+// plausible-sounding guess is a real-world harm: a quoted number the clinic
+// doesn't honour is a broken promise at the counter. So prices are never left to
+// model memory — they are listed here verbatim, and the block closes with the
+// rule that anything unlisted gets no number at all.
+//
+// The block is bounded by construction: a header that names what it is, the
+// lines, and a closing rule. It renders as its own paragraph (sections join with
+// a blank line), so it cannot bleed into neighbouring instructions.
+//
+// SILENCE ON EMPTY is a hard requirement: with nothing priced, we emit NO block
+// rather than an empty or half-populated one, so the receptionist falls through
+// to its existing "I'll check and get back to you" behaviour exactly as it did
+// before this section existed. Note the gate is on PRICE lines specifically —
+// payment methods and insurance ride along as supporting detail but never
+// summon a "Prices" block on their own, which would be a price list with no
+// prices in it.
+
+// Rupee amounts. WhatsApp renders the ₹ sign; voice spells out "rupees" because
+// the receptionist has to SAY the amount and TTS reads a bare symbol unreliably.
+// INR is a v1 constant (spec §9) — there is no currency to select.
+const money = (n, voice) => (voice ? `${n} rupees` : `₹${n}`);
+
+const PAYMENT_LABEL = { upi: 'UPI', cash: 'cash', card: 'card' };
+
+function pricingFacts(pricing, { voice, who }) {
+  if (!pricing || typeof pricing !== 'object') return null;
+
+  // ── Price lines: the fees, then every NON-ARCHIVED treatment ──
+  // Archived rows are retained for referenced history and must never reach the
+  // prompt — the receptionist would quote a price the clinic has retired.
+  const lines = [];
+  const fee = (label, v) => {
+    // Explicit type check, not truthiness: 0 is a real, quotable price ("free"),
+    // while null means "not configured" and must stay unquoted.
+    if (typeof v === 'number') lines.push(`- ${label}: ${money(v, voice)}`);
+  };
+  fee('Consultation', pricing.consultation_fee);
+  fee('Follow-up visit', pricing.follow_up_fee);
+  fee('Emergency visit', pricing.emergency_fee);
+
+  // Every active treatment renders on BOTH channels — no voice truncation. A
+  // long list costs voice tokens, but silently dropping a price would make the
+  // receptionist deny a price the clinic actually set, which is the exact bug
+  // this block exists to fix. Cost is the correct thing to trade here; the
+  // schema's 50-row cap is what bounds the size.
+  for (const t of (Array.isArray(pricing.treatments) ? pricing.treatments : [])) {
+    if (!t || t.archived || typeof t.name !== 'string' || typeof t.price !== 'number') continue;
+    const amount = t.price_from ? `from ${money(t.price, voice)}` : money(t.price, voice);
+    const extra = [];
+    if (t.duration_minutes) extra.push(`about ${t.duration_minutes} minutes`);
+    if (t.notes) extra.push(t.notes);
+    lines.push(`- ${t.name}: ${amount}${extra.length ? ` (${extra.join('; ')})` : ''}`);
+  }
+
+  if (lines.length === 0) return null; // nothing priced → no block at all
+
+  // ── Supporting detail (only alongside real prices) ──
+  const tail = [];
+  const methods = Array.isArray(pricing.payment_methods) ? pricing.payment_methods : [];
+  if (methods.length > 0) {
+    tail.push(`Payment accepted: ${methods.map((m) => PAYMENT_LABEL[m] || m).join(', ')}.`);
+  }
+  // Insurance renders ONLY for a stance the owner explicitly filled in. The
+  // default stance ('not_accepted' with an empty note) is indistinguishable from
+  // "never touched this setting", and asserting an unconfirmed insurance policy
+  // is the same class of error as inventing a price — stay silent instead.
+  const ins = pricing.insurance;
+  if (ins && ins.note && ins.stance === 'selected_insurers') {
+    tail.push(`Insurance: accepted from selected insurers — ${ins.note}`);
+  } else if (ins && ins.note && ins.stance === 'note') {
+    tail.push(`Insurance: ${ins.note}`);
+  }
+
+  const head = voice
+    ? 'Prices — the clinic’s official list. Say these amounts exactly; never estimate, round, discount, or negotiate:'
+    : 'Prices — the clinic’s official list. Quote these amounts exactly as written; never estimate, round, discount, or negotiate:';
+  const rule = `If a price is not listed above, do not state a number — tell the ${who} you will check with the clinic and get back to them.`;
+
+  return [head, ...lines, ...tail, rule].join('\n');
 }
 
 // Pick a per-language literal (greeting / consent line) for the default
@@ -190,6 +276,7 @@ function renderClinic(config, { channel, onWarn }) {
   const sections = [
     role.join('\n'),
     facts.join('\n'),
+    pricingFacts(config.pricing, { voice, who }), // null when nothing is priced → section drops out entirely
     greetLines.join('\n') || null,
     personality,
     customBlock,

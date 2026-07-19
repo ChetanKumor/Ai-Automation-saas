@@ -41,7 +41,7 @@
     { id: 'home',        label: 'Home',            icon: I.home,     href: 'index.html' },
     { id: 'profile',     label: 'Clinic profile',  icon: I.building, href: 'clinic-profile.html' },
     { id: 'hours',       label: 'Hours & holidays', icon: I.clock,   href: 'hours.html' },
-    { id: 'pricing',     label: 'Pricing',         icon: I.tag,      soon: true },
+    { id: 'pricing',     label: 'Pricing',         icon: I.tag,      href: 'pricing.html' },
     { id: 'doctors',     label: 'Doctors',         icon: I.doctor,   soon: true },
     { id: 'booking',     label: 'Booking rules',   icon: I.calendar, soon: true },
     { id: 'faqs',        label: 'FAQs',            icon: I.help,     soon: true },

@@ -104,6 +104,119 @@ describe('renderSystemPrompt — clinic facts & behavior gates', () => {
   });
 });
 
+// ── Pricing FACTS block (PORTAL-P2-S6) ──────────────────────────────────────
+// Prices are the one fact class where a plausible guess is a real-world harm, so
+// two properties matter most: configured prices appear VERBATIM, and an unpriced
+// clinic renders NO block at all (falling back to "I'll check and get back to
+// you" exactly as it did before the section existed).
+describe('renderSystemPrompt — pricing facts block', () => {
+  const PRICED = {
+    consultation_fee: 500,
+    follow_up_fee: 300,
+    emergency_fee: 1200,
+    payment_methods: ['upi', 'cash'],
+    insurance: { stance: 'selected_insurers', note: 'Star Health, HDFC Ergo' },
+    treatments: [
+      { name: 'Root canal', price: 4000, price_from: true, duration_minutes: 45 },
+      { name: 'Teeth cleaning', price: 1500 },
+      { name: 'Retired scaling', price: 999, archived: true },
+    ],
+  };
+
+  it('empty pricing renders NO block at all (defaults) — not an empty one', () => {
+    for (const channel of ['whatsapp', 'voice']) {
+      const out = renderSystemPrompt(cfg(), { channel });
+      assert.ok(!out.includes('Prices'), `${channel}: no price block when nothing is priced`);
+      assert.ok(!out.includes('not listed above'), `${channel}: no price rule either`);
+    }
+  });
+
+  it('configured fees and treatment prices render VERBATIM (whatsapp)', () => {
+    const out = renderSystemPrompt(cfg({ pricing: PRICED }), { channel: 'whatsapp' });
+    assert.ok(out.includes('- Consultation: ₹500'));
+    assert.ok(out.includes('- Follow-up visit: ₹300'));
+    assert.ok(out.includes('- Emergency visit: ₹1200'));
+    assert.ok(out.includes('- Root canal: from ₹4000 (about 45 minutes)'));
+    assert.ok(out.includes('- Teeth cleaning: ₹1500'));
+    assert.ok(out.includes('Payment accepted: UPI, cash.'));
+    assert.ok(out.includes('Insurance: accepted from selected insurers — Star Health, HDFC Ergo'));
+  });
+
+  it('the block is bounded: a header names it and a closing rule forbids unlisted numbers', () => {
+    const out = renderSystemPrompt(cfg({ pricing: PRICED }), { channel: 'whatsapp' });
+    const block = out.split('\n\n').find((s) => s.startsWith('Prices'));
+    assert.ok(block, 'the price block is its own paragraph');
+    assert.match(block, /Quote these amounts exactly as written/);
+    assert.match(block, /If a price is not listed above, do not state a number/);
+    // Every price line lives INSIDE that paragraph — none leaked into a neighbour.
+    for (const frag of ['₹500', '₹300', '₹1200', '₹4000', '₹1500']) {
+      assert.equal(out.indexOf(frag), block.indexOf(frag) + out.indexOf(block),
+        `${frag} appears only inside the price block`);
+    }
+  });
+
+  it('archived treatments NEVER render — the receptionist must not quote a retired price', () => {
+    for (const channel of ['whatsapp', 'voice']) {
+      const out = renderSystemPrompt(cfg({ pricing: PRICED }), { channel });
+      assert.ok(!out.includes('Retired scaling'), `${channel}: archived name absent`);
+      assert.ok(!out.includes('999'), `${channel}: archived price absent`);
+    }
+  });
+
+  it('voice speaks "rupees" rather than the ₹ symbol, and addresses the caller', () => {
+    const out = renderSystemPrompt(cfg({ pricing: PRICED }), { channel: 'voice' });
+    assert.ok(out.includes('- Consultation: 500 rupees'));
+    assert.ok(out.includes('- Root canal: from 4000 rupees (about 45 minutes)'));
+    assert.ok(!out.includes('₹'), 'no rupee symbol in a spoken prompt');
+    assert.match(out, /tell the caller you will check with the clinic/);
+  });
+
+  it('a 0 fee renders (free is a real price) but null stays unquoted', () => {
+    const out = renderSystemPrompt(
+      cfg({ pricing: { consultation_fee: 0, follow_up_fee: null, emergency_fee: null } }),
+      { channel: 'whatsapp' });
+    assert.ok(out.includes('- Consultation: ₹0'), '0 is quotable — the visit is free');
+    assert.ok(!out.includes('Follow-up visit'), 'an unset fee is not quoted at all');
+  });
+
+  it('payment/insurance alone never summon a price block (no half-populated block)', () => {
+    // A price list with no prices in it would be worse than silence.
+    const out = renderSystemPrompt(cfg({
+      pricing: {
+        payment_methods: ['upi', 'cash', 'card'],
+        insurance: { stance: 'note', note: 'We give you a receipt to claim later.' },
+      },
+    }), { channel: 'whatsapp' });
+    assert.ok(!out.includes('Prices'), 'no prices → no block');
+    assert.ok(!out.includes('Payment accepted'), 'supporting detail does not render on its own');
+  });
+
+  it('the block sits after the facts and before the guardrail, which stays LAST', () => {
+    for (const [channel, who] of [['whatsapp', 'customer'], ['voice', 'caller']]) {
+      const out = renderSystemPrompt(cfg({
+        pricing: PRICED,
+        personality: { custom_instructions: 'Mention the summer checkup offer.' },
+      }), { channel });
+      const facts = out.indexOf(channel === 'voice' ? 'Hours:' : 'Clinic facts:');
+      const prices = out.indexOf('Prices');
+      const custom = out.indexOf('Operator instructions');
+      const guard = out.indexOf(GUARDRAIL_HEAD);
+      assert.ok(facts < prices, `${channel}: prices follow the clinic facts`);
+      assert.ok(prices < custom, `${channel}: prices precede operator text`);
+      assert.ok(custom < guard, `${channel}: guardrail still follows operator text`);
+      assert.ok(out.trimEnd().endsWith(guardrailTail(who)), `${channel}: guardrail is still the final word`);
+    }
+  });
+
+  it('a 50-treatment list renders every active price (no silent truncation)', () => {
+    // Dropping a price would make the receptionist deny one the clinic actually
+    // set — the exact bug this block exists to fix. Cost is the correct trade.
+    const treatments = Array.from({ length: 50 }, (_, i) => ({ name: `Procedure ${i}`, price: 1000 + i }));
+    const out = renderSystemPrompt(cfg({ pricing: { treatments } }), { channel: 'voice' });
+    for (const t of treatments) assert.ok(out.includes(`- ${t.name}: ${t.price} rupees`), `${t.name} rendered`);
+  });
+});
+
 describe('renderSystemPrompt — greeting, consent, language', () => {
   it('greeting literal follows languages.default; consent toggles per language', () => {
     for (const lang of ['te', 'hi', 'en']) {

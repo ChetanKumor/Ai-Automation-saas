@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Pricing · Receptionist portal</title>
+  <meta name="description" content="Your clinic's fees and treatment prices — the exact numbers your AI receptionist quotes to patients.">
+  <link rel="stylesheet" href="./fonts/fonts.css">
+  <link rel="stylesheet" href="./tokens.css">
+  <link rel="stylesheet" href="./pricing.css">
+</head>
+<body data-page="pricing">
+  <div class="app" id="app">
+    <div class="side__scrim"></div>
+
+    <!-- Sidebar (nav injected by shell.js) -->
+    <aside class="side">
+      <div class="side__brand">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M10 3h4a1 1 0 0 1 1 1v5h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5v5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h5V4a1 1 0 0 1 1-1Z"/></svg>
+        </span>
+        <div>
+          <div class="brand__name" id="clinicName">Your clinic</div>
+          <div class="brand__sub">AI receptionist</div>
+        </div>
+      </div>
+      <nav class="side__nav" id="nav"></nav>
+      <div class="side__foot">
+        <button class="btn btn--ghost btn--block" id="logout" type="button">Log out</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <header class="top">
+        <button class="top__burger" id="burger" type="button" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="top__spacer"></div>
+        <div id="lifecycle"></div>
+      </header>
+
+      <main class="content">
+        <div class="page-head">
+          <h1 class="page-head__title">Pricing</h1>
+          <p class="page-head__sub">Your fees and treatment prices. Your receptionist quotes these exactly. Anything not listed here, it will offer to check and call you back — it never guesses a price.</p>
+        </div>
+
+        <!-- Loading / error placeholder (replaced once the form loads) -->
+        <section class="card" id="loadCard">
+          <div class="state-msg" id="loadMsg">Loading your prices…</div>
+        </section>
+
+        <!-- Pricing form (revealed by JS once values are loaded) -->
+        <form id="pricingForm" novalidate hidden>
+          <section class="card" id="feesCard">
+            <div class="card__title">Standard fees</div>
+            <p class="card__sub">What a patient pays to see a doctor. Leave a fee blank if you don’t charge one — your receptionist simply won’t quote it.</p>
+
+            <div class="fees">
+              <div class="field" data-field="consultation_fee">
+                <label class="field__label" for="consultation_fee">Consultation</label>
+                <div class="money">
+                  <span class="money__sym" aria-hidden="true">₹</span>
+                  <input class="input money__input" id="consultation_fee" type="text" inputmode="numeric" autocomplete="off" placeholder="500">
+                </div>
+                <div class="field__error"></div>
+              </div>
+
+              <div class="field" data-field="follow_up_fee">
+                <label class="field__label" for="follow_up_fee">Follow-up visit</label>
+                <div class="money">
+                  <span class="money__sym" aria-hidden="true">₹</span>
+                  <input class="input money__input" id="follow_up_fee" type="text" inputmode="numeric" autocomplete="off" placeholder="300">
+                </div>
+                <div class="field__error"></div>
+              </div>
+
+              <div class="field" data-field="emergency_fee">
+                <label class="field__label" for="emergency_fee">Emergency visit</label>
+                <div class="money">
+                  <span class="money__sym" aria-hidden="true">₹</span>
+                  <input class="input money__input" id="emergency_fee" type="text" inputmode="numeric" autocomplete="off" placeholder="1000">
+                </div>
+                <div class="field__error"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card" id="treatmentsCard">
+            <div class="card__title">Treatments</div>
+            <p class="card__sub">The procedures patients ask about by name. Name each one the way a patient would say it.</p>
+
+            <div class="field" data-field="treatments">
+              <div class="treatments" id="treatments"></div>
+              <p class="field__error" id="treatmentsError"></p>
+
+              <div class="treatments__foot">
+                <button class="btn btn--ghost" id="addTreatment" type="button">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                  Add a treatment
+                </button>
+                <label class="show-archived" id="showArchivedWrap" hidden>
+                  <input type="checkbox" id="showArchived">
+                  <span>Show archived (<span id="archivedCount">0</span>)</span>
+                </label>
+              </div>
+
+              <p class="field__help treatments__empty" id="treatmentsEmpty" hidden>No treatments yet. Add the ones patients ask about most — your receptionist can only quote what’s listed here.</p>
+            </div>
+          </section>
+
+          <section class="card" id="paymentCard">
+            <div class="card__title">Payment &amp; insurance</div>
+            <p class="card__sub">How patients can pay, and what your receptionist should say when they ask about insurance.</p>
+
+            <div class="field" data-field="payment_methods">
+              <span class="field__label">Payment methods accepted</span>
+              <div class="pays" id="pays" role="group" aria-label="Payment methods accepted"></div>
+              <div class="field__error"></div>
+            </div>
+
+            <div class="field" data-field="insurance.stance">
+              <label class="field__label" for="insuranceStance">Insurance</label>
+              <select class="input" id="insuranceStance">
+                <option value="not_accepted">We don’t accept insurance</option>
+                <option value="selected_insurers">We accept selected insurers</option>
+                <option value="note">Something else — I’ll write it</option>
+              </select>
+              <div class="field__error"></div>
+            </div>
+
+            <div class="field" data-field="insurance.note" id="insuranceNoteField" hidden>
+              <label class="field__label" for="insuranceNote" id="insuranceNoteLabel">Which insurers?</label>
+              <p class="field__help" id="insuranceNoteHelp">Your receptionist reads this out when a patient asks about insurance.</p>
+              <textarea class="input" id="insuranceNote" maxlength="300" rows="2" placeholder="Star Health, HDFC Ergo, Niva Bupa"></textarea>
+              <div class="field__error"></div>
+            </div>
+
+            <div class="card__foot">
+              <span class="save-note" id="saveNote"></span>
+              <button class="btn btn--primary" id="saveBtn" type="submit">Save changes</button>
+            </div>
+          </section>
+        </form>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast-host" id="toastHost"></div>
+
+  <script src="./shell.js"></script>
+  <script src="./pricing.js"></script>
+</body>
+</html>

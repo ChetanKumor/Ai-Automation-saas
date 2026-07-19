@@ -72,6 +72,73 @@ const hoursSchema = z.object({
   holidays: z.array(holidaySchema),           // dated one-off closures on top of the weekly grid
 }).strict();
 
+// ── pricing ──────────────────────────────────────────────────────────────────
+// The receptionist's price list (spec §5.4). Everything here is quoted VERBATIM
+// from the prompt's bounded FACTS block — never recalled, estimated, converted,
+// or negotiated. Anything absent falls through to the uncertainty fallback, so a
+// half-filled section is always safer than a guessed one. Discounts are excluded
+// by design (spec §9): free-text discounts invite price negotiation.
+//
+// Currency is INR by v1 constant (no picker, spec §9), so fees are plain whole
+// rupees. Fees are NULLABLE on purpose: `null` means "not configured" (the
+// receptionist won't quote it), which is materially different from `0` ("free").
+// Nullable also makes CLEARING a fee work through deepMerge — an explicit null
+// replaces, whereas an omitted key would be key-additively preserved.
+const FEE = z.number().int().nonnegative().max(10000000); // whole rupees, ≤1 crore
+
+const treatmentSchema = z.object({
+  name: z.string().min(1).max(120),           // what the patient asks for, in their words
+  price: FEE,                                 // whole rupees
+  price_from: z.boolean().default(false),     // true → quoted as "starts at ₹X" (varies by case)
+  duration_minutes: z.number().int().positive().max(480).nullable().default(null), // optional appointment length
+  notes: z.string().max(300).default(''),     // optional qualifier the receptionist may state
+  archived: z.boolean().default(false),       // retired row — kept for referenced history, NEVER rendered
+}).strict();
+
+const insuranceSchema = z.object({
+  stance: z.enum(['not_accepted', 'selected_insurers', 'note']).default('not_accepted'), // how the clinic handles insurance
+  note: z.string().max(300).default(''),      // the detail the stance promises — required unless 'not_accepted' (refined below)
+}).strict();
+
+const pricingSchema = z.object({
+  consultation_fee: FEE.nullable().default(null), // first/standard consultation
+  follow_up_fee: FEE.nullable().default(null),    // repeat visit
+  emergency_fee: FEE.nullable().default(null),    // urgent/after-hours visit
+  payment_methods: z.array(z.enum(['upi', 'cash', 'card'])).max(3).default([]), // what the clinic accepts
+  insurance: insuranceSchema.default({ stance: 'not_accepted', note: '' }),
+  treatments: z.array(treatmentSchema).max(50).default([]), // the priced procedure list (cap 50, spec §5.4)
+}).strict()
+  .superRefine((p, ctx) => {
+    // A stance that promises detail must carry it: "we accept selected insurers"
+    // with no list is a fact the receptionist cannot actually use on a call.
+    if (p.insurance && p.insurance.stance !== 'not_accepted' && !p.insurance.note.trim()) {
+      ctx.addIssue({
+        code: 'custom', path: ['insurance', 'note'],
+        message: 'add the insurance details this stance promises',
+      });
+    }
+    // Payment methods are a SET — a repeated method would render twice.
+    const seenMethod = new Set();
+    (p.payment_methods || []).forEach((m, i) => {
+      if (seenMethod.has(m)) {
+        ctx.addIssue({ code: 'custom', path: ['payment_methods', i], message: `duplicate payment method '${m}'` });
+      }
+      seenMethod.add(m);
+    });
+    // Duplicate ACTIVE treatment names (case-insensitive): two live rows sharing a
+    // name give the receptionist two prices for one question. Archived rows are
+    // exempt so a retired name can legitimately be reused.
+    const seenName = new Set();
+    (p.treatments || []).forEach((t, i) => {
+      if (!t || t.archived || typeof t.name !== 'string') return;
+      const key = t.name.trim().toLowerCase();
+      if (seenName.has(key)) {
+        ctx.addIssue({ code: 'custom', path: ['treatments', i, 'name'], message: `duplicate treatment name '${t.name}'` });
+      }
+      seenName.add(key);
+    });
+  });
+
 // ── booking ──────────────────────────────────────────────────────────────────
 const bookingSchema = z.object({
   slot_minutes: z.number().int().positive().max(480),    // length of one bookable slot, in minutes
@@ -138,6 +205,19 @@ const configSchema = z.object({
   languages: languagesSchema,                 // supported languages + default
   greeting: z.record(z.string(), z.string().min(1)), // per-language opening line; must cover every supported language (refined below)
   hours: hoursSchema,                         // weekly opening hours + holidays
+  // DEFAULTED (PORTAL-P2-S6): every config written before this section existed
+  // has no `pricing` key, and the top-level object is `.strict()` — without a
+  // default those documents would fail validation on READ and every existing
+  // tenant would fall into getTenantConfig's stale-schema WARN path. The default
+  // is the fully-empty price list, which renders NO pricing block at all.
+  pricing: pricingSchema.default({
+    consultation_fee: null,
+    follow_up_fee: null,
+    emergency_fee: null,
+    payment_methods: [],
+    insurance: { stance: 'not_accepted', note: '' },
+    treatments: [],
+  }),
   booking: bookingSchema,                     // appointment-booking rules
   escalation: escalationSchema,               // human-handoff config
   notifications: notificationsSchema,         // owner-alert config
