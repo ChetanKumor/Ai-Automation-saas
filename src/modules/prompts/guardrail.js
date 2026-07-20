@@ -13,4 +13,15 @@ function medicalGuardrailLines(who) {
   ];
 }
 
-module.exports = { medicalGuardrailLines };
+// The no-invented-names guardrail — a platform invariant (GUARD-01, spec
+// §5.10, INV-3): never configurable, never skipped. Unlike the medical rule
+// above, identity is turn-scoped customer data, not part of the versioned
+// config-driven prompt template — so this isn't rendered by the clinic
+// template. It's threaded in wherever the per-turn prompt learns whether the
+// customer/caller's name is known, so it reaches every prompt-provenance mode
+// (legacy override, rendered config, minimal-safe fallback) alike.
+function unknownIdentityLine(who) {
+  return `The ${who}'s name is not known — never guess or invent one. Address them without a name, and ask for it only if the conversation genuinely needs it.`;
+}
+
+module.exports = { medicalGuardrailLines, unknownIdentityLine };

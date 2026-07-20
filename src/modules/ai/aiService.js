@@ -6,6 +6,7 @@ const notificationService = require('../notification/notificationService');
 const configService = require('../config/configService');
 const traces = require('../traces/collector');
 const { renderSystemPrompt, MINIMAL_SAFE_PROMPT } = require('../prompts');
+const { unknownIdentityLine } = require('../prompts/guardrail');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -492,12 +493,16 @@ const buildSystemPrompt = (tenant, customer, conversation, facts, knowledgeChunk
 
   const { head, mode } = resolvePromptHead(tenant, config, channel);
 
+  // GUARD-01: who's asking, for the identity guardrail's wording — mirrors
+  // the clinic template's own voice/whatsapp 'who' split.
+  const who = channel === 'voice' ? 'caller' : 'customer';
+
   const text = `
 ${head}
 
 Today is ${dayOfWeek}, ${todayIST} (IST — Asia/Kolkata timezone).
 
-Customer phone: ${customer.phone}${customer.name ? `\nCustomer name: ${customer.name}` : ''}
+Customer phone: ${customer.phone}${customer.name ? `\nCustomer name: ${customer.name}` : `\n${unknownIdentityLine(who)}`}
 
 What we know about this customer:
 ${factLines}${summarySection}${knowledgeSection}
