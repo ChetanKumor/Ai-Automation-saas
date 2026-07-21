@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "test": "node --test tests/**/*.test.js",
+    "test": "node --test --require ./tests/_support/testEnv.js tests/**/*.test.js",
     "start": "node server.js",
     "dev": "nodemon server.js",
     "db:genesis": "node src/db/migrate.js genesis",
