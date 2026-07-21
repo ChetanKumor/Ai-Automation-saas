@@ -94,11 +94,22 @@ const throwIfAborted = (signal) => {
   }
 };
 
-async function executeTool(name, args, tenant, customerId) {
+async function executeTool(name, args, tenant, customerId, channel = 'whatsapp') {
   switch (name) {
     case 'check_availability':
       return await appointmentService.checkAvailability(tenant.id, args.date);
     case 'book_appointment': {
+      // PORTAL-P5-S14 isolation guarantee: a test turn has no real customer row
+      // (customerId is null), so a real INSERT would hit a FK violation. Gated
+      // here rather than relying on that error, so the model gets an honest,
+      // structured result to relay instead of the turn crashing.
+      if (channel === 'test') {
+        return {
+          success: false,
+          reason: 'test_mode',
+          error: 'This is a test conversation, not a real one — bookings can’t be completed here. Tell the owner to confirm on a real WhatsApp message or phone call.',
+        };
+      }
       const result = await appointmentService.bookAppointment(
         tenant.id, customerId, args.doctor_name, args.appointment_time, args.patient_name
       );
@@ -217,7 +228,7 @@ const generateReply = async (tenant, customer, conversation, userMessage, histor
       if (!committed) throwIfAborted(signal);
       logger.info({ tool: call.name, args: call.args }, 'tool call');
       const t0 = process.hrtime.bigint();
-      const output = await executeTool(call.name, call.args, tenant, customer.id);
+      const output = await executeTool(call.name, call.args, tenant, customer.id, channel);
       if (metrics) metrics.recordToolExec(call.name, Number(process.hrtime.bigint() - t0) / 1e6, toolOutcome(output));
       logger.info({ tool: call.name, output: JSON.stringify(output).substring(0, 200) }, 'tool result');
       if (!committed && isMutatingTool(call.name)) {

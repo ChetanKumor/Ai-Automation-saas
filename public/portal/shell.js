@@ -48,7 +48,7 @@
     { id: 'documents',   label: 'Documents',       icon: I.file,     soon: true },
     { id: 'receptionist',label: 'Receptionist',    icon: I.bot,      href: 'receptionist.html' },
     { id: 'safety',      label: 'Safety & handoff', icon: I.shield,  href: 'safety.html' },
-    { id: 'test',        label: 'Test',            icon: I.message,  soon: true },
+    { id: 'test',        label: 'Test',            icon: I.message,  href: 'test.html' },
     { id: 'history',     label: 'History',         icon: I.history,  soon: true },
   ];
 

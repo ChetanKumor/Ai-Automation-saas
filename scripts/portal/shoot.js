@@ -104,6 +104,26 @@ async function shoot(cdp, { url, out, width, height, mobile, cookie, port, waitF
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   await cdp.send('Page.enable', {}, sessionId);
   await cdp.send('Network.enable', {}, sessionId);
+  // Opt-in diagnostics (SHOOT_DEBUG=1) — console/exception/XHR visibility for
+  // debugging a new shot's afterReady interaction. Found live: a click landing
+  // on a not-yet-wired button produces NONE of these (no exception, no request)
+  // — the tell that a waitFor condition resolved before the page's own async
+  // init did, rather than a genuine app error.
+  if (process.env.SHOOT_DEBUG) {
+    await cdp.send('Runtime.enable', {}, sessionId);
+    cdp.on((m) => {
+      if (m.sessionId !== sessionId) return;
+      if (m.method === 'Runtime.consoleAPICalled') {
+        console.log('  [console]', out, m.params.type, (m.params.args || []).map((a) => a.value ?? a.description).join(' '));
+      }
+      if (m.method === 'Runtime.exceptionThrown') {
+        console.log('  [exception]', out, JSON.stringify(m.params.exceptionDetails.exception || m.params.exceptionDetails));
+      }
+      if (m.method === 'Network.responseReceived' && m.params.response.url.includes('/api/')) {
+        console.log('  [response]', out, m.params.response.status, m.params.response.url);
+      }
+    });
+  }
   await cdp.send('Emulation.setDeviceMetricsOverride',
     { width, height, deviceScaleFactor: 2, mobile: !!mobile }, sessionId);
   if (cookie) {
@@ -184,6 +204,8 @@ const adminLoginCookie = (port, password) =>
     const { hashPassword } = require('../../src/portal/auth');
     const configService = require('../../src/modules/config/configService');
     const validationService = require('../../src/modules/validation/validationService');
+    const aiService = require('../../src/modules/ai/aiService');
+    const knowledgeService = require('../../src/modules/knowledge/knowledgeService');
 
     // Seed: a clinic + owner. Config is clinicDefaults + a real escalation number
     // (numbers.e164 passes) but no FAQs yet (kb checks fail → an owner action item
@@ -330,6 +352,23 @@ const adminLoginCookie = (port, password) =>
     await db.query(
       'INSERT INTO users (tenant_id, email, password_hash, role, active) VALUES ($1,$2,$3,$4,true)',
       [freshId, freshEmail, hashPassword(freshPassword), 'owner']);
+
+    // S14: "Test your receptionist" runs a REAL turn through the real renderer +
+    // real brain — stub the model + RAG here (in-process, same seam the test
+    // suite uses) so that shot costs zero live Gemini calls, embedding included.
+    knowledgeService.getRelevantChunks = async () => [];
+    aiService._setModelProvider(() => ({
+      startChat: () => ({
+        sendMessage: async () => ({
+          response: {
+            functionCalls: () => undefined,
+            text: () => 'The consultation fee is five hundred rupees.',
+            usageMetadata: { promptTokenCount: 40, candidatesTokenCount: 10, totalTokenCount: 50 },
+            candidates: [{ finishReason: 'STOP' }],
+          },
+        }),
+      }),
+    }));
 
     // Real /portal + /admin routers + static serving (mirrors server.js for these
     // paths). Admin needs its session middleware mounted before the router.
@@ -604,6 +643,45 @@ const adminLoginCookie = (port, password) =>
             + "document.getElementById('saveBtn').click();})();",
         }, sid);
         await waitForSelector(c, sid, "document.querySelector('.field.is-invalid')");
+      },
+    });
+
+    // S14: test your receptionist — one real turn through the real renderer +
+    // real brain (model stubbed above so this costs zero live Gemini calls).
+    // Desktop + 380px show the empty state (starter questions); the third shot
+    // clicks a starter and waits for the receptionist bubble + its provenance
+    // line; the fourth is the daily-limit state, shot against Fresh Clinic after
+    // pre-seeding 20 turn_traces rows so the very first click already hits it.
+    // Waits for test.js's main() to finish (async, gated on window.Portal.me) —
+    // NOT just the static #chatForm element existing, which is present from
+    // first paint and would race the click-handler wiring (found live: the
+    // reply/limited shots' afterReady click landed on a still-unwired button).
+    const testReady = "document.body.dataset.testReady === '1'";
+    await shoot(cdp, { url: `${base}/test.html`, out: path.join(OUT, 's14-test-desktop.png'),
+      width: 1280, height: 900, cookie, port, waitFor: testReady });
+    await shoot(cdp, { url: `${base}/test.html`, out: path.join(OUT, 's14-test-mobile.png'),
+      width: 380, height: 820, mobile: true, cookie, port, waitFor: testReady });
+    await shoot(cdp, {
+      url: `${base}/test.html`, out: path.join(OUT, 's14-test-reply.png'),
+      width: 1280, height: 900, cookie, port, waitFor: testReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression: "document.querySelector('.starter[data-q=\"What is the consultation fee?\"]').click();",
+        }, sid);
+        await waitForSelector(c, sid, "document.querySelector('.msg__prov')");
+      },
+    });
+    for (let i = 0; i < 20; i++) {
+      await db.query(`INSERT INTO turn_traces (tenant_id, channel) VALUES ($1, 'test')`, [freshId]);
+    }
+    await shoot(cdp, {
+      url: `${base}/test.html`, out: path.join(OUT, 's14-test-limited.png'),
+      width: 1280, height: 900, cookie: freshCookie, port, waitFor: testReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression: "document.querySelector('.starter[data-q=\"What are your timings?\"]').click();",
+        }, sid);
+        await waitForSelector(c, sid, "document.querySelector('.msg--system')");
       },
     });
 

@@ -24,10 +24,12 @@ const validationService = require('../modules/validation/validationService');
 const configService = require('../modules/config/configService');
 const doctorService = require('../modules/doctor/doctorService');
 const faqService = require('../modules/knowledge/faqService');
+const testTurnService = require('../modules/ai/testTurnService');
 const { clinicDefaults } = require('../modules/config/defaults');
 const { LANG_CODES, SARVAM_V3_SPEAKERS, SARVAM_V3_SPEAKER_GENDER } = require('../modules/config/schema');
 const { normalizePhone } = require('../utils/phone');
 const { protectionsForDisplay } = require('./protections');
+const requestContext = require('../core/requestContext');
 
 const router = express.Router();
 
@@ -1698,6 +1700,51 @@ router.delete('/api/faqs/:id', requirePortalAuth, async (req, res) => {
   } catch (err) {
     logger.error({ err: err.message }, 'portal faq DELETE failed');
     res.status(500).json({ error: 'Failed to remove this FAQ' });
+  }
+});
+
+// ── Test your receptionist (PORTAL-P5-S14) ───────────────────────────────────
+// Runs ONE real turn — the real renderer + real brain, current config — with NO
+// persistence (see testTurnService for the full isolation argument): no
+// customer/conversation/message row is ever written. Storage-free by
+// construction; the daily rate limit (20/day/tenant) is counted from
+// turn_traces rows this route itself produces, so no new schema is needed.
+//
+// Correlation context: a fresh `test_` id per call — portal is authenticated,
+// user-facing, and never adopts a header (same posture as admin's `adm_`).
+const testTurnCorrelation = requestContext.middleware({ prefix: 'test', channel: 'test' });
+const MAX_TEST_QUESTION = 500;
+
+router.post('/api/test/turn', testTurnCorrelation, requirePortalAuth, express.json(), async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  const body = req.body || {};
+  const question = typeof body.question === 'string' ? body.question.trim() : '';
+
+  if (!question) return res.status(400).json({ error: 'Type a question to test.' });
+  if (question.length > MAX_TEST_QUESTION) {
+    return res.status(400).json({ error: `Keep the question to ${MAX_TEST_QUESTION} characters or fewer.` });
+  }
+
+  try {
+    const result = await testTurnService.runTestTurn(tenantId, question);
+
+    if (result.status === 'limited') {
+      return res.status(429).json({
+        error: 'You’ve used all 20 test messages for today. Try again tomorrow.',
+        remaining: 0,
+      });
+    }
+    if (result.status === 'quota_exceeded') {
+      return res.status(503).json({
+        quotaExceeded: true,
+        error: 'Testing is temporarily unavailable (API limit reached). Your receptionist is unaffected.',
+        remaining: result.remaining,
+      });
+    }
+    res.json({ reply: result.reply, provenance: result.provenance, remaining: result.remaining });
+  } catch (err) {
+    logger.error({ err: err.message, tenantId }, 'portal test turn failed');
+    res.status(500).json({ error: 'Something went wrong running the test. Try again.' });
   }
 });
 
