@@ -23,6 +23,7 @@ const { verifyPassword, requirePortalAuth, hashPassword } = require('./auth');
 const validationService = require('../modules/validation/validationService');
 const configService = require('../modules/config/configService');
 const doctorService = require('../modules/doctor/doctorService');
+const faqService = require('../modules/knowledge/faqService');
 const { clinicDefaults } = require('../modules/config/defaults');
 const { LANG_CODES } = require('../modules/config/schema');
 const { normalizePhone } = require('../utils/phone');
@@ -1353,6 +1354,134 @@ router.post('/api/doctors/:id/restore', requirePortalAuth, async (req, res) => {
     }
     logger.error({ err: err.message }, 'portal doctor restore failed');
     res.status(500).json({ error: 'Failed to restore this doctor' });
+  }
+});
+
+// ── FAQs (PORTAL-P4-S11) ─────────────────────────────────────────────────────
+// The first portal page writing knowledge_chunks rather than a tenant_configs
+// section. Closes the two amber KB readiness checks (kb.populated / kb.retrieval,
+// spec §5.1) once ≥5 chunks exist and a canned retrieval query finds one — see
+// validationService's kbMin default (5) and checkKbRetrieval.
+//
+// Shape mirrors Doctors, not the config pages: per-item CRUD (each FAQ is one
+// knowledge_chunks row) rather than one whole-section POST, and no `version` —
+// there is no config document here to version. faqService is the structural
+// gate (no Zod schema behind this storage, same situation doctorService is in),
+// so — like doctors — we validate here with owner-friendly copy AND let the
+// service re-validate (belt and suspenders).
+function faqIssueFields(err) {
+  return err.issues.map((i) => ({ field: i.path, message: i.message }));
+}
+
+function validateFaqBody(body, langs) {
+  const fields = [];
+
+  const question = typeof body.question === 'string' ? body.question.replace(/\s+/g, ' ').trim() : '';
+  if (!question) fields.push({ field: 'question', message: 'Enter the question a patient would ask.' });
+  else if (question.length > faqService.MAX_QUESTION) {
+    fields.push({ field: 'question', message: `Question must be ${faqService.MAX_QUESTION} characters or fewer.` });
+  }
+
+  const answer = typeof body.answer === 'string' ? body.answer.replace(/\s+/g, ' ').trim() : '';
+  if (!answer) fields.push({ field: 'answer', message: 'Enter the answer your receptionist should give.' });
+  else if (answer.length > faqService.MAX_ANSWER) {
+    fields.push({ field: 'answer', message: `Answer must be ${faqService.MAX_ANSWER} characters or fewer.` });
+  }
+
+  let language = null;
+  const rawLang = body.language;
+  if (rawLang !== undefined && rawLang !== null && rawLang !== '') {
+    if (!langs.includes(rawLang)) {
+      fields.push({ field: 'language', message: 'Choose one of your clinic’s enabled languages, or leave it blank.' });
+    } else language = rawLang;
+  }
+
+  return { fields, input: { question, answer, language } };
+}
+
+// Everything the page needs in one read, same shape faqsPayload returns after
+// every write so the page never needs a second round-trip to stay correct.
+async function faqsPayload(tenantId) {
+  const config = await getConfigForSession(tenantId);
+  const faqs = await faqService.listFaqs(tenantId);
+  return { faqs, languages: enabledLanguages(config) };
+}
+
+// GET the session tenant's FAQs (INV-1: tenant from req.portalUser only; a
+// crafted ?tenantId is inert by construction).
+router.get('/api/faqs', requirePortalAuth, async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  try {
+    const payload = await faqsPayload(tenantId);
+    res.json({ ...payload, readiness: await readinessSnapshot(tenantId) });
+  } catch (err) {
+    logger.error({ err: err.message }, 'portal faqs GET failed');
+    res.status(500).json({ error: 'Failed to load FAQs' });
+  }
+});
+
+// POST a new FAQ. Returns { faqs, languages, readiness } — the full list rides
+// along so the page never needs a second round-trip to stay correct.
+router.post('/api/faqs', requirePortalAuth, express.json(), async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  try {
+    const config = await getConfigForSession(tenantId);
+    const langs = enabledLanguages(config);
+    const { fields, input } = validateFaqBody(req.body || {}, langs);
+    if (fields.length) return res.status(400).json({ error: 'Please fix the highlighted fields.', fields });
+
+    await faqService.createFaq(tenantId, input, { languages: langs });
+
+    const payload = await faqsPayload(tenantId);
+    res.json({ ...payload, readiness: await readinessSnapshot(tenantId) });
+  } catch (err) {
+    if (err.name === 'FaqValidationError') {
+      return res.status(400).json({ error: 'Please fix the highlighted fields.', fields: faqIssueFields(err) });
+    }
+    logger.error({ err: err.message }, 'portal faqs POST failed');
+    res.status(500).json({ error: 'Failed to add this FAQ' });
+  }
+});
+
+// PATCH an existing FAQ — a full replace of question/answer/language.
+// Re-embeds when the Q/A text changed (faqService/knowledgeService decide
+// that, not this route). An id from another tenant matches no row and 404s
+// (INV-1).
+router.patch('/api/faqs/:id', requirePortalAuth, express.json(), async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  try {
+    const config = await getConfigForSession(tenantId);
+    const langs = enabledLanguages(config);
+    const { fields, input } = validateFaqBody(req.body || {}, langs);
+    if (fields.length) return res.status(400).json({ error: 'Please fix the highlighted fields.', fields });
+
+    const faq = await faqService.updateFaq(tenantId, req.params.id, input, { languages: langs });
+    if (!faq) return res.status(404).json({ error: 'FAQ not found' });
+
+    const payload = await faqsPayload(tenantId);
+    res.json({ ...payload, readiness: await readinessSnapshot(tenantId) });
+  } catch (err) {
+    if (err.name === 'FaqValidationError') {
+      return res.status(400).json({ error: 'Please fix the highlighted fields.', fields: faqIssueFields(err) });
+    }
+    logger.error({ err: err.message }, 'portal faq PATCH failed');
+    res.status(500).json({ error: 'Failed to save this FAQ' });
+  }
+});
+
+// DELETE removes the chunk outright — unlike doctors there is no history that
+// still names it, so there is no archive path to preserve.
+router.delete('/api/faqs/:id', requirePortalAuth, async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  try {
+    const removed = await faqService.deleteFaq(tenantId, req.params.id);
+    if (!removed) return res.status(404).json({ error: 'FAQ not found' });
+
+    const payload = await faqsPayload(tenantId);
+    res.json({ ...payload, readiness: await readinessSnapshot(tenantId) });
+  } catch (err) {
+    logger.error({ err: err.message }, 'portal faq DELETE failed');
+    res.status(500).json({ error: 'Failed to remove this FAQ' });
   }
 });
 

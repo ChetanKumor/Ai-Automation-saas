@@ -1,0 +1,146 @@
+/* ============================================================================
+ * FAQs — page-specific styles (PORTAL-P4-S11)
+ *
+ * The shared field/card/button vocabulary lives in tokens.css. Only the
+ * controls unique to this page are here: the FAQ card chrome, the language
+ * select, the empty-state example list, and the cap counter.
+ *
+ * Like Doctors, each card is ONE FAQ with its own Save — the storage is one
+ * knowledge_chunks row per FAQ, so the page's unit of save is an FAQ.
+ *
+ * Mobile: cards stack full width; nothing shrinks into an unreadable strip at
+ * ~380px.
+ * ========================================================================== */
+
+/* Loading / error placeholder (home.css isn't linked here, so define locally) */
+.state-msg { color: var(--muted); font-size: 14px; padding: 8px 2px; }
+.state-msg--error { color: var(--red); }
+
+/* ── Empty state: an instruction with concrete examples, not a blank panel ── */
+.empty { text-align: center; padding: var(--s-6) var(--s-4); }
+.empty__icon {
+  width: 46px; height: 46px;
+  margin: 0 auto var(--s-3);
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--teal-050);
+  color: var(--teal);
+}
+.empty__icon svg { width: 24px; height: 24px; }
+.empty__title { font-size: 15px; font-weight: 700; letter-spacing: -.01em; color: var(--ink); }
+.empty__sub { color: var(--muted); font-size: 13px; margin: 6px auto 0; max-width: 44ch; line-height: 1.55; }
+.empty__examples {
+  list-style: none;
+  margin: var(--s-3) auto var(--s-4);
+  padding: 0;
+  max-width: 40ch;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.empty__examples li {
+  font-size: 13px;
+  color: var(--ink-2);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  padding: 8px 12px;
+}
+
+/* ── Cap counter ── */
+.faq-count {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: var(--s-3);
+}
+.faq-count--full { color: var(--amber); }
+
+/* ── FAQ card ── */
+.faq {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: var(--s-5);
+}
+.faq + .faq, #faqs > .faq:first-child { margin-top: var(--s-4); }
+#faqs > .faq:first-child { margin-top: 0; }
+
+.faq__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: var(--s-4);
+}
+.faq__title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: var(--ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.faq__title--new { color: var(--muted); font-weight: 600; }
+
+.faq__lang { max-width: 260px; }
+
+.faq__error {
+  display: none;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--red);
+  line-height: 1.45;
+  margin-top: 10px;
+}
+.faq.is-invalid .faq__error { display: block; }
+
+/* ── Card footer: save on the right, remove on the left ── */
+.faq__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  margin-top: var(--s-5);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line-2);
+}
+.faq__foot-spacer { flex: 1 1 auto; }
+.faq__remove {
+  font: 600 13px/1 var(--sans);
+  color: var(--muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  padding: 9px 12px;
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.faq__remove:hover { background: var(--red-050); border-color: var(--red-100); color: var(--red); }
+.faq__remove:disabled { opacity: .5; cursor: default; }
+.faq__remove:disabled:hover { background: none; border-color: transparent; color: var(--muted); }
+
+/* Confirm-in-place: the remove button becomes its own confirmation rather than
+   opening a modal, so the destructive step is always one deliberate second click. */
+.faq__remove--confirm {
+  background: var(--red-050);
+  border-color: var(--red-100);
+  color: var(--red);
+}
+
+.list-foot { margin-top: var(--s-4); }
+.list-foot .btn svg { width: 14px; height: 14px; }
+
+/* ── Mobile: stack; never shrink (spec: true ~380px) ── */
+@media (max-width: 640px) {
+  .faq { padding: var(--s-4); }
+  .faq__lang { max-width: none; width: 100%; }
+
+  .faq__foot { flex-direction: column-reverse; align-items: stretch; }
+  .faq__foot .btn { width: 100%; justify-content: center; }
+  .faq__foot-spacer { display: none; }
+  .faq__remove { width: 100%; }
+  .save-note { text-align: center; }
+}

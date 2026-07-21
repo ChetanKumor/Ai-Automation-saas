@@ -275,6 +275,20 @@ const adminLoginCookie = (port, password) =>
     await seedDoctor({ doctor: 'Dr. Kulkarni', specialization: 'Periodontist', languages: ['hi', 'en'],
       days: ['Mon', 'Thu'], start: '11:00', end: '15:00' }, 'schedule_archived');
 
+    // FAQs (S11): 3 real Q/A pairs — enough to show a genuine loaded list, but
+    // deliberately UNDER the 5-chunk kb.populated threshold so the readiness
+    // narrative below (kb checks still an owner action item) stays true.
+    const faqService = require('../../src/modules/knowledge/faqService');
+    await faqService.createFaq(tenantId,
+      { question: 'Do you accept insurance?', answer: 'Yes — we accept Star Health, HDFC Ergo, and Niva Bupa.' },
+      { languages: ['te', 'hi', 'en'] });
+    await faqService.createFaq(tenantId,
+      { question: 'Where can I park?', answer: 'Free parking is available in the Pearl Plaza basement.' },
+      { languages: ['te', 'hi', 'en'] });
+    await faqService.createFaq(tenantId,
+      { question: 'Do you see children?', answer: 'Yes, Dr. Reddy sees patients of all ages, including children.', language: 'en' },
+      { languages: ['te', 'hi', 'en'] });
+
     const run = await validationService.validateTenant(tenantId, {
       skip: ['turn.scripted'],
       deps: { getRelevantChunks: async () => [], pingNumber: async () => 'stub' },
@@ -289,6 +303,19 @@ const adminLoginCookie = (port, password) =>
     await configService.writeTenantConfig(meadowId, {
       business: { display_name: 'Meadow Physiotherapy' },
     }, 'shoot');
+
+    // A THIRD clinic with an owner but zero FAQs — the empty-state shot (S11).
+    // Kept separate from Sunrise Dental (which now has 3 real FAQs) rather than
+    // clearing Sunrise's, so the "loaded list" and "empty state" shots are both
+    // real, simultaneously-true states.
+    const freshEmail = 'owner@freshclinic.test';
+    const freshPassword = 'demo-portal-pass-2';
+    const fresh = await db.query("INSERT INTO tenants (business_name, active) VALUES ($1, true) RETURNING id",
+      ['Fresh Clinic']);
+    const freshId = fresh.rows[0].id;
+    await db.query(
+      'INSERT INTO users (tenant_id, email, password_hash, role, active) VALUES ($1,$2,$3,$4,true)',
+      [freshId, freshEmail, hashPassword(freshPassword), 'owner']);
 
     // Real /portal + /admin routers + static serving (mirrors server.js for these
     // paths). Admin needs its session middleware mounted before the router.
@@ -308,6 +335,7 @@ const adminLoginCookie = (port, password) =>
     console.log('server on', port);
 
     const cookie = await loginCookie(port, email, password);
+    const freshCookie = await loginCookie(port, freshEmail, freshPassword);
     const adminCookie = await adminLoginCookie(port, process.env.ADMIN_PASSWORD);
 
     // Launch Chrome (reduced motion → deterministic ring/pulse).
@@ -497,6 +525,32 @@ const adminLoginCookie = (port, password) =>
             + "document.getElementById('saveBtn').click();})();",
         }, sid);
         await waitForSelector(c, sid, "document.querySelector('.field.is-invalid')");
+      },
+    });
+
+    // S11: FAQs — the first page writing knowledge_chunks. Desktop + 380px show
+    // Sunrise Dental's 3 real FAQs (loaded, not-yet-enough-for-readiness state);
+    // the third shot is Fresh Clinic's genuine empty state (the example-question
+    // instruction, spec §4); the fourth adds a blank card and saves it empty →
+    // the inline "question is required" / "answer is required" errors.
+    const faqsReady = "document.querySelector('.faq') || !document.getElementById('emptyCard').hidden";
+    await shoot(cdp, { url: `${base}/faqs.html`, out: path.join(OUT, 's11-faqs-desktop.png'),
+      width: 1280, height: 1100, cookie, port, waitFor: faqsReady });
+    await shoot(cdp, { url: `${base}/faqs.html`, out: path.join(OUT, 's11-faqs-mobile.png'),
+      width: 380, height: 1200, mobile: true, cookie, port, waitFor: faqsReady });
+    await shoot(cdp, { url: `${base}/faqs.html`, out: path.join(OUT, 's11-faqs-empty.png'),
+      width: 1280, height: 900, cookie: freshCookie, port, waitFor: faqsReady });
+    await shoot(cdp, {
+      url: `${base}/faqs.html`, out: path.join(OUT, 's11-faqs-error.png'),
+      width: 1280, height: 1200, cookie, port, waitFor: faqsReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression:
+            "(function(){document.getElementById('addFaq').click();"
+            + "var cards=document.querySelectorAll('.faq');"
+            + "cards[cards.length-1].querySelector('[data-role=\"save\"]').click();})();",
+        }, sid);
+        await waitForSelector(c, sid, "document.querySelector('.faq .field.is-invalid')");
       },
     });
 

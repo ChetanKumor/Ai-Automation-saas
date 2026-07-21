@@ -41,16 +41,16 @@
     'config.schema':   { label: 'Clinic details are valid', actor: 'system', material: true },
     'prompt.renders':  { label: 'Receptionist instructions are ready', actor: 'system', material: true },
     'hours.sane':      { label: 'Clinic hours are set', actor: 'owner', material: true,
-                         fix: 'Set your opening hours for each day', link: 'Hours & holidays' },
+                         fix: 'Set your opening hours for each day', link: 'Hours & holidays', href: 'hours.html' },
     'numbers.e164':    { label: 'Escalation phone number added', actor: 'owner', material: true,
-                         fix: 'Add an escalation phone number', link: 'Safety & handoff' },
+                         fix: 'Add an escalation phone number', link: 'Safety & handoff', href: 'safety.html' },
     'consent.lines':   { label: 'Call recording notice', actor: 'system', material: true },
     'kb.populated':    { label: 'Knowledge added', actor: 'owner', material: true,
-                         fix: 'Add at least 5 FAQs or upload one document', link: 'FAQs' },
+                         fix: 'Add at least 5 FAQs or upload one document', link: 'FAQs', href: 'faqs.html' },
     'kb.retrieval':    { label: 'Knowledge is searchable', actor: 'owner', material: true,
-                         fix: 'Add at least 5 FAQs or upload one document', link: 'FAQs' },
+                         fix: 'Add at least 5 FAQs or upload one document', link: 'FAQs', href: 'faqs.html' },
     'doctor.schedule': { label: 'Doctor and weekly hours added', actor: 'owner', material: true,
-                         fix: 'Add a doctor and their weekly hours', link: 'Doctors' },
+                         fix: 'Add a doctor and their weekly hours', link: 'Doctors', href: 'doctors.html' },
     'whatsapp.config': { label: 'WhatsApp connection', actor: 'operator', material: true,
                          note: 'Handled by Prantivo during onboarding' },
     'whatsapp.live':   { label: 'WhatsApp connection verified', actor: 'operator', material: true,
@@ -193,10 +193,14 @@
       sub = `<div class="check__fix">${esc(m.note)}</div>`;
     }
 
-    // Link chip → the page that fixes it. Pages are unbuilt this session, so the
-    // chip is a quiet, non-navigating reference (matches the disabled sidebar).
+    // Link chip → the page that fixes it. Navigable once that page is built
+    // (`href` set); a check whose fix-page isn't built yet falls back to a
+    // quiet, non-navigating reference (matches the disabled sidebar).
     const link = (m.actor === 'owner' && c.severity === 'fail' && m.link)
-      ? `<span class="check__link" title="Coming soon">${esc(m.link)}${IC.arrow}</span>` : '';
+      ? (m.href
+          ? `<a class="check__link" href="${esc(m.href)}">${esc(m.link)}${IC.arrow}</a>`
+          : `<span class="check__link" title="Coming soon">${esc(m.link)}${IC.arrow}</span>`)
+      : '';
 
     const badge = advisory ? '' :
       `<span class="badge badge--${st.badgeCls}">${st.badge}</span>`;

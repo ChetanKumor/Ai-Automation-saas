@@ -134,8 +134,12 @@
   align-items: center;
   gap: 3px;
   white-space: nowrap;
+  text-decoration: none;
 }
 .check__link svg { width: 13px; height: 13px; }
+/* A real link (the fix-page is built) reads teal + underlines on hover; the
+   inert "Coming soon" span (no href) never does. */
+a.check__link:hover { color: var(--teal-700); text-decoration: underline; }
 
 /* Advisory checks read subordinate to material ones. */
 .check--advisory { opacity: .8; }

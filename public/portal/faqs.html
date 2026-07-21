@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>FAQs · Receptionist portal</title>
+  <meta name="description" content="The questions and answers your receptionist uses to answer patients, beyond your prices, hours, and doctors.">
+  <link rel="stylesheet" href="./fonts/fonts.css">
+  <link rel="stylesheet" href="./tokens.css">
+  <link rel="stylesheet" href="./faqs.css">
+</head>
+<body data-page="faqs">
+  <div class="app" id="app">
+    <div class="side__scrim"></div>
+
+    <!-- Sidebar (nav injected by shell.js) -->
+    <aside class="side">
+      <div class="side__brand">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M10 3h4a1 1 0 0 1 1 1v5h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5v5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h5V4a1 1 0 0 1 1-1Z"/></svg>
+        </span>
+        <div>
+          <div class="brand__name" id="clinicName">Your clinic</div>
+          <div class="brand__sub">AI receptionist</div>
+        </div>
+      </div>
+      <nav class="side__nav" id="nav"></nav>
+      <div class="side__foot">
+        <button class="btn btn--ghost btn--block" id="logout" type="button">Log out</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <header class="top">
+        <button class="top__burger" id="burger" type="button" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="top__spacer"></div>
+        <div id="lifecycle"></div>
+      </header>
+
+      <main class="content">
+        <div class="page-head">
+          <h1 class="page-head__title">FAQs</h1>
+          <p class="page-head__sub">Your receptionist answers from these. Keep answers short and factual — exact facts like prices, hours, and doctors belong on their own pages, not here.</p>
+        </div>
+
+        <!-- Loading / error placeholder (replaced once the list loads) -->
+        <section class="card" id="loadCard">
+          <div class="state-msg" id="loadMsg">Loading your FAQs…</div>
+        </section>
+
+        <!-- Empty state: an instruction with concrete examples, never a blank panel (spec §4) -->
+        <section class="card empty" id="emptyCard" hidden>
+          <div class="empty__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.5 1.5c0 1.5-2 2-2 3.5"/><path d="M12 17h.01"/></svg>
+          </div>
+          <div class="empty__title">Add your first FAQ so your receptionist can answer it</div>
+          <p class="empty__sub">Think of what patients ask that isn’t a price, an hour, or a doctor — those already have their own pages. A few to start with:</p>
+          <ul class="empty__examples">
+            <li>“Do you accept insurance?”</li>
+            <li>“Where can I park?”</li>
+            <li>“Do you see children?”</li>
+            <li>“Do I need to book in advance?”</li>
+          </ul>
+          <button class="btn btn--primary" id="emptyAdd" type="button">Add an FAQ</button>
+        </section>
+
+        <!-- Count toward the cap (spec §5.7: 100) -->
+        <div class="faq-count" id="faqCount" hidden></div>
+
+        <!-- FAQ cards (injected) -->
+        <div id="faqs"></div>
+
+        <div class="list-foot" id="listFoot" hidden>
+          <button class="btn btn--ghost" id="addFaq" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Add an FAQ
+          </button>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast-host" id="toastHost"></div>
+
+  <script src="./shell.js"></script>
+  <script src="./faqs.js"></script>
+</body>
+</html>
