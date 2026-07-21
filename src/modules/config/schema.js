@@ -166,9 +166,29 @@ const bookingSchema = z.object({
 }).strict();
 
 // ── escalation ───────────────────────────────────────────────────────────────
+// What the receptionist does when a conversation outgrows it, plus the clinic's
+// own words for an emergency.
+//
+// HONESTY NOTE (PORTAL-P3-S10, verified against the code): `phone_numbers` is
+// read by exactly ONE consumer — validationService.checkNumbers, the go-live
+// gate. Nothing dials or messages these numbers; `notifications.on_escalation`
+// has no consumer either, and handoff today is owner-INITIATED (the WhatsApp
+// TAKEOVER/MSG/DONE commands). `enabled` is real behaviour: it renders the
+// "offer a callback from clinic staff" line. The portal's Safety page says
+// exactly this and promises nothing more.
 const escalationSchema = z.object({
-  enabled: z.boolean(),                       // whether the AI may hand a conversation to a human
-  phone_numbers: z.array(E164),               // agent numbers notified on escalation (E.164)
+  enabled: z.boolean(),                       // whether the AI offers a staff callback when it can't help
+  phone_numbers: z.array(E164),               // staff contacts for that callback (E.164) — validated, not auto-dialled
+  // ── Emergency guidance (PORTAL-P3-S10) ──
+  // The clinic's own words for someone describing an emergency, rendered as a
+  // bounded prompt block ALONGSIDE the medical guardrail's "call emergency
+  // services immediately" — never instead of it. The guardrail stays hardcoded
+  // and non-configurable (INV-3); this only adds the clinic's local detail
+  // ("our 24-hour line is…", "go to X hospital"). DEFAULTED for the same reason
+  // `pricing` and the booking policies are: the top-level object is `.strict()`,
+  // so a config written before this field existed must still validate on READ.
+  emergency_guidance: z.string().max(400).default(''), // what the receptionist adds in an emergency
+  emergency_number: E164.nullable().default(null),     // a number the receptionist may GIVE OUT in an emergency
 }).strict();
 
 // ── notifications ────────────────────────────────────────────────────────────

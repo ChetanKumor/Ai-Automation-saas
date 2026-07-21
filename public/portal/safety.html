@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Safety &amp; handoff · Receptionist portal</title>
+  <meta name="description" content="What your receptionist does when a patient needs a person, what it says in an emergency, and the protections built into it.">
+  <link rel="stylesheet" href="./fonts/fonts.css">
+  <link rel="stylesheet" href="./tokens.css">
+  <link rel="stylesheet" href="./safety.css">
+</head>
+<body data-page="safety">
+  <div class="app" id="app">
+    <div class="side__scrim"></div>
+
+    <!-- Sidebar (nav injected by shell.js) -->
+    <aside class="side">
+      <div class="side__brand">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M10 3h4a1 1 0 0 1 1 1v5h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5v5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h5V4a1 1 0 0 1 1-1Z"/></svg>
+        </span>
+        <div>
+          <div class="brand__name" id="clinicName">Your clinic</div>
+          <div class="brand__sub">AI receptionist</div>
+        </div>
+      </div>
+      <nav class="side__nav" id="nav"></nav>
+      <div class="side__foot">
+        <button class="btn btn--ghost btn--block" id="logout" type="button">Log out</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <header class="top">
+        <button class="top__burger" id="burger" type="button" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="top__spacer"></div>
+        <div id="lifecycle"></div>
+      </header>
+
+      <main class="content">
+        <div class="page-head">
+          <h1 class="page-head__title">Safety &amp; handoff</h1>
+          <p class="page-head__sub">What your receptionist does when a patient needs a person, and what it says to someone describing an emergency.</p>
+        </div>
+
+        <!-- Loading / error placeholder (replaced once the form loads) -->
+        <section class="card" id="loadCard">
+          <div class="state-msg" id="loadMsg">Loading your safety settings…</div>
+        </section>
+
+        <form id="safetyForm" novalidate hidden>
+          <section class="card" id="handoffCard">
+            <div class="card__title">When a patient needs a person</div>
+            <p class="card__sub">Your receptionist can’t transfer a call or a chat. What it can do is stop trying and promise that someone from your clinic will get back to them.</p>
+
+            <div class="field" data-field="enabled">
+              <label class="field__label" for="enabled">Offer a callback from your staff</label>
+              <p class="field__help">When on, your receptionist is told: “If the customer asks for a human, is upset, or you cannot help, offer a callback from clinic staff.” When off, it keeps trying to help on its own.</p>
+              <label class="switch">
+                <input type="checkbox" id="enabled">
+                <span class="switch__track" aria-hidden="true"><span class="switch__knob"></span></span>
+                <span class="switch__text" id="enabledText">On</span>
+              </label>
+              <div class="field__error"></div>
+            </div>
+
+            <div class="field" data-field="phone_numbers">
+              <label class="field__label">Staff numbers for callbacks</label>
+              <p class="field__help">The people who return these calls. Include the country code. Your receptionist can’t go live without at least one.</p>
+              <div class="phones" id="phones"></div>
+              <button class="btn btn--ghost phones__add" id="addPhone" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                Add a number
+              </button>
+              <div class="field__error" id="err-phone_numbers"></div>
+              <p class="note">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+                <span><strong>Nothing rings these numbers automatically.</strong> They’re your record of who handles callbacks. To answer a patient yourself, message <span class="mono">TAKEOVER &lt;their number&gt;</span> to your clinic’s WhatsApp — your receptionist steps aside until you send <span class="mono">DONE</span>.</span>
+              </p>
+            </div>
+          </section>
+
+          <section class="card" id="emergencyCard">
+            <div class="card__title">If someone describes an emergency</div>
+
+            <div class="always-on">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+              <div>
+                <div class="always-on__title">Your receptionist always tells them to call emergency services immediately.</div>
+                <p class="always-on__text">That instruction is built in and can’t be edited or switched off. Anything you add below is given <em>as well</em> — never instead of it.</p>
+              </div>
+            </div>
+
+            <div class="field" data-field="emergency_guidance">
+              <label class="field__label" for="emergency_guidance">Your clinic’s guidance <span class="field__opt">optional</span></label>
+              <p class="field__help">One sentence, in your words — where to go, or who to ask for. Leave it blank and your receptionist simply gives the emergency-services instruction on its own.</p>
+              <textarea class="input" id="emergency_guidance" maxlength="400" rows="3" placeholder="Come straight to our clinic on MG Road — we keep an emergency slot free every hour."></textarea>
+              <div class="field__error"></div>
+            </div>
+
+            <div class="field" data-field="emergency_number">
+              <label class="field__label" for="emergency_number">Emergency number to give out <span class="field__opt">optional</span></label>
+              <p class="field__help">Your receptionist reads this number out to the patient, so check it carefully and include the country code. Leave it blank if you don’t have one.</p>
+              <input class="input input--narrow" id="emergency_number" type="tel" autocomplete="off" placeholder="+91 98765 43210">
+              <div class="field__error"></div>
+            </div>
+
+            <div class="card__foot">
+              <span class="save-note" id="saveNote"></span>
+              <button class="btn btn--primary" id="saveBtn" type="submit">Save changes</button>
+            </div>
+          </section>
+        </form>
+
+        <!-- Built-in protections (read-only, spec §5.10 — never configurable) -->
+        <section class="card prot" id="protCard" hidden>
+          <div class="card__title">Built-in protections</div>
+          <p class="card__sub">These hold on every conversation, on WhatsApp and on the phone. They’re part of the platform — there’s no setting for them, here or anywhere else.</p>
+          <ul class="prot__list" id="protList"></ul>
+          <p class="prot__foot">Each quote is the instruction your receptionist is actually given. On phone calls the same lines say “caller” instead of “customer”.</p>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast-host" id="toastHost"></div>
+
+  <script src="./shell.js"></script>
+  <script src="./safety.js"></script>
+</body>
+</html>

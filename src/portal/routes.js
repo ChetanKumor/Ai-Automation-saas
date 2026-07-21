@@ -26,6 +26,7 @@ const doctorService = require('../modules/doctor/doctorService');
 const { clinicDefaults } = require('../modules/config/defaults');
 const { LANG_CODES } = require('../modules/config/schema');
 const { normalizePhone } = require('../utils/phone');
+const { protectionsForDisplay } = require('./protections');
 
 const router = express.Router();
 
@@ -922,6 +923,180 @@ router.post('/api/config/booking', requirePortalAuth, express.json(), async (req
     if (/tenant not found/.test(err.message || '')) return res.status(404).json({ error: 'Tenant not found' });
     logger.error({ err: err.message }, 'portal booking POST failed');
     res.status(500).json({ error: 'Failed to save booking rules' });
+  }
+});
+
+// ── Config section: safety & handoff (PORTAL-P3-S10) ─────────────────────────
+// Same shape as the sections above (read current → replace this section →
+// configService write with actorUserId → { section, version, readiness }).
+// Storage home is `escalation.*`; there is no `handoff.*` section because
+// nothing honest goes in one.
+//
+// WHAT THIS PAGE MAY CLAIM — verified against the code, not the spec:
+//   • `escalation.enabled` is REAL behaviour: it renders "If the customer asks
+//     for a human, is upset, or you cannot help, offer a callback from clinic
+//     staff" into the prompt. The page's copy is that sentence, in the owner's
+//     words.
+//   • `escalation.phone_numbers` has exactly ONE consumer — the numbers.e164
+//     go-live check. NOTHING dials or messages them; handoff is owner-initiated
+//     through the WhatsApp TAKEOVER command. The page says so plainly. Promising
+//     an automatic call here would be the F-006 defect class (a control that
+//     misrepresents behaviour), which §5.6 already cost us one blocked page.
+//   • The emergency fields render as a bounded prompt block ALONGSIDE the
+//     hardcoded medical guardrail, never in place of it (INV-3).
+//
+// DEFERRED, deliberately, and reported rather than faked: automatic handoff
+// triggers (nothing detects "asks for a human", no turn counter exists, and no
+// code switches conversation mode), and the after-hours message (the per-turn
+// prompt carries the date but no clock time, so the receptionist cannot know it
+// is after hours).
+const ESC_PHONE_MAX = 10;
+const EMERGENCY_TEXT_MAX = 400; // mirrors the schema cap
+
+// Parse ONE phone number for this page. normalizePhone (F-003) strips separators
+// and guarantees E.164 shape, but it cannot tell a missing country code from a
+// short one: '9876543210' normalises to '+9876543210', which is E.164-shaped and
+// a completely different number (+98 is Iran). That silent reinterpretation is
+// exactly what INV-6 forbids, and it matters most here — this page's emergency
+// number is READ ALOUD to someone in trouble, and its staff list is the go-live
+// check's evidence. So we additionally require the owner to type the country
+// code, and reject rather than assume one.
+//
+// NOTE (reported, not fixed here): the clinic-profile page (S4) shares
+// normalizePhone without this guard, so it still accepts a bare number. The fix
+// direction is to bring that page up to this rule, not to relax this one.
+function parseOwnerPhone(raw) {
+  const s = String(raw == null ? '' : raw).trim();
+  if (!s.startsWith('+')) {
+    return { error: `“${s}” is missing its country code. Enter the full number, e.g. +91 98765 43210.` };
+  }
+  try { return { value: normalizePhone(s) }; }
+  catch (_) {
+    return { error: `“${s}” isn’t a valid phone number. Use the full number with country code, e.g. +91 98765 43210.` };
+  }
+}
+
+// Owner-safe projection of the safety section.
+function projectSafety(config) {
+  const e = (config && config.escalation) || {};
+  const d = clinicDefaults.escalation;
+  return {
+    enabled: typeof e.enabled === 'boolean' ? e.enabled : d.enabled,
+    phone_numbers: Array.isArray(e.phone_numbers) ? e.phone_numbers.slice() : [],
+    emergency_guidance: typeof e.emergency_guidance === 'string' ? e.emergency_guidance : '',
+    emergency_number: typeof e.emergency_number === 'string' ? e.emergency_number : null,
+  };
+}
+
+// GET the session tenant's safety settings (INV-1: tenant from req.portalUser only).
+router.get('/api/config/safety', requirePortalAuth, async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  try {
+    const config = await getConfigForSession(tenantId);
+    const version = config ? (configService.getCachedConfigVersion(tenantId) || 0) : 0;
+    res.json({ safety: projectSafety(config), version });
+  } catch (err) {
+    logger.error({ err: err.message }, 'portal safety GET failed');
+    res.status(500).json({ error: 'Failed to load safety settings' });
+  }
+});
+
+// GET the built-in protections panel (PORTAL-P3-S10). Platform invariants, not
+// config: no tenant data in, none out, and nothing here is writable (INV-3).
+// Served from the same catalog the protections test asserts against, so the page
+// can never display a claim the suite has not proven renders in the prompt.
+router.get('/api/protections', requirePortalAuth, (req, res) => {
+  res.json({ protections: protectionsForDisplay() });
+});
+
+// POST a full safety update. Validated here with owner-friendly messages AND
+// re-validated by configService (the real gate, INV-2); phones go through
+// normalizePhone (INV-6 — rejected, never silently rewritten); the revision
+// records the acting owner (INV-4). Returns { section, version, readiness }.
+router.post('/api/config/safety', requirePortalAuth, express.json(), async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  const body = req.body || {};
+  const fields = [];
+
+  // ── enabled ── a toggle: anything but a boolean is a broken client.
+  if (typeof body.enabled !== 'boolean') {
+    fields.push({ field: 'enabled', message: 'Choose whether your receptionist offers a staff callback.' });
+  }
+
+  // ── escalation numbers ── INV-6, one message per bad row so the page can mark
+  // it. An empty row is an unfilled input, not an error.
+  const rawPhones = Array.isArray(body.phone_numbers) ? body.phone_numbers : [];
+  const phones = [];
+  rawPhones.forEach((raw, i) => {
+    const s = typeof raw === 'string' ? raw.trim() : '';
+    if (!s) return;
+    const parsed = parseOwnerPhone(s);
+    if (parsed.error) fields.push({ field: `phone_numbers.${i}`, message: parsed.error });
+    else phones.push(parsed.value);
+  });
+  if (phones.length > ESC_PHONE_MAX) {
+    fields.push({ field: 'phone_numbers', message: `Add at most ${ESC_PHONE_MAX} staff numbers.` });
+  }
+
+  // ── emergency guidance ── optional, capped, plain text. Collapsed to one line
+  // for the same reason the booking policies are: it renders as a single line in
+  // a bounded block whose boundedness is the point (see normalizePolicy).
+  let guidance = '';
+  if (body.emergency_guidance !== undefined && body.emergency_guidance !== null
+      && typeof body.emergency_guidance !== 'string') {
+    fields.push({ field: 'emergency_guidance', message: 'Write your emergency guidance as plain text.' });
+  } else {
+    guidance = normalizePolicy(body.emergency_guidance);
+    if (/<[^>]*>/.test(guidance)) {
+      fields.push({ field: 'emergency_guidance', message: 'Write your emergency guidance as a plain sentence — no HTML tags.' });
+    } else if (guidance.length > EMERGENCY_TEXT_MAX) {
+      fields.push({ field: 'emergency_guidance', message: `Keep your emergency guidance to ${EMERGENCY_TEXT_MAX} characters or fewer.` });
+    }
+  }
+
+  // ── emergency number ── optional (INV-6). This one is READ ALOUD to a patient,
+  // so a typo is worse here than anywhere else on the page: reject it.
+  let emergencyNumber = null;
+  const rawEmergency = typeof body.emergency_number === 'string' ? body.emergency_number.trim() : '';
+  if (rawEmergency) {
+    const parsed = parseOwnerPhone(rawEmergency);
+    if (parsed.error) fields.push({ field: 'emergency_number', message: parsed.error });
+    else emergencyNumber = parsed.value;
+  }
+
+  if (fields.length) {
+    return res.status(400).json({ error: 'Please fix the highlighted items.', fields });
+  }
+
+  try {
+    // Read-merge (S4 rule): preserve every OTHER section. The `escalation` branch
+    // is REPLACED wholesale — the route always builds a complete section, so a
+    // cleared guidance sentence or a removed number actually goes away (a
+    // key-additive merge would leave it in the prompt after the owner deleted it).
+    const current = await getConfigForSession(tenantId);
+    const next = {
+      ...(current || {}),
+      escalation: {
+        enabled: body.enabled,
+        phone_numbers: phones,
+        emergency_guidance: guidance,
+        emergency_number: emergencyNumber,
+      },
+    };
+
+    const { version, config } = await configService.writeTenantConfig(tenantId, next, 'portal', {
+      actorUserId: req.portalUser.id, // INV-4
+    });
+
+    const readiness = await readinessSnapshot(tenantId);
+    res.json({ section: projectSafety(config), version, readiness });
+  } catch (err) {
+    if (err.name === 'ConfigValidationError') {
+      return res.status(422).json({ error: 'Those safety settings couldn’t be saved.', issues: err.issues });
+    }
+    if (/tenant not found/.test(err.message || '')) return res.status(404).json({ error: 'Tenant not found' });
+    logger.error({ err: err.message }, 'portal safety POST failed');
+    res.status(500).json({ error: 'Failed to save safety settings' });
   }
 });
 

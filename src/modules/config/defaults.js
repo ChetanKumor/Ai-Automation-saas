@@ -76,6 +76,13 @@ const clinicDefaults = {
   escalation: {
     enabled: true,
     phone_numbers: [],
+    // Deliberately EMPTY (PORTAL-P3-S10), like the price list and the booking
+    // policies: an emergency instruction we invented would be read out, in the
+    // clinic's voice, to someone in trouble. With nothing set the block does not
+    // render at all and the hardcoded guardrail ("call emergency services
+    // immediately") stands alone — which is the safe answer, not a gap.
+    emergency_guidance: '',
+    emergency_number: null,
   },
   notifications: {
     owner_numbers: [],

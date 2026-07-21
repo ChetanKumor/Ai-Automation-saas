@@ -207,7 +207,15 @@ const adminLoginCookie = (port, password) =>
       },
       languages: { supported: ['te', 'hi', 'en'], default: 'te' },
       notifications: { owner_numbers: ['+919000000001'] },
-      escalation: { enabled: true, phone_numbers: ['+919000000002'] },
+      // Safety & handoff (S10): the callback offer on, two staff numbers, and the
+      // clinic's own emergency guidance + a give-out number — so the page shows a
+      // filled state and the emergency block actually renders into the prompt.
+      escalation: {
+        enabled: true,
+        phone_numbers: ['+919000000002', '+919000000003'],
+        emergency_guidance: 'Come straight to the clinic — we keep an emergency slot free every hour, and someone is on the desk until 8pm.',
+        emergency_number: '+919000000009',
+      },
       // Hours: a short Wednesday + a closed Saturday (varied grid), plus one past
       // and one upcoming holiday so the S5 shot shows both the closed-day render
       // and the past-date de-emphasis.
@@ -448,6 +456,44 @@ const adminLoginCookie = (port, password) =>
           expression:
             "(function(){document.getElementById('advance_days').value='0';"
             + "document.getElementById('buffer_minutes').value='500';"
+            + "document.getElementById('saveBtn').click();})();",
+        }, sid);
+        await waitForSelector(c, sid, "document.querySelector('.field.is-invalid')");
+      },
+    });
+
+    // S10: safety & handoff — the escalation/emergency form plus the read-only
+    // protections panel. Desktop + 380px show the whole page; the third shot is
+    // the panel alone (scrolled to it), which is the deliverable that has to be
+    // legible on its own; the fourth is the validation state that matters most
+    // here — a number typed without its country code, which normalizePhone would
+    // otherwise turn into a real number in another country.
+    const safetyReady = "document.getElementById('safetyForm') && !document.getElementById('safetyForm').hidden"
+      + " && document.getElementById('protCard') && !document.getElementById('protCard').hidden";
+    await shoot(cdp, { url: `${base}/safety.html`, out: path.join(OUT, 's10-safety-desktop.png'),
+      width: 1280, height: 1500, cookie, port, waitFor: safetyReady });
+    await shoot(cdp, { url: `${base}/safety.html`, out: path.join(OUT, 's10-safety-mobile.png'),
+      width: 380, height: 1400, mobile: true, cookie, port, waitFor: safetyReady });
+    await shoot(cdp, {
+      url: `${base}/safety.html`, out: path.join(OUT, 's10-safety-protections.png'),
+      width: 1280, height: 1000, cookie, port, waitFor: safetyReady,
+      // Full-page capture ignores scrolling, so the panel is isolated by hiding
+      // the form above it — the shot is evidence about the panel, not the page.
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression: "document.getElementById('safetyForm').hidden=true;",
+        }, sid);
+        await sleep(200);
+      },
+    });
+    await shoot(cdp, {
+      url: `${base}/safety.html`, out: path.join(OUT, 's10-safety-error.png'),
+      width: 1280, height: 1100, cookie, port, waitFor: safetyReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression:
+            "(function(){document.querySelector('.phone-row .input').value='9876543210';"
+            + "document.getElementById('emergency_number').value='98765-BAD';"
             + "document.getElementById('saveBtn').click();})();",
         }, sid);
         await waitForSelector(c, sid, "document.querySelector('.field.is-invalid')");

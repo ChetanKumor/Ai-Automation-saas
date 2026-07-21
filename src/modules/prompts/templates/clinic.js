@@ -8,16 +8,20 @@
 //
 // Section order is a tested product invariant:
 //   role/identity → clinic facts → prices → appointment policies →
-//   greeting + consent → personality → custom_instructions → guardrails LAST.
-// The prices and policy sections are each omitted entirely when the owner has
-// filled in nothing (see pricingFacts / bookingPolicies) — a clinic that has set
-// neither renders exactly the prompt it did before those sections existed.
-// The guardrail block is hardcoded and always renders after operator text, so
-// custom_instructions can never displace or countermand it by position.
+//   emergency guidance → greeting + consent → personality →
+//   custom_instructions → guardrails LAST.
+// The prices, policy and emergency sections are each omitted entirely when the
+// owner has filled in nothing (see pricingFacts / bookingPolicies /
+// emergencyGuidance) — a clinic that has set none renders exactly the prompt it
+// did before those sections existed. The guardrail block is hardcoded and always
+// renders after operator text, so neither custom_instructions nor the emergency
+// block can displace or countermand it by position.
 //
-// Phone numbers NEVER render: escalation.phone_numbers / notifications.* are
-// data for other subsystems; escalation appears only as behavior ("offer a
-// staff callback") gated on escalation.enabled.
+// Phone numbers render in exactly ONE place: escalation.emergency_number, which
+// is a number the receptionist may GIVE OUT to someone in trouble (PORTAL-P3-S10).
+// escalation.phone_numbers / notifications.* are internal staff contacts for
+// other subsystems and never reach the prompt; escalation otherwise appears only
+// as behavior ("offer a staff callback") gated on escalation.enabled.
 
 const { medicalGuardrailLines } = require('../guardrail');
 
@@ -197,6 +201,36 @@ function bookingPolicies(booking, { voice, who }) {
   return [head, ...lines, rule].join('\n');
 }
 
+// ── Emergency guidance block (PORTAL-P3-S10) ────────────────────────────────
+// The clinic's own words for someone describing an emergency: where to go, which
+// local number to ring. It is an ADDITION to the medical guardrail, never a
+// replacement — the guardrail still renders LAST and still says to call emergency
+// services immediately, and this block's own head and closing rule say so out
+// loud so no ordering accident can read it as an override.
+//
+// Bounded and silent-on-empty like the price and policy blocks: a clinic that
+// has written nothing renders no block, leaving the guardrail alone rather than
+// an empty heading. Guardrails themselves stay hardcoded and non-configurable
+// (INV-3) — what the owner supplies here is local detail, not the safety rule.
+function emergencyGuidance(escalation, { voice, who }) {
+  if (!escalation || typeof escalation !== 'object') return null;
+
+  const text = typeof escalation.emergency_guidance === 'string' ? escalation.emergency_guidance.trim() : '';
+  const number = typeof escalation.emergency_number === 'string' ? escalation.emergency_number.trim() : '';
+  if (!text && !number) return null; // nothing written → no block at all
+
+  const lines = [];
+  if (text) lines.push(`- ${text}`);
+  if (number) lines.push(`- The clinic’s emergency contact number is ${number}.`);
+
+  const head = voice
+    ? `Emergency guidance — the clinic’s own words for a ${who} who describes an emergency. Say this IN ADDITION to telling them to call emergency services, never instead of it:`
+    : `Emergency guidance — the clinic’s own words for a ${who} who describes an emergency. Give this IN ADDITION to telling them to call emergency services, never instead of it:`;
+  const rule = 'Give it exactly as written and give it straight away — never judge how serious the symptoms are, and never add advice of your own.';
+
+  return [head, ...lines, rule].join('\n');
+}
+
 // Pick a per-language literal (greeting / consent line) for the default
 // language. A supported language missing its line is schema-impossible, but a
 // stale pre-refine doc can reach us via getTenantConfig's WARN-and-return-as-is
@@ -313,6 +347,7 @@ function renderClinic(config, { channel, onWarn }) {
     facts.join('\n'),
     pricingFacts(config.pricing, { voice, who }), // null when nothing is priced → section drops out entirely
     bookingPolicies(config.booking, { voice, who }), // null when no policy is written → section drops out entirely
+    emergencyGuidance(config.escalation, { voice, who }), // null when nothing is written → section drops out entirely
     greetLines.join('\n') || null,
     personality,
     customBlock,
