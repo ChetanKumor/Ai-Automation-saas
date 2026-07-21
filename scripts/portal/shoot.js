@@ -236,6 +236,18 @@ const adminLoginCookie = (port, password) =>
           { name: 'Teeth whitening', price: 3500, archived: true },
         ],
       },
+      // Booking rules (S9): non-default values on every enforced knob, so the
+      // page's plain-English summary reads as a real sentence rather than the
+      // defaults, plus two of the three policy texts (the third stays empty to
+      // show the optional state).
+      booking: {
+        slot_minutes: 20,
+        advance_days: 30,
+        buffer_minutes: 120,
+        allow_same_day: true,
+        cancellation_policy: 'Please call at least 4 hours before your appointment. There is no cancellation charge.',
+        walk_in_policy: 'Walk-ins are welcome before 11am; you may have to wait up to 30 minutes.',
+      },
     }, 'shoot');
 
     // Doctors (S8): NOT a config section — these are tenant_entities rows, the
@@ -413,6 +425,32 @@ const adminLoginCookie = (port, password) =>
             + "d[1].querySelector('[data-role=\"save\"]').click();})();",
         }, sid);
         await waitForSelector(c, sid, "document.querySelector('.doc .field.is-invalid')");
+      },
+    });
+
+    // S9: booking rules — the first page whose every control changes enforced
+    // behaviour (F-006). Desktop + 380px show the plain-English summary derived
+    // from the saved rules, the four enforced settings, and the policy texts under
+    // the heading that says they are recited, not enforced. The third shot is the
+    // validation state that matters most: advance_days = 0, which looks like
+    // "stop taking bookings" and is actually undefined — the error names the real
+    // way to do that.
+    const bookingReady = "document.getElementById('bookingForm') && !document.getElementById('bookingForm').hidden";
+    await shoot(cdp, { url: `${base}/booking-rules.html`, out: path.join(OUT, 's9-booking-desktop.png'),
+      width: 1280, height: 1200, cookie, port, waitFor: bookingReady });
+    await shoot(cdp, { url: `${base}/booking-rules.html`, out: path.join(OUT, 's9-booking-mobile.png'),
+      width: 380, height: 1100, mobile: true, cookie, port, waitFor: bookingReady });
+    await shoot(cdp, {
+      url: `${base}/booking-rules.html`, out: path.join(OUT, 's9-booking-error.png'),
+      width: 1280, height: 1200, cookie, port, waitFor: bookingReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression:
+            "(function(){document.getElementById('advance_days').value='0';"
+            + "document.getElementById('buffer_minutes').value='500';"
+            + "document.getElementById('saveBtn').click();})();",
+        }, sid);
+        await waitForSelector(c, sid, "document.querySelector('.field.is-invalid')");
       },
     });
 

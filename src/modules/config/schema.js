@@ -140,11 +140,29 @@ const pricingSchema = z.object({
   });
 
 // ── booking ──────────────────────────────────────────────────────────────────
+// The four knobs above the policy texts are BEHAVIOUR: appointmentService's
+// resolveBookingRules (F-006) reads exactly these paths and enforces them on both
+// sides (what availability offers and what a booking write accepts). Their bounds
+// are therefore contractual — `advance_days` is `.positive()` because 0 has no
+// defined enforcement meaning (resolveBookingRules' posInt guard would silently
+// fall back to the default), while `buffer_minutes` 0 legitimately means "no
+// minimum notice".
+const POLICY_TEXT = z.string().max(500);
+
 const bookingSchema = z.object({
   slot_minutes: z.number().int().positive().max(480),    // length of one bookable slot, in minutes
   advance_days: z.number().int().positive().max(365),    // how many days ahead booking is allowed
   buffer_minutes: z.number().int().nonnegative().max(240), // gap enforced between adjacent bookings
   allow_same_day: z.boolean(),                           // whether same-day booking is permitted
+  // ── Policy texts (PORTAL-P3-S9) ──
+  // FACTS the receptionist recites when asked — NOT logic. Nothing reads these to
+  // decide whether a booking is allowed; they render verbatim into the prompt's
+  // bounded appointment-policy block. DEFAULTED for the same reason `pricing` is
+  // (S6): every config written before this section existed has no such key and the
+  // object is `.strict()`, so an absent key must not fail validation on READ.
+  cancellation_policy: POLICY_TEXT.default(''), // what the receptionist says about cancelling
+  reschedule_policy: POLICY_TEXT.default(''),   // what it says about moving an appointment
+  walk_in_policy: POLICY_TEXT.default(''),      // what it says about walking in without one
 }).strict();
 
 // ── escalation ───────────────────────────────────────────────────────────────

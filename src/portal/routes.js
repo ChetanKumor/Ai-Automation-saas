@@ -733,6 +733,198 @@ router.post('/api/config/pricing', requirePortalAuth, express.json(), async (req
   }
 });
 
+// ── Config section: booking rules (Booking rules, PORTAL-P3-S9) ──────────────
+// Same shape as identity/hours/pricing (read current → replace this section →
+// configService write with actorUserId → { section, version, readiness }).
+// Storage home is `booking.*`.
+//
+// This page was deliberately BLOCKED on F-006. Before that change these knobs
+// were validated and stored but enforced NOWHERE, so shipping the page would have
+// handed owners four controls that changed nothing. Every control here now moves
+// real behaviour: appointmentService.resolveBookingRules reads exactly these four
+// paths and applies them on BOTH sides — what check_availability offers and what a
+// booking write accepts.
+//
+// The three policy texts are the exception, and the page says so: they are FACTS
+// the receptionist recites (they render into the prompt's bounded policy block),
+// not logic. Nothing consults them to decide whether a booking is allowed.
+const SLOT_CHOICES = [10, 15, 20, 30];
+const ADVANCE_MIN = 1;    // 0 has NO defined enforcement meaning — see below
+const ADVANCE_MAX = 365;  // mirrors the schema cap
+const BUFFER_MIN = 0;     // 0 is meaningful: no minimum notice
+const BUFFER_MAX = 240;   // mirrors the schema cap
+const POLICY_MAX = 500;   // mirrors the schema cap
+const POLICY_KEYS = ['cancellation_policy', 'reschedule_policy', 'walk_in_policy'];
+
+// Owner-safe projection of the booking section. Every field falls back to the
+// clinicDefaults value rather than to a hole, so the page never renders a blank
+// control for a rule that is nonetheless being enforced — `resolveBookingRules`
+// applies exactly this fallback, so what the form shows is what booking does.
+function projectBooking(config) {
+  const b = (config && config.booking) || {};
+  const d = clinicDefaults.booking;
+  const int = (v, fallback) => (Number.isInteger(v) ? v : fallback);
+  const out = {
+    slot_minutes: int(b.slot_minutes, d.slot_minutes),
+    advance_days: int(b.advance_days, d.advance_days),
+    buffer_minutes: int(b.buffer_minutes, d.buffer_minutes),
+    allow_same_day: typeof b.allow_same_day === 'boolean' ? b.allow_same_day : d.allow_same_day,
+  };
+  for (const key of POLICY_KEYS) out[key] = typeof b[key] === 'string' ? b[key] : '';
+  return out;
+}
+
+// Parse a whole-number rule input. The form sends a string or a number; a string
+// must be PLAIN DIGITS for the same reason a fee must be (parseFee): Number()
+// would read '1e3' as 1000 and ' 7 ' as 7, and a booking window nobody meant is
+// silently wrong in exactly the way this page exists to prevent.
+function parseWholeNumber(raw) {
+  if (raw === null || raw === undefined || raw === '') return null;
+  if (typeof raw === 'number') return Number.isInteger(raw) ? raw : null;
+  const s = String(raw).trim();
+  return /^\d+$/.test(s) ? Number(s) : null;
+}
+
+// Policy text → one prompt line. Interior whitespace (including the newlines a
+// textarea makes it easy to type) collapses to single spaces: the prompt block is
+// one line per policy, and a multi-line value would inject lines into a block
+// whose boundedness is the point. This is normalisation, not reinterpretation —
+// the sentence is unchanged, and the response echoes exactly what was stored, so
+// the owner sees the stored form rather than having to trust us.
+function normalizePolicy(raw) {
+  return typeof raw === 'string' ? raw.replace(/\s+/g, ' ').trim() : '';
+}
+
+// GET the session tenant's booking rules (INV-1: tenant from req.portalUser only).
+router.get('/api/config/booking', requirePortalAuth, async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  try {
+    const config = await getConfigForSession(tenantId);
+    const version = config ? (configService.getCachedConfigVersion(tenantId) || 0) : 0;
+    res.json({ booking: projectBooking(config), version });
+  } catch (err) {
+    logger.error({ err: err.message }, 'portal booking GET failed');
+    res.status(500).json({ error: 'Failed to load booking rules' });
+  }
+});
+
+// POST a full booking-rules update. Validated here with owner-friendly messages
+// AND re-validated by configService (the real gate, INV-2); the revision records
+// the acting owner (INV-4). Returns { section, version, readiness }.
+router.post('/api/config/booking', requirePortalAuth, express.json(), async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  const body = req.body || {};
+
+  try {
+    // Read FIRST — needed for the read-merge below, and `slot_minutes` validation
+    // depends on the stored value (see the enum rule).
+    const current = await getConfigForSession(tenantId);
+    const stored = projectBooking(current);
+    const fields = [];
+
+    // ── slot_minutes ──
+    // The page offers four lengths. A tenant whose stored value is outside that
+    // set (settable through the admin JSON editor) is ACCEPTED unchanged, so
+    // saving some other field on this page can never silently re-grid a clinic
+    // to 30 minutes. Changing it still requires one of the four.
+    const slot = parseWholeNumber(body.slot_minutes);
+    if (slot === null || (SLOT_CHOICES.indexOf(slot) === -1 && slot !== stored.slot_minutes)) {
+      const choices = `${SLOT_CHOICES.slice(0, -1).join(', ')} or ${SLOT_CHOICES[SLOT_CHOICES.length - 1]}`;
+      fields.push({
+        field: 'slot_minutes',
+        message: `Choose an appointment length of ${choices} minutes.`,
+      });
+    }
+
+    // ── advance_days ──
+    // The floor is 1, not 0. 0 is not "booking closed": the schema rejects it and
+    // resolveBookingRules' positive-integer guard would fall back to the default
+    // 30 with a WARN — the owner would believe they had shut booking down while it
+    // quietly ran a month out. An undefined value never reaches storage.
+    const advance = parseWholeNumber(body.advance_days);
+    if (advance === null || advance < ADVANCE_MIN || advance > ADVANCE_MAX) {
+      fields.push({
+        field: 'advance_days',
+        message: `Enter how many days ahead patients can book — a whole number from ${ADVANCE_MIN} to ${ADVANCE_MAX}. To stop taking bookings entirely, turn the booking tool off instead.`,
+      });
+    }
+
+    // ── buffer_minutes ── 0 is legitimate ("book right up to the start time").
+    const buffer = parseWholeNumber(body.buffer_minutes);
+    if (buffer === null || buffer < BUFFER_MIN || buffer > BUFFER_MAX) {
+      fields.push({
+        field: 'buffer_minutes',
+        message: `Enter the minimum notice in minutes — a whole number from ${BUFFER_MIN} to ${BUFFER_MAX}. Use 0 to let patients book right up to the start time.`,
+      });
+    }
+
+    // ── allow_same_day ── a toggle: anything but a boolean is a broken client.
+    if (typeof body.allow_same_day !== 'boolean') {
+      fields.push({ field: 'allow_same_day', message: 'Choose whether same-day booking is on or off.' });
+    }
+
+    // ── Policy texts ── optional, capped, plain text.
+    const policies = {};
+    const POLICY_LABEL = {
+      cancellation_policy: 'cancellation policy',
+      reschedule_policy: 'reschedule policy',
+      walk_in_policy: 'walk-in policy',
+    };
+    for (const key of POLICY_KEYS) {
+      const raw = body[key];
+      if (raw !== undefined && raw !== null && typeof raw !== 'string') {
+        fields.push({ field: key, message: `Write your ${POLICY_LABEL[key]} as plain text.` });
+        continue;
+      }
+      const text = normalizePolicy(raw);
+      // These are read aloud and pasted into a prompt — markup would be recited
+      // as characters, so reject tags rather than stripping them silently.
+      if (/<[^>]*>/.test(text)) {
+        fields.push({ field: key, message: `Write your ${POLICY_LABEL[key]} as a plain sentence — no HTML tags.` });
+        continue;
+      }
+      if (text.length > POLICY_MAX) {
+        fields.push({ field: key, message: `Keep your ${POLICY_LABEL[key]} to ${POLICY_MAX} characters or fewer.` });
+        continue;
+      }
+      policies[key] = text;
+    }
+
+    if (fields.length) {
+      return res.status(400).json({ error: 'Please fix the highlighted items.', fields });
+    }
+
+    // Read-merge (S4 rule): preserve every OTHER section. The `booking` branch is
+    // REPLACED wholesale — the route always builds a complete section, so a
+    // cleared policy actually clears (a key-additive merge would leave the old
+    // sentence in the prompt after the owner deleted it).
+    const next = {
+      ...(current || {}),
+      booking: {
+        slot_minutes: slot,
+        advance_days: advance,
+        buffer_minutes: buffer,
+        allow_same_day: body.allow_same_day,
+        ...policies,
+      },
+    };
+
+    const { version, config } = await configService.writeTenantConfig(tenantId, next, 'portal', {
+      actorUserId: req.portalUser.id, // INV-4
+    });
+
+    const readiness = await readinessSnapshot(tenantId);
+    res.json({ section: projectBooking(config), version, readiness });
+  } catch (err) {
+    if (err.name === 'ConfigValidationError') {
+      return res.status(422).json({ error: 'Those booking rules couldn’t be saved.', issues: err.issues });
+    }
+    if (/tenant not found/.test(err.message || '')) return res.status(404).json({ error: 'Tenant not found' });
+    logger.error({ err: err.message }, 'portal booking POST failed');
+    res.status(500).json({ error: 'Failed to save booking rules' });
+  }
+});
+
 // ── Doctors (PORTAL-P3-S8) ───────────────────────────────────────────────────
 // The first portal page whose data is NOT a tenant_configs section. Doctor
 // schedules live in `tenant_entities` (type 'schedule') — the storage

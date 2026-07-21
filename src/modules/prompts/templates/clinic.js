@@ -7,11 +7,11 @@
 // which the hook site wires to the logger).
 //
 // Section order is a tested product invariant:
-//   role/identity → clinic facts → prices → greeting + consent → personality →
-//   custom_instructions → guardrails LAST.
-// The prices section is omitted entirely when nothing is priced (see
-// pricingFacts) — an unpriced clinic renders exactly the prompt it did before
-// the pricing section existed.
+//   role/identity → clinic facts → prices → appointment policies →
+//   greeting + consent → personality → custom_instructions → guardrails LAST.
+// The prices and policy sections are each omitted entirely when the owner has
+// filled in nothing (see pricingFacts / bookingPolicies) — a clinic that has set
+// neither renders exactly the prompt it did before those sections existed.
 // The guardrail block is hardcoded and always renders after operator text, so
 // custom_instructions can never displace or countermand it by position.
 //
@@ -162,6 +162,41 @@ function pricingFacts(pricing, { voice, who }) {
   return [head, ...lines, ...tail, rule].join('\n');
 }
 
+// ── Appointment policy block (PORTAL-P3-S9) ─────────────────────────────────
+// The owner's cancellation / reschedule / walk-in rules, recited verbatim.
+//
+// These are FACTS, not logic: nothing here changes what can be booked (the
+// bookable window is enforced structurally in appointmentService — F-006). They
+// exist because a patient who asks "can I cancel?" deserves the clinic's actual
+// answer instead of a plausible invention, which is the same failure class the
+// price block was built to close.
+//
+// Bounded like the price block — a header naming what it is, one line per
+// policy, and a closing rule — and rendered as its own paragraph so it cannot
+// bleed into neighbouring instructions. SILENCE ON EMPTY: with no policy set we
+// emit NO block, so an owner who has not written one gets the pre-existing
+// "I'll check with the clinic" behaviour rather than an empty heading.
+function bookingPolicies(booking, { voice, who }) {
+  if (!booking || typeof booking !== 'object') return null;
+
+  const lines = [];
+  const policy = (label, v) => {
+    if (typeof v === 'string' && v.trim()) lines.push(`- ${label}: ${v.trim()}`);
+  };
+  policy('Cancellations', booking.cancellation_policy);
+  policy('Rescheduling', booking.reschedule_policy);
+  policy('Walk-ins', booking.walk_in_policy);
+
+  if (lines.length === 0) return null; // no policy written → no block at all
+
+  const head = voice
+    ? 'Appointment policies — the clinic’s own rules. Say these as written; never soften them or invent an exception:'
+    : 'Appointment policies — the clinic’s own rules. State these as written; never soften them, extend them, or invent an exception:';
+  const rule = `If the ${who} asks about something these policies do not cover, do not make up a rule — say you will check with the clinic and get back to them.`;
+
+  return [head, ...lines, rule].join('\n');
+}
+
 // Pick a per-language literal (greeting / consent line) for the default
 // language. A supported language missing its line is schema-impossible, but a
 // stale pre-refine doc can reach us via getTenantConfig's WARN-and-return-as-is
@@ -277,6 +312,7 @@ function renderClinic(config, { channel, onWarn }) {
     role.join('\n'),
     facts.join('\n'),
     pricingFacts(config.pricing, { voice, who }), // null when nothing is priced → section drops out entirely
+    bookingPolicies(config.booking, { voice, who }), // null when no policy is written → section drops out entirely
     greetLines.join('\n') || null,
     personality,
     customBlock,

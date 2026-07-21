@@ -43,7 +43,7 @@
     { id: 'hours',       label: 'Hours & holidays', icon: I.clock,   href: 'hours.html' },
     { id: 'pricing',     label: 'Pricing',         icon: I.tag,      href: 'pricing.html' },
     { id: 'doctors',     label: 'Doctors',         icon: I.doctor,   href: 'doctors.html' },
-    { id: 'booking',     label: 'Booking rules',   icon: I.calendar, soon: true },
+    { id: 'booking',     label: 'Booking rules',   icon: I.calendar, href: 'booking-rules.html' },
     { id: 'faqs',        label: 'FAQs',            icon: I.help,     soon: true },
     { id: 'documents',   label: 'Documents',       icon: I.file,     soon: true },
     { id: 'receptionist',label: 'Receptionist',    icon: I.bot,      soon: true },

@@ -1,0 +1,124 @@
+/* ============================================================================
+ * Booking rules — page-specific styles (PORTAL-P3-S9)
+ *
+ * The shared field/card/button vocabulary lives in tokens.css. Only what is
+ * unique to this page is here: the plain-English summary banner, the narrow
+ * number inputs with their trailing unit, and the same-day switch.
+ *
+ * The summary is the page's trust device — it states the saved rules as a
+ * sentence — so it gets the one tinted surface on the page and nothing else
+ * competes with it.
+ *
+ * Mobile: nothing here is a grid, so the page stacks naturally. The only
+ * adjustment below 560px is the summary going full-width under its icon and the
+ * card footer stacking, matching the other config pages.
+ * ========================================================================== */
+
+/* Loading / error placeholder (home.css isn't linked here, so define locally) */
+.state-msg { color: var(--muted); font-size: 14px; padding: 8px 2px; }
+.state-msg--error { color: var(--red); }
+
+/* ── Plain-English summary ── */
+.summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  background: var(--teal-050);
+  border-color: var(--teal-100);
+}
+.summary__icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px; height: 32px;
+  border-radius: var(--radius-xs);
+  background: var(--card);
+  border: 1px solid var(--teal-100);
+  color: var(--teal);
+}
+.summary__icon svg { width: 17px; height: 17px; }
+.summary__label {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--teal-700);
+}
+.summary__text {
+  margin-top: 4px;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.summary__stale {
+  margin-top: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--amber);
+}
+
+/* ── Number input + trailing unit ── */
+/* The unit sits OUTSIDE the input rather than inside it: "30" reads as a number
+   the owner typed, and "days ahead" as our label for it. */
+.unit { display: flex; align-items: center; gap: 9px; }
+.unit__input { width: 96px; text-align: center; font-variant-numeric: tabular-nums; }
+.unit__label { font-size: 13.5px; color: var(--muted); }
+
+.input--narrow { width: auto; min-width: 168px; }
+
+/* ── Same-day switch ── */
+/* A real checkbox, visually hidden but still the focus/keyboard target — the
+   track and knob are decoration driven off :checked / :focus-visible. */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 44px; height: 26px;
+  margin: 0;
+  cursor: pointer;
+}
+.switch__track {
+  position: relative;
+  flex: none;
+  width: 44px; height: 26px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  transition: background .15s ease;
+}
+.switch__knob {
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  transition: transform .15s ease;
+}
+.switch input:checked + .switch__track { background: var(--teal); }
+.switch input:checked + .switch__track .switch__knob { transform: translateX(18px); }
+.switch input:focus-visible + .switch__track {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--teal-050);
+}
+.switch__text { font-size: 13.5px; font-weight: 600; color: var(--ink-2); }
+
+/* ── Mobile ── */
+@media (max-width: 560px) {
+  .summary { gap: 11px; }
+  .summary__icon { width: 28px; height: 28px; }
+  .summary__icon svg { width: 15px; height: 15px; }
+  .summary__text { font-size: 14px; }
+  .input--narrow { width: 100%; min-width: 0; }
+  .unit__input { flex: 1; width: auto; }
+
+  .card__foot { flex-direction: column-reverse; align-items: stretch; }
+  .card__foot .btn { margin-left: 0; }
+  .save-note { text-align: center; }
+}

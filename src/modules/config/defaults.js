@@ -63,6 +63,15 @@ const clinicDefaults = {
     advance_days: 30,
     buffer_minutes: 0,
     allow_same_day: true,
+    // Deliberately EMPTY (PORTAL-P3-S9), for the same reason the price list is:
+    // a fresh clinic has no cancellation or walk-in policy we could honestly
+    // invent, and an empty set renders NO policy block at all — so the
+    // receptionist keeps offering to check rather than asserting a rule the
+    // clinic never agreed to. A plausible-sounding default here would be a
+    // promise made to patients on the owner's behalf.
+    cancellation_policy: '',
+    reschedule_policy: '',
+    walk_in_policy: '',
   },
   escalation: {
     enabled: true,
