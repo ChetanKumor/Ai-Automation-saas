@@ -486,10 +486,13 @@ describe('tenant lifecycle + turn.scripted (integration)', { skip: ADMIN ? false
   });
 
   it('turn.scripted is appended to the catalog; the frozen names are unchanged', () => {
+    // doctor.schedule (PORTAL-P3-S8) was appended after tenant.legacy_prompt via
+    // the same extension path; every name that existed before is still here, in
+    // its original position.
     assert.deepEqual(validation.CHECK_NAMES, [
       'config.exists', 'config.schema', 'prompt.renders', 'hours.sane', 'numbers.e164',
       'consent.lines', 'kb.populated', 'kb.retrieval', 'whatsapp.config', 'whatsapp.live',
-      'voice.config', 'tenant.legacy_prompt', 'turn.scripted',
+      'voice.config', 'tenant.legacy_prompt', 'doctor.schedule', 'turn.scripted',
     ]);
   });
 

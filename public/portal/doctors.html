@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Doctors · Receptionist portal</title>
+  <meta name="description" content="The doctors patients can book with, and the days and hours each one sees patients.">
+  <link rel="stylesheet" href="./fonts/fonts.css">
+  <link rel="stylesheet" href="./tokens.css">
+  <link rel="stylesheet" href="./doctors.css">
+</head>
+<body data-page="doctors">
+  <div class="app" id="app">
+    <div class="side__scrim"></div>
+
+    <!-- Sidebar (nav injected by shell.js) -->
+    <aside class="side">
+      <div class="side__brand">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M10 3h4a1 1 0 0 1 1 1v5h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5v5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h5V4a1 1 0 0 1 1-1Z"/></svg>
+        </span>
+        <div>
+          <div class="brand__name" id="clinicName">Your clinic</div>
+          <div class="brand__sub">AI receptionist</div>
+        </div>
+      </div>
+      <nav class="side__nav" id="nav"></nav>
+      <div class="side__foot">
+        <button class="btn btn--ghost btn--block" id="logout" type="button">Log out</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <header class="top">
+        <button class="top__burger" id="burger" type="button" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="top__spacer"></div>
+        <div id="lifecycle"></div>
+      </header>
+
+      <main class="content">
+        <div class="page-head">
+          <h1 class="page-head__title">Doctors</h1>
+          <p class="page-head__sub">Who patients can book with, and when each doctor sees them. Patients can only be booked during a doctor’s hours, inside your clinic’s opening hours.</p>
+        </div>
+
+        <!-- Loading / error placeholder (replaced once the list loads) -->
+        <section class="card" id="loadCard">
+          <div class="state-msg" id="loadMsg">Loading your doctors…</div>
+        </section>
+
+        <!-- Empty state: an instruction, never a blank panel (spec §4) -->
+        <section class="card empty" id="emptyCard" hidden>
+          <div class="empty__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v6a6 6 0 0 0 12 0V3"/><path d="M6 3H4M18 3h2"/><path d="M12 15v3a4 4 0 0 0 8 0v-1"/><circle cx="20" cy="14" r="2"/></svg>
+          </div>
+          <div class="empty__title">Add your first doctor so patients can book with them</div>
+          <p class="empty__sub">Your receptionist can’t offer an appointment until at least one doctor has weekly hours.</p>
+          <button class="btn btn--primary" id="emptyAdd" type="button">Add a doctor</button>
+        </section>
+
+        <!-- Doctor cards (injected) -->
+        <div id="doctors"></div>
+
+        <div class="list-foot" id="listFoot" hidden>
+          <button class="btn btn--ghost" id="addDoctor" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Add a doctor
+          </button>
+        </div>
+
+        <!-- Archived doctors: kept because past appointments still name them -->
+        <section class="card archived-card" id="archivedCard" hidden>
+          <div class="card__title">No longer seeing patients</div>
+          <p class="card__sub">These doctors are kept because past appointments still name them. Your receptionist never offers them.</p>
+          <div id="archived"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast-host" id="toastHost"></div>
+
+  <script src="./shell.js"></script>
+  <script src="./doctors.js"></script>
+</body>
+</html>

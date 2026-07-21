@@ -19,7 +19,7 @@ Commit this file as `docs/specs/portal-v1.md`. Every implementation session read
 
 ## 2. Architecture position
 
-**Reused unchanged (backend):** configService (strict Zod schema, versioned writes, cached loader + invalidation) · prompt renderer (config-driven, guardrail-anchored) · prompt preview · validation catalog (13 named checks) + lifecycle chain (draft → validated → live → paused) · knowledge_chunks + ingestion (tenant-scoped pgvector) · config revisions · multi-tenant isolation · `normalizePhone` (F-003) · turn_traces.
+**Reused unchanged (backend):** configService (strict Zod schema, versioned writes, cached loader + invalidation) · prompt renderer (config-driven, guardrail-anchored) · prompt preview · validation catalog (13 named checks; 14 since P3-S8 appended `doctor.schedule`) + lifecycle chain (draft → validated → live → paused) · knowledge_chunks + ingestion (tenant-scoped pgvector) · config revisions · multi-tenant isolation · `normalizePhone` (F-003) · turn_traces.
 
 **Net-new subsystems (the actual build):**
 1. **Portal auth + tenant-scoped sessions** — the largest new risk surface in the system. Everything else is forms.
@@ -82,6 +82,11 @@ Behavioral contract (spec-level, enforced by renderer): the receptionist quotes 
 ### 5.5 Doctors
 CRUD: name · specialization · languages · weekly schedule grid (per-day start/end) · leave dates[].
 **Mapping rule:** source of truth is whatever storage `appointmentService` reads for booking **today**. The implementation session begins by verifying that mapping and writes to it. Creating a parallel doctors table is a STOP condition.
+
+**Verified mapping (P3-S8, 2026-07-21) — two scope corrections against the storage as it actually is.** Doctor schedules are rows in `tenant_entities` (`type='schedule'`), payload `{ doctor, days:['Mon',…], start, end }`, read by `appointmentService.getSchedules` and consumed by both `checkAvailability` and `bookAppointment`. Consequences, both founder-approved:
+- **No per-day start/end.** The row carries ONE window plus a days array. Two rows per doctor to fake per-day hours is a divergence trap: `checkAvailability` loops all rows while `bookAppointment` `.find()`s only the first, so the second row's slots would be offered and then refused — the F-006 bug class. v1 ships days + one window; per-day hours is a storage + `appointmentService` change and needs its own issue.
+- **Leave dates DEFERRED.** Booking has no concept of doctor absence (`evaluateDay` knows past / same-day / advance window / holiday / closed day, nothing else). A leave UI here would promise a refusal booking does not make. Deferred to its own issue where the storage and the enforcement land together.
+- **Deactivation = archive**, by flipping the row to `type='schedule_archived'` — the type is what `getSchedules` filters on, so booking honors it with no change to `appointmentService`. An `active` flag inside the JSONB would NOT work: nothing reads it, so the doctor would still be offered. A doctor with appointments is archived rather than deleted; one without is deleted outright.
 
 ### 5.6 Booking rules → `booking.*`
 slot_minutes (10/15/20/30) · advance_days · allow_same_day · buffer_minutes · cancellation policy (text) · reschedule policy (text) · walk-in policy (text). Policy texts are facts the receptionist states, not logic.

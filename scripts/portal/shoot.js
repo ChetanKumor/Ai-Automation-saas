@@ -238,6 +238,23 @@ const adminLoginCookie = (port, password) =>
       },
     }, 'shoot');
 
+    // Doctors (S8): NOT a config section — these are tenant_entities rows, the
+    // storage appointmentService books against. Seeded to exercise every card
+    // state at once: a doctor whose Wednesday runs past the clinic's 13:00 close
+    // (quiet warning), a clean doctor, one with no working days ("Not bookable"),
+    // and one archived (the "No longer seeing patients" card).
+    const seedDoctor = (data, type = 'schedule') => db.query(
+      'INSERT INTO tenant_entities (tenant_id, type, data) VALUES ($1,$2,$3)',
+      [tenantId, type, JSON.stringify(data)]);
+    await seedDoctor({ doctor: 'Dr. Sharma', specialization: 'Endodontist', languages: ['te', 'en'],
+      days: ['Mon', 'Wed', 'Fri'], start: '10:00', end: '17:00' });
+    await seedDoctor({ doctor: 'Dr. Reddy', specialization: 'Orthodontist', languages: ['te', 'hi', 'en'],
+      days: ['Tue', 'Thu'], start: '09:00', end: '13:00' });
+    await seedDoctor({ doctor: 'Dr. Naidu', specialization: 'Oral surgeon', languages: ['te'],
+      days: [], start: '10:00', end: '16:00' });
+    await seedDoctor({ doctor: 'Dr. Kulkarni', specialization: 'Periodontist', languages: ['hi', 'en'],
+      days: ['Mon', 'Thu'], start: '11:00', end: '15:00' }, 'schedule_archived');
+
     const run = await validationService.validateTenant(tenantId, {
       skip: ['turn.scripted'],
       deps: { getRelevantChunks: async () => [], pingNumber: async () => 'stub' },
@@ -370,6 +387,32 @@ const adminLoginCookie = (port, password) =>
             + "document.getElementById('saveBtn').click();})();",
         }, sid);
         await waitForSelector(c, sid, "document.querySelector('.tr.is-invalid')");
+      },
+    });
+
+    // S8: doctors — the first page that is NOT a config section (these rows drive
+    // real bookings). Desktop + 380px show the loaded cards: a doctor carrying the
+    // outside-clinic-hours warning, a clean one, one flagged "Not bookable", and
+    // the archived card beneath. The third shot captures the validation state —
+    // renaming a doctor to one that already exists → Save → the inline duplicate
+    // error that names the fix.
+    const doctorsReady = "document.querySelector('.doc') || !document.getElementById('emptyCard').hidden";
+    await shoot(cdp, { url: `${base}/doctors.html`, out: path.join(OUT, 's8-doctors-desktop.png'),
+      width: 1280, height: 1200, cookie, port, waitFor: doctorsReady });
+    await shoot(cdp, { url: `${base}/doctors.html`, out: path.join(OUT, 's8-doctors-mobile.png'),
+      width: 380, height: 1000, mobile: true, cookie, port, waitFor: doctorsReady });
+    await shoot(cdp, {
+      url: `${base}/doctors.html`, out: path.join(OUT, 's8-doctors-error.png'),
+      width: 1280, height: 1200, cookie, port, waitFor: doctorsReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression:
+            "(function(){var d=document.querySelectorAll('.doc');"
+            + "var first=d[0].querySelector('.input').value;"
+            + "d[1].querySelector('.input').value=first;"
+            + "d[1].querySelector('[data-role=\"save\"]').click();})();",
+        }, sid);
+        await waitForSelector(c, sid, "document.querySelector('.doc .field.is-invalid')");
       },
     });
 

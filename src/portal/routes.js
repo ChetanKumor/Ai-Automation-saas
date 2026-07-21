@@ -22,6 +22,8 @@ const { securityHeaders, createRateLimiter } = require('../admin/security');
 const { verifyPassword, requirePortalAuth, hashPassword } = require('./auth');
 const validationService = require('../modules/validation/validationService');
 const configService = require('../modules/config/configService');
+const doctorService = require('../modules/doctor/doctorService');
+const { clinicDefaults } = require('../modules/config/defaults');
 const { LANG_CODES } = require('../modules/config/schema');
 const { normalizePhone } = require('../utils/phone');
 
@@ -728,6 +730,271 @@ router.post('/api/config/pricing', requirePortalAuth, express.json(), async (req
     if (/tenant not found/.test(err.message || '')) return res.status(404).json({ error: 'Tenant not found' });
     logger.error({ err: err.message }, 'portal pricing POST failed');
     res.status(500).json({ error: 'Failed to save pricing' });
+  }
+});
+
+// ── Doctors (PORTAL-P3-S8) ───────────────────────────────────────────────────
+// The first portal page whose data is NOT a tenant_configs section. Doctor
+// schedules live in `tenant_entities` (type 'schedule') — the storage
+// appointmentService reads on every availability check and every booking — so
+// this surface edits live booking behavior, not a document. See doctorService for
+// the full mapping and why archiving (not an `active` flag) is the deactivation
+// primitive.
+//
+// Shape differences from the config pages, all forced by that storage:
+//   • per-doctor CRUD instead of one whole-section POST (each doctor is a row),
+//   • no `version` — there is no config document to version. The revision trail
+//     that INV-4 rides on doesn't exist on tenant_entities either, so the acting
+//     user is logged per write (doctorService) rather than stored on the row; no
+//     DDL was added for it this session.
+// `readiness` still rides on every write response, exactly like the config pages.
+
+const DOCTOR_DAY_LABEL = {
+  Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday',
+  Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday',
+};
+// getUTCDay() indexing, matching appointmentService's DAY_KEYS/DAY_NAMES pair —
+// this is how a doctor's 'Mon' finds config.hours.mon.
+const DOCTOR_DAY_KEY = {
+  Mon: 'mon', Tue: 'tue', Wed: 'wed', Thu: 'thu', Fri: 'fri', Sat: 'sat', Sun: 'sun',
+};
+
+// The clinic's opening window for one day key, or null when shut. Mirrors
+// appointmentService.dayWindow (same union rules, same clinicDefaults fallback for
+// an unusable entry) so the warnings below describe the intersection booking will
+// ACTUALLY compute — a warning derived from different rules would be a lie.
+function clinicWindow(hours, dayKey) {
+  const entry = hours && hours[dayKey];
+  const usable = (v) => v && typeof v === 'object' && (
+    v.closed === true ||
+    (typeof v.open === 'string' && typeof v.close === 'string' && v.open < v.close)
+  );
+  const day = usable(entry) ? entry : clinicDefaults.hours[dayKey];
+  return day.closed === true ? null : { open: day.open, close: day.close };
+}
+
+// Quiet, non-blocking warnings for a doctor whose hours reach outside the clinic's
+// (spec: allowed, surfaced, never silently clipped and never hard-blocked —
+// checkAvailability offers the INTERSECTION, so those minutes are simply never
+// offered). Archived and dayless doctors produce none: they aren't offered at all,
+// so an hours warning would be noise.
+function doctorWarnings(doctor, config) {
+  if (doctor.archived || !doctor.days.length) return [];
+  const hours = (config && config.hours) || clinicDefaults.hours;
+  const closedDays = [];
+  const clippedDays = [];
+
+  for (const day of doctor.days) {
+    const win = clinicWindow(hours, DOCTOR_DAY_KEY[day]);
+    if (!win) { closedDays.push(DOCTOR_DAY_LABEL[day]); continue; }
+    if (doctor.start < win.open || doctor.end > win.close) {
+      clippedDays.push(`${DOCTOR_DAY_LABEL[day]} (${win.open}–${win.close})`);
+    }
+  }
+
+  const out = [];
+  if (closedDays.length) {
+    out.push(`Your clinic is closed on ${closedDays.join(', ')} — patients won’t be offered these times.`);
+  }
+  if (clippedDays.length) {
+    out.push(`Outside your clinic hours on ${clippedDays.join(', ')} — patients are only offered the overlapping times.`);
+  }
+  return out;
+}
+
+// Owner-facing projection: the stored doctor plus two DERIVED facts the page
+// needs — whether they can be booked at all, and how their hours sit against the
+// clinic's. Derived on read (not stored), so editing clinic hours on another page
+// updates these the next time this one loads.
+function projectDoctor(doctor, config) {
+  return {
+    ...doctor,
+    bookable: !doctor.archived && doctor.days.length > 0,
+    warnings: doctorWarnings(doctor, config),
+  };
+}
+
+// The tenant's enabled languages — the set the doctor language toggles offer.
+function enabledLanguages(config) {
+  const l = (config && config.languages && config.languages.supported) || [];
+  const out = l.filter((c) => LANG_CODES.includes(c));
+  return out.length ? out : LANG_CODES.slice();
+}
+
+// Everything the page needs in one read: the doctors, plus the language set and
+// the clinic hours summary the form renders against.
+async function doctorsPayload(tenantId) {
+  const config = await getConfigForSession(tenantId);
+  const doctors = (await doctorService.listDoctors(tenantId))
+    .map((d) => projectDoctor(d, config));
+  return { doctors, languages: enabledLanguages(config) };
+}
+
+// Owner-friendly field validation, mirroring the config pages: we validate here
+// with copy that names the fix, AND doctorService re-validates structurally (the
+// gate that holds regardless of caller). Returns { fields, input }.
+function validateDoctorBody(body, langs) {
+  const fields = [];
+
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  if (!name) fields.push({ field: 'name', message: 'Enter the doctor’s name as patients would ask for it.' });
+  else if (name.length > 120) fields.push({ field: 'name', message: 'Doctor name must be 120 characters or fewer.' });
+
+  const specialization = typeof body.specialization === 'string' ? body.specialization.trim() : '';
+  if (specialization.length > 120) {
+    fields.push({ field: 'specialization', message: 'Specialization must be 120 characters or fewer.' });
+  }
+
+  const rawDays = Array.isArray(body.days) ? body.days : [];
+  const days = [];
+  for (const d of rawDays) {
+    if (!DOCTOR_DAY_LABEL[d]) {
+      fields.push({ field: 'days', message: 'Pick the days this doctor works from Monday to Sunday.' });
+      break;
+    }
+    if (!days.includes(d)) days.push(d);
+  }
+
+  const start = typeof body.start === 'string' ? body.start.trim() : '';
+  const end = typeof body.end === 'string' ? body.end.trim() : '';
+  if (!HHMM_RE.test(start) || !HHMM_RE.test(end)) {
+    fields.push({ field: 'hours', message: 'Set the hours this doctor sees patients, for example 10:00 to 17:00.' });
+  } else if (start >= end) {
+    fields.push({ field: 'hours', message: 'The finishing time must be later than the starting time.' });
+  }
+
+  const languages = (Array.isArray(body.languages) ? body.languages : []).filter((l) => langs.includes(l));
+
+  return { fields, input: { name, specialization, days, start, end, languages } };
+}
+
+// Map a doctorService structural failure onto the page's field names. This only
+// fires for rules the form doesn't model (chiefly the duplicate-name check, which
+// needs the database) — never for shape errors the block above already caught.
+function doctorIssueFields(err) {
+  return err.issues.map((i) => ({
+    field: i.path === 'start' || i.path === 'end' ? 'hours' : i.path,
+    message: i.path === 'name' && /already exists/.test(i.message)
+      ? 'You already have a doctor with this name. Use their full name, or archive the other one.'
+      : i.message,
+  }));
+}
+
+// GET the session tenant's doctors (INV-1: tenant from req.portalUser only; a
+// crafted ?tenantId is inert by construction).
+router.get('/api/doctors', requirePortalAuth, async (req, res) => {
+  try {
+    res.json(await doctorsPayload(req.portalUser.tenantId));
+  } catch (err) {
+    logger.error({ err: err.message }, 'portal doctors GET failed');
+    res.status(500).json({ error: 'Failed to load doctors' });
+  }
+});
+
+// POST a new doctor. Returns { doctor, doctors, readiness } — the full list rides
+// along so the page never needs a second round-trip to stay correct.
+router.post('/api/doctors', requirePortalAuth, express.json(), async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  try {
+    const config = await getConfigForSession(tenantId);
+    const langs = enabledLanguages(config);
+    const { fields, input } = validateDoctorBody(req.body || {}, langs);
+    if (fields.length) return res.status(400).json({ error: 'Please fix the highlighted fields.', fields });
+
+    const doctor = await doctorService.createDoctor(tenantId, input, {
+      languages: langs,
+      actorUserId: req.portalUser.id, // INV-4 (logged — tenant_entities has no actor column)
+    });
+
+    res.json({
+      doctor: projectDoctor(doctor, config),
+      ...(await doctorsPayload(tenantId)),
+      readiness: await readinessSnapshot(tenantId),
+    });
+  } catch (err) {
+    if (err.name === 'DoctorValidationError') {
+      return res.status(400).json({ error: 'Please fix the highlighted fields.', fields: doctorIssueFields(err) });
+    }
+    logger.error({ err: err.message }, 'portal doctors POST failed');
+    res.status(500).json({ error: 'Failed to add this doctor' });
+  }
+});
+
+// PATCH an existing doctor — a full replace of the editable fields. An id from
+// another tenant matches no row and 404s (INV-1).
+router.patch('/api/doctors/:id', requirePortalAuth, express.json(), async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  try {
+    const config = await getConfigForSession(tenantId);
+    const langs = enabledLanguages(config);
+    const { fields, input } = validateDoctorBody(req.body || {}, langs);
+    if (fields.length) return res.status(400).json({ error: 'Please fix the highlighted fields.', fields });
+
+    const doctor = await doctorService.updateDoctor(tenantId, req.params.id, input, {
+      languages: langs,
+      actorUserId: req.portalUser.id,
+    });
+    if (!doctor) return res.status(404).json({ error: 'Doctor not found' });
+
+    res.json({
+      doctor: projectDoctor(doctor, config),
+      ...(await doctorsPayload(tenantId)),
+      readiness: await readinessSnapshot(tenantId),
+    });
+  } catch (err) {
+    if (err.name === 'DoctorValidationError') {
+      return res.status(400).json({ error: 'Please fix the highlighted fields.', fields: doctorIssueFields(err) });
+    }
+    logger.error({ err: err.message }, 'portal doctor PATCH failed');
+    res.status(500).json({ error: 'Failed to save this doctor' });
+  }
+});
+
+// DELETE = "remove this doctor from my clinic", resolved by what the data allows:
+// a doctor with appointments on the books is archived (history keeps naming
+// someone the tenant can account for), one with none is deleted outright. Either
+// way they stop being offered. `outcome` tells the page which happened so it can
+// say so honestly.
+router.delete('/api/doctors/:id', requirePortalAuth, async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  try {
+    const result = await doctorService.removeDoctor(tenantId, req.params.id, {
+      actorUserId: req.portalUser.id,
+    });
+    if (!result) return res.status(404).json({ error: 'Doctor not found' });
+
+    res.json({
+      outcome: result.outcome,
+      ...(await doctorsPayload(tenantId)),
+      readiness: await readinessSnapshot(tenantId),
+    });
+  } catch (err) {
+    logger.error({ err: err.message }, 'portal doctor DELETE failed');
+    res.status(500).json({ error: 'Failed to remove this doctor' });
+  }
+});
+
+// POST restore — put an archived doctor back into booking.
+router.post('/api/doctors/:id/restore', requirePortalAuth, async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  try {
+    const doctor = await doctorService.setArchived(tenantId, req.params.id, false, {
+      actorUserId: req.portalUser.id,
+    });
+    if (!doctor) return res.status(404).json({ error: 'Doctor not found' });
+
+    const config = await getConfigForSession(tenantId);
+    res.json({
+      doctor: projectDoctor(doctor, config),
+      ...(await doctorsPayload(tenantId)),
+      readiness: await readinessSnapshot(tenantId),
+    });
+  } catch (err) {
+    if (err.name === 'DoctorValidationError') {
+      return res.status(400).json({ error: 'Please fix the highlighted fields.', fields: doctorIssueFields(err) });
+    }
+    logger.error({ err: err.message }, 'portal doctor restore failed');
+    res.status(500).json({ error: 'Failed to restore this doctor' });
   }
 });
 

@@ -109,6 +109,8 @@ describe('validationService (integration)', { skip: ADMIN ? false : 'DATABASE_UR
   //   opts.noConfig   — create no config row at all.
   //   opts.columns    — tenants column overrides (waba_id, ai_prompt, …).
   //   opts.chunks     — how many knowledge_chunks to seed (default 5).
+  //   opts.schedule   — a doctor schedule row's `data` (default: one all-week
+  //                     doctor); false seeds none, for the doctor.schedule fixture.
   async function makeTenant(opts = {}) {
     const n = ++phoneSeq;
     const slug = `t-${n}-${crypto.randomBytes(3).toString('hex')}`;
@@ -133,6 +135,19 @@ describe('validationService (integration)', { skip: ADMIN ? false : 'DATABASE_UR
       await db.query(
         `INSERT INTO tenant_config_revisions (tenant_id, version, config, source) VALUES ($1, 1, $2, 'test')`,
         [id, JSON.stringify(doc)]);
+    }
+
+    // A doctor with weekly hours, unless the fixture is specifically testing their
+    // absence (opts.schedule === false). Written in the shape appointmentService
+    // reads — tenant_entities type 'schedule' — because doctor.schedule reads it
+    // through that same accessor.
+    if (opts.schedule !== false) {
+      await db.query(
+        "INSERT INTO tenant_entities (tenant_id, type, data) VALUES ($1,'schedule',$2)",
+        [id, JSON.stringify(opts.schedule || {
+          doctor: 'Dr. Rao', days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+          start: '09:00', end: '18:00',
+        })]);
     }
 
     const nChunks = opts.chunks != null ? opts.chunks : 5;
@@ -263,6 +278,27 @@ describe('validationService (integration)', { skip: ADMIN ? false : 'DATABASE_UR
     assert.equal(r.passed, true, 'warn never blocks');
     assert.equal(byName(r)['tenant.legacy_prompt'].severity, 'warn');
     assert.equal(byName(r)['tenant.legacy_prompt'].passed, true);
+  });
+
+  it('doctor.schedule — no doctors at all → sole fail (nobody can be booked)', async () => {
+    const id = await makeTenant({ schedule: false });
+    const r = await run(id);
+    assert.deepEqual(failNames(r), ['doctor.schedule']);
+    assert.match(byName(r)['doctor.schedule'].detail, /no doctor schedules configured/);
+  });
+
+  it('doctor.schedule — a doctor with no working days → sole fail (nobody bookable)', async () => {
+    const id = await makeTenant({ schedule: { doctor: 'Dr. Idle', days: [], start: '09:00', end: '18:00' } });
+    const r = await run(id);
+    assert.deepEqual(failNames(r), ['doctor.schedule']);
+    assert.match(byName(r)['doctor.schedule'].detail, /none has usable weekly hours/);
+  });
+
+  it('doctor.schedule — gated on tools.booking (a clinic that does not book needs no doctors)', async () => {
+    const id = await makeTenant({ schedule: false, overrides: { ...PASS_OVERRIDES, tools: { booking: false } } });
+    const r = await run(id);
+    assert.equal(skipMap(r)['doctor.schedule'], 'tools.booking is false');
+    assert.equal(r.passed, true, 'no doctors is not a failure for a clinic that does not book');
   });
 
   // ── Severity semantics ───────────────────────────────────────────────────────

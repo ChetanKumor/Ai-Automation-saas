@@ -147,6 +147,10 @@ describe('tenant lifecycle admin API (route-level)', { skip: ADMIN ? false : 'DA
       await db.query("INSERT INTO knowledge_chunks (tenant_id, content, embedding, source) VALUES ($1,$2,$3::vector,'test')",
         [id, `chunk ${i}`, ZERO_VEC]);
     }
+    // A doctor with weekly hours — doctor.schedule (PORTAL-P3-S8) is a material
+    // check, so a clinic nobody can book an appointment with is not go-live ready.
+    await db.query("INSERT INTO tenant_entities (tenant_id, type, data) VALUES ($1,'schedule',$2)",
+      [id, JSON.stringify({ doctor: 'Dr. Rao', days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], start: '09:00', end: '18:00' })]);
     return id;
   }
 

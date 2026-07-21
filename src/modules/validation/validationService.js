@@ -4,7 +4,8 @@
 //
 // `validateTenant(tenantId, opts)` runs a frozen catalog of small, pure-ish
 // checks (config integrity, prompt rendering, hours, numbers, consent, KB
-// presence + retrieval smoke, WhatsApp/voice credentials), each yielding a
+// presence + retrieval smoke, WhatsApp/voice credentials, doctor schedules),
+// each yielding a
 // severity of `fail | warn | pass`. The run PASSES iff zero checks fail; warns
 // are surfaced, never blocking. Every run — even an all-skipped one — is
 // persisted verbatim to `validation_runs`; "passed" must never silently mean
@@ -32,6 +33,7 @@ const { getTenantConfig, configSchema } = require('../config/configService');
 const { renderSystemPrompt, estimateTokens } = require('../prompts');
 const { getRelevantChunks } = require('../knowledge/knowledgeService');
 const { pingNumber } = require('../channels/whatsapp/sender');
+const { getSchedules } = require('../appointment/appointmentService');
 const { checkScriptedTurn } = require('./scriptedTurnCheck');
 const { decrypt } = require('../../utils/encryption');
 const requestContext = require('../../core/requestContext');
@@ -84,6 +86,15 @@ const CHECKS = [
   { name: 'voice.config', requiresConfig: true, channel: 'voice',
     gate: (c) => !!(c.voice && c.voice.enabled), fn: checkVoiceConfig },
   { name: 'tenant.legacy_prompt', fn: checkLegacyPrompt },
+  // PORTAL-P3-S8 — appended (the extension path turn.scripted used); every name
+  // above is unchanged. Gated on the same booking master toggle as turn.scripted:
+  // a tenant that does not book appointments does not need doctors, and failing
+  // them for it would be dishonest. Read-only, and it reads through the SAME
+  // getSchedules booking uses so it can never pass on data booking can't see.
+  { name: 'doctor.schedule', requiresConfig: true, skippable: true,
+    gate: (c) => !!(c.tools && c.tools.booking),
+    gateReason: 'tools.booking is false',
+    fn: checkDoctorSchedule },
   // Issue 17 — the one DYNAMIC check. Appended; every name above is unchanged.
   // Gated on the booking master toggle, skippable via `--skip turn`.
   { name: 'turn.scripted', requiresConfig: true, skippable: true,
@@ -253,6 +264,32 @@ function checkVoiceConfig(ctx) {
   return pass(`DID ${v.did} valid, speaker '${v.sarvam_speaker}' set`);
 }
 
+// Can this clinic actually be booked into? Reads the doctor schedules through the
+// same accessor appointmentService books against, so "passes validation" and "the
+// receptionist can offer a slot" cannot drift apart.
+//
+// A doctor with zero working days is a WARN, not a fail: it is a real state (an
+// owner mid-setup, or a doctor who has stopped taking appointments) and it only
+// matters if it is the ONLY doctor — which is the fail case below.
+async function checkDoctorSchedule(ctx) {
+  const schedules = await ctx.deps.getSchedules(ctx.tenantId);
+  if (!schedules || schedules.length === 0) {
+    return fail('no doctor schedules configured — no appointment can be booked');
+  }
+  const bookable = schedules.filter((s) =>
+    s && Array.isArray(s.days) && s.days.length > 0 &&
+    HHMM_RE.test(s.start) && HHMM_RE.test(s.end) && s.start < s.end);
+
+  if (bookable.length === 0) {
+    return fail(`${schedules.length} doctor(s) configured but none has usable weekly hours`);
+  }
+  if (bookable.length < schedules.length) {
+    const idle = schedules.length - bookable.length;
+    return warn(`${bookable.length}/${schedules.length} doctor(s) bookable; ${idle} with no working days`);
+  }
+  return pass(`${bookable.length} doctor(s) with weekly hours`);
+}
+
 function checkLegacyPrompt(ctx) {
   const legacy = ctx.tenant.ai_prompt;
   if (legacy && String(legacy).trim().length > 0) {
@@ -327,6 +364,7 @@ async function runValidation(tenantId, opts) {
     deps: {
       getRelevantChunks,
       pingNumber,
+      getSchedules,
       ...(opts.deps || {}),
     },
   };
