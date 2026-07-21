@@ -35,7 +35,17 @@ require.cache[dbPath] = {
 };
 
 // ── config service stub — controls the resolved slot_minutes ─────────────────
-let nextConfig = { booking: { slot_minutes: 30 } };
+// F-006 made the clinic's own rules (hours/holidays/advance window/same-day/
+// buffer) enforceable on every booking, so this file's fixture must SATISFY
+// them to keep testing the grid in isolation: open around the clock every day
+// and a wide advance window. The rules themselves are pinned in
+// bookingRules.unit.test.js.
+const ALL_DAY = { open: '00:00', close: '23:59' };
+const gridConfig = (slot_minutes) => ({
+  booking: { slot_minutes, advance_days: 365, buffer_minutes: 0, allow_same_day: true },
+  hours: { mon: ALL_DAY, tue: ALL_DAY, wed: ALL_DAY, thu: ALL_DAY, fri: ALL_DAY, sat: ALL_DAY, sun: ALL_DAY, holidays: [] },
+});
+let nextConfig = gridConfig(30);
 const configPath = require.resolve('../../src/modules/config/configService');
 require.cache[configPath] = {
   id: configPath, filename: configPath, loaded: true,
@@ -53,8 +63,14 @@ require.cache[loggerPath] = {
 const appointmentService = require('../../src/modules/appointment/appointmentService');
 
 const TENANT = 'T-grid';
-// A fixed far-future date, so the "cannot book in the past" guard never fires.
-const DATE = '2035-01-08'; // a Monday; schedule works every day anyway
+// A near-future date: far enough ahead that the "cannot book in the past" and
+// buffer guards never fire, close enough to sit inside the advance window
+// (F-006 — a fixed 2035 date is now correctly refused as beyond it). Nudged off
+// Sunday so the configless case, which falls back to clinicDefaults hours
+// (sun closed), still reaches the grid check.
+const dow = (d) => { const [y, m, dd] = d.split('-').map(Number); return new Date(Date.UTC(y, m - 1, dd)).getUTCDay(); };
+const inDays = (n) => new Date(Date.now() + n * 86400000).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+const DATE = dow(inDays(7)) === 0 ? inDays(8) : inDays(7);
 const at = (hhmm) => `${DATE}T${hhmm}:00+05:30`;
 
 async function book(hhmm, doctor = 'Dr. Rao') {
@@ -67,7 +83,7 @@ describe('bookAppointment — slot-grid validation (V-008)', () => {
     lastInsertParams = null;
     bookedRows = [];
     warnCalls = [];
-    nextConfig = { booking: { slot_minutes: 30 } };
+    nextConfig = gridConfig(30);
     schedules = [{ doctor: 'Dr. Rao', days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], start: '09:00', end: '18:00', slot_minutes: 30 }];
   });
 
@@ -88,7 +104,7 @@ describe('bookAppointment — slot-grid validation (V-008)', () => {
   });
 
   it('a 15-minute-grid tenant accepts 10:15', async () => {
-    nextConfig = { booking: { slot_minutes: 15 } };
+    nextConfig = gridConfig(15);
     const r = await book('10:15');
     assert.equal(r.success, true, '10:15 is on a 15-minute grid');
     // …and 10:07 is still off even a 15-minute grid.
@@ -122,7 +138,7 @@ describe('bookAppointment — slot-grid validation (V-008)', () => {
     // instant is 05:00 UTC (on the hour). If the check ran in the UTC frame the
     // two results would flip — so these two assertions pin the IST frame.
     schedules = [{ doctor: 'Dr. Rao', days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], start: '10:00', end: '18:00', slot_minutes: 60 }];
-    nextConfig = { booking: { slot_minutes: 60 } };
+    nextConfig = gridConfig(60);
 
     const onGrid = await book('11:00');
     assert.equal(onGrid.success, true, '11:00 IST is on the 60-min grid (UTC 05:30 would say otherwise)');
@@ -145,7 +161,7 @@ describe('checkAvailability ↔ bookAppointment grid parity (V-008)', () => {
   for (const slotMinutes of [15, 30, 45]) {
     it(`offered slots all pass isOnGrid; between-slot times all fail (grid ${slotMinutes})`, async () => {
       const start = '09:00', end = '18:00';
-      nextConfig = { booking: { slot_minutes: slotMinutes } };
+      nextConfig = gridConfig(slotMinutes);
       schedules = [{ doctor: 'Dr. Rao', days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], start, end, slot_minutes: slotMinutes }];
 
       const { available } = await appointmentService.checkAvailability(TENANT, DATE);
