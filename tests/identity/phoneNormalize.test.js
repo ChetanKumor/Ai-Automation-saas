@@ -59,6 +59,58 @@ describe('normalizePhone — unit', () => {
   });
 });
 
+// ── F-003b: reject, don't silently rewrite ─────────────────────────────────
+// Before this fix, normalizePhone only checked shape (a leading '+' followed by
+// 2-15 digits), so a number missing its country code passed the check and got
+// reinterpreted as a real, different, shorter number. A regex can't know a
+// number's true country, so the fix is a length floor: 11 digits after '+' is
+// the shortest number this codebase ever validates as real (+14155550100, NANP —
+// see tests/config/configSchema.test.js), so anything shorter is rejected as
+// missing its country code rather than accepted as a plausible foreign number.
+
+describe('normalizePhone — F-003b rejects malformed input instead of rewriting', () => {
+  it('RED->GREEN: bare 10-digit Indian mobile with no country code is REJECTED, not rewritten to +98… (Iran)', () => {
+    assert.throws(() => normalizePhone('9876543210'), /invalid phone|country code/);
+  });
+
+  it('RED->GREEN: digits followed by garbage is REJECTED, not truncated to a short "valid-looking" number', () => {
+    assert.throws(() => normalizePhone('98765-BAD'), /invalid phone/);
+  });
+
+  it('all equivalent forms of the same E.164 number normalize to the identical canonical string', () => {
+    const canonical = '+919876543210';
+    assert.equal(normalizePhone('+919876543210'), canonical);
+    assert.equal(normalizePhone('919876543210'), canonical);      // wa_id shape, bare digits
+    assert.equal(normalizePhone('+91 98765 43210'), canonical);   // spaces
+    assert.equal(normalizePhone('+91-98765-43210'), canonical);   // dashes
+  });
+
+  it('boundary: 10 digits after + (one short of the floor) is rejected', () => {
+    assert.throws(() => normalizePhone('+9876543210'), /invalid phone/);
+  });
+
+  it('boundary: 11 digits after + (the floor) is accepted — e.g. NANP +1XXXXXXXXXX', () => {
+    assert.equal(normalizePhone('+14155550100'), '+14155550100');
+  });
+
+  it('boundary: 16 digits after + (one over the ITU max of 15) is rejected', () => {
+    assert.throws(() => normalizePhone('+1234567890123456'), /invalid phone/);
+  });
+
+  it('boundary: "+" alone is rejected', () => {
+    assert.throws(() => normalizePhone('+'), /invalid phone/);
+  });
+
+  it('boundary: "+91" alone (country code only, no subscriber number) is rejected', () => {
+    assert.throws(() => normalizePhone('+91'), /invalid phone/);
+  });
+
+  it('idempotent: a rejected input stays rejected on a second pass (no partial state)', () => {
+    assert.throws(() => normalizePhone('9876543210'));
+    assert.throws(() => normalizePhone('9876543210'));
+  });
+});
+
 // ── Integration: cross-channel unified-patient resolution (F-003) ─────────────
 // Before this fix:
 //   WhatsApp stored wa_id as "919999999999" (bare digits).

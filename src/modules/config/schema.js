@@ -13,11 +13,12 @@
 // non-secret toggles and public identifiers (DID, speaker). Enforced by grep.
 
 const { z } = require('zod');
+const { E164_RE } = require('../../utils/phone');
 
 // ── Reusable field validators ────────────────────────────────────────────────
 const LANG_CODES = ['te', 'hi', 'en'];                                   // Telugu, Hindi, English — the only languages v1 supports
 const LANG  = z.enum(LANG_CODES);                                        // a single language code
-const E164  = z.string().regex(/^\+[1-9]\d{1,14}$/, 'must be E.164 (e.g. +919876543210)'); // international phone number
+const E164  = z.string().regex(E164_RE, 'must be E.164 (e.g. +919876543210)'); // international phone number — shares normalizePhone's bounds (F-003b)
 const HHMM  = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'must be 24h HH:MM'); // wall-clock time of day
 const YMD   = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be a YYYY-MM-DD date'); // calendar date
 

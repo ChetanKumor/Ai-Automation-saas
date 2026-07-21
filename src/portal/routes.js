@@ -953,23 +953,14 @@ router.post('/api/config/booking', requirePortalAuth, express.json(), async (req
 const ESC_PHONE_MAX = 10;
 const EMERGENCY_TEXT_MAX = 400; // mirrors the schema cap
 
-// Parse ONE phone number for this page. normalizePhone (F-003) strips separators
-// and guarantees E.164 shape, but it cannot tell a missing country code from a
-// short one: '9876543210' normalises to '+9876543210', which is E.164-shaped and
-// a completely different number (+98 is Iran). That silent reinterpretation is
-// exactly what INV-6 forbids, and it matters most here — this page's emergency
-// number is READ ALOUD to someone in trouble, and its staff list is the go-live
-// check's evidence. So we additionally require the owner to type the country
-// code, and reject rather than assume one.
-//
-// NOTE (reported, not fixed here): the clinic-profile page (S4) shares
-// normalizePhone without this guard, so it still accepts a bare number. The fix
-// direction is to bring that page up to this rule, not to relax this one.
+// Parse ONE phone number for this page. normalizePhone (F-003, hardened by
+// F-003b) rejects a number missing its country code rather than silently
+// reinterpreting it as a real, different number — INV-6. That rejection is
+// enforced in the helper now, so this page needs no separate guard; it matters
+// most here because this page's emergency number is READ ALOUD to someone in
+// trouble, and its staff list is the go-live check's evidence.
 function parseOwnerPhone(raw) {
   const s = String(raw == null ? '' : raw).trim();
-  if (!s.startsWith('+')) {
-    return { error: `“${s}” is missing its country code. Enter the full number, e.g. +91 98765 43210.` };
-  }
   try { return { value: normalizePhone(s) }; }
   catch (_) {
     return { error: `“${s}” isn’t a valid phone number. Use the full number with country code, e.g. +91 98765 43210.` };
