@@ -256,6 +256,20 @@ const adminLoginCookie = (port, password) =>
         cancellation_policy: 'Please call at least 4 hours before your appointment. There is no cancellation charge.',
         walk_in_policy: 'Walk-ins are welcome before 11am; you may have to wait up to 30 minutes.',
       },
+      // Receptionist (S13): a name, a real Telugu greeting (this tenant's default
+      // language — proves the Noto Telugu render), a Professional tone, Concise
+      // length, and a distinct voice/pace so the saved state is unmistakably real.
+      personality: {
+        display_name: 'Asha',
+        style: 'formal',
+        response_length: 'concise',
+      },
+      greeting: {
+        te: 'నమస్తే! సన్‌రైజ్ డెంటల్‌కు స్వాగతం. నేను ఆశా, మీకు ఎలా సహాయపడగలను?',
+        hi: 'नमस्ते! सनराइज़ डेंटल में आपका स्वागत है।',
+        en: 'Hello! This is Sunrise Dental, how can I help you today?',
+      },
+      voice: { sarvam_speaker: 'ritu', pace: 1.05 },
     }, 'shoot');
 
     // Doctors (S8): NOT a config section — these are tenant_entities rows, the
@@ -551,6 +565,45 @@ const adminLoginCookie = (port, password) =>
             + "cards[cards.length-1].querySelector('[data-role=\"save\"]').click();})();",
         }, sid);
         await waitForSelector(c, sid, "document.querySelector('.faq .field.is-invalid')");
+      },
+    });
+
+    // S13: receptionist — persona + voice. Desktop + 380px show the loaded page:
+    // the "Asha" self-intro name, the Professional/Concise segmented controls,
+    // the three greeting fields (Telugu is Sunrise Dental's DEFAULT language —
+    // this is the Telugu-rendering proof, in the self-hosted Noto Sans Telugu
+    // font, marked "Default"), and the Voice card's amber known-gap notice. The
+    // third shot isolates the greeting card alone (same isolation technique as
+    // S10's protections-panel shot) so the Telugu render is unambiguous evidence
+    // on its own. The fourth is the validation state that matters most on this
+    // page: clearing the DEFAULT language's greeting → Save → the inline
+    // "it's your default language" error.
+    const receptionistReady = "document.getElementById('receptionistForm') && !document.getElementById('receptionistForm').hidden";
+    await shoot(cdp, { url: `${base}/receptionist.html`, out: path.join(OUT, 's13-receptionist-desktop.png'),
+      width: 1280, height: 1400, cookie, port, waitFor: receptionistReady });
+    await shoot(cdp, { url: `${base}/receptionist.html`, out: path.join(OUT, 's13-receptionist-mobile.png'),
+      width: 380, height: 1500, mobile: true, cookie, port, waitFor: receptionistReady });
+    await shoot(cdp, {
+      url: `${base}/receptionist.html`, out: path.join(OUT, 's13-receptionist-telugu-greeting.png'),
+      width: 1280, height: 500, cookie, port, waitFor: receptionistReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression: "document.getElementById('personaCard').hidden=true;"
+            + "document.getElementById('voiceCard').hidden=true;",
+        }, sid);
+        await sleep(200);
+      },
+    });
+    await shoot(cdp, {
+      url: `${base}/receptionist.html`, out: path.join(OUT, 's13-receptionist-error.png'),
+      width: 1280, height: 1400, cookie, port, waitFor: receptionistReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression:
+            "(function(){document.getElementById('greet-te').value='';"
+            + "document.getElementById('saveBtn').click();})();",
+        }, sid);
+        await waitForSelector(c, sid, "document.querySelector('.field.is-invalid')");
       },
     });
 

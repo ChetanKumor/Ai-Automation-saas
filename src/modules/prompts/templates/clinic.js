@@ -278,6 +278,28 @@ function renderClinic(config, { channel, onWarn }) {
     ? 'Short plain spoken sentences — no lists, no emoji, no markdown. One question at a time.'
     : 'Keep replies short and easy to read on a phone. Ask one thing at a time.');
 
+  // ── Self-introduction name (PORTAL-P5-S13) ── SILENT ON EMPTY, like the
+  // pricing/policy/emergency blocks: a clinic that hasn't set one gets exactly
+  // today's behavior — no name-related instruction at all. The name is for
+  // self-introduction ONLY; it must never become how the receptionist addresses
+  // the customer/caller (that identity, when known, is injected elsewhere).
+  const receptionistName = ((config.personality && config.personality.display_name) || '').trim();
+  if (receptionistName) {
+    role.push(voice
+      ? `If you introduce yourself by name, say "${receptionistName}." Never use this name to address the caller.`
+      : `If you introduce yourself by name, use "${receptionistName}." Never use this name to address the customer.`);
+  }
+
+  // ── Response length (PORTAL-P5-S13) ── 'standard' (the default) adds nothing
+  // here, so every prompt built before this field existed renders byte-identical.
+  // 'concise' layers one more brevity instruction on top of the channel's
+  // existing one above.
+  if (config.personality && config.personality.response_length === 'concise') {
+    role.push(voice
+      ? 'Keep answers to one short sentence whenever you can.'
+      : 'Prefer the shortest complete answer — trim extra detail.');
+  }
+
   // ── 2. Clinic facts + behavior ──
   // Voice drops the "Languages served" line (already covered by the language
   // policy above) and the facts header — pure token diet, no content loss.

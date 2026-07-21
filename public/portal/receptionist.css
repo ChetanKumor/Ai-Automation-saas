@@ -1,0 +1,106 @@
+/* ============================================================================
+ * Receptionist (PORTAL-P5-S13) — persona + voice: how the receptionist sounds
+ * and speaks. The most demo-visible page in the portal.
+ *
+ * Two new components, both minimal extensions of the existing vocabulary:
+ *   • .segmented — a 2-option pill control for Tone / Response length. Reads
+ *     as a lighter-weight sibling of .switch for a binary choice that isn't a
+ *     boolean on/off.
+ *   • .gap-notice — an honest, amber "not fully wired yet" notice for the
+ *     voice controls (PORTAL-P5-S13 known gap: config is saved but the voice
+ *     worker doesn't read it yet). Amber, not red — nothing is broken, the
+ *     setting just isn't live yet.
+ *
+ * Greeting textareas render in the self-hosted Noto stacks (tokens.css
+ * reserved --te/--hi specifically for this page — see its Phase 5 comment).
+ * ========================================================================== */
+
+.state-msg { color: var(--muted); font-size: 14px; padding: 8px 2px; }
+.state-msg--error { color: var(--red); }
+
+/* ── Segmented control (Tone, Response length) ── */
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  overflow: hidden;
+}
+.segmented__btn {
+  padding: 8px 18px;
+  font: 600 13px/1 var(--sans);
+  border: none;
+  border-right: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.segmented__btn:last-child { border-right: none; }
+.segmented__btn:hover { background: var(--bg); color: var(--ink); }
+.segmented__btn--active,
+.segmented__btn--active:hover {
+  background: var(--teal-050);
+  color: var(--teal-700);
+}
+.segmented__btn:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+
+/* ── Greeting, one block per enabled language ── */
+.greet-field { margin-top: var(--s-4); }
+.greet-field:first-child { margin-top: 0; }
+.greet-field__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.greet-field__badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--teal-700);
+  background: var(--teal-050);
+  border: 1px solid var(--teal-100);
+  border-radius: 999px;
+  padding: 2px 7px;
+}
+.greet-field__count { margin-left: auto; font-size: 11.5px; font-weight: 500; color: var(--faint); }
+.greet-field--te textarea { font-family: var(--te); }
+.greet-field--hi textarea { font-family: var(--hi); }
+
+/* ── Voice: known-gap notice ── */
+.gap-notice {
+  display: flex;
+  gap: 9px;
+  margin: 0 0 var(--s-4);
+  padding: 11px 13px;
+  background: var(--amber-050);
+  border: 1px solid var(--amber-200);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.gap-notice svg { width: 16px; height: 16px; flex: none; margin-top: 2px; color: var(--amber); }
+
+/* ── Speaking pace slider ── */
+.pace { display: flex; align-items: center; gap: 12px; }
+.pace__slider {
+  flex: 1;
+  accent-color: var(--teal);
+  height: 20px;
+  cursor: pointer;
+}
+.pace__label { font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.pace__value { margin-top: 6px; font-size: 13px; font-weight: 650; color: var(--ink-2); }
+
+@media (max-width: 560px) {
+  .card__foot { flex-direction: column; align-items: stretch; gap: 10px; }
+  .card__foot .btn { margin-left: 0; width: 100%; }
+  .save-note { text-align: center; }
+  .segmented { width: 100%; }
+  .segmented__btn { flex: 1; }
+}

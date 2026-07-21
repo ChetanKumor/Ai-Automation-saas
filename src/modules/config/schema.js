@@ -22,6 +22,25 @@ const E164  = z.string().regex(E164_RE, 'must be E.164 (e.g. +919876543210)'); /
 const HHMM  = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'must be 24h HH:MM'); // wall-clock time of day
 const YMD   = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be a YYYY-MM-DD date'); // calendar date
 
+// Sarvam Bulbul TTS speakers — every name valid for ANY bulbul model version,
+// taken verbatim from the vendored LiveKit Sarvam plugin's `SarvamTTSSpeakers`
+// literal (voice-agent/.venv/.../livekit/plugins/sarvam/tts.py) — never invented
+// (PORTAL-P5-S13). The schema accepts the full union as its last-resort write
+// gate (reject a typo, keep old v2 values readable); the portal's Voice speaker
+// control offers only SARVAM_V3_SPEAKERS, since bulbul:v3 is the only model this
+// platform runs going forward.
+const SARVAM_V2_SPEAKERS = ['anushka', 'manisha', 'vidya', 'arya', 'abhilash', 'karun', 'hitesh'];
+const SARVAM_V3_SPEAKERS = [
+  'shubh', 'ritu', 'rahul', 'pooja', 'simran', 'kavya', 'amit', 'ratan', 'rohan', 'dev',
+  'ishita', 'shreya', 'manan', 'sumit', 'priya', 'aditya', 'kabir', 'neha', 'varun', 'roopa',
+  'aayan', 'ashutosh', 'advait', 'amelia', 'sophia', 'suhani', 'rupali', 'tanya', 'shruti', 'kavitha',
+];
+const SARVAM_V3_SPEAKER_GENDER = {
+  female: ['ritu', 'pooja', 'simran', 'kavya', 'ishita', 'shreya', 'priya', 'neha', 'roopa', 'amelia', 'sophia', 'suhani', 'rupali', 'tanya', 'shruti', 'kavitha'],
+  male: ['shubh', 'rahul', 'amit', 'ratan', 'rohan', 'dev', 'manan', 'sumit', 'aditya', 'kabir', 'varun', 'aayan', 'ashutosh', 'advait'],
+};
+const SARVAM_SPEAKERS = Array.from(new Set([...SARVAM_V2_SPEAKERS, ...SARVAM_V3_SPEAKERS]));
+
 // ── business ─────────────────────────────────────────────────────────────────
 const businessSchema = z.object({
   display_name: z.string().min(1).max(120),   // business name shown to customers on chat/voice
@@ -200,9 +219,23 @@ const notificationsSchema = z.object({
 }).strict();
 
 // ── personality ──────────────────────────────────────────────────────────────
+// PORTAL-P5-S13 adds `display_name` and `response_length`. The portal's owner-
+// facing "Tone: professional / warm" control does NOT get its own field — it
+// maps onto two of `style`'s existing four values (formal → "Professional",
+// warm_professional → "Warm", founder-approved 2026-07-21). `concise` and
+// `friendly` remain valid — reachable only via the admin JSON editor, not the
+// portal — so no existing config or test that sets them breaks. `response_length`
+// is a DELIBERATELY separate axis: `style: 'concise'` is a TONE flavor ("Brief
+// and to the point"), not a length instruction, and conflating the two would
+// make one owner control silently override another.
 const personalitySchema = z.object({
   style: z.enum(['warm_professional', 'concise', 'friendly', 'formal']).default('warm_professional'), // agent tone preset
   custom_instructions: z.string().max(2000).default(''), // free-text persona tweaks appended to the prompt
+  // DEFAULTED (same reason as pricing/booking-policies/emergency-guidance): a
+  // config written before this field existed has no such key, and the object is
+  // `.strict()`. Silent-on-empty in the renderer — no self-intro line at all.
+  display_name: z.string().max(80).default(''), // the receptionist's OWN name, e.g. "Asha" — self-introduction ONLY, never used to address the customer/caller
+  response_length: z.enum(['concise', 'standard']).default('standard'), // 'standard' renders byte-identical to pre-S13 prompts; 'concise' adds one extra brevity instruction
 }).strict();
 
 // ── tools ────────────────────────────────────────────────────────────────────
@@ -223,8 +256,20 @@ const voiceSchema = z.object({
   enabled: z.boolean(),                       // whether this tenant has the voice (phone) channel on
   did: E164.nullable(),                       // inbound phone number (DID) in E.164, or null if none provisioned
   provider: z.literal('plivo'),               // telephony provider — only Plivo in v1
-  sarvam_speaker: z.string().min(1),          // Sarvam Bulbul TTS speaker (the synthesized voice, e.g. 'anushka')
-  sarvam_voice_id: z.string().min(1),         // Sarvam TTS model id (e.g. 'bulbul:v2')
+  sarvam_speaker: z.enum(SARVAM_SPEAKERS),    // Sarvam Bulbul TTS speaker (the synthesized voice, e.g. 'shubh') — tightened from an unbounded string (PORTAL-P5-S13) to the real plugin speaker list
+  sarvam_voice_id: z.string().min(1),         // Sarvam TTS model id (e.g. 'bulbul:v3')
+  // PORTAL-P5-S13 — owner-facing speaking rate. Bounded narrower than the Sarvam
+  // API's real range (0.3–3.0): outside 0.8–1.2 the voice turns unintelligible or
+  // comically fast, so the UI (and this bound) never offers that range at all.
+  // DEFAULTED for the same reason as pricing/booking-policies: a config written
+  // before this field existed has no such key.
+  // KNOWN GAP (verified 2026-07-21): neither this field nor `sarvam_speaker` is
+  // read by the voice worker today — voice-agent/agent.py sets Sarvam's model/
+  // speaker from process-wide env vars (SARVAM_TTS_MODEL/SARVAM_TTS_SPEAKER) and
+  // never passes a `pace` at all. Wiring tenant config into the LiveKit worker
+  // needs changes in internalVoice.js's /call/start response AND agent.py's
+  // entrypoint — out of this session's bound; see PORTAL-P5-S13 session notes.
+  pace: z.number().min(0.8).max(1.2).default(1.0),
 }).strict();
 
 // ── whatsapp ─────────────────────────────────────────────────────────────────
@@ -242,7 +287,7 @@ const recordingConsentSchema = z.object({
 const configSchema = z.object({
   business: businessSchema,                   // identity + locale of the business
   languages: languagesSchema,                 // supported languages + default
-  greeting: z.record(z.string(), z.string().min(1)), // per-language opening line; must cover every supported language (refined below)
+  greeting: z.record(z.string(), z.string().min(1).max(300)), // per-language opening line; must cover every supported language (refined below). Capped (PORTAL-P5-S13) like every other line the receptionist recites verbatim — it is SPOKEN as-is on voice calls.
   hours: hoursSchema,                         // weekly opening hours + holidays
   // DEFAULTED (PORTAL-P2-S6): every config written before this section existed
   // has no `pricing` key, and the top-level object is `.strict()` — without a
@@ -293,4 +338,4 @@ const configSchema = z.object({
     }
   });
 
-module.exports = { configSchema, LANG_CODES };
+module.exports = { configSchema, LANG_CODES, SARVAM_V3_SPEAKERS, SARVAM_V3_SPEAKER_GENDER };

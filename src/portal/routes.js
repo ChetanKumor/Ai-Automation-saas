@@ -25,7 +25,7 @@ const configService = require('../modules/config/configService');
 const doctorService = require('../modules/doctor/doctorService');
 const faqService = require('../modules/knowledge/faqService');
 const { clinicDefaults } = require('../modules/config/defaults');
-const { LANG_CODES } = require('../modules/config/schema');
+const { LANG_CODES, SARVAM_V3_SPEAKERS, SARVAM_V3_SPEAKER_GENDER } = require('../modules/config/schema');
 const { normalizePhone } = require('../utils/phone');
 const { protectionsForDisplay } = require('./protections');
 
@@ -1089,6 +1089,222 @@ router.post('/api/config/safety', requirePortalAuth, express.json(), async (req,
     if (/tenant not found/.test(err.message || '')) return res.status(404).json({ error: 'Tenant not found' });
     logger.error({ err: err.message }, 'portal safety POST failed');
     res.status(500).json({ error: 'Failed to save safety settings' });
+  }
+});
+
+// ── Receptionist (PORTAL-P5-S13) ─────────────────────────────────────────────
+// Persona + voice: how the receptionist sounds and speaks. Storage home is
+// `personality.*` (spec's `persona.*` was never a real schema section — greeting
+// lives at the top-level `greeting` record, and self-intro name/response length
+// join `personality` alongside the pre-existing `style`/`custom_instructions`)
+// plus `voice.sarvam_speaker`/`voice.pace`.
+//
+// FIRST page with PARTIAL section ownership: `personality.custom_instructions`
+// (admin-only, no UI here) and `voice.enabled`/`did`/`provider`/`sarvam_voice_id`
+// (owned by provisioning/ops, no UI here) must survive a save untouched — unlike
+// every prior config page, a plain `{ ...current, personality: {...} }` would
+// silently wipe them. Both sub-objects are spread from `current` FIRST, then only
+// the fields this page owns are overridden.
+//
+// Tone: the portal's 2-way "Professional / Warm" control is NOT a new field —
+// it maps onto 2 of `style`'s existing 4 values (formal / warm_professional).
+// See schema.js's personalitySchema comment for the full reasoning.
+//
+// KNOWN GAP (verified 2026-07-21, reported in the session's closing notes):
+// voice_speaker and pace are saved to config but NOT read by the voice worker
+// today (voice-agent/agent.py sources Sarvam's model/speaker/pace from
+// process-wide env vars). The page visibly flags this — see the UI's gap notice.
+
+const RECEPTIONIST_LANG_LABEL = { te: 'Telugu', hi: 'Hindi', en: 'English' };
+
+// The Voice speaker options this tenant can pick from — the REAL bulbul:v3
+// speaker list (schema.js's SARVAM_V3_SPEAKERS, sourced from the vendored
+// LiveKit Sarvam plugin), each tagged with its known gender. Computed once;
+// per-language support isn't knowable from the plugin, so no claim is made.
+const SPEAKER_OPTIONS = SARVAM_V3_SPEAKERS.map((value) => ({
+  value,
+  gender: SARVAM_V3_SPEAKER_GENDER.female.includes(value) ? 'female'
+    : SARVAM_V3_SPEAKER_GENDER.male.includes(value) ? 'male' : null,
+}));
+
+// Owner-safe projection. `tone` collapses whichever of the 4 raw `style` values
+// is stored into the portal's 2-way control: only 'formal' reads as
+// "professional" — everything else (including the 2 legacy values the portal
+// never writes) reads as "warm", the same safe default the form already ships.
+function projectReceptionist(config) {
+  const p = (config && config.personality) || {};
+  const v = (config && config.voice) || {};
+  const langs = enabledLanguages(config);
+  const defaultLang = (config && config.languages && config.languages.default) || langs[0];
+  const g = (config && config.greeting) || {};
+  const greeting = {};
+  for (const lang of langs) greeting[lang] = typeof g[lang] === 'string' ? g[lang] : '';
+  return {
+    display_name: typeof p.display_name === 'string' ? p.display_name : '',
+    languages: langs,
+    default_language: defaultLang,
+    greeting,
+    tone: p.style === 'formal' ? 'professional' : 'warm',
+    response_length: p.response_length === 'concise' ? 'concise' : 'standard',
+    voice_speaker: typeof v.sarvam_speaker === 'string' ? v.sarvam_speaker : '',
+    pace: typeof v.pace === 'number' ? v.pace : 1.0,
+  };
+}
+
+router.get('/api/config/receptionist', requirePortalAuth, async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  try {
+    const config = await getConfigForSession(tenantId);
+    const version = config ? (configService.getCachedConfigVersion(tenantId) || 0) : 0;
+    res.json({ receptionist: projectReceptionist(config), speakers: SPEAKER_OPTIONS, version });
+  } catch (err) {
+    logger.error({ err: err.message }, 'portal receptionist GET failed');
+    res.status(500).json({ error: 'Failed to load receptionist settings' });
+  }
+});
+
+router.post('/api/config/receptionist', requirePortalAuth, express.json(), async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  const body = req.body || {};
+
+  let current;
+  try {
+    current = await getConfigForSession(tenantId);
+  } catch (err) {
+    logger.error({ err: err.message }, 'portal receptionist POST failed (read)');
+    return res.status(500).json({ error: 'Failed to save receptionist settings' });
+  }
+
+  const langs = enabledLanguages(current);
+  const defaultLang = (current && current.languages && current.languages.default) || langs[0];
+  const fields = [];
+
+  // ── display name ── optional, plain text — reaches the prompt verbatim.
+  let displayName = '';
+  if (body.display_name !== undefined && body.display_name !== null && typeof body.display_name !== 'string') {
+    fields.push({ field: 'display_name', message: 'Enter your receptionist’s name as plain text.' });
+  } else {
+    displayName = typeof body.display_name === 'string' ? body.display_name.trim() : '';
+    if (/<[^>]*>/.test(displayName)) {
+      fields.push({ field: 'display_name', message: 'Write the name as plain text — no HTML tags.' });
+    } else if (displayName.length > 80) {
+      fields.push({ field: 'display_name', message: 'Keep the name to 80 characters or fewer.' });
+    }
+  }
+
+  // ── greeting ── one line per language this clinic actually serves (never
+  // trusted from the request — `langs` comes from the tenant's own config).
+  // Required for the default language; an owner who leaves another enabled
+  // language blank gets it copied from the default's line, because the schema
+  // requires every supported language to carry a non-empty string (the same
+  // rule recording_consent.line lives under) — there is no "inherit at render
+  // time" for an EMPTY entry, only for a MISSING key on a stale document.
+  const rawGreeting = (body.greeting && typeof body.greeting === 'object' && !Array.isArray(body.greeting)) ? body.greeting : {};
+  const greetingOut = {};
+  const greetLine = (lang, required) => {
+    const raw = typeof rawGreeting[lang] === 'string' ? rawGreeting[lang].trim() : '';
+    if (!raw) {
+      if (required) fields.push({ field: `greeting.${lang}`, message: `Add a greeting for ${RECEPTIONIST_LANG_LABEL[lang] || lang} — it’s your default language.` });
+      return null;
+    }
+    if (/<[^>]*>/.test(raw)) {
+      fields.push({ field: `greeting.${lang}`, message: 'Write your greeting as plain text — no HTML tags.' });
+      return null;
+    }
+    if (raw.length > 300) {
+      fields.push({ field: `greeting.${lang}`, message: 'Keep the greeting to 300 characters or fewer.' });
+      return null;
+    }
+    return raw;
+  };
+  greetingOut[defaultLang] = greetLine(defaultLang, true);
+  for (const lang of langs) {
+    if (lang === defaultLang) continue;
+    const line = greetLine(lang, false);
+    greetingOut[lang] = line; // null placeholder resolved below once the default is known good
+  }
+  // Resolve blanks to the default's line only once we know the default itself
+  // passed validation (otherwise there is nothing safe to copy).
+  if (fields.length === 0) {
+    for (const lang of langs) {
+      if (greetingOut[lang] === null) greetingOut[lang] = greetingOut[defaultLang];
+    }
+  }
+
+  // ── tone ── maps onto 2 of `style`'s 4 real values (schema.js comment).
+  let style = 'warm_professional';
+  if (body.tone !== 'professional' && body.tone !== 'warm') {
+    fields.push({ field: 'tone', message: 'Choose Professional or Warm.' });
+  } else {
+    style = body.tone === 'professional' ? 'formal' : 'warm_professional';
+  }
+
+  // ── response length ──
+  let responseLength = 'standard';
+  if (body.response_length !== 'concise' && body.response_length !== 'standard') {
+    fields.push({ field: 'response_length', message: 'Choose Concise or Standard.' });
+  } else {
+    responseLength = body.response_length;
+  }
+
+  // ── voice speaker ── must be one of the REAL bulbul:v3 speakers (not the
+  // schema's broader backward-compat union — the portal never offers a legacy
+  // bulbul:v2 name as a choice).
+  let voiceSpeaker = '';
+  if (typeof body.voice_speaker !== 'string' || !SARVAM_V3_SPEAKERS.includes(body.voice_speaker)) {
+    fields.push({ field: 'voice_speaker', message: 'Choose a voice from the list.' });
+  } else {
+    voiceSpeaker = body.voice_speaker;
+  }
+
+  // ── pace ──
+  let pace = 1.0;
+  const rawPace = body.pace;
+  if (typeof rawPace !== 'number' || !Number.isFinite(rawPace) || rawPace < 0.8 || rawPace > 1.2) {
+    fields.push({ field: 'pace', message: 'Speaking pace must be between 0.8 and 1.2.' });
+  } else {
+    pace = rawPace;
+  }
+
+  if (fields.length) {
+    return res.status(400).json({ error: 'Please fix the highlighted items.', fields });
+  }
+
+  try {
+    // Partial-section merge (this page's defining wrinkle — see the header
+    // comment): spread the CURRENT personality/voice objects first, so
+    // custom_instructions and enabled/did/provider/sarvam_voice_id survive
+    // untouched, then override only the fields this page owns. `greeting` is a
+    // full replace (a disabled language's stray key must actually disappear).
+    const next = {
+      ...(current || {}),
+      greeting: greetingOut,
+      personality: {
+        ...((current && current.personality) || {}),
+        display_name: displayName,
+        style,
+        response_length: responseLength,
+      },
+      voice: {
+        ...((current && current.voice) || {}),
+        sarvam_speaker: voiceSpeaker,
+        pace,
+      },
+    };
+
+    const { version, config } = await configService.writeTenantConfig(tenantId, next, 'portal', {
+      actorUserId: req.portalUser.id, // INV-4
+    });
+
+    const readiness = await readinessSnapshot(tenantId);
+    res.json({ section: projectReceptionist(config), version, readiness });
+  } catch (err) {
+    if (err.name === 'ConfigValidationError') {
+      return res.status(422).json({ error: 'Those receptionist settings couldn’t be saved.', issues: err.issues });
+    }
+    if (/tenant not found/.test(err.message || '')) return res.status(404).json({ error: 'Tenant not found' });
+    logger.error({ err: err.message }, 'portal receptionist POST failed');
+    res.status(500).json({ error: 'Failed to save receptionist settings' });
   }
 });
 

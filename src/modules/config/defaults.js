@@ -92,6 +92,8 @@ const clinicDefaults = {
   personality: {
     style: 'warm_professional',
     custom_instructions: '',
+    display_name: '',
+    response_length: 'standard',
   },
   tools: {
     booking: true,
@@ -106,8 +108,13 @@ const clinicDefaults = {
     enabled: false,
     did: null,
     provider: 'plivo',
-    sarvam_speaker: 'anushka',
-    sarvam_voice_id: 'bulbul:v2',
+    // Realigned (PORTAL-P5-S13) to match what the live voice-agent worker
+    // actually runs (voice-agent/.env.example: SARVAM_TTS_MODEL=bulbul:v3,
+    // SARVAM_TTS_SPEAKER=shubh) — these fields predate the LiveKit migration and
+    // had drifted to a bulbul:v2 speaker nothing in production uses.
+    sarvam_speaker: 'shubh',
+    sarvam_voice_id: 'bulbul:v3',
+    pace: 1.0,
   },
   whatsapp: {
     enabled: true,

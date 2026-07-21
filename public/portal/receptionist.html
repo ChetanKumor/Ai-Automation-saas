@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Receptionist · Receptionist portal</title>
+  <meta name="description" content="How your AI receptionist introduces itself, greets patients, and sounds on a phone call.">
+  <link rel="stylesheet" href="./fonts/fonts.css">
+  <link rel="stylesheet" href="./tokens.css">
+  <link rel="stylesheet" href="./receptionist.css">
+</head>
+<body data-page="receptionist">
+  <div class="app" id="app">
+    <div class="side__scrim"></div>
+
+    <!-- Sidebar (nav injected by shell.js) -->
+    <aside class="side">
+      <div class="side__brand">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M10 3h4a1 1 0 0 1 1 1v5h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5v5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h5V4a1 1 0 0 1 1-1Z"/></svg>
+        </span>
+        <div>
+          <div class="brand__name" id="clinicName">Your clinic</div>
+          <div class="brand__sub">AI receptionist</div>
+        </div>
+      </div>
+      <nav class="side__nav" id="nav"></nav>
+      <div class="side__foot">
+        <button class="btn btn--ghost btn--block" id="logout" type="button">Log out</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <header class="top">
+        <button class="top__burger" id="burger" type="button" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="top__spacer"></div>
+        <div id="lifecycle"></div>
+      </header>
+
+      <main class="content">
+        <div class="page-head">
+          <h1 class="page-head__title">Receptionist</h1>
+          <p class="page-head__sub">How your AI receptionist introduces itself, greets patients, and sounds on a phone call.</p>
+        </div>
+
+        <!-- Loading / error placeholder (replaced once the form loads) -->
+        <section class="card" id="loadCard">
+          <div class="state-msg" id="loadMsg">Loading your receptionist settings…</div>
+        </section>
+
+        <form id="receptionistForm" novalidate hidden>
+          <section class="card" id="personaCard">
+            <div class="card__title">Introduction &amp; tone</div>
+            <p class="card__sub">Who your receptionist says it is, and how it comes across.</p>
+
+            <div class="field" data-field="display_name">
+              <label class="field__label" for="displayName">Receptionist name <span class="field__opt">optional</span></label>
+              <p class="field__help">Used only when your receptionist introduces itself — e.g. “This is Asha, how can I help?” It never uses this name to address you or your patients. Leave blank and it introduces itself as your clinic’s receptionist, with no name.</p>
+              <input class="input" id="displayName" type="text" maxlength="80" autocomplete="off" placeholder="Asha">
+              <div class="field__error"></div>
+            </div>
+
+            <div class="field" data-field="tone">
+              <label class="field__label">Tone</label>
+              <p class="field__help">How your receptionist comes across in every reply.</p>
+              <div class="segmented" id="toneControl" role="radiogroup" aria-label="Tone">
+                <button class="segmented__btn" type="button" data-value="warm">Warm</button>
+                <button class="segmented__btn" type="button" data-value="professional">Professional</button>
+              </div>
+              <div class="field__error"></div>
+            </div>
+
+            <div class="field" data-field="response_length">
+              <label class="field__label">Response length</label>
+              <p class="field__help">Shorter replies feel faster on a phone call, and are quicker to read on WhatsApp.</p>
+              <div class="segmented" id="lengthControl" role="radiogroup" aria-label="Response length">
+                <button class="segmented__btn" type="button" data-value="standard">Standard</button>
+                <button class="segmented__btn" type="button" data-value="concise">Concise</button>
+              </div>
+              <div class="field__error"></div>
+            </div>
+          </section>
+
+          <section class="card" id="greetingCard">
+            <div class="card__title">Greeting</div>
+            <p class="card__sub">The first thing a caller or customer hears. Required for your default language; leave another language blank to use the default’s greeting for it.</p>
+            <div id="greetingFields"></div>
+          </section>
+
+          <section class="card" id="voiceCard">
+            <div class="card__title">Voice</div>
+            <p class="card__sub">How your receptionist sounds on a phone call.</p>
+
+            <div class="gap-notice">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+              <span>These settings are saved to your account, but Prantivo hasn’t finished connecting them to live phone calls yet — your calls keep using the current voice until that’s done. We’ll let you know when it’s active.</span>
+            </div>
+
+            <div class="field" data-field="voice_speaker">
+              <label class="field__label" for="voiceSpeaker">Voice</label>
+              <p class="field__help">The synthesized voice your receptionist speaks with on calls.</p>
+              <select class="input" id="voiceSpeaker"></select>
+              <div class="field__error"></div>
+            </div>
+
+            <div class="field" data-field="pace">
+              <label class="field__label" for="pace">Speaking pace</label>
+              <p class="field__help">How fast your receptionist talks on a call.</p>
+              <div class="pace">
+                <span class="pace__label">Slower</span>
+                <input class="pace__slider" id="pace" type="range" min="0.8" max="1.2" step="0.05">
+                <span class="pace__label">Faster</span>
+              </div>
+              <div class="pace__value"><span id="paceValue">Normal</span></div>
+              <div class="field__error"></div>
+            </div>
+
+            <div class="card__foot">
+              <span class="save-note" id="saveNote"></span>
+              <button class="btn btn--primary" id="saveBtn" type="submit">Save changes</button>
+            </div>
+          </section>
+        </form>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast-host" id="toastHost"></div>
+
+  <script src="./shell.js"></script>
+  <script src="./receptionist.js"></script>
+</body>
+</html>

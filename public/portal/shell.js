@@ -46,7 +46,7 @@
     { id: 'booking',     label: 'Booking rules',   icon: I.calendar, href: 'booking-rules.html' },
     { id: 'faqs',        label: 'FAQs',            icon: I.help,     href: 'faqs.html' },
     { id: 'documents',   label: 'Documents',       icon: I.file,     soon: true },
-    { id: 'receptionist',label: 'Receptionist',    icon: I.bot,      soon: true },
+    { id: 'receptionist',label: 'Receptionist',    icon: I.bot,      href: 'receptionist.html' },
     { id: 'safety',      label: 'Safety & handoff', icon: I.shield,  href: 'safety.html' },
     { id: 'test',        label: 'Test',            icon: I.message,  soon: true },
     { id: 'history',     label: 'History',         icon: I.history,  soon: true },
