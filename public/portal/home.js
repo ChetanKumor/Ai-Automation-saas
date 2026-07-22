@@ -28,44 +28,13 @@
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   // ── Friendly copy map (spec §5.1) ──────────────────────────────────────────
-  // For every validation check name: an owner-recognisable label, who acts on it,
-  // whether it counts toward the readiness score (material), and — for owner items
-  // that fail — the one-line fix + the page that resolves it.
-  //   actor:    'owner'  → the owner fixes it, on a portal page
-  //             'system' → derived from the owner's saved settings (no direct link)
-  //             'operator' → Prantivo handles it (owner-visible, not owner-actioned)
-  //   material: true  → counts toward the ring (a go-live gate)
-  //             false → advisory: shown subordinate, never scored
-  const META = {
-    'config.exists':   { label: 'Clinic details saved', actor: 'system', material: true },
-    'config.schema':   { label: 'Clinic details are valid', actor: 'system', material: true },
-    'prompt.renders':  { label: 'Receptionist instructions are ready', actor: 'system', material: true },
-    'hours.sane':      { label: 'Clinic hours are set', actor: 'owner', material: true,
-                         fix: 'Set your opening hours for each day', link: 'Hours & holidays', href: 'hours.html' },
-    'numbers.e164':    { label: 'Escalation phone number added', actor: 'owner', material: true,
-                         fix: 'Add an escalation phone number', link: 'Safety & handoff', href: 'safety.html' },
-    'consent.lines':   { label: 'Call recording notice', actor: 'system', material: true },
-    'kb.populated':    { label: 'Knowledge added', actor: 'owner', material: true,
-                         fix: 'Add at least 5 FAQs or upload one document', link: 'FAQs', href: 'faqs.html' },
-    'kb.retrieval':    { label: 'Knowledge is searchable', actor: 'owner', material: true,
-                         fix: 'Add at least 5 FAQs or upload one document', link: 'FAQs', href: 'faqs.html' },
-    'doctor.schedule': { label: 'Doctor and weekly hours added', actor: 'owner', material: true,
-                         fix: 'Add a doctor and their weekly hours', link: 'Doctors', href: 'doctors.html' },
-    'whatsapp.config': { label: 'WhatsApp connection', actor: 'operator', material: true,
-                         note: 'Handled by Prantivo during onboarding' },
-    'whatsapp.live':   { label: 'WhatsApp connection verified', actor: 'operator', material: true,
-                         note: 'Handled by Prantivo during onboarding' },
-    'voice.config':    { label: 'Voice line configured', actor: 'operator', material: true,
-                         note: 'Handled by Prantivo during onboarding' },
-    'turn.scripted':   { label: 'Test call', actor: 'operator', material: true,
-                         note: 'Run by Prantivo before go-live' },
-    'tenant.legacy_prompt': { label: 'Using the latest instruction format', actor: 'system', material: false },
-  };
-  // Unknown/future check → a safe, honest default (prettified name, material system).
-  const metaFor = (name) => META[name] || {
-    label: name.replace(/[._]/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()),
-    actor: 'system', material: true,
-  };
+  // Moved to shell.js in PORTAL-P6-S18 and read through here. It used to live on
+  // this page, with a parallel actor/material table in the shell for the header
+  // control — two copies of the same classification, free to drift. It now has
+  // one home, because the blocked-go-live dialog needs the same copy on every
+  // page, not just this one. Signature unchanged, so PortalHome.metaFor (the
+  // wizard's Review step) is untouched.
+  const metaFor = (name) => window.Portal.checkMeta(name);
 
   const BANNER = {
     draft:     { label: 'Draft', meaning: 'Your receptionist isn’t live yet. Finish the setup below, then go live.' },
@@ -179,6 +148,14 @@
   // Row state → { cls, icon, badge, badgeCls }
   function rowState(c, m) {
     const failed = c.severity === 'fail';
+    // A check the run SKIPPED never made a claim, and for an operator check the
+    // reason is always that the channel is switched off for this clinic (the
+    // catalog's own gate). Saying "Operator-run" there would imply Prantivo has
+    // something outstanding to do — so a skipped row says what's actually true:
+    // it isn't part of this setup (PORTAL-P6-S18).
+    if (c.severity === 'skipped') {
+      return { icon: IC.op, iconCls: 'op', badge: 'Not in use', badgeCls: 'muted', skipped: true };
+    }
     if (m.actor === 'operator') {
       return { icon: IC.op, iconCls: 'op', badge: 'Operator-run', badgeCls: 'muted' };
     }
@@ -205,22 +182,24 @@
     if (advisory) {
       sub = c.severity === 'warn'
         ? '<div class="check__fix">An older instruction format is in use — Prantivo can refresh it.</div>' : '';
+    } else if (st.skipped) {
+      sub = '<div class="check__fix">Not part of your current setup.</div>';
     } else if (m.actor === 'owner' && c.severity === 'fail' && m.fix) {
       sub = `<div class="check__fix">${esc(m.fix)}</div>`;
     } else if (m.actor === 'operator' && m.note) {
       sub = `<div class="check__fix">${esc(m.note)}</div>`;
     }
 
-    // Link chip → the page (or wizard step) that fixes it. Navigable once that
-    // page is built (`href` set); a check whose fix-page isn't built yet falls
-    // back to a quiet, non-navigating reference (matches the disabled sidebar).
+    // Link chip → the page (or wizard step) that fixes it. Every owner-actionable
+    // check in CHECK_META now has a built page, so the old non-navigating
+    // "Coming soon" fallback was unreachable and is gone (PORTAL-P6-S18): a v1
+    // portal has no dead links, and an owner told to fix something is always
+    // given somewhere to fix it.
     const step = (opts && opts.stepFor) ? opts.stepFor(m) : null;
-    const link = (m.actor === 'owner' && c.severity === 'fail' && m.link)
+    const link = (m.actor === 'owner' && c.severity === 'fail' && m.link && m.href)
       ? (step != null
           ? `<a class="check__link" href="#" data-goto-step="${step}">${esc(m.link)}${IC.arrow}</a>`
-          : (m.href
-              ? `<a class="check__link" href="${esc(m.href)}">${esc(m.link)}${IC.arrow}</a>`
-              : `<span class="check__link" title="Coming soon">${esc(m.link)}${IC.arrow}</span>`))
+          : `<a class="check__link" href="${esc(m.href)}">${esc(m.link)}${IC.arrow}</a>`)
       : '';
 
     const badge = advisory ? '' :
@@ -271,8 +250,8 @@
       `<div class="empty">
         <div class="empty__mark">${IC.spark}</div>
         <div class="empty__title">No readiness check has run yet</div>
-        <div class="empty__body">Once your clinic’s details are in, Prantivo runs the first
-          readiness check before your receptionist goes live. Start by adding your clinic profile.</div>
+        <div class="empty__body">Fill in your clinic’s details, then press <strong>Go live</strong> —
+          that runs the readiness check and tells you what’s still missing.</div>
       </div>`;
   }
 
@@ -280,33 +259,6 @@
     const el = (opts && opts.cardEl) || document.getElementById('readinessCard');
     el.innerHTML =
       `<div class="state-msg">We couldn’t load your readiness just now. Refresh the page to try again.</div>`;
-  }
-
-  // Inputs for the header Go-live control (spec §5.13 rider). The control speaks to
-  // the OWNER, so its blocker count is only the owner's own to-do — material checks
-  // the owner acts on that are still failing — NOT operator-run gaps. When the
-  // owner has nothing left but Prantivo's material checks (WhatsApp/voice/test
-  // call) aren't green yet, `operatorPending` flips so the control reads "Waiting
-  // on Prantivo" (no number) instead of claiming the owner has items. Returns {}
-  // with no run so the control renders plain-disabled rather than claiming "0".
-  function lifecycleInputsFrom(run) {
-    if (!run || !run.checks) return {};
-    let blockers = 0;
-    for (const c of run.checks) {
-      const m = metaFor(c.name);
-      if (m.material && m.actor === 'owner' && c.severity === 'fail') blockers += 1;
-    }
-    // An operator material check counts as pending when it failed in the run OR
-    // was skipped (hasn't run yet — e.g. the scripted test call before go-live).
-    const opFailing = run.checks.some((c) => {
-      const m = metaFor(c.name);
-      return m.material && m.actor === 'operator' && c.severity === 'fail';
-    });
-    const opSkipped = (run.skipped || []).some((s) => {
-      const m = metaFor(s.name);
-      return m.material && m.actor === 'operator';
-    });
-    return { blockers, operatorPending: opFailing || opSkipped };
   }
 
   // Onboarding entry point (PORTAL-P6-S16, spec §6 + Deliverable 6). Three
@@ -363,10 +315,22 @@
       return;
     }
 
-    // Header Go-live control: owner-actionable blocker count + operator-pending
-    // flag, derived from the readiness payload (spec §5.13 rider). When no run
-    // exists yet both are unknown (plain disabled control).
-    window.Portal.renderLifecycle(data.status, lifecycleInputsFrom(data.run));
+    render(data);
+
+    // A go-live / pause / resume fired from the header control re-renders the
+    // whole page state from the action's OWN response (PORTAL-P6-S18) — the
+    // banner and ring must not keep claiming "Draft" after the owner just went
+    // live. The shell owns the control and the request; Home just re-renders.
+    document.addEventListener('portal:lifecycle', (e) => {
+      const r = e.detail && e.detail.readiness;
+      if (r) render({ status: e.detail.status || r.status, run: r.run });
+    });
+  }
+
+  // One render pass over a readiness payload — used on load and after every
+  // lifecycle action, so both paths can never diverge.
+  function render(data) {
+    window.Portal.renderLifecycle(data.status, window.Portal.deriveGoLive(data.run));
     renderBanner(data.status);
     if (!data.run) { renderEmpty(); return; }
     renderReadiness(data.run);

@@ -313,27 +313,48 @@ describe('portal safety — safety & handoff config (route-level)', { skip: ADMI
     });
     const after = without.checks.find((c) => c.name === 'numbers.e164');
     assert.equal(after.severity, 'fail');
-    assert.match(after.detail, /escalation/, 'and it fails for the reason the page told the owner about');
+    // Since S18 this page feeds BOTH lists the check reads (escalation +
+    // notifications), so emptying the field trips whichever branch the catalog
+    // evaluates first. What matters is that the page's own field is the thing
+    // that decides the check — not which sentence the catalog returns.
+    assert.match(after.detail, /number/i, 'and it fails on a missing number, which this page owns');
 
     await post(ownerA, VALID); // restore
   });
 
-  // KNOWN GAP, pinned so it cannot be forgotten: numbers.e164 ALSO requires
-  // notifications.owner_numbers, and no portal page writes that list. An owner
-  // sent here by Home's copy map ("Add an escalation phone number") therefore
-  // cannot clear this check unaided today. Recorded as a test so the day someone
-  // adds that surface, this goes red and the gap gets closed deliberately.
-  it('KNOWN GAP: the same check also demands notifications.owner_numbers, which no portal page writes', async () => {
-    // C fills in everything this page offers…
+  // GAP CLOSED (PORTAL-P6-S18). numbers.e164 ALSO requires
+  // notifications.owner_numbers, and until S18 no portal page wrote that list —
+  // so an owner sent here by Home's copy map ("Add an escalation phone number")
+  // did everything the UI asked and STILL could not clear the check. The §11
+  // acceptance run walked into it at the go-live step, which is the first time
+  // anyone could: before S18 no owner could press the button at all.
+  //
+  // This page now writes both lists from the one field, which is what its own
+  // help text has always promised ("Your receptionist can't go live without at
+  // least one"). Kept as a test in its own right — if a future change splits the
+  // two lists apart again, an owner silently loses the ability to go live.
+  it('the staff-numbers field clears numbers.e164 on its own — the owner needs no other page', async () => {
+    // C fills in everything this page offers, and nothing else anywhere.
     assert.equal((await post(ownerC, VALID)).status, 200);
     const cfg = await configService.getTenantConfig(ownerC.tenantId);
     assert.equal(cfg.escalation.phone_numbers.length, 2, 'the safety section is complete');
-    assert.deepEqual(cfg.notifications.owner_numbers, [], '…but this list is still operator-only');
+    assert.deepEqual(cfg.notifications.owner_numbers, cfg.escalation.phone_numbers,
+      'the same numbers also land on the alert list the check reads');
+
     const run = await validationService.validateTenant(ownerC.tenantId, { deps: DEPS, skip: ['turn.scripted'] });
     const numbers = run.checks.find((c) => c.name === 'numbers.e164');
-    assert.equal(numbers.severity, 'fail');
-    assert.match(numbers.detail, /owner notification number/,
-      'the remaining blocker is the one the owner has no page for');
+    assert.equal(numbers.severity, 'pass',
+      `this page alone must satisfy the check (detail: ${numbers.detail})`);
+  });
+
+  it('clearing the staff numbers clears BOTH lists — no stale alert number survives', async () => {
+    assert.equal((await post(ownerC, VALID)).status, 200);
+    assert.equal((await post(ownerC, { ...VALID, phone_numbers: [] })).status, 200);
+    const cfg = await configService.getTenantConfig(ownerC.tenantId);
+    assert.deepEqual(cfg.escalation.phone_numbers, []);
+    assert.deepEqual(cfg.notifications.owner_numbers, [],
+      'a removed number must not keep receiving alerts');
+    await post(ownerC, VALID); // restore
   });
 
   // ── READ-MERGE regression (mandatory) ───────────────────────────────────────

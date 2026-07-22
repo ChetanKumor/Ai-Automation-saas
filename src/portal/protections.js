@@ -62,7 +62,7 @@ const PROTECTIONS = [
   {
     id: 'scope',
     title: 'Doesn’t add details beyond what you’ve entered',
-    detail: 'When it answers from your FAQs or documents it uses only what’s written there — it won’t extend or embellish them. (It can still answer general questions in its own words; restricting every answer to your material is not something we enforce today.)',
+    detail: 'When it answers from your FAQs it uses only what’s written there — it won’t extend or embellish them. (It can still answer general questions in its own words; restricting every answer to your material is not something we enforce today.)',
     evidence: [
       { when: 'always', text: '- If business knowledge is provided above, use it to answer. Do NOT add details beyond what is given.' },
       { when: 'knowledge', text: 'Business knowledge (use ONLY this to answer questions — do not invent information):' },

@@ -29,6 +29,34 @@
  * ========================================================================== */
 
 require('dotenv').config();
+
+// ── Offline Gemini SDK (PORTAL-P6-S18) ───────────────────────────────────────
+// S18 drives the REAL go-live flow through the UI, and that path cannot skip a
+// check (INV-3) — so `kb.retrieval` genuinely embeds its probe query, and the
+// seeded FAQs genuinely embed on write. Stub the SDK in the module cache before
+// anything requires it, so the whole script stays offline and free. This also
+// removes the live embedding calls the FAQ seeding below has been making since
+// S11. The per-shot aiService/knowledgeService stubs further down are unchanged
+// and still do their own (narrower) job.
+const GENAI_PATH = require.resolve('@google/generative-ai');
+require(GENAI_PATH);
+const STUB_VEC = Array(768).fill(0);
+STUB_VEC[0] = 1; // unit vector — cosine distance to an identical stored vector is 0
+require.cache[GENAI_PATH].exports = {
+  GoogleGenerativeAI: class {
+    getGenerativeModel() {
+      return {
+        embedContent: async () => ({ embedding: { values: STUB_VEC } }),
+        startChat: () => ({
+          sendMessage: async () => ({
+            response: { functionCalls: () => undefined, text: () => 'ok' },
+          }),
+        }),
+      };
+    }
+  },
+};
+
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
@@ -394,6 +422,40 @@ const adminLoginCookie = (port, password) =>
       'INSERT INTO users (tenant_id, email, password_hash, role, active) VALUES ($1,$2,$3,$4,true)',
       [freshId, freshEmail, hashPassword(freshPassword), 'owner']);
 
+    // A FOURTH clinic that is genuinely READY to go live (PORTAL-P6-S18) — the
+    // subject of the go-live / live / paused shots. Its config disables the
+    // channels whose checks need operator-provisioned credentials
+    // (whatsapp/voice) and the booking toggle that gates doctor.schedule +
+    // turn.scripted, so the FULL catalog passes without a single check being
+    // skipped — which is the only kind of "ready" the portal can produce, since
+    // the owner path has no skip power at all (INV-3).
+    const readyEmail = 'owner@readyclinic.test';
+    const readyPassword = 'demo-portal-pass-3';
+    const ready = await db.query("INSERT INTO tenants (business_name, active) VALUES ($1, false) RETURNING id",
+      ['Ready Dental']);
+    const readyId = ready.rows[0].id;
+    await db.query(
+      'INSERT INTO users (tenant_id, email, password_hash, role, active) VALUES ($1,$2,$3,$4,true)',
+      [readyId, readyEmail, hashPassword(readyPassword), 'owner']);
+    await configService.writeTenantConfig(readyId, {
+      business: { display_name: 'Ready Dental', address: 'Road No. 12, Banjara Hills, Hyderabad' },
+      notifications: { owner_numbers: ['+919000000001'], on_booking: true, on_escalation: true },
+      escalation: { enabled: true, phone_numbers: ['+919000000002'] },
+      whatsapp: { enabled: false }, voice: { enabled: false }, tools: { booking: false },
+    }, 'shoot');
+    await configService.writeTenantConfigMeta(readyId, { onboarding_step: 6, onboarding_completed: true });
+    for (let i = 0; i < 5; i += 1) { // ≥5 chunks clears kb.populated
+      await faqService.createFaq(readyId,
+        { question: `Ready Dental question ${i + 1}?`, answer: `Answer ${i + 1}: we are open 9am to 6pm on weekdays.` },
+        { languages: ['te', 'hi', 'en'] });
+    }
+
+    // Fresh Clinic has never had a validation run, so its Go-live control is
+    // ENABLED (nothing has been checked — pressing it IS the check). That makes
+    // it the honest subject for the "blocked" dialog shot below: the press runs
+    // a real validation, which really fails, and really names the blockers.
+    await configService.writeTenantConfigMeta(freshId, { onboarding_step: 6, onboarding_completed: true });
+
     // S14: "Test your receptionist" runs a REAL turn through the real renderer +
     // real brain — stub the model + RAG here (in-process, same seam the test
     // suite uses) so that shot costs zero live Gemini calls, embedding included.
@@ -430,6 +492,7 @@ const adminLoginCookie = (port, password) =>
 
     const cookie = await loginCookie(port, email, password);
     const freshCookie = await loginCookie(port, freshEmail, freshPassword);
+    const readyCookie = await loginCookie(port, readyEmail, readyPassword);
     const adminCookie = await adminLoginCookie(port, process.env.ADMIN_PASSWORD);
 
     // Launch Chrome (reduced motion → deterministic ring/pulse).
@@ -788,6 +851,94 @@ const adminLoginCookie = (port, password) =>
         await waitForSelector(c, sid, "!document.getElementById('confirmModal').hidden");
       },
     });
+
+    // ── S18: the go-live flow, driven through the REAL control ──────────────
+    // Every shot below is a genuine transition: the button posts to
+    // /portal/api/lifecycle/*, which runs the real validate → activate chain.
+    // Order is load-bearing — Ready Dental moves draft → live → paused across
+    // these shots, so each one captures the state the previous shot left.
+    const homeReady = "document.querySelector('#checks .check, #readinessCard .empty')";
+    const goLiveBtn = "document.querySelector('[data-lifecycle=\"activate\"]')";
+    const modalUp = "document.querySelector('.modal-host .modal')";
+
+    // 1. Eligible: every check green, Go live enabled.
+    await shoot(cdp, { url: `${base}/index.html`, out: path.join(OUT, 's18-golive-ready.png'),
+      width: 1280, height: 900, cookie: readyCookie, port, waitFor: homeReady });
+    await shoot(cdp, { url: `${base}/index.html`, out: path.join(OUT, 's18-golive-ready-mobile.png'),
+      width: 380, height: 900, mobile: true, cookie: readyCookie, port, waitFor: homeReady });
+
+    // 2. The confirm modal (does NOT confirm — state stays draft for shot 3).
+    await shoot(cdp, { url: `${base}/index.html`, out: path.join(OUT, 's18-golive-confirm.png'),
+      width: 1280, height: 900, cookie: readyCookie, port, waitFor: homeReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', { expression: `${goLiveBtn}.click();` }, sid);
+        await waitForSelector(c, sid, modalUp);
+      },
+    });
+    await shoot(cdp, { url: `${base}/index.html`, out: path.join(OUT, 's18-golive-confirm-mobile.png'),
+      width: 380, height: 900, mobile: true, cookie: readyCookie, port, waitFor: homeReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', { expression: `${goLiveBtn}.click();` }, sid);
+        await waitForSelector(c, sid, modalUp);
+      },
+    });
+
+    // 3. Confirm for real → live. Banner, ring and header all reflect it without
+    //    a reload (the action re-renders from its own response).
+    await shoot(cdp, { url: `${base}/index.html`, out: path.join(OUT, 's18-live.png'),
+      width: 1280, height: 900, cookie: readyCookie, port, waitFor: homeReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', { expression: `${goLiveBtn}.click();` }, sid);
+        await waitForSelector(c, sid, modalUp);
+        await c.send('Runtime.evaluate', { expression: "document.querySelector('.modal [data-confirm]').click();" }, sid);
+        await waitForSelector(c, sid, "document.querySelector('[data-lifecycle=\"pause\"]')");
+      },
+    });
+
+    // 4. Pause confirmation (does NOT confirm — state stays live for shot 5).
+    await shoot(cdp, { url: `${base}/index.html`, out: path.join(OUT, 's18-pause-confirm.png'),
+      width: 1280, height: 900, cookie: readyCookie, port,
+      waitFor: "document.querySelector('[data-lifecycle=\"pause\"]')",
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', { expression: "document.querySelector('[data-lifecycle=\"pause\"]').click();" }, sid);
+        await waitForSelector(c, sid, modalUp);
+      },
+    });
+
+    // 5. Confirm the pause → paused + Resume control.
+    await shoot(cdp, { url: `${base}/index.html`, out: path.join(OUT, 's18-paused.png'),
+      width: 1280, height: 900, cookie: readyCookie, port,
+      waitFor: "document.querySelector('[data-lifecycle=\"pause\"]')",
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', { expression: "document.querySelector('[data-lifecycle=\"pause\"]').click();" }, sid);
+        await waitForSelector(c, sid, modalUp);
+        await c.send('Runtime.evaluate', { expression: "document.querySelector('.modal [data-confirm]').click();" }, sid);
+        await waitForSelector(c, sid, "document.querySelector('[data-lifecycle=\"resume\"]')");
+      },
+    });
+    await shoot(cdp, { url: `${base}/index.html`, out: path.join(OUT, 's18-paused-mobile.png'),
+      width: 380, height: 900, mobile: true, cookie: readyCookie, port,
+      waitFor: "document.querySelector('[data-lifecycle=\"resume\"]')" });
+
+    // 6. The REFUSAL — Fresh Clinic has never been checked, so its control is
+    //    enabled; pressing it runs a real validation that really fails, and the
+    //    dialog names each blocking check with the page that fixes it.
+    await shoot(cdp, { url: `${base}/index.html`, out: path.join(OUT, 's18-golive-blocked.png'),
+      width: 1280, height: 900, cookie: freshCookie, port, waitFor: homeReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', { expression: `${goLiveBtn}.click();` }, sid);
+        await waitForSelector(c, sid, modalUp);
+        await c.send('Runtime.evaluate', { expression: "document.querySelector('.modal [data-confirm]').click();" }, sid);
+        await waitForSelector(c, sid, "document.querySelector('.lc-blocks')");
+      },
+    });
+    // 7. …and the state that press LEAVES the owner in, at 380px. The refusal
+    //    persisted a real (failing) validation run, so the control is now
+    //    correctly locked with the owner's own blocker count beside it — the
+    //    state a mid-setup owner actually lives in. The dialog itself is already
+    //    covered at 380px by s18-golive-confirm-mobile (same modal component).
+    await shoot(cdp, { url: `${base}/index.html`, out: path.join(OUT, 's18-golive-blocked-after-mobile.png'),
+      width: 380, height: 900, mobile: true, cookie: freshCookie, port, waitFor: homeReady });
 
     // S3: admin "create owner account" — fill the email, click Create, wait for the
     // one-time password panel, then capture. Uses the admin connect.sid cookie.

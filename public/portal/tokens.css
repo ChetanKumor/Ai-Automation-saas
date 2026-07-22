@@ -320,16 +320,55 @@ a { color: var(--teal); }
 }
 .btn--ghost { border-color: transparent; background: none; color: var(--muted); }
 .btn--ghost:hover { background: var(--bg); color: var(--ink); }
+/* Confirm action for a change that takes something AWAY (pausing a live
+ * receptionist). Used only inside a confirm modal, never as a page control. */
+.btn--danger { background: var(--red); border-color: var(--red); color: #fff; }
+.btn--danger:hover { background: #991b1b; border-color: #991b1b; color: #fff; }
 
-/* ── Header Go-live control (PORTAL-P1-S3) ───────────────────────────────────
- * Display-only this session (§5.13/S18 wires the real transition). Disabled here
- * reads as reduced-emphasis + not-allowed, with the blocker count sitting to its
- * left so the owner sees WHY it isn't yet actionable. */
+/* ── Header lifecycle control (PORTAL-P1-S3; made real in PORTAL-P6-S18) ─────
+ * Go live / Pause / Resume — the only lifecycle action an owner can take. When
+ * Go live is disabled the reason sits to its LEFT rather than in a tooltip
+ * alone, so the owner sees WHY without hovering (impossible on touch). */
 .golive { display: inline-flex; align-items: center; gap: 12px; }
 .golive__reason { font-size: 12.5px; font-weight: 600; color: var(--amber); white-space: nowrap; }
 /* When the owner has nothing left and the wait is on Prantivo — quiet, no count. */
 .golive__reason--muted { color: var(--muted); font-weight: 500; }
 .golive .btn[disabled], .golive .btn[aria-disabled="true"] { cursor: not-allowed; }
+
+/* Blocked-go-live dialog: the checks still standing between the owner and live,
+ * each with the page that fixes it (operator-run ones carry a note instead). */
+.lc-blocks { list-style: none; display: grid; gap: 10px; }
+.lc-block {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 11px 13px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-xs);
+  background: var(--bg);
+}
+.lc-block__body { flex: 1; min-width: 0; }
+.lc-block__label { font-size: 13.5px; font-weight: 600; }
+.lc-block__sub { font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: 1.45; }
+.lc-block__link {
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--teal);
+  text-decoration: none;
+  padding: 6px 4px;
+}
+.lc-block__link:hover { text-decoration: underline; }
+.lc-note { font-size: 13px; color: var(--muted); line-height: 1.55; }
+
+@media (max-width: 560px) {
+  /* Reason above the button rather than crushed beside it. */
+  .golive { flex-wrap: wrap; justify-content: flex-end; gap: 6px 10px; }
+  .golive__reason { white-space: normal; text-align: right; }
+  /* Stack the fix-link under the check instead of shrinking both. */
+  .lc-block { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .lc-block__link { padding-left: 0; }
+}
 
 /* ============================================================================
  * Forms — the shared field vocabulary (PORTAL-P2-S4)

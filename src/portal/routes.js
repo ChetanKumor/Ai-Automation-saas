@@ -21,6 +21,7 @@ const logger = require('../infra/logging/logger');
 const { securityHeaders, createRateLimiter } = require('../admin/security');
 const { verifyPassword, requirePortalAuth, hashPassword } = require('./auth');
 const validationService = require('../modules/validation/validationService');
+const lifecycleService = require('../modules/tenant/lifecycleService');
 const configService = require('../modules/config/configService');
 const doctorService = require('../modules/doctor/doctorService');
 const faqService = require('../modules/knowledge/faqService');
@@ -207,24 +208,183 @@ router.get('/api/readiness', requirePortalAuth, async (req, res) => {
 // moves the ring after the operator's next validation run; the version bump +
 // "Saved" toast are immediate. Same name+severity projection as the GET (no
 // operator `detail` crosses the wire). Returns null when the tenant is gone.
+//
+// `run.stale` (PORTAL-P6-S18) is the same freshness invariant lifecycleService
+// enforces at activate (STALE_VALIDATION): a run only speaks for the config it
+// ran against, so once `tenant_configs.updated_at` moves past it, its verdict
+// has expired. Surfaced because this route never re-runs validation — without
+// it, an owner who fixes their LAST blocker would keep seeing the old failed
+// run and a permanently disabled Go-live button, with no way to re-check. Stale
+// ⇒ the control invites a re-check instead of asserting a stale refusal.
 async function readinessSnapshot(tenantId) {
   const { rows } = await db.query('SELECT status FROM tenants WHERE id = $1', [tenantId]);
   const tenant = rows[0];
   if (!tenant) return null;
 
-  const latest = await validationService.getLatestValidation(tenantId);
+  const [latest, cfgAt] = await Promise.all([
+    validationService.getLatestValidation(tenantId),
+    configUpdatedAt(tenantId),
+  ]);
   let run = null;
   if (latest) {
     const result = latest.result || {};
     run = {
       passed: latest.passed,
       created_at: latest.created_at,
+      stale: !!(cfgAt && new Date(latest.created_at) <= new Date(cfgAt)),
       checks: (result.checks || []).map((c) => ({ name: c.name, severity: c.severity })),
       skipped: (result.skipped || []).map((s) => ({ name: s.name })),
     };
   }
   return { status: tenant.status, run };
 }
+
+// "Config last moved" — read-only, and deliberately the SAME source
+// lifecycleService.configUpdatedAt reads (`tenant_configs.updated_at`, bumped by
+// every configService write) so the portal's staleness signal and the service's
+// activation guard can never disagree. Null ⇒ no config row yet.
+async function configUpdatedAt(tenantId) {
+  const { rows } = await db.query('SELECT updated_at FROM tenant_configs WHERE tenant_id = $1', [tenantId]);
+  return rows[0] ? rows[0].updated_at : null;
+}
+
+// ── Go live / Pause / Resume (PORTAL-P6-S18, spec §5.13) ─────────────────────
+// The ONLY lifecycle action an owner can take, and the only place the portal
+// writes tenant status. Every route below scopes to req.portalUser.tenantId and
+// NOTHING else (INV-1) — a crafted tenantId in body/query/params is inert.
+//
+// ── Go live and Resume are the SAME chain ────────────────────────────────────
+// lifecycleService has no `resume` action by design (ACTIONS = validate |
+// activate | pause): a paused tenant re-earns `live` by re-validating, because
+// its config may have changed while it was paused. So both routes run
+// validate → activate. We do not add a transition; we call the two that exist.
+//
+// ── INV-3: skips are UNREPRESENTABLE here, not filtered ──────────────────────
+// validateTenant honours `opts.validate.skip`, and the operator CLI passes it.
+// The portal must expose none of it. Rather than sanitising the request body,
+// runGoLiveChain takes NO options parameter at all and passes NO third argument
+// to transition() — so there is no argument position an owner-supplied skip
+// could occupy, whatever the request contains. These two calls are the portal's
+// only lifecycle calls. (Asserted by test: a request carrying skip parameters
+// in body AND query still runs the complete catalog.)
+async function runGoLiveChain(tenantId) {
+  await lifecycleService.transition(tenantId, 'validate');
+  return lifecycleService.transition(tenantId, 'activate');
+}
+
+// Owner-safe lifecycle refusal. A blocked go-live names WHICH checks blocked it
+// — by NAME only, exactly like /api/readiness, because the catalog's `detail`
+// strings are operator phrasing. The friendly label and the page that fixes each
+// check are rendered client-side from home.js's existing copy map (spec §5.1),
+// so this route never re-authors that copy and the two cannot drift.
+//
+// A refusal is the expected answer to "may I go live?", not a server fault: it
+// is a 409 with a structured code, never a 500. Only an unexpected throw is a 500.
+async function lifecycleFailure(res, err, tenantId, what) {
+  if (err.name !== 'LifecycleError') {
+    logger.error({ err: err.message, tenantId }, `portal ${what} failed`);
+    return res.status(500).json({ error: `Couldn’t ${what} just now. Try again.` });
+  }
+  if (err.code === 'NOT_FOUND') return res.status(404).json({ error: 'Tenant not found' });
+
+  const readiness = await readinessSnapshot(tenantId);
+
+  if (String(err.code).startsWith('VALIDATION_FAILED')) {
+    // err.run is the FULL run doValidate threw with — so we can name every
+    // failing check, not just the first one the error code carries.
+    const blocking = ((err.run && err.run.checks) || [])
+      .filter((c) => c.severity === 'fail')
+      .map((c) => ({ name: c.name }));
+    return res.status(409).json({
+      code: 'NOT_READY',
+      error: 'Your receptionist isn’t ready to go live yet.',
+      blocking,
+      readiness,
+    });
+  }
+  // INVALID_TRANSITION / NOT_VALIDATED / STALE_VALIDATION — wrong-state refusals.
+  return res.status(409).json({ code: err.code, error: transitionMessage(err, what), readiness });
+}
+
+// Wrong-state refusals, in the owner's words. The service's own message is
+// operator phrasing ("cannot pause a 'draft' tenant"), so it is never echoed.
+function transitionMessage(err, what) {
+  if (err.code === 'INVALID_TRANSITION' && err.from === 'live' && what !== 'pause') {
+    return 'Your receptionist is already live.';
+  }
+  if (err.code === 'INVALID_TRANSITION' && what === 'pause') {
+    return 'Your receptionist isn’t live, so there’s nothing to pause.';
+  }
+  if (err.code === 'STALE_VALIDATION') {
+    return 'Your settings changed during the check. Press Go live again to re-check.';
+  }
+  return 'Your receptionist isn’t ready to go live yet.';
+}
+
+// Go-live spends real money and real quota: the chain runs the full catalog,
+// which pings the Meta API (whatsapp.live) and burns Gemini calls on the
+// scripted turn. Cap the blast radius of a stuck retry loop.
+const goLiveLimiter = createRateLimiter({
+  max: 10, windowMs: 60 * 60 * 1000,
+  message: 'Too many go-live attempts. Wait an hour and try again.',
+});
+
+// POST /portal/api/lifecycle/activate — the owner's Go live.
+router.post('/api/lifecycle/activate', requirePortalAuth, goLiveLimiter, express.json(), async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  try {
+    const out = await runGoLiveChain(tenantId);
+    logger.info({ scope: 'portal.lifecycle', tenantId, userId: req.portalUser.id, from: out.from, to: out.to },
+      'owner activated receptionist');
+    res.json({ status: out.to, readiness: await readinessSnapshot(tenantId) });
+  } catch (err) {
+    await lifecycleFailure(res, err, tenantId, 'go live');
+  }
+});
+
+// POST /portal/api/lifecycle/resume — a paused receptionist starts answering
+// again. Same chain as activate (see above), gated on actually being paused so
+// the refusal names the real state instead of leaking a validate-time error.
+router.post('/api/lifecycle/resume', requirePortalAuth, goLiveLimiter, express.json(), async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  try {
+    const { rows } = await db.query('SELECT status FROM tenants WHERE id = $1', [tenantId]);
+    if (!rows[0]) return res.status(404).json({ error: 'Tenant not found' });
+    if (rows[0].status !== 'paused') {
+      return res.status(409).json({
+        code: 'INVALID_TRANSITION',
+        error: rows[0].status === 'live'
+          ? 'Your receptionist is already answering calls and messages.'
+          : 'Your receptionist isn’t paused. Use Go live to start it.',
+        readiness: await readinessSnapshot(tenantId),
+      });
+    }
+    const out = await runGoLiveChain(tenantId);
+    logger.info({ scope: 'portal.lifecycle', tenantId, userId: req.portalUser.id, from: out.from, to: out.to },
+      'owner resumed receptionist');
+    res.json({ status: out.to, readiness: await readinessSnapshot(tenantId) });
+  } catch (err) {
+    await lifecycleFailure(res, err, tenantId, 'resume');
+  }
+});
+
+// POST /portal/api/lifecycle/pause — takes a WORKING receptionist offline, so it
+// requires an explicit confirmation flag (S17 restore precedent): a stray click,
+// a double-submit, or a replayed request can't silence a live clinic.
+router.post('/api/lifecycle/pause', requirePortalAuth, express.json(), async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  if ((req.body || {}).confirm !== true) {
+    return res.status(400).json({ error: 'Confirm to pause your receptionist.' });
+  }
+  try {
+    const out = await lifecycleService.transition(tenantId, 'pause');
+    logger.info({ scope: 'portal.lifecycle', tenantId, userId: req.portalUser.id, from: out.from, to: out.to },
+      'owner paused receptionist');
+    res.json({ status: out.to, readiness: await readinessSnapshot(tenantId) });
+  } catch (err) {
+    await lifecycleFailure(res, err, tenantId, 'pause');
+  }
+});
 
 // ── Onboarding wizard progress (PORTAL-P6-S16) ────────────────────────────────
 // The wizard's own state — which step an owner was last on, and whether they've
@@ -1173,6 +1333,21 @@ router.post('/api/config/safety', requirePortalAuth, express.json(), async (req,
         emergency_guidance: guidance,
         emergency_number: emergencyNumber,
       },
+      // ── The go-live unblocker (PORTAL-P6-S18) ────────────────────────────
+      // The `numbers.e164` check fails while `notifications.owner_numbers` is
+      // empty, and until now NO portal surface wrote that key — so the check
+      // was unclearable from the portal and every owner hit a wall the moment
+      // they pressed Go live, having done exactly what the UI told them. Found
+      // by the §11 acceptance run; invisible before S18 because no owner could
+      // press the button. This page's own help text already promises the
+      // effect ("Your receptionist can't go live without at least one"), so
+      // honouring it here is what makes that sentence true.
+      //
+      // Same list, deliberately: v1 has one owner and no separate "who gets
+      // alerted" UI, and the people who return an escalated call are the people
+      // who should hear about it. Splitting them needs its own page and its own
+      // issue. (The catalog is untouched — this is a portal-side write.)
+      notifications: { ...((current && current.notifications) || {}), owner_numbers: phones },
     };
 
     const { version, config } = await configService.writeTenantConfig(tenantId, next, 'portal', {
