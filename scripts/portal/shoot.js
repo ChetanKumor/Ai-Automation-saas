@@ -215,11 +215,15 @@ const adminLoginCookie = (port, password) =>
     const t = await db.query("INSERT INTO tenants (business_name, active) VALUES ($1, true) RETURNING id",
       ['Sunrise Dental']);
     const tenantId = t.rows[0].id;
-    await db.query(
-      'INSERT INTO users (tenant_id, email, password_hash, role, active) VALUES ($1,$2,$3,$4,true)',
+    const ownerRow = await db.query(
+      'INSERT INTO users (tenant_id, email, password_hash, role, active) VALUES ($1,$2,$3,$4,true) RETURNING id',
       [tenantId, email, hashPassword(password), 'owner']);
+    const ownerUserId = ownerRow.rows[0].id;
 
-    await configService.writeTenantConfig(tenantId, {
+    // Captured as a named var (not an inline literal) so the S17 history block
+    // below can restore it verbatim as a later version, without disturbing what
+    // every other page's shot documents about this tenant's live state.
+    const seedConfig = {
       business: {
         display_name: 'Sunrise Dental',
         address: '2nd Floor, Pearl Plaza, Ameerpet, Hyderabad 500016',
@@ -292,7 +296,44 @@ const adminLoginCookie = (port, password) =>
         en: 'Hello! This is Sunrise Dental, how can I help you today?',
       },
       voice: { sarvam_speaker: 'ritu', pace: 1.05 },
-    }, 'shoot');
+    };
+    await configService.writeTenantConfig(tenantId, seedConfig, 'shoot'); // v1 — Prantivo baseline
+
+    // History (S17): two real owner edits on top of the baseline, so the S17
+    // shots below have an actual multi-version timeline — one that changed
+    // pricing, one that changed hours, both attributed to the owner ("You").
+    // MUST deepMerge onto the CURRENT live config (writeTenantConfig merges its
+    // `input` onto clinicDefaults, not onto the live document) — a plain
+    // partial here would silently reset every other seeded section back to
+    // defaults and corrupt every shot below that reads this tenant's config.
+    // The final write restores seedConfig verbatim as v4, so every OTHER
+    // shot in this script keeps seeing exactly the state its own comment
+    // documents — only the History shots see the intermediate versions.
+    const afterSeed = await configService.getTenantConfig(tenantId);
+    await configService.writeTenantConfig(tenantId,
+      configService.deepMerge(afterSeed, { pricing: { consultation_fee: 600 } }),
+      'portal', { actorUserId: ownerUserId }); // v2: "Pricing changed"
+    const afterPricing = await configService.getTenantConfig(tenantId);
+    // hours is a discriminated union per day ({closed:true} XOR {open,close}) —
+    // deepMerge is key-additive and would UNION the two branches (the exact trap
+    // configService.js documents), so this replaces the one day wholesale via a
+    // shallow spread, same as the real hours.html route (routes.js:584).
+    await configService.writeTenantConfig(tenantId,
+      { ...afterPricing, hours: { ...afterPricing.hours, sat: { open: '10:00', close: '13:00' } } },
+      'portal', { actorUserId: ownerUserId }); // v3: "Hours & holidays changed"
+    await configService.writeTenantConfig(tenantId, seedConfig, 'portal', { actorUserId: ownerUserId }); // v4 (current) — restores the baseline; "Pricing, Hours & holidays changed" (reverting both)
+
+    // Pre-existing bug found while wiring the S17 shots (unrelated to History):
+    // home.js (added PORTAL-P6-S16) redirects Home to wizard.html whenever
+    // onboarding.step is null — true for EVERY tenant this script seeds, since
+    // none of them ever call POST /api/onboarding. shoot.js was never updated
+    // in lockstep with S16 (only the separate scripts/portal/shootWizard.js
+    // was), so the home-desktop/-mobile shots have been silently failing ever
+    // since S16 shipped — confirmed by rerunning the pre-S17 script unmodified.
+    // Scoped fix: a fully-configured demo tenant HAS finished onboarding in any
+    // honest sense, so mark it complete (writeTenantConfigMeta — no version
+    // bump, no revision, consistent with the history seeded above).
+    await configService.writeTenantConfigMeta(tenantId, { onboarding_step: 6, onboarding_completed: true });
 
     // Doctors (S8): NOT a config section — these are tenant_entities rows, the
     // storage appointmentService books against. Seeded to exercise every card
@@ -710,6 +751,43 @@ const adminLoginCookie = (port, password) =>
     // fallback copy, in one shot (pricing/doctors/booking/FAQs/emergency all empty).
     await shoot(cdp, { url: `${base}/knows.html`, out: path.join(OUT, 's15-knows-empty.png'),
       width: 1280, height: 1600, cookie: freshCookie, port, waitFor: knowsReady });
+
+    // S17: History — configuration history + restore. Desktop + 380px show the
+    // 4-version timeline seeded above (Prantivo's baseline write, two real owner
+    // edits, and the owner's own revert) with genuine "You"/"Prantivo"
+    // attribution and per-version changed-section summaries. The third shot
+    // opens v2's version-detail modal — pricing at ₹600, the value BEFORE the
+    // later revert, proof the snapshot reflects THAT version and not the live
+    // one — with its "Restore this version" action visible (hidden only for the
+    // current version, v4). The fourth opens the restore confirmation modal from
+    // inside it.
+    const histReady = "!document.getElementById('listCard').hidden || !document.getElementById('emptyCard').hidden";
+    await shoot(cdp, { url: `${base}/history.html`, out: path.join(OUT, 's17-history-desktop.png'),
+      width: 1280, height: 900, cookie, port, waitFor: histReady });
+    await shoot(cdp, { url: `${base}/history.html`, out: path.join(OUT, 's17-history-mobile.png'),
+      width: 380, height: 900, mobile: true, cookie, port, waitFor: histReady });
+    await shoot(cdp, {
+      url: `${base}/history.html`, out: path.join(OUT, 's17-history-detail.png'),
+      width: 1280, height: 900, cookie, port, waitFor: histReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression: "document.querySelector('.hist-row[data-version=\"2\"]').click();",
+        }, sid);
+        await waitForSelector(c, sid, "!document.getElementById('detailModal').hidden");
+      },
+    });
+    await shoot(cdp, {
+      url: `${base}/history.html`, out: path.join(OUT, 's17-history-restore-confirm.png'),
+      width: 1280, height: 900, cookie, port, waitFor: histReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression: "document.querySelector('.hist-row[data-version=\"2\"]').click();",
+        }, sid);
+        await waitForSelector(c, sid, "!document.getElementById('detailModal').hidden");
+        await c.send('Runtime.evaluate', { expression: "document.getElementById('restoreBtn').click();" }, sid);
+        await waitForSelector(c, sid, "!document.getElementById('confirmModal').hidden");
+      },
+    });
 
     // S3: admin "create owner account" — fill the email, click Create, wait for the
     // one-time password panel, then capture. Uses the admin connect.sid cookie.

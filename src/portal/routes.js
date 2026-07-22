@@ -263,6 +263,13 @@ router.get('/api/onboarding', requirePortalAuth, async (req, res) => {
 // readiness (an owner may finish the guided pass with material checks still
 // failing; the wizard informs, it doesn't trap) and independent of the wizard
 // being revisited afterward (`completed` only ever turns true, never back off).
+//
+// Writes through configService.writeTenantConfigMeta (PORTAL-P6-S17), NOT
+// writeTenantConfig: step navigation must never bump the config version or
+// write a tenant_config_revisions row (meta is portal-internal bookkeeping,
+// never rendered into a prompt — see schema.js). Versioning every Back/
+// Continue click was S16's known, accepted gap; fixed at the source here so
+// the History page never has to filter it back out.
 router.post('/api/onboarding', requirePortalAuth, express.json(), async (req, res) => {
   const tenantId = req.portalUser.tenantId;
   const body = req.body || {};
@@ -274,16 +281,10 @@ router.post('/api/onboarding', requirePortalAuth, express.json(), async (req, re
   try {
     const current = await getConfigForSession(tenantId);
     const wasCompleted = !!(current && current.meta && current.meta.onboarding_completed);
-    const next = {
-      ...(current || {}),
-      meta: {
-        onboarding_step: step,
-        onboarding_completed: wasCompleted || step >= LAST_ONBOARDING_STEP,
-      },
-    };
 
-    const { config } = await configService.writeTenantConfig(tenantId, next, 'portal', {
-      actorUserId: req.portalUser.id, // INV-4
+    const { config } = await configService.writeTenantConfigMeta(tenantId, {
+      onboarding_step: step,
+      onboarding_completed: wasCompleted || step >= LAST_ONBOARDING_STEP,
     });
 
     res.json(projectOnboarding(config));
@@ -1980,6 +1981,254 @@ router.get('/api/knowledge-summary', requirePortalAuth, async (req, res) => {
   } catch (err) {
     logger.error({ err: err.message }, 'portal knowledge-summary GET failed');
     res.status(500).json({ error: 'Failed to load what your receptionist knows' });
+  }
+});
+
+// ── History (PORTAL-P6-S17) ──────────────────────────────────────────────────
+// Owner-facing view over the append-only tenant_config_revisions log that every
+// section write already produces (INV-4: actor_user_id recorded since S4). This
+// is CONFIGURATION history (spec §5.12) — not an audit trail of everything an
+// owner can change. Doctors (tenant_entities) and FAQs/documents
+// (knowledge_chunks) have NO revision trail (S8 finding: satisfied by logging
+// only), so neither ever appears here; the page frames that honestly rather
+// than implying doctor edits are tracked.
+//
+// Section-level diff, not a generic deep-diff library: every top-level config
+// key maps to one of the owner's own page groupings (HISTORY_SECTION_GROUPS); a
+// revision's summary is whichever groups differ from the version immediately
+// BEFORE it (one level of JSON.stringify comparison per key — an array or
+// nested object that changed at all counts as changed, never diffed further).
+// The same comparator, applied one layer deeper (fields WITHIN one changed
+// section), gives the "consultation_fee, treatments" style secondary line —
+// still no recursive diff engine, still bounded.
+const HISTORY_SECTION_GROUPS = [
+  { keys: ['business', 'languages'], label: 'Clinic profile' },
+  { keys: ['hours'], label: 'Hours & holidays' },
+  { keys: ['pricing'], label: 'Pricing' },
+  { keys: ['booking'], label: 'Booking rules' },
+  { keys: ['escalation'], label: 'Safety & handoff' },
+  { keys: ['greeting', 'personality', 'voice'], label: 'Receptionist' },
+  { keys: ['tools', 'crm', 'whatsapp', 'notifications', 'recording_consent', 'retention_days'], label: 'Other settings' },
+];
+
+// One level deep: which top-level keys of two plain objects differ (whole-value
+// comparison). Used both for config-vs-config (→ changed SECTIONS) and
+// section-vs-section (→ changed FIELDS within one section) — the same function,
+// just called at two depths.
+function changedKeys(a, b) {
+  const A = (a && typeof a === 'object' && !Array.isArray(a)) ? a : {};
+  const B = (b && typeof b === 'object' && !Array.isArray(b)) ? b : {};
+  const keys = new Set([...Object.keys(A), ...Object.keys(B)]);
+  const out = [];
+  for (const k of keys) {
+    if (k === 'meta') continue; // portal-internal bookkeeping, never a config "change"
+    if (JSON.stringify(A[k]) !== JSON.stringify(B[k])) out.push(k);
+  }
+  return out;
+}
+
+// Summarize ONE revision against the version immediately before it (null for
+// the very first revision a tenant ever has — nothing to diff against).
+function summarizeRevision(config, previousConfig) {
+  if (!previousConfig) return { sections: [], fields: [], summary: 'Configuration created' };
+  const keys = changedKeys(config, previousConfig);
+  const labels = [];
+  for (const g of HISTORY_SECTION_GROUPS) {
+    if (g.keys.some((k) => keys.includes(k)) && !labels.includes(g.label)) labels.push(g.label);
+  }
+  const fields = [];
+  for (const k of keys) {
+    for (const f of changedKeys(config[k], previousConfig[k])) {
+      if (!fields.includes(f)) fields.push(f);
+    }
+  }
+  return {
+    sections: labels,
+    fields: fields.slice(0, 8), // bounded — a secondary detail line, not a full diff
+    summary: labels.length ? `${labels.join(', ')} changed` : 'Settings updated',
+  };
+}
+
+const HISTORY_PAGE_SIZE = 50;
+
+// This tenant's current live version, or 0 if it has no config yet. Reads
+// through the same cache every other route uses (no extra DB round-trip on a
+// warm cache).
+async function currentConfigVersion(tenantId) {
+  const config = await getConfigForSession(tenantId);
+  return config ? (configService.getCachedConfigVersion(tenantId) || 0) : 0;
+}
+
+// GET the session tenant's configuration history, newest-first, capped at the
+// most recent 50 (spec: "a year-old tenant shouldn't load thousands"). tenant
+// from req.portalUser ONLY (INV-1); a crafted ?tenantId is inert.
+router.get('/api/history', requirePortalAuth, async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  try {
+    // One extra row (PAGE_SIZE + 1) so the OLDEST included revision still has a
+    // previous version to diff against.
+    const [{ rows }, currentVersion] = await Promise.all([
+      db.query(
+        `SELECT r.version, r.created_at, r.actor_user_id, r.config, u.email AS actor_email
+           FROM tenant_config_revisions r
+           LEFT JOIN users u ON u.id = r.actor_user_id
+          WHERE r.tenant_id = $1
+          ORDER BY r.version DESC
+          LIMIT $2`,
+        [tenantId, HISTORY_PAGE_SIZE + 1]),
+      currentConfigVersion(tenantId),
+    ]);
+
+    const page = rows.slice(0, HISTORY_PAGE_SIZE);
+    const revisions = page.map((row, i) => {
+      const previous = rows[i + 1]; // next row is the older, adjacent version
+      const { sections, fields, summary } = summarizeRevision(row.config, previous ? previous.config : null);
+      return {
+        version: row.version,
+        created_at: row.created_at,
+        actor: row.actor_user_id === req.portalUser.id ? 'You' : (row.actor_email || 'Prantivo'),
+        current: row.version === currentVersion,
+        sections, fields, summary,
+      };
+    });
+
+    res.json({ revisions, truncated: rows.length > HISTORY_PAGE_SIZE });
+  } catch (err) {
+    logger.error({ err: err.message }, 'portal history GET failed');
+    res.status(500).json({ error: 'Failed to load configuration history' });
+  }
+});
+
+// GET the owner-safe projection of ONE past revision (spec §5.12: "view any
+// snapshot"). Reuses the EXACT S15 project* functions and prompt-gate calls on
+// the revision's stored config — never a second renderer, never raw config
+// JSON. Doctors, FAQs and the protections panel are deliberately absent: none
+// of them has a revision trail (tenant_entities / knowledge_chunks are
+// current-state-only, protections are prompt invariants), so a historical
+// snapshot can never honestly claim to show them as they were at this version.
+router.get('/api/history/:version', requirePortalAuth, async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  const version = Number(req.params.version);
+  if (!Number.isInteger(version) || version < 1) {
+    return res.status(400).json({ error: 'Invalid version number' });
+  }
+  try {
+    const [{ rows }, currentVersion] = await Promise.all([
+      db.query(
+        `SELECT r.version, r.created_at, r.actor_user_id, r.config, u.email AS actor_email
+           FROM tenant_config_revisions r
+           LEFT JOIN users u ON u.id = r.actor_user_id
+          WHERE r.tenant_id = $1 AND r.version = $2`,
+        [tenantId, version]),
+      currentConfigVersion(tenantId),
+    ]);
+    const row = rows[0];
+    if (!row) return res.status(404).json({ error: 'Version not found' });
+
+    const config = row.config || {};
+    const hoursSrc = config.hours || clinicDefaults.hours;
+    const pricingSrc = config.pricing || clinicDefaults.pricing;
+    const bookingSrc = config.booking || clinicDefaults.booking;
+    const escalationSrc = config.escalation || clinicDefaults.escalation;
+
+    const hasPricing = pricingFacts(pricingSrc, { voice: false, who: 'customer' }) !== null;
+    const hasBookingPolicy = bookingPolicies(bookingSrc, { voice: false, who: 'customer' }) !== null;
+    const hasEmergency = emergencyGuidance(escalationSrc, { voice: false, who: 'customer' }) !== null;
+
+    const identity = projectIdentity(config);
+    const hours = projectHours(config);
+    const pricing = projectPricing(config);
+    const booking = projectBooking(config);
+    const safety = projectSafety(config);
+    const receptionist = projectReceptionist(config);
+
+    res.json({
+      version: row.version,
+      created_at: row.created_at,
+      actor: row.actor_user_id === req.portalUser.id ? 'You' : (row.actor_email || 'Prantivo'),
+      is_current: row.version === currentVersion,
+      sections: {
+        clinic: {
+          title: 'Your clinic',
+          name: identity.display_name, address: identity.address || null, landmark: identity.landmark || null,
+          phone_numbers: identity.phone_numbers, languages: identity.languages,
+        },
+        hours: { title: 'When you’re open', summary: hoursSummary(hoursSrc), holidays: hours.holidays },
+        pricing: {
+          title: 'What you charge',
+          empty: !hasPricing,
+          fees: hasPricing
+            ? { consultation_fee: pricing.consultation_fee, follow_up_fee: pricing.follow_up_fee, emergency_fee: pricing.emergency_fee }
+            : { consultation_fee: null, follow_up_fee: null, emergency_fee: null },
+          treatments: hasPricing ? pricing.treatments.filter((t) => !t.archived) : [],
+          payment_methods: hasPricing ? pricing.payment_methods : [],
+          insurance: hasPricing ? pricing.insurance : null,
+        },
+        booking: {
+          title: 'Booking rules',
+          summary: summarizeBooking(booking),
+          empty: !hasBookingPolicy,
+          policies: hasBookingPolicy ? {
+            cancellation_policy: booking.cancellation_policy || null,
+            reschedule_policy: booking.reschedule_policy || null,
+            walk_in_policy: booking.walk_in_policy || null,
+          } : null,
+        },
+        receptionist: {
+          title: 'How it introduces itself',
+          display_name: receptionist.display_name || null,
+          languages: receptionist.languages, default_language: receptionist.default_language,
+          greeting: receptionist.greeting, tone: receptionist.tone,
+        },
+        safety: {
+          title: 'In an emergency',
+          handoff_enabled: safety.enabled, staff_numbers: safety.phone_numbers,
+          guidance: safety.emergency_guidance || null, emergency_number: safety.emergency_number,
+          empty: !hasEmergency,
+        },
+      },
+    });
+  } catch (err) {
+    logger.error({ err: err.message }, 'portal history detail GET failed');
+    res.status(500).json({ error: 'Failed to load this version' });
+  }
+});
+
+// POST restore a past revision AS A NEW VERSION (spec §5.12: "history is never
+// rewritten" — this INSERTs a new revision through the normal writeTenantConfig
+// path; it never UPDATEs or DELETEs the restored row). Requires an explicit
+// confirmation flag in the body so a stray click can't restore.
+router.post('/api/history/:version/restore', requirePortalAuth, express.json(), async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  const version = Number(req.params.version);
+  if (!Number.isInteger(version) || version < 1) {
+    return res.status(400).json({ error: 'Invalid version number' });
+  }
+  const body = req.body || {};
+  if (body.confirm !== true) {
+    return res.status(400).json({ error: 'Confirm to restore this version.' });
+  }
+  try {
+    const { rows } = await db.query(
+      'SELECT config FROM tenant_config_revisions WHERE tenant_id = $1 AND version = $2',
+      [tenantId, version]);
+    const row = rows[0];
+    if (!row) return res.status(404).json({ error: 'Version not found' });
+
+    const { version: newVersion } = await configService.writeTenantConfig(tenantId, row.config, 'portal', {
+      actorUserId: req.portalUser.id, // INV-4
+    });
+
+    res.json({ version: newVersion, readiness: await readinessSnapshot(tenantId) });
+  } catch (err) {
+    if (err.name === 'ConfigValidationError') {
+      return res.status(422).json({
+        error: 'This version is no longer valid under current settings and can’t be restored.',
+        issues: err.issues,
+      });
+    }
+    logger.error({ err: err.message }, 'portal history restore failed');
+    res.status(500).json({ error: 'Failed to restore this version' });
   }
 });
 

@@ -171,4 +171,66 @@ describe('configService writer (integration)', { skip: ADMIN ? false : 'DATABASE
     await assert.rejects(configService.writeTenantConfig(fakeId, {}, 'cli'), /tenant not found/);
     assert.equal(await count('tenant_configs', fakeId), 0);
   });
+
+  // ── writeTenantConfigMeta (PORTAL-P6-S17) ────────────────────────────────────
+  // The onboarding wizard's step-navigation writer: updates the live document's
+  // `meta` subtree WITHOUT bumping the version or writing a revision row, so
+  // Back/Continue clicks never pollute the History page (PORTAL-P6-S16's known,
+  // now-fixed gap).
+  describe('writeTenantConfigMeta', () => {
+    it('on a tenant with an existing config: updates meta, version and revision count both unchanged', async () => {
+      const t = await newTenant();
+      const { version } = await configService.writeTenantConfig(t, {}, 'cli'); // v1
+      assert.equal(version, 1);
+
+      const { config } = await configService.writeTenantConfigMeta(t, { onboarding_step: 2, onboarding_completed: false });
+      assert.deepEqual(config.meta, { onboarding_step: 2, onboarding_completed: false });
+
+      const head = (await db.query('SELECT version, config FROM tenant_configs WHERE tenant_id=$1', [t])).rows[0];
+      assert.equal(head.version, 1, 'version never bumps for a meta-only write');
+      assert.deepEqual(head.config.meta, { onboarding_step: 2, onboarding_completed: false });
+      assert.equal(await count('tenant_config_revisions', t), 1, 'no new revision row — still just the original write');
+    });
+
+    it('repeated calls (simulating Back/Continue) never change the version or add revisions', async () => {
+      const t = await newTenant();
+      await configService.writeTenantConfig(t, {}, 'provision'); // v1
+      for (const step of [0, 1, 2, 1, 2, 3]) {
+        await configService.writeTenantConfigMeta(t, { onboarding_step: step, onboarding_completed: false });
+      }
+      const head = (await db.query('SELECT version FROM tenant_configs WHERE tenant_id=$1', [t])).rows[0];
+      assert.equal(head.version, 1);
+      assert.equal(await count('tenant_config_revisions', t), 1);
+    });
+
+    it('on a configless tenant: creates version 1 directly, with NO matching revision row', async () => {
+      const t = await newTenant();
+      assert.equal(await count('tenant_configs', t), 0);
+
+      const { config } = await configService.writeTenantConfigMeta(t, { onboarding_step: 0, onboarding_completed: false });
+      assert.deepEqual(config.meta, { onboarding_step: 0, onboarding_completed: false });
+      assert.equal(config.retention_days, 365, 'still a fully materialized document (defaults applied)');
+
+      const head = (await db.query('SELECT version, config FROM tenant_configs WHERE tenant_id=$1', [t])).rows[0];
+      assert.equal(head.version, 1);
+      assert.equal(await count('tenant_config_revisions', t), 0, 'the baseline write itself is never revisioned either');
+    });
+
+    it('a subsequent real writeTenantConfig call still versions normally on top of a meta-only baseline', async () => {
+      const t = await newTenant();
+      await configService.writeTenantConfigMeta(t, { onboarding_step: 0, onboarding_completed: false }); // v1, no revision
+      const { version } = await configService.writeTenantConfig(t, { retention_days: 90 }, 'portal', { actorUserId: null }); // v2, revisioned
+      assert.equal(version, 2);
+      assert.equal(await count('tenant_config_revisions', t), 1, 'exactly the one real write is revisioned');
+    });
+
+    it('cache reflects the meta write immediately (getTenantConfig re-reads, not stale)', async () => {
+      const t = await newTenant();
+      await configService.writeTenantConfig(t, {}, 'cli');
+      await configService.getTenantConfig(t); // warm the cache
+      await configService.writeTenantConfigMeta(t, { onboarding_step: 5, onboarding_completed: true });
+      const fresh = await configService.getTenantConfig(t);
+      assert.deepEqual(fresh.meta, { onboarding_step: 5, onboarding_completed: true });
+    });
+  });
 });

@@ -441,6 +441,83 @@ textarea.input { resize: vertical; min-height: 74px; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
 /* ============================================================================
+ * Modal (confirm dialogs, PORTAL-P6-S17 — first user) — shared component, spec
+ * §4. Fixed backdrop + a centered panel; the body scrolls internally so a long
+ * snapshot (History's version detail) never breaks the viewport.
+ * ========================================================================== */
+.modal-host {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-4);
+}
+.modal-host[hidden] { display: none; }
+.modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, .45);
+}
+.modal {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  max-height: min(680px, 88vh);
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  animation: modal-in .16s ease-out;
+}
+.modal--wide { max-width: 640px; }
+@keyframes modal-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+.modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: 20px 22px 14px;
+  border-bottom: 1px solid var(--line-2);
+}
+.modal__title { font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.modal__sub { color: var(--muted); font-size: 13px; margin-top: 4px; line-height: 1.5; }
+.modal__close {
+  flex: none;
+  width: 30px; height: 30px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: none;
+  border-radius: var(--radius-xs);
+  color: var(--muted);
+  cursor: pointer;
+}
+.modal__close:hover { background: var(--bg); color: var(--ink); }
+.modal__close svg { width: 16px; height: 16px; }
+.modal__body {
+  padding: 18px 22px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.modal__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-3);
+  padding: 14px 22px 20px;
+  border-top: 1px solid var(--line-2);
+}
+
+@media (max-width: 480px) {
+  .modal-host { padding: var(--s-2); align-items: flex-end; }
+  .modal { max-height: 84vh; border-radius: var(--radius) var(--radius) 0 0; }
+}
+
+/* ============================================================================
  * Utilities
  * ========================================================================== */
 .mono { font-family: var(--mono); }

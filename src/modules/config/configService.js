@@ -158,6 +158,62 @@ async function writeTenantConfig(tenantId, input, source, opts = {}) {
   return { version, config };
 }
 
+// Write ONLY the `meta` section (portal-internal bookkeeping — onboarding
+// wizard progress, PORTAL-P6-S16/S17) WITHOUT bumping the config version or
+// inserting a tenant_config_revisions row. Every other write here snapshots a
+// revision because it represents an owner-visible change to what the
+// receptionist says or does; step-by-step wizard navigation is neither
+// (`meta` is never rendered into a prompt — schema.js) and versioning every
+// Back/Continue click would flood the History page (PORTAL-P6-S17) with
+// noise nobody made a decision about. The live document (tenant_configs.config)
+// still carries the current meta so getTenantConfig() reflects it immediately.
+//
+// Defensive against a configless tenant (should not happen once provisioning
+// runs — Issue 15 always writes version 1 first — but tests seed tenants
+// directly): materializes clinicDefaults + the meta patch and writes version 1
+// with NO matching revision row, same as the normal path skips revisioning.
+async function writeTenantConfigMeta(tenantId, metaPatch) {
+  if (!tenantId) throw new Error('writeTenantConfigMeta: tenantId is required');
+
+  const client = await db.getClient();
+  let result;
+  try {
+    await client.query('BEGIN');
+
+    const { rows: locked } = await client.query(
+      'SELECT id FROM tenants WHERE id = $1 FOR UPDATE', [tenantId]);
+    if (!locked[0]) throw new Error(`writeTenantConfigMeta: tenant not found: ${tenantId}`);
+
+    const { rows: current } = await client.query(
+      'SELECT version, config FROM tenant_configs WHERE tenant_id = $1', [tenantId]);
+    const base = current[0] ? current[0].config : deepMerge(clinicDefaults, {});
+    const version = current[0] ? current[0].version : 1;
+
+    const materialized = { ...base, meta: { ...(base.meta || clinicDefaults.meta), ...metaPatch } };
+    const parsed = configSchema.safeParse(materialized);
+    if (!parsed.success) throw new ConfigValidationError(parsed.error);
+    const config = parsed.data;
+
+    await client.query(
+      `INSERT INTO tenant_configs (tenant_id, version, config, updated_at)
+       VALUES ($1, $2, $3, now())
+       ON CONFLICT (tenant_id)
+       DO UPDATE SET config = EXCLUDED.config, updated_at = now()`,
+      [tenantId, version, JSON.stringify(config)]);
+
+    await client.query('COMMIT');
+    result = { config };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  invalidateConfigCache(tenantId); // a fresh write must never be shadowed by a stale entry
+  return result;
+}
+
 // Read a tenant's config, cached with a lazy ~60s TTL. Returns the config
 // document, or null when the tenant has no config row (caller falls back to
 // legacy columns until Issues 9/15). Never throws on a stale-schema document.
@@ -225,6 +281,7 @@ function invalidateConfigCache(tenantId) {
 
 module.exports = {
   writeTenantConfig,
+  writeTenantConfigMeta,
   getTenantConfig,
   getCachedConfigVersion,
   invalidateConfigCache,

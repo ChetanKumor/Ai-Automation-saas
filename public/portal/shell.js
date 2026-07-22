@@ -51,7 +51,7 @@
     { id: 'safety',      label: 'Safety & handoff', icon: I.shield,  href: 'safety.html' },
     { id: 'knows',       label: 'What it knows',   icon: I.bulb,     href: 'knows.html' },
     { id: 'test',        label: 'Test',            icon: I.message,  href: 'test.html' },
-    { id: 'history',     label: 'History',         icon: I.history,  soon: true },
+    { id: 'history',     label: 'History',         icon: I.history,  href: 'history.html' },
   ];
 
   // One-line meaning per lifecycle state (spec §5.1 status banner + header control).

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>History · Receptionist portal</title>
+  <meta name="description" content="Everything that's changed in your clinic settings, and who changed it.">
+  <link rel="stylesheet" href="./fonts/fonts.css">
+  <link rel="stylesheet" href="./tokens.css">
+  <link rel="stylesheet" href="./history.css">
+</head>
+<body data-page="history">
+  <div class="app" id="app">
+    <div class="side__scrim"></div>
+
+    <!-- Sidebar (nav injected by shell.js) -->
+    <aside class="side">
+      <div class="side__brand">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M10 3h4a1 1 0 0 1 1 1v5h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5v5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h5V4a1 1 0 0 1 1-1Z"/></svg>
+        </span>
+        <div>
+          <div class="brand__name" id="clinicName">Your clinic</div>
+          <div class="brand__sub">AI receptionist</div>
+        </div>
+      </div>
+      <nav class="side__nav" id="nav"></nav>
+      <div class="side__foot">
+        <button class="btn btn--ghost btn--block" id="logout" type="button">Log out</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <header class="top">
+        <button class="top__burger" id="burger" type="button" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="top__spacer"></div>
+        <div id="lifecycle"></div>
+      </header>
+
+      <main class="content">
+        <div class="page-head">
+          <h1 class="page-head__title">History</h1>
+          <p class="page-head__sub">Changes to your clinic settings, and who made them. Doctor edits aren’t tracked here yet.</p>
+        </div>
+
+        <!-- Loading / error placeholder -->
+        <section class="card" id="loadCard">
+          <div class="state-msg" id="loadMsg">Loading your history…</div>
+        </section>
+
+        <!-- Empty state: fresh tenant, no edits yet -->
+        <section class="card" id="emptyCard" hidden>
+          <div class="card__title">Nothing changed yet</div>
+          <p class="card__sub" style="margin-top:8px">When you save changes on any page — Clinic profile, Hours, Pricing and the rest — they’ll show up here with the date and who made them.</p>
+        </section>
+
+        <!-- History list -->
+        <section class="card" id="listCard" hidden>
+          <div id="histList"></div>
+        </section>
+        <p class="hist-truncated" id="truncatedNote" hidden>Showing your 50 most recent changes.</p>
+      </main>
+    </div>
+  </div>
+
+  <!-- Version detail modal -->
+  <div class="modal-host" id="detailModal" hidden>
+    <div class="modal__backdrop" data-close="detail"></div>
+    <div class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+      <div class="modal__head">
+        <div>
+          <div class="modal__title" id="detailTitle">Version</div>
+          <p class="modal__sub" id="detailSub"></p>
+        </div>
+        <button class="modal__close" type="button" data-close="detail" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal__body" id="detailBody"></div>
+      <div class="modal__foot">
+        <button class="btn" type="button" data-close="detail">Close</button>
+        <button class="btn btn--primary" type="button" id="restoreBtn">Restore this version</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Restore confirm modal -->
+  <div class="modal-host" id="confirmModal" hidden>
+    <div class="modal__backdrop" data-close="confirm"></div>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <div class="modal__head">
+        <div>
+          <div class="modal__title" id="confirmTitle">Restore this version?</div>
+          <p class="modal__sub" id="confirmSub"></p>
+        </div>
+        <button class="modal__close" type="button" data-close="confirm" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal__body">
+        <p class="hist-confirm-note">Nothing is deleted — the version you’re restoring from stays in your history exactly as it is now.</p>
+      </div>
+      <div class="modal__foot">
+        <button class="btn" type="button" data-close="confirm">Cancel</button>
+        <button class="btn btn--primary" type="button" id="confirmRestoreBtn">Restore</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-host" id="toastHost"></div>
+
+  <script src="./shell.js"></script>
+  <script src="./history.js"></script>
+</body>
+</html>
