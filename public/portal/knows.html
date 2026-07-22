@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>What it knows · Receptionist portal</title>
+  <meta name="description" content="Everything your receptionist can say to a patient, reflected back in plain language.">
+  <link rel="stylesheet" href="./fonts/fonts.css">
+  <link rel="stylesheet" href="./tokens.css">
+  <link rel="stylesheet" href="./knows.css">
+</head>
+<body data-page="knows">
+  <div class="app" id="app">
+    <div class="side__scrim"></div>
+
+    <!-- Sidebar (nav injected by shell.js) -->
+    <aside class="side">
+      <div class="side__brand">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M10 3h4a1 1 0 0 1 1 1v5h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5v5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h5V4a1 1 0 0 1 1-1Z"/></svg>
+        </span>
+        <div>
+          <div class="brand__name" id="clinicName">Your clinic</div>
+          <div class="brand__sub">AI receptionist</div>
+        </div>
+      </div>
+      <nav class="side__nav" id="nav"></nav>
+      <div class="side__foot">
+        <button class="btn btn--ghost btn--block" id="logout" type="button">Log out</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <header class="top">
+        <button class="top__burger" id="burger" type="button" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="top__spacer"></div>
+        <div id="lifecycle"></div>
+      </header>
+
+      <main class="content">
+        <div class="page-head">
+          <h1 class="page-head__title">What it knows</h1>
+          <p class="page-head__sub">Everything your receptionist can say to a patient, reflected back in plain language. Nothing here is editable — each card links to the page that is.</p>
+          <p class="page-head__meta" id="metaLine" hidden></p>
+        </div>
+
+        <!-- Loading / error placeholder (replaced once the data loads) -->
+        <section class="card" id="loadCard">
+          <div class="state-msg" id="loadMsg">Loading what your receptionist knows…</div>
+        </section>
+
+        <div id="sections" hidden>
+          <section class="card know-card" id="card-clinic">
+            <div class="know-card__head">
+              <div class="card__title">Your clinic</div>
+              <a class="know-edit" href="clinic-profile.html">Edit</a>
+            </div>
+            <div class="know-card__body" id="body-clinic"></div>
+          </section>
+
+          <section class="card know-card" id="card-hours">
+            <div class="know-card__head">
+              <div class="card__title">When you’re open</div>
+              <a class="know-edit" href="hours.html">Edit</a>
+            </div>
+            <div class="know-card__body" id="body-hours"></div>
+          </section>
+
+          <section class="card know-card" id="card-pricing">
+            <div class="know-card__head">
+              <div class="card__title">What you charge</div>
+              <a class="know-edit" href="pricing.html">Edit</a>
+            </div>
+            <div class="know-card__body" id="body-pricing"></div>
+          </section>
+
+          <section class="card know-card" id="card-doctors">
+            <div class="know-card__head">
+              <div class="card__title">Who patients can book with</div>
+              <a class="know-edit" href="doctors.html">Edit</a>
+            </div>
+            <div class="know-card__body" id="body-doctors"></div>
+          </section>
+
+          <section class="card know-card" id="card-booking">
+            <div class="know-card__head">
+              <div class="card__title">Booking rules</div>
+              <a class="know-edit" href="booking-rules.html">Edit</a>
+            </div>
+            <div class="know-card__body" id="body-booking"></div>
+          </section>
+
+          <section class="card know-card" id="card-receptionist">
+            <div class="know-card__head">
+              <div class="card__title">How it introduces itself</div>
+              <a class="know-edit" href="receptionist.html">Edit</a>
+            </div>
+            <div class="know-card__body" id="body-receptionist"></div>
+          </section>
+
+          <section class="card know-card" id="card-faqs">
+            <div class="know-card__head">
+              <div class="card__title">Questions it can answer</div>
+              <a class="know-edit" href="faqs.html">Edit</a>
+            </div>
+            <div class="know-card__body" id="body-faqs"></div>
+          </section>
+
+          <section class="card know-card" id="card-safety">
+            <div class="know-card__head">
+              <div class="card__title">In an emergency</div>
+              <a class="know-edit" href="safety.html">Edit</a>
+            </div>
+            <div class="know-card__body" id="body-safety"></div>
+          </section>
+
+          <!-- Built-in protections (read-only, spec §5.10 — never configurable, no Edit link) -->
+          <section class="card know-card prot" id="card-protections">
+            <div class="know-card__head">
+              <div class="card__title">Built-in protections</div>
+            </div>
+            <p class="card__sub">These hold on every conversation. They’re part of the platform — there’s no setting for them, here or anywhere else.</p>
+            <ul class="prot__list" id="protList"></ul>
+            <p class="prot__foot">Each quote is the instruction your receptionist is actually given. On phone calls the same lines say “caller” instead of “customer”.</p>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="./shell.js"></script>
+  <script src="./knows.js"></script>
+</body>
+</html>

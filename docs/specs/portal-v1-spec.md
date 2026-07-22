@@ -47,7 +47,8 @@ Commit this file as `docs/specs/portal-v1.md`. Every implementation session read
 ## 4. Information architecture & global patterns
 
 **Sidebar (order = owner mental model, not system structure):**
-Home (Readiness) · Clinic profile · Hours & holidays · Pricing · Doctors · Booking rules · FAQs · Documents · Receptionist · Safety & handoff · Test · History — plus a state-aware **Go live / Live / Paused** control in the header.
+Home (Readiness) · Clinic profile · Hours & holidays · Pricing · Doctors · Booking rules · FAQs · Documents · Receptionist · Safety & handoff · **What it knows** · Test · History — plus a state-aware **Go live / Live / Paused** control in the header.
+(**What it knows** added PORTAL-P5-S15 — not in the original list. It sits after the last thing an owner configures and before Test, as the "so what does it actually know?" review step. See §5.14.)
 
 **Global form pattern.** Each page is one or more cards; each card has its own **Save**. Save → `POST /portal/api/config/<section>` → Zod-validated partial → configService versioned write → response returns the updated section, the new version number, and **refreshed validation deltas**. UI shows `Saved · v{N}` toast and updates any readiness warnings that changed. No autosave, no optimistic UI.
 
@@ -115,6 +116,25 @@ Revisions table: timestamp, section, acting user. View any snapshot. **Restore**
 
 ### 5.13 Go live
 Readiness summary → **Go live** enabled only when all material checks pass → calls the existing lifecycle validate → activate. Pause / Resume with confirmation ("Paused: calls and messages are not answered by the receptionist"). Owner-facing flow has no skip mechanism (INV-3).
+
+### 5.14 What it knows (added PORTAL-P5-S15, not in the original nav — see §4)
+Read-only. `GET /portal/api/knowledge-summary` returns the config version plus a
+per-section, owner-safe reflection of every fact/behavior block the renderer can
+actually state: clinic identity, hours + holidays, pricing (verbatim quotable
+facts only — archived treatments excluded), doctors (only if `tools.booking` is
+on and at least one is bookable), booking rules (the enforced-window sentence
+always; the recited policy texts only if at least one is written), persona +
+greeting, FAQ questions (not answers — the owner already knows those), emergency
+guidance + staff callback numbers (never claimed to be auto-dialed — see §5.10),
+and the same Built-in protections panel as §5.10 (single source, no re-authoring).
+Each card links to the page that owns it. Derived from the renderer's own
+silent-on-empty gates (`pricingFacts`/`bookingPolicies`/`emergencyGuidance` in
+`templates/clinic.js`, now exported for exactly this) — never a second prompt
+renderer, and never displays raw prompt text (owners never see prompt syntax,
+tool schemas, or guardrail wording here, except the protections quotes that
+§5.10 already ships). Any section with nothing configured states what the
+receptionist will do instead (offer to check, decline to quote, hand off) —
+never a blank card.
 
 ## 6. Onboarding wizard
 

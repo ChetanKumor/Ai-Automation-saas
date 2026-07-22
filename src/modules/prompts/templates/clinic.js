@@ -378,4 +378,14 @@ function renderClinic(config, { channel, onWarn }) {
   return sections.filter(Boolean).join('\n\n');
 }
 
-module.exports = { renderClinic, VOICE_CUSTOM_INSTRUCTIONS_CHARS, LANG_NAMES };
+// pricingFacts / bookingPolicies / emergencyGuidance / hoursSummary are also
+// exported for PORTAL-P5-S15 ("what your receptionist knows"): that page needs
+// the exact same silent-on-empty GATE this template uses (has a price? has a
+// policy? has emergency guidance?) so its empty states can never drift from what
+// actually renders. It reuses these functions to answer that yes/no question —
+// it never displays their returned prompt text, which stays internal to the
+// renderer (owners never see prompt scaffolding, spec §5.12).
+module.exports = {
+  renderClinic, VOICE_CUSTOM_INSTRUCTIONS_CHARS, LANG_NAMES,
+  pricingFacts, bookingPolicies, emergencyGuidance, hoursSummary,
+};

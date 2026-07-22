@@ -87,27 +87,11 @@
   // ── Plain-English summary ────────────────────────────────────────────────────
   // One sentence, built from the saved values. This is what the owner checks
   // instead of re-reading four form fields — so it must describe the rules as
-  // enforcement applies them, not as the form displays them.
-  function humanNotice(minutes) {
-    if (minutes < 60) return minutes + (minutes === 1 ? ' minute' : ' minutes');
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    const hours = h + (h === 1 ? ' hour' : ' hours');
-    return m === 0 ? hours : `${hours} ${m} ${m === 1 ? 'minute' : 'minutes'}`;
-  }
-
-  function summarize(b) {
-    const parts = [`Patients can book ${b.slot_minutes}-minute appointments`];
-    if (b.buffer_minutes > 0) parts.push(`from ${humanNotice(b.buffer_minutes)} ahead`);
-    parts.push(`up to ${b.advance_days} ${b.advance_days === 1 ? 'day' : 'days'} out`);
-    const same = b.allow_same_day
-      ? 'same-day booking is on'
-      : 'same-day booking is off, so the earliest is tomorrow';
-    return `${parts.join(' ')}; ${same}.`;
-  }
-
+  // enforcement applies them, not as the form displays them. The formula lives
+  // in booking-summary.js (shared with the server-side "what it knows" page,
+  // PORTAL-P5-S15) so the two pages can never quote different wording.
   function renderSummary() {
-    $('summaryText').textContent = saved ? summarize(saved) : '';
+    $('summaryText').textContent = saved ? window.BookingSummary.summarizeBooking(saved) : '';
   }
 
   // ── Collect / fill ───────────────────────────────────────────────────────────

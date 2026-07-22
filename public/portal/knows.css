@@ -1,0 +1,126 @@
+/* ============================================================================
+ * What it knows (PORTAL-P5-S15) — page-local styles on top of tokens.css.
+ *
+ * Read-only by design: no field/input/save-note vocabulary here, just quiet
+ * label/value rows and lists. The one borrowed component is the protections
+ * list (.prot__*), copied verbatim from safety.css (PORTAL-P3-S10) so the two
+ * pages render the exact same panel — same rationale as tokens.css/shared.css
+ * duplicating each other: each page owns its own stylesheet, no shared partial.
+ * ========================================================================== */
+
+/* Loading / error placeholder (home.css isn't linked here, so define locally) */
+.state-msg { color: var(--muted); font-size: 14px; padding: 8px 2px; }
+.state-msg--error { color: var(--red); }
+
+.page-head__meta { margin-top: 8px; font-size: 12.5px; color: var(--faint); }
+
+/* ── Card header row: title + Edit link ── */
+.know-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+.know-edit {
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--teal);
+  padding: 3px 4px;
+}
+.know-edit:hover { text-decoration: underline; }
+.know-card__body { margin-top: var(--s-4); }
+.know-card .card__sub { margin-top: 3px; }
+
+/* ── Label/value rows ── */
+.kv {
+  display: flex;
+  gap: var(--s-3);
+  padding: 7px 0;
+  border-top: 1px solid var(--line-2);
+  font-size: 13.5px;
+}
+.kv:first-child { border-top: 0; padding-top: 0; }
+.kv__k { flex: 0 0 150px; color: var(--muted); font-weight: 600; }
+.kv__v { flex: 1; min-width: 0; color: var(--ink-2); }
+.know-faint { color: var(--faint); font-style: italic; }
+
+/* ── Plain content list (prices, doctors, policies, FAQs, holidays) ── */
+.plain-list { list-style: none; margin: 0; padding: 0; }
+.plain-list li {
+  padding: 8px 0;
+  border-top: 1px solid var(--line-2);
+  font-size: 13.5px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+.plain-list li:first-child { border-top: 0; padding-top: 0; }
+.faq-list { max-height: 320px; overflow-y: auto; }
+
+/* ── Empty-state fallback (never a blank card) ── */
+.know-empty {
+  margin: 0;
+  padding: 11px 13px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  color: var(--ink-2);
+  line-height: 1.55;
+}
+
+.know-lead { margin: 0 0 10px; font-size: 13.5px; color: var(--ink-2); line-height: 1.55; }
+.know-lead:last-child { margin-bottom: 0; }
+.know-subhead { margin: var(--s-4) 0 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--faint); }
+
+/* ── Chips (languages, payment methods) ── */
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--teal-700);
+  background: var(--teal-050);
+  border: 1px solid var(--teal-100);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+/* ── Greeting rows (per-language, Noto for te/hi — spec §5.9) ── */
+.greet-row { padding: 9px 0; border-top: 1px solid var(--line-2); }
+.greet-row:first-of-type { border-top: 0; }
+.greet-row__lang { font-size: 12px; font-weight: 600; color: var(--muted); }
+.greet-row__text { margin: 3px 0 0; font-size: 14px; color: var(--ink); line-height: 1.5; }
+.lang-te { font-family: var(--te); }
+.lang-hi { font-family: var(--hi); }
+
+/* ── Built-in protections (read-only) — mirrors safety.css exactly ── */
+.prot__list { list-style: none; margin: var(--s-4) 0 0; padding: 0; }
+.prot__item {
+  display: flex;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line-2);
+}
+.prot__item:first-child { border-top: 0; padding-top: 4px; }
+.prot__icon { flex: none; color: var(--teal); }
+.prot__icon svg { width: 18px; height: 18px; margin-top: 1px; }
+.prot__body { min-width: 0; }
+.prot__title { font-size: 14px; font-weight: 650; letter-spacing: -.01em; line-height: 1.4; }
+.prot__detail { margin: 4px 0 0; font-size: 13px; color: var(--muted); line-height: 1.55; }
+.prot__quote {
+  margin: 9px 0 0;
+  padding: 7px 0 7px 12px;
+  border-left: 2px solid var(--line);
+  font: 400 11.5px/1.6 var(--mono);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.prot__foot { margin: var(--s-4) 0 0; font-size: 12px; color: var(--faint); line-height: 1.55; }
+
+@media (max-width: 480px) {
+  .kv { flex-direction: column; gap: 2px; }
+  .kv__k { flex: none; }
+  .prot__icon { display: none; }
+}

@@ -30,6 +30,12 @@ const { LANG_CODES, SARVAM_V3_SPEAKERS, SARVAM_V3_SPEAKER_GENDER } = require('..
 const { normalizePhone } = require('../utils/phone');
 const { protectionsForDisplay } = require('./protections');
 const requestContext = require('../core/requestContext');
+// Reused, NEVER re-implemented (PORTAL-P5-S15): the exact silent-on-empty gates
+// the renderer uses to decide whether a section states anything at all. Their
+// returned prompt TEXT is not displayed anywhere in this file — only whether
+// each call returns null (owners never see prompt scaffolding, spec §5.12).
+const { pricingFacts, bookingPolicies, emergencyGuidance, hoursSummary } = require('../modules/prompts/templates/clinic');
+const { summarizeBooking } = require('../../public/portal/booking-summary');
 
 const router = express.Router();
 
@@ -1745,6 +1751,145 @@ router.post('/api/test/turn', testTurnCorrelation, requirePortalAuth, express.js
   } catch (err) {
     logger.error({ err: err.message, tenantId }, 'portal test turn failed');
     res.status(500).json({ error: 'Something went wrong running the test. Try again.' });
+  }
+});
+
+// ── What your receptionist knows (PORTAL-P5-S15) ────────────────────────────
+// Read-only, plain-language reflection of the assembled knowledge (spec §5.12).
+// This is deliberately NOT a second prompt renderer: every fact below comes
+// from either (a) the same owner-safe `project*` functions the section's own
+// config page already returns, or (b) the renderer's own gating functions
+// (pricingFacts/bookingPolicies/emergencyGuidance/hoursSummary), called ONLY to
+// ask "does this section state anything at all?" — their returned prompt TEXT
+// never crosses this route. Owners never see prompt syntax, tool schemas, or
+// guardrail wording here (the one deliberate exception, matching S10's own
+// Safety page, is the "Built-in protections" panel below, which is SUPPOSED to
+// quote the verified instruction — see protections.js).
+//
+// tenant from req.portalUser ONLY (INV-1); a crafted ?tenantId is inert.
+router.get('/api/knowledge-summary', requirePortalAuth, async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  try {
+    const config = await getConfigForSession(tenantId);
+    const version = config ? (configService.getCachedConfigVersion(tenantId) || 0) : 0;
+
+    const hoursSrc = (config && config.hours) || clinicDefaults.hours;
+    const pricingSrc = (config && config.pricing) || clinicDefaults.pricing;
+    const bookingSrc = (config && config.booking) || clinicDefaults.booking;
+    const escalationSrc = (config && config.escalation) || clinicDefaults.escalation;
+    const bookingToolOn = !!((config && config.tools && config.tools.booking) ?? clinicDefaults.tools.booking);
+
+    const identity = projectIdentity(config);
+    const hours = projectHours(config);
+    const pricing = projectPricing(config);
+    const booking = projectBooking(config);
+    const safety = projectSafety(config);
+    const receptionist = projectReceptionist(config);
+    const { doctors } = await doctorsPayload(tenantId);
+    const { faqs } = await faqsPayload(tenantId);
+
+    const hasPricing = pricingFacts(pricingSrc, { voice: false, who: 'customer' }) !== null;
+    const hasBookingPolicy = bookingPolicies(bookingSrc, { voice: false, who: 'customer' }) !== null;
+    const hasEmergency = emergencyGuidance(escalationSrc, { voice: false, who: 'customer' }) !== null;
+    const bookableDoctors = doctors.filter((d) => d.bookable);
+
+    res.json({
+      version,
+      sections: {
+        clinic: {
+          title: 'Your clinic',
+          edit: 'clinic-profile.html',
+          name: identity.display_name,
+          address: identity.address || null,
+          landmark: identity.landmark || null,
+          phone_numbers: identity.phone_numbers,
+          languages: identity.languages,
+        },
+        hours: {
+          title: 'When you’re open',
+          edit: 'hours.html',
+          summary: hoursSummary(hoursSrc),
+          holidays: hours.holidays,
+        },
+        pricing: {
+          title: 'What you charge',
+          edit: 'pricing.html',
+          empty: !hasPricing,
+          fallback: hasPricing ? null : 'Your receptionist can’t quote prices yet — it will offer to check and call back.',
+          fees: hasPricing ? {
+            consultation_fee: pricing.consultation_fee,
+            follow_up_fee: pricing.follow_up_fee,
+            emergency_fee: pricing.emergency_fee,
+          } : { consultation_fee: null, follow_up_fee: null, emergency_fee: null },
+          // Archived treatments are retired history (S6) — never quoted, so never shown here.
+          treatments: hasPricing ? pricing.treatments.filter((t) => !t.archived) : [],
+          payment_methods: hasPricing ? pricing.payment_methods : [],
+          insurance: hasPricing ? pricing.insurance : null,
+        },
+        doctors: {
+          title: 'Who patients can book with',
+          edit: 'doctors.html',
+          booking_enabled: bookingToolOn,
+          empty: !bookingToolOn || bookableDoctors.length === 0,
+          fallback: !bookingToolOn
+            ? 'Appointment booking isn’t turned on for your receptionist right now — it takes details and says the clinic will follow up.'
+            : (bookableDoctors.length === 0
+              ? 'You haven’t added a doctor yet — your receptionist can’t offer an appointment until you do.'
+              : null),
+          doctors: (!bookingToolOn) ? [] : bookableDoctors.map((d) => ({
+            name: d.name, specialization: d.specialization || null, days: d.days, start: d.start, end: d.end,
+          })),
+        },
+        booking: {
+          title: 'Booking rules',
+          edit: 'booking-rules.html',
+          summary: summarizeBooking(booking),
+          empty: !hasBookingPolicy,
+          fallback: hasBookingPolicy ? null : 'No cancellation, rescheduling, or walk-in policy is written yet — your receptionist offers to check with the clinic instead.',
+          policies: hasBookingPolicy ? {
+            cancellation_policy: booking.cancellation_policy || null,
+            reschedule_policy: booking.reschedule_policy || null,
+            walk_in_policy: booking.walk_in_policy || null,
+          } : null,
+        },
+        receptionist: {
+          title: 'How it introduces itself',
+          edit: 'receptionist.html',
+          display_name: receptionist.display_name || null,
+          languages: receptionist.languages,
+          default_language: receptionist.default_language,
+          greeting: receptionist.greeting,
+          tone: receptionist.tone,
+        },
+        faqs: {
+          title: 'Questions it can answer',
+          edit: 'faqs.html',
+          count: faqs.length,
+          questions: faqs.map((f) => f.question),
+          empty: faqs.length === 0,
+          fallback: faqs.length === 0
+            ? 'You haven’t added any FAQs yet — your receptionist can still answer in its own words, but has nothing specific from your clinic to draw on.'
+            : null,
+        },
+        safety: {
+          title: 'In an emergency',
+          edit: 'safety.html',
+          handoff_enabled: safety.enabled,
+          staff_numbers: safety.phone_numbers,
+          guidance: safety.emergency_guidance || null,
+          emergency_number: safety.emergency_number,
+          empty: !hasEmergency,
+          fallback: hasEmergency ? null : 'You haven’t added clinic-specific emergency guidance or a number to give out — your receptionist still tells anyone in an emergency to call emergency services immediately.',
+        },
+        protections: {
+          title: 'Built-in protections',
+          protections: protectionsForDisplay(),
+        },
+      },
+    });
+  } catch (err) {
+    logger.error({ err: err.message }, 'portal knowledge-summary GET failed');
+    res.status(500).json({ error: 'Failed to load what your receptionist knows' });
   }
 });
 

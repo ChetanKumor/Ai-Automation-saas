@@ -685,6 +685,32 @@ const adminLoginCookie = (port, password) =>
       },
     });
 
+    // S15: what it knows — read-only reflection of the same seeded config used by
+    // every page above (pricing, doctors, booking, FAQs, safety, receptionist).
+    // Desktop + 380px show every card populated for real; the third isolates the
+    // Telugu greeting row (same technique as S13) since the tenant's default
+    // language is Telugu — the zero-tofu proof for THIS page, not just S13's.
+    const knowsReady = "document.getElementById('sections') && !document.getElementById('sections').hidden";
+    await shoot(cdp, { url: `${base}/knows.html`, out: path.join(OUT, 's15-knows-desktop.png'),
+      width: 1280, height: 2200, cookie, port, waitFor: knowsReady });
+    await shoot(cdp, { url: `${base}/knows.html`, out: path.join(OUT, 's15-knows-mobile.png'),
+      width: 380, height: 2600, mobile: true, cookie, port, waitFor: knowsReady });
+    await shoot(cdp, {
+      url: `${base}/knows.html`, out: path.join(OUT, 's15-knows-telugu-greeting.png'),
+      width: 1280, height: 500, cookie, port, waitFor: knowsReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression: "['card-clinic','card-hours','card-pricing','card-doctors','card-booking','card-faqs','card-safety','card-protections']"
+            + ".forEach(function(id){document.getElementById(id).hidden=true;});",
+        }, sid);
+        await sleep(200);
+      },
+    });
+    // Fresh Clinic: the never-configured tenant — every gated section's honest
+    // fallback copy, in one shot (pricing/doctors/booking/FAQs/emergency all empty).
+    await shoot(cdp, { url: `${base}/knows.html`, out: path.join(OUT, 's15-knows-empty.png'),
+      width: 1280, height: 1600, cookie: freshCookie, port, waitFor: knowsReady });
+
     // S3: admin "create owner account" — fill the email, click Create, wait for the
     // one-time password panel, then capture. Uses the admin connect.sid cookie.
     await shoot(cdp, {
