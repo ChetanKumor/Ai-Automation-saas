@@ -128,6 +128,10 @@ const clinicDefaults = {
     },
   },
   retention_days: 365,
+  meta: {
+    onboarding_step: null,
+    onboarding_completed: false,
+  },
 };
 
 module.exports = { clinicDefaults };

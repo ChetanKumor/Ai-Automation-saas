@@ -79,6 +79,12 @@
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 html, body { max-width: 100%; }
+/* [hidden] must always win over a component class's own `display` (e.g.
+ * .btn's `display: inline-flex`) — equal specificity + later source order
+ * would otherwise let the class un-hide the element (PORTAL-P6-S16 caught
+ * this on the wizard's Skip button, hidden via the attribute but rendered
+ * anyway). Applies portal-wide, not just to buttons. */
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -470,3 +476,19 @@ textarea.input { resize: vertical; min-height: 74px; }
   .top { padding: 8px 16px; }
   .page-head__title { font-size: 21px; }
 }
+
+/* ============================================================================
+ * Embedded mode (PORTAL-P6-S16) — this page loaded inside the onboarding
+ * wizard's same-origin <iframe> (see wizard.js/shell.js). The wizard supplies
+ * its own chrome (step indicator, Back/Continue, heading); this page
+ * contributes only its card(s). No page file changes — set purely by shell.js
+ * detecting `window.self !== window.top` and toggling this class on #app.
+ * ========================================================================== */
+body.is-embedded { background: var(--card); } /* flush with the wizard card that frames this iframe */
+.app.is-embedded .side,
+.app.is-embedded .side__scrim,
+.app.is-embedded .top { display: none; }
+.app.is-embedded .main { margin-left: 0; }
+.app.is-embedded .content { max-width: none; padding: 2px 2px 4px; }
+.app.is-embedded .page-head__title { display: none; } /* the wizard step shows its own title */
+.app.is-embedded .page-head { margin-bottom: var(--s-4); }

@@ -42,6 +42,20 @@ const router = express.Router();
 // Same minimal headers as the admin panel: nosniff, DENY framing, no-referrer.
 router.use(securityHeaders);
 
+// Relax framing to SAMEORIGIN for the portal only (admin's DENY in security.js
+// is untouched — this override runs after it, on this router alone). The
+// onboarding wizard (PORTAL-P6-S16) embeds a step's own standalone page in a
+// same-origin <iframe> so it never re-implements that page's form or
+// validation logic; SAMEORIGIN permits the portal to frame itself while still
+// blocking every other origin (clickjacking protection is unchanged). Applies
+// to both the API responses above and the static portal HTML/CSS/JS this
+// router falls through to (see server.js: express.static('public') is mounted
+// after this router, so a `/portal/*.html` request passes through here first).
+router.use((req, res, next) => {
+  res.set('X-Frame-Options', 'SAMEORIGIN');
+  next();
+});
+
 // ── Portal session — path-scoped to this router ──────────────────────────────
 // Distinct cookie name so it can coexist with the admin session. httpOnly +
 // sameSite=strict + secure-in-prod + 12h, mirroring the admin hardening. secure
@@ -148,9 +162,14 @@ router.get('/api/me', requirePortalAuth, async (req, res) => {
     );
     const tenant = rows[0];
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+    // Onboarding status rides on /me (PORTAL-P6-S16) so the shell's one auth
+    // fetch is enough for Home's entry-routing decision — no second round-trip
+    // just to learn whether the wizard has been started.
+    const config = await getConfigForSession(req.portalUser.tenantId);
     res.json({
       user: { id: req.portalUser.id, role: req.portalUser.role },
       tenant: { id: tenant.id, name: tenant.business_name },
+      onboarding: projectOnboarding(config),
     });
   } catch (err) {
     logger.error({ err: err.message }, 'portal /me failed');
@@ -206,6 +225,77 @@ async function readinessSnapshot(tenantId) {
   }
   return { status: tenant.status, run };
 }
+
+// ── Onboarding wizard progress (PORTAL-P6-S16) ────────────────────────────────
+// The wizard's own state — which step an owner was last on, and whether they've
+// walked the guided pass through to Review at least once. Lives at `meta.*`
+// (S6 precedent: a DEFAULTED, versioned config section, no DDL). This is the
+// ONLY new write surface the wizard adds; every step's actual FORM save (Clinic
+// profile / Hours / Doctors / Pricing / Greeting / FAQs) goes through the
+// section's EXISTING endpoint above/below, unchanged — the wizard embeds those
+// pages in a same-origin iframe rather than re-implementing them (spec §6: "no
+// duplicate form code").
+const LAST_ONBOARDING_STEP = 6; // Review — see public/portal/wizard.js STEPS
+
+function projectOnboarding(config) {
+  const m = (config && config.meta) || clinicDefaults.meta;
+  return {
+    step: typeof m.onboarding_step === 'number' ? m.onboarding_step : null,
+    completed: m.onboarding_completed === true,
+  };
+}
+
+// GET the session tenant's onboarding progress (INV-1: tenant from
+// req.portalUser only). Read by the wizard on load to resume at the right step.
+router.get('/api/onboarding', requirePortalAuth, async (req, res) => {
+  try {
+    const config = await getConfigForSession(req.portalUser.tenantId);
+    res.json(projectOnboarding(config));
+  } catch (err) {
+    logger.error({ err: err.message }, 'portal onboarding GET failed');
+    res.status(500).json({ error: 'Failed to load onboarding progress' });
+  }
+});
+
+// POST the current step, on every Back/Continue transition (so progress
+// resumes across sessions and devices, spec §6). Reaching the last step
+// (Review) marks the wizard completed — a fact independent of go-live
+// readiness (an owner may finish the guided pass with material checks still
+// failing; the wizard informs, it doesn't trap) and independent of the wizard
+// being revisited afterward (`completed` only ever turns true, never back off).
+router.post('/api/onboarding', requirePortalAuth, express.json(), async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  const body = req.body || {};
+  const step = body.step;
+  if (typeof step !== 'number' || !Number.isInteger(step) || step < 0 || step > LAST_ONBOARDING_STEP) {
+    return res.status(400).json({ error: `step must be a whole number from 0 to ${LAST_ONBOARDING_STEP}.` });
+  }
+
+  try {
+    const current = await getConfigForSession(tenantId);
+    const wasCompleted = !!(current && current.meta && current.meta.onboarding_completed);
+    const next = {
+      ...(current || {}),
+      meta: {
+        onboarding_step: step,
+        onboarding_completed: wasCompleted || step >= LAST_ONBOARDING_STEP,
+      },
+    };
+
+    const { config } = await configService.writeTenantConfig(tenantId, next, 'portal', {
+      actorUserId: req.portalUser.id, // INV-4
+    });
+
+    res.json(projectOnboarding(config));
+  } catch (err) {
+    if (err.name === 'ConfigValidationError') {
+      return res.status(422).json({ error: 'Couldn’t save onboarding progress.', issues: err.issues });
+    }
+    if (/tenant not found/.test(err.message || '')) return res.status(404).json({ error: 'Tenant not found' });
+    logger.error({ err: err.message }, 'portal onboarding POST failed');
+    res.status(500).json({ error: 'Failed to save onboarding progress' });
+  }
+});
 
 // ── Config section: identity (Clinic profile, PORTAL-P2-S4) ──────────────────
 // The FIRST owner-writable config surface; it establishes the pattern every

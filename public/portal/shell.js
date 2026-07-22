@@ -89,8 +89,12 @@
   //                          not yet green → "Waiting on Prantivo" (no number).
   // Precedence: owner items first (what the owner can act on), then the operator
   // wait. When both are absent every material check is green (S18 enables go-live).
-  function renderLifecycle(status, opts) {
-    const host = $('#lifecycle');
+  // `hostEl` lets a caller render into a different element than the header's own
+  // #lifecycle (the onboarding wizard's Review step also surfaces this control
+  // inline in its card — PORTAL-P6-S16); defaults to #lifecycle, so every
+  // existing call site (the header itself) is unchanged.
+  function renderLifecycle(status, opts, hostEl) {
+    const host = hostEl || $('#lifecycle');
     if (!host) return;
     const meta = LIFECYCLE[status] || LIFECYCLE.draft;
     if (meta.control === 'live') {
@@ -212,6 +216,20 @@
     return me;
   }
 
+  // Embedded mode (PORTAL-P6-S16): this exact page, unmodified, loaded inside
+  // the onboarding wizard's same-origin <iframe> (see wizard.js) so a step never
+  // re-implements a page's form. The wizard supplies its OWN chrome (step
+  // indicator, Back/Continue, page title) — this page's own sidebar/header would
+  // just be redundant nested chrome, so it's hidden via CSS (tokens.css
+  // `.is-embedded`) and its header go-live fetch is skipped (nothing renders it).
+  // `window.top` throws cross-origin, never same-origin — safe without a try/catch.
+  const embedded = window.self !== window.top;
+  const app = document.getElementById('app');
+  if (embedded && app) {
+    app.classList.add('is-embedded');
+    document.body.classList.add('is-embedded'); // lets tokens.css flatten the body background too
+  }
+
   const activeId = document.body.getAttribute('data-page') || 'home';
   renderNav(activeId);
   wireChrome();
@@ -222,8 +240,11 @@
     me: bootstrap(),
     renderLifecycle,
     deriveGoLive,
+    embedded,
   };
 
   // Header go-live control on non-home pages (Home renders its own from home.js).
-  renderHeaderLifecycle();
+  // Skipped when embedded — the header itself is hidden, so rendering into it
+  // would be a wasted fetch.
+  if (!embedded) renderHeaderLifecycle();
 })();

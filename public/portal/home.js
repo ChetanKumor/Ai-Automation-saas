@@ -87,9 +87,14 @@
 
   // ── Renderers ──────────────────────────────────────────────────────────────
 
-  function renderBanner(status) {
+  // `opts.bannerEl` lets a caller render into a different element (the
+  // onboarding wizard's Review step, PORTAL-P6-S16 — see window.PortalHome
+  // below); defaults to this page's own #banner, so the call from main() below
+  // is byte-identical to before this option existed.
+  function renderBanner(status, opts) {
     const b = BANNER[status] || BANNER.draft;
-    document.getElementById('banner').innerHTML =
+    const el = (opts && opts.bannerEl) || document.getElementById('banner');
+    el.innerHTML =
       `<div class="banner banner--${esc(status)}">
         <span class="banner__dot"></span>
         <div class="banner__body">
@@ -130,8 +135,13 @@
     </div>`;
   }
 
-  function renderReadiness(run) {
-    const card = document.getElementById('readinessCard');
+  // `opts.cardEl`/`opts.checksEl` let a caller render into different elements
+  // (the onboarding wizard's Review step — see window.PortalHome below);
+  // `opts.stepFor` is threaded through to checkRow (see there). Both default to
+  // this page's own containers with no override, so main()'s call below is
+  // byte-identical to before these options existed.
+  function renderReadiness(run, opts) {
+    const card = (opts && opts.cardEl) || document.getElementById('readinessCard');
     const { passed, total } = computeScore(run.checks);
     const complete = total > 0 && passed === total;
 
@@ -162,7 +172,8 @@
         </div>
       </div>`;
 
-    renderChecks(run);
+    const checksEl = (opts && opts.checksEl) || document.getElementById('checks');
+    checksEl.innerHTML = renderChecks(run, opts);
   }
 
   // Row state → { cls, icon, badge, badgeCls }
@@ -177,7 +188,14 @@
     return { icon: IC.alert, iconCls: 'fail', badge: 'Action needed', badgeCls: 'warn' };
   }
 
-  function checkRow(c) {
+  // `opts.stepFor(meta)` lets a caller redirect a check's fix-link to a wizard
+  // step instead of the standalone page it normally points at (the onboarding
+  // wizard's Review step — see window.PortalHome below): return a step index
+  // and the row renders a same-page `data-goto-step` link the wizard binds
+  // itself, instead of a real `href` navigation. Returns null/undefined (the
+  // default — no opts passed) for the ordinary standalone-page href, so this
+  // page's own rendering is unchanged.
+  function checkRow(c, opts) {
     const m = metaFor(c.name);
     const st = rowState(c, m);
     const advisory = !m.material;
@@ -193,13 +211,16 @@
       sub = `<div class="check__fix">${esc(m.note)}</div>`;
     }
 
-    // Link chip → the page that fixes it. Navigable once that page is built
-    // (`href` set); a check whose fix-page isn't built yet falls back to a
-    // quiet, non-navigating reference (matches the disabled sidebar).
+    // Link chip → the page (or wizard step) that fixes it. Navigable once that
+    // page is built (`href` set); a check whose fix-page isn't built yet falls
+    // back to a quiet, non-navigating reference (matches the disabled sidebar).
+    const step = (opts && opts.stepFor) ? opts.stepFor(m) : null;
     const link = (m.actor === 'owner' && c.severity === 'fail' && m.link)
-      ? (m.href
-          ? `<a class="check__link" href="${esc(m.href)}">${esc(m.link)}${IC.arrow}</a>`
-          : `<span class="check__link" title="Coming soon">${esc(m.link)}${IC.arrow}</span>`)
+      ? (step != null
+          ? `<a class="check__link" href="#" data-goto-step="${step}">${esc(m.link)}${IC.arrow}</a>`
+          : (m.href
+              ? `<a class="check__link" href="${esc(m.href)}">${esc(m.link)}${IC.arrow}</a>`
+              : `<span class="check__link" title="Coming soon">${esc(m.link)}${IC.arrow}</span>`))
       : '';
 
     const badge = advisory ? '' :
@@ -215,8 +236,10 @@
     </div>`;
   }
 
-  function renderChecks(run) {
-    const host = document.getElementById('checks');
+  // Returns the checks HTML (previously wrote directly to #checks — now
+  // returned so a caller can target a different container, e.g. the wizard's
+  // Review step). `opts` is threaded straight through to checkRow.
+  function renderChecks(run, opts) {
     const ran = new Map(run.checks.map((c) => [c.name, c]));
 
     // Material rows in catalog order (the order the run recorded them).
@@ -233,17 +256,18 @@
 
     let html = '<div class="checks">';
     html += '<p class="checks__group-label">Setup checks</p>';
-    html += material.concat(skippedOps).map(checkRow).join('');
+    html += material.concat(skippedOps).map((c) => checkRow(c, opts)).join('');
     if (advisory.length) {
       html += '<p class="checks__group-label checks__advisory-label">Advisory</p>';
-      html += advisory.map(checkRow).join('');
+      html += advisory.map((c) => checkRow(c, opts)).join('');
     }
     html += '</div>';
-    host.innerHTML = html;
+    return html;
   }
 
-  function renderEmpty() {
-    document.getElementById('readinessCard').innerHTML =
+  function renderEmpty(opts) {
+    const el = (opts && opts.cardEl) || document.getElementById('readinessCard');
+    el.innerHTML =
       `<div class="empty">
         <div class="empty__mark">${IC.spark}</div>
         <div class="empty__title">No readiness check has run yet</div>
@@ -252,8 +276,9 @@
       </div>`;
   }
 
-  function renderError() {
-    document.getElementById('readinessCard').innerHTML =
+  function renderError(opts) {
+    const el = (opts && opts.cardEl) || document.getElementById('readinessCard');
+    el.innerHTML =
       `<div class="state-msg">We couldn’t load your readiness just now. Refresh the page to try again.</div>`;
   }
 
@@ -284,13 +309,49 @@
     return { blockers, operatorPending: opFailing || opSkipped };
   }
 
+  // Onboarding entry point (PORTAL-P6-S16, spec §6 + Deliverable 6). Three
+  // states, from `me.onboarding` (carried on /api/me):
+  //   • never started (step === null, !completed) → redirect straight into the
+  //     wizard; a first-login owner should never land on an empty readiness
+  //     page with no idea where to begin.
+  //   • exited early (step set, !completed) → stay on Home, but show a quiet
+  //     "Continue setting up" entry point (they left on purpose — don't
+  //     re-trap them in the wizard).
+  //   • completed → stay on Home, no banner.
+  function renderOnboardingBanner(onboarding) {
+    const host = document.getElementById('onboardingBanner');
+    if (!host) return;
+    if (!onboarding || onboarding.completed) { host.innerHTML = ''; return; }
+    const resuming = onboarding.step != null;
+    host.innerHTML =
+      `<div class="setup-cta">
+        <div class="setup-cta__body">
+          <div class="setup-cta__title">${resuming ? 'Finish setting up your receptionist' : 'Set up your receptionist'}</div>
+          <div class="setup-cta__sub">${resuming
+            ? 'Pick up right where you left off — it only takes a few minutes.'
+            : 'A short guided setup walks you through everything your receptionist needs.'}</div>
+        </div>
+        <a class="btn btn--primary" href="wizard.html">${resuming ? 'Continue setup' : 'Start setup'}</a>
+      </div>`;
+  }
+
   // ── Boot ───────────────────────────────────────────────────────────────────
   async function main() {
+    let me;
     try {
-      await window.Portal.me; // session guard already ran in the shell
+      me = await window.Portal.me; // session guard already ran in the shell
     } catch (_) {
       return; // shell redirected to login
     }
+
+    // A first-login owner (never touched the wizard) lands in it directly —
+    // everything below this line is for an owner who has at least started.
+    if (me.onboarding && me.onboarding.step == null && !me.onboarding.completed) {
+      window.location.replace('wizard.html');
+      return;
+    }
+    renderOnboardingBanner(me.onboarding);
+
     let data;
     try {
       const res = await fetch('/portal/api/readiness', { headers: { Accept: 'application/json' } });
@@ -311,5 +372,18 @@
     renderReadiness(data.run);
   }
 
-  main();
+  // Boot ONLY on the real Home page. The onboarding wizard (PORTAL-P6-S16)
+  // loads this file solely for window.PortalHome below (its Review step reuses
+  // the ring/check rendering) and has none of #banner/#readinessCard/#checks —
+  // running main() there would be a guaranteed, pointless null-element error.
+  if (document.body.getAttribute('data-page') === 'home') main();
+
+  // Exported for reuse by the onboarding wizard's Review step (PORTAL-P6-S16) —
+  // the exact same ring/check-row rendering, never a second implementation.
+  // Every function here is pure (data + DOM targets in, no hidden state) and
+  // every option defaults to this page's own behavior, so nothing above changes.
+  window.PortalHome = {
+    metaFor, computeScore, ringSvg, renderBanner, renderReadiness, renderChecks,
+    checkRow, renderEmpty, renderError, fmtDate,
+  };
 })();

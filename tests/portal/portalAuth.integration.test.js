@@ -296,12 +296,17 @@ describe('portal owner auth (route-level)', { skip: ADMIN ? false : 'DATABASE_UR
   });
 
   // ── Security headers parity with admin ───────────────────────────────────
+  // x-frame-options is SAMEORIGIN, not admin's DENY (PORTAL-P6-S16): the
+  // onboarding wizard embeds a step's own standalone page in a same-origin
+  // <iframe> instead of re-implementing its form, so the portal alone relaxes
+  // framing to itself — every other origin remains blocked. See routes.js's
+  // override right after securityHeaders; admin's DENY is untouched.
   it('portal responses carry the admin-parity security headers', async () => {
     const server = await start();
     try {
       const res = await req(server, { method: 'GET', path: '/portal/api/me' }); // 401, still headered
       assert.equal(res.headers['x-content-type-options'], 'nosniff');
-      assert.equal(res.headers['x-frame-options'], 'DENY');
+      assert.equal(res.headers['x-frame-options'], 'SAMEORIGIN');
       assert.equal(res.headers['referrer-policy'], 'no-referrer');
     } finally { server.close(); }
   });

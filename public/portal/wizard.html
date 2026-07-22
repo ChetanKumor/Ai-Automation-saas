@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Set up your receptionist · Receptionist portal</title>
+  <meta name="description" content="A short guided setup for your AI receptionist — profile, hours, doctors, pricing, greeting and FAQs.">
+  <link rel="stylesheet" href="./fonts/fonts.css">
+  <link rel="stylesheet" href="./tokens.css">
+  <link rel="stylesheet" href="./home.css">
+  <link rel="stylesheet" href="./wizard.css">
+</head>
+<body data-page="wizard">
+  <div class="app" id="app">
+    <div class="side__scrim"></div>
+
+    <!-- Sidebar (nav injected by shell.js) -->
+    <aside class="side">
+      <div class="side__brand">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M10 3h4a1 1 0 0 1 1 1v5h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5v5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h5V4a1 1 0 0 1 1-1Z"/></svg>
+        </span>
+        <div>
+          <div class="brand__name" id="clinicName">Your clinic</div>
+          <div class="brand__sub">AI receptionist</div>
+        </div>
+      </div>
+      <nav class="side__nav" id="nav"></nav>
+      <div class="side__foot">
+        <button class="btn btn--ghost btn--block" id="logout" type="button">Log out</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <header class="top">
+        <button class="top__burger" id="burger" type="button" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="top__spacer"></div>
+        <div id="lifecycle"></div>
+      </header>
+
+      <main class="content">
+        <div class="page-head">
+          <h1 class="page-head__title">Set up your receptionist</h1>
+          <p class="page-head__sub">A short guided setup — profile, hours, doctors, pricing, greeting and FAQs. Every step is skippable; come back any time.</p>
+        </div>
+
+        <!-- Loading placeholder (replaced once progress loads) -->
+        <section class="card" id="wizLoadCard">
+          <div class="state-msg" id="wizLoadMsg">Loading your setup progress…</div>
+        </section>
+
+        <div class="wiz" id="wiz" hidden>
+          <div class="wiz__progress">
+            <div class="wiz__step-label" id="wizStepLabel">Step 1 of 7</div>
+            <div class="wiz__bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="wizBar">
+              <div class="wiz__bar-fill" id="wizBarFill"></div>
+            </div>
+          </div>
+
+          <section class="card wiz__card" id="wizCard">
+            <div class="wiz__head">
+              <div class="wiz__title" id="wizTitle"></div>
+              <p class="wiz__note" id="wizNote" hidden></p>
+            </div>
+
+            <!-- Embedded step: an existing standalone page's OWN card, loaded in a
+                 same-origin iframe. No duplicated form markup or validation logic
+                 (spec §6) — this is literally the same page, same JS, same
+                 /portal/api/config/* (or /doctors, /faqs) endpoint it always uses. -->
+            <div class="wiz__frame-wrap" id="wizFrameWrap">
+              <iframe class="wiz__frame" id="wizFrame" title="Setup step"></iframe>
+            </div>
+
+            <!-- Review step: rendered directly, reusing window.PortalHome (the
+                 exact functions index.html's own readiness ring uses — never a
+                 second implementation, spec Deliverable 5). -->
+            <div class="wiz__review" id="wizReview" hidden>
+              <div class="wiz__golive" id="wizGolive"></div>
+              <div id="wizBanner"></div>
+              <section class="card wiz__inner-card" id="wizReadinessCard"></section>
+              <div id="wizChecks"></div>
+            </div>
+          </section>
+
+          <div class="wiz__nav">
+            <button class="btn" id="wizBack" type="button">Back</button>
+            <span class="wiz__nav-spacer"></span>
+            <span class="wiz__save-note" id="wizSaveNote"></span>
+            <button class="btn btn--ghost" id="wizSkip" type="button" hidden>Skip for now</button>
+            <button class="btn btn--primary" id="wizContinue" type="button">Save &amp; continue</button>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast-host" id="toastHost"></div>
+
+  <script src="./shell.js"></script>
+  <script src="./home.js"></script>
+  <script src="./wizard.js"></script>
+</body>
+</html>

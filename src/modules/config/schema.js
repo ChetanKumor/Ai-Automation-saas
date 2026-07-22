@@ -283,6 +283,23 @@ const recordingConsentSchema = z.object({
   line: z.record(z.string(), z.string().min(1)), // per-language consent sentence; must cover every supported language (refined below)
 }).strict();
 
+// ── meta ─────────────────────────────────────────────────────────────────────
+// Portal-internal bookkeeping — never rendered into a prompt, never a fact the
+// receptionist states. DEFAULTED for the same reason pricing/booking-policies
+// are (S6): every config written before this section existed has no such key,
+// and the top-level object is `.strict()`.
+const metaSchema = z.object({
+  // Which onboarding-wizard step (0-indexed: Profile..Review) the owner was last
+  // on (PORTAL-P6-S16). null = never started. Persisted here (not a session/
+  // localStorage value) so progress resumes across devices and logins.
+  onboarding_step: z.number().int().min(0).max(6).nullable().default(null),
+  // true once the owner has walked the wizard through to the Review step at
+  // least once. Independent of go-live readiness — an owner can finish the
+  // guided pass while material checks still fail (the wizard informs, it
+  // doesn't trap) — and independent of the wizard being re-opened afterward.
+  onboarding_completed: z.boolean().default(false),
+}).strict();
+
 // ── top-level document ───────────────────────────────────────────────────────
 const configSchema = z.object({
   business: businessSchema,                   // identity + locale of the business
@@ -312,6 +329,7 @@ const configSchema = z.object({
   whatsapp: whatsappSchema,                   // WhatsApp channel toggle
   recording_consent: recordingConsentSchema,  // spoken call-recording consent line
   retention_days: z.number().int().min(30).max(3650).default(365), // days to retain conversation/customer data
+  meta: metaSchema.default({ onboarding_step: null, onboarding_completed: false }), // portal-internal bookkeeping (PORTAL-P6-S16)
 }).strict()
   // Cross-section refinement: the per-language maps (greeting + consent line)
   // MUST cover every supported language, and MUST NOT carry stray language keys

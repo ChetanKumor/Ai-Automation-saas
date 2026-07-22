@@ -1,0 +1,101 @@
+/* ============================================================================
+ * Onboarding wizard (PORTAL-P6-S16) — page-specific styles.
+ *
+ * The wizard's OWN chrome: a quiet step indicator, a card that hosts either an
+ * embedded step (a same-origin <iframe> onto the step's own standalone page —
+ * see wizard.js) or the Review step's own markup, and a Back / Save & continue
+ * footer. Tokens + shell come from tokens.css; the Review step additionally
+ * reuses home.css's .ring/.check/.banner styles (window.PortalHome renders
+ * into wizard-owned containers using those exact classes).
+ * ========================================================================== */
+
+.wiz { max-width: 100%; }
+
+/* ── Progress ── */
+.wiz__progress { margin-bottom: var(--s-4); }
+.wiz__step-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.wiz__bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line-2);
+  overflow: hidden;
+}
+.wiz__bar-fill {
+  height: 100%;
+  background: var(--teal);
+  border-radius: 999px;
+  transition: width .25s ease;
+}
+
+/* ── Card ── */
+.wiz__card { padding: 20px 22px 22px; }
+.wiz__head { margin-bottom: var(--s-3); }
+.wiz__title { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+.wiz__note {
+  margin-top: 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--amber);
+  background: var(--amber-050);
+  border: 1px solid var(--amber-200);
+  border-radius: var(--radius-xs);
+  padding: 9px 11px;
+}
+
+/* ── Embedded step iframe ──
+ * Height is set from JS (same-origin — the parent can read
+ * contentDocument.documentElement.scrollHeight directly, no postMessage
+ * plumbing needed) so the wizard's own scroll matches the step's real content,
+ * never a nested scrollbar. min-height covers the moment before the first
+ * measurement lands. */
+.wiz__frame-wrap { margin: 0 -4px; }
+.wiz__frame {
+  display: block;
+  width: 100%;
+  border: none;
+  min-height: 220px;
+  background: transparent;
+}
+
+/* ── Review step ── */
+.wiz__review .banner { margin-bottom: var(--s-4); }
+.wiz__inner-card { padding: 20px; }
+.wiz__golive {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--s-4);
+}
+.wiz__golive:empty { display: none; }
+.wiz__review .checks__group-label:first-child { margin-top: 0; }
+
+/* Same-page "go fix this" links inside the Review step's check rows (rendered
+ * by window.PortalHome with data-goto-step instead of a real href — see
+ * wizard.js's checksEl click delegate). Same visual as a real check__link. */
+.check__link[data-goto-step] { cursor: pointer; }
+
+/* ── Footer nav ── */
+.wiz__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+}
+.wiz__nav-spacer { flex: 1; }
+.wiz__save-note { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.wiz__save-note--error { color: var(--red); font-weight: 600; }
+
+@media (max-width: 520px) {
+  .wiz__card { padding: 16px 14px 18px; }
+  .wiz__nav { flex-wrap: wrap; }
+  .wiz__nav-spacer { display: none; }
+  .wiz__save-note { order: 4; width: 100%; text-align: center; margin-top: 4px; }
+  .wiz__nav #wizBack { order: 1; }
+  .wiz__nav #wizSkip { order: 2; }
+  .wiz__nav #wizContinue { order: 3; flex: 1; }
+}

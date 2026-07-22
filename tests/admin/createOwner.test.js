@@ -238,7 +238,13 @@ describe('operator create-owner + portal hardening (PORTAL-P1-S3)', { skip: ADMI
   });
 
   // ── Hardening parity: portal responses carry the admin security headers ─────
-  it('every /portal response carries the admin-parity security headers (nosniff/DENY/no-referrer)', async () => {
+  // x-frame-options is SAMEORIGIN here, not admin's DENY (PORTAL-P6-S16): the
+  // onboarding wizard embeds a step's own standalone page in a same-origin
+  // <iframe> rather than re-implementing its form, so the portal relaxes
+  // framing to itself only — every other origin is still blocked exactly like
+  // before (see routes.js's override, right after securityHeaders). Admin's
+  // own DENY (security.js) is untouched.
+  it('every /portal response carries the admin-parity security headers (nosniff/SAMEORIGIN/no-referrer)', async () => {
     const portal = await portalStart();
     try {
       const responses = [
@@ -248,7 +254,7 @@ describe('operator create-owner + portal hardening (PORTAL-P1-S3)', { skip: ADMI
       ];
       for (const res of responses) {
         assert.equal(res.headers['x-content-type-options'], 'nosniff');
-        assert.equal(res.headers['x-frame-options'], 'DENY');
+        assert.equal(res.headers['x-frame-options'], 'SAMEORIGIN');
         assert.equal(res.headers['referrer-policy'], 'no-referrer');
       }
     } finally { portal.close(); }
