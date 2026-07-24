@@ -1,17 +1,18 @@
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { Reveal } from "@/components/ui/Reveal";
 import { Button } from "@/components/ui/Button";
+import { waLink, waMessages } from "@/lib/siteConfig";
 import styles from "./Pricing.module.css";
 
 export function Pricing() {
   return (
-    <section className={styles.pricing}>
+    <section id="pricing" className={styles.pricing}>
       <div className="wrap">
         <Reveal className={styles.pricingHead}>
           <Eyebrow variant="bar">Pricing</Eyebrow>
           <h2>Simple pricing: a setup fee, then monthly</h2>
           <p>
-            A one-time setup fee to configure Zyon for your business, then a flat
+            A one-time setup fee to configure Prantivo for your clinic, then a flat
             monthly subscription. Meta&apos;s standard WhatsApp messaging charges
             are billed by Meta, separately — so there are no hidden per-message
             markups from us.
@@ -38,8 +39,8 @@ export function Pricing() {
             </div>
             <div className={styles.partName}>Setup</div>
             <p className={styles.partDesc}>
-              We configure Zyon to your business — your prompts, workflows, and
-              your WhatsApp number connected and live.
+              We configure Prantivo to your clinic — your prompts, booking
+              rules, and your WhatsApp number connected and live.
             </p>
             <div className={styles.partMeta}>Paid once</div>
           </Reveal>
@@ -67,8 +68,8 @@ export function Pricing() {
             </div>
             <div className={styles.partName}>Subscription</div>
             <p className={styles.partDesc}>
-              A flat monthly fee for the platform and every product you have
-              live. Scales with the size of your business.
+              A flat monthly fee for your receptionist and everything it
+              handles. Scales with the size of your clinic.
             </p>
             <div className={styles.partMeta}>Billed monthly</div>
           </Reveal>
@@ -124,15 +125,27 @@ export function Pricing() {
 
         <Reveal className={styles.quote} style={{ transitionDelay: ".15s" }}>
           <div className={styles.quoteCopy}>
-            <h3>Every business is a little different</h3>
+            <h3>Every clinic is a little different</h3>
             <p>
-              Book a demo and we&apos;ll scope your setup, walk you through the
-              platform, and give you a clear quote tailored to your business.
+              Book a demo and we&apos;ll scope your setup, walk you through your
+              receptionist, and give you a clear quote tailored to your clinic.
             </p>
           </div>
           <div className={styles.quoteCta}>
-            <Button variant="primary">Book a demo</Button>
-            <Button variant="secondary">Talk to us</Button>
+            <Button
+              variant="primary"
+              href={waLink(waMessages.demo)}
+              aria-label="Book a demo on WhatsApp"
+            >
+              Book a demo
+            </Button>
+            <Button
+              variant="secondary"
+              href={waLink(waMessages.talk)}
+              aria-label="Message us on WhatsApp"
+            >
+              Talk to us
+            </Button>
           </div>
         </Reveal>
       </div>

@@ -1,5 +1,6 @@
 import { Reveal } from "@/components/ui/Reveal";
 import { Button } from "@/components/ui/Button";
+import { waLink, waMessages } from "@/lib/siteConfig";
 import styles from "./FinalCta.module.css";
 
 export function FinalCta() {
@@ -16,17 +17,19 @@ export function FinalCta() {
             </span>
           </div>
           <h2 className={styles.ctaH2}>
-            See Zyon handle a live conversation
+            See Prantivo handle a live conversation
           </h2>
           <p className={styles.ctaSub}>
             Book a demo. We&apos;ll walk you through the AI receptionist, the
             human handoff, and how it books appointments — on a real WhatsApp
-            chat.
+            chat, using an example clinic.
           </p>
           <div className={styles.ctaActions}>
             <Button
               variant="primary"
               size="large"
+              href={waLink(waMessages.demo)}
+              aria-label="Book a demo on WhatsApp"
               icon={
                 <svg
                   width="17"

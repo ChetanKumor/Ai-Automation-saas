@@ -5,9 +5,9 @@ export interface FaqItem {
 
 export const FAQ_ITEMS: FaqItem[] = [
   {
-    question: "Does Zyon use my own WhatsApp number?",
+    question: "Does Prantivo use my own WhatsApp number?",
     answer:
-      "Yes. Zyon connects to your existing WhatsApp Business number through the official WhatsApp Business Platform. Your customers see the same number they already message.",
+      "Yes. Prantivo connects to your existing WhatsApp Business number through the official WhatsApp Business Platform. Your customers see the same number they already message.",
   },
   {
     question: "What happens when the AI isn’t sure?",
@@ -27,16 +27,16 @@ export const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Which languages does it handle?",
     answer:
-      "It replies in clear, natural language and handles the everyday English-and-local-language mix common in customer chats.",
+      "It answers in Telugu, Hindi, and English, including the code-mixed speech common in everyday customer chats.",
   },
   {
     question: "Is this allowed by WhatsApp?",
     answer:
-      "Yes. Zyon is built on Meta’s official WhatsApp Business Platform and follows WhatsApp’s messaging rules. It does not use unofficial automation that can get a number banned.",
+      "Yes. Prantivo is built on Meta’s official WhatsApp Business Platform and follows WhatsApp’s messaging rules. It does not use unofficial automation that can get a number banned.",
   },
   {
-    question: "What about AI Voice Calling?",
+    question: "What about AI voice calling?",
     answer:
-      "AI Voice Calling is coming soon. The five products above are available today.",
+      "AI voice calling is coming soon. The WhatsApp AI receptionist — answering, booking, and handoff to your team — is available today.",
   },
 ];

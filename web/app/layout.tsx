@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.siteUrl),
   title: {
     default: siteConfig.defaultTitle,
-    template: "%s — Zyon",
+    template: "%s — Prantivo",
   },
   description: siteConfig.defaultDescription,
   openGraph: {
@@ -31,14 +31,14 @@ export const metadata: Metadata = {
     siteName: siteConfig.siteName,
     title: siteConfig.defaultTitle,
     description:
-      "Answers enquiries, qualifies leads, and books appointments on WhatsApp, 24/7 — on your own number.",
+      "The AI receptionist for dental clinics — answers enquiries and books appointments on WhatsApp, 24/7, in Telugu, Hindi, and English.",
     url: "/",
     images: [
       {
         url: siteConfig.ogImage,
         width: 1200,
         height: 630,
-        alt: "Zyon — AI infrastructure for businesses that run on WhatsApp",
+        alt: "Prantivo — the AI receptionist for dental clinics, on WhatsApp",
       },
     ],
     locale: "en_IN",
@@ -47,17 +47,15 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: siteConfig.defaultTitle,
     description:
-      "Answers enquiries, qualifies leads, and books appointments on WhatsApp, 24/7.",
+      "The AI receptionist for dental clinics — answers enquiries and books appointments on WhatsApp, 24/7.",
     images: [siteConfig.ogImage],
   },
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },
-      // TODO: Generate favicon.ico (32×32) from favicon.svg
-      // { url: "/favicon.ico", sizes: "32x32" },
+      { url: "/favicon.ico", sizes: "32x32" },
     ],
     apple: "/apple-touch-icon.png",
-    // TODO: Generate apple-touch-icon.png (180×180) — render the Zyon mark on the ink tile
   },
   robots: {
     index: true,
@@ -73,7 +71,7 @@ const organizationJsonLd = {
   url: siteConfig.siteUrl,
   logo: siteConfig.siteUrl + "/favicon.svg",
   description:
-    "AI infrastructure for businesses that run on WhatsApp — an AI receptionist, workflow automation, AI agents, a CRM, and appointment management.",
+    "The AI receptionist for dental clinics — it answers enquiries, books appointments, and hands off to staff on WhatsApp, in Telugu, Hindi, and English.",
   sameAs: [siteConfig.socialUrls.twitter, siteConfig.socialUrls.linkedin],
   contactPoint: {
     "@type": "ContactPoint",

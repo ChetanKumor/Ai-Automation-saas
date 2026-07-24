@@ -6,14 +6,14 @@ import styles from "../legal.module.css";
 export const metadata: Metadata = {
   title: "Acceptable Use Policy",
   description:
-    "The rules for using Zyon responsibly and in line with WhatsApp's policies.",
+    "The rules for using Prantivo responsibly and in line with WhatsApp's policies.",
   alternates: {
     canonical: "/acceptable-use",
   },
   openGraph: {
-    title: "Acceptable Use Policy — Zyon",
+    title: "Acceptable Use Policy — Prantivo",
     description:
-      "The rules for using Zyon responsibly and in line with WhatsApp's policies.",
+      "The rules for using Prantivo responsibly and in line with WhatsApp's policies.",
     url: "/acceptable-use",
     siteName: siteConfig.siteName,
     type: "website",
@@ -23,15 +23,15 @@ export const metadata: Metadata = {
         url: siteConfig.ogImage,
         width: 1200,
         height: 630,
-        alt: "Zyon — AI infrastructure for businesses that run on WhatsApp",
+        alt: "Prantivo — the AI receptionist for dental clinics, on WhatsApp",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Acceptable Use Policy — Zyon",
+    title: "Acceptable Use Policy — Prantivo",
     description:
-      "The rules for using Zyon responsibly and in line with WhatsApp's policies.",
+      "The rules for using Prantivo responsibly and in line with WhatsApp's policies.",
     images: [siteConfig.ogImage],
   },
 };
@@ -48,7 +48,7 @@ export default function AcceptableUsePage() {
           </div>
           <p className={styles.docIntro}>
             This Acceptable Use Policy sets out what is and isn&rsquo;t allowed
-            when using Zyon. It applies to every Zyon customer and forms part of
+            when using Prantivo. It applies to every Prantivo customer and forms part of
             our Terms of Service. Its purpose is to keep the platform safe,
             lawful, and in good standing with WhatsApp.
           </p>
@@ -59,7 +59,7 @@ export default function AcceptableUsePage() {
         <main className={styles.contentSingle}>
           <h2>Follow WhatsApp&rsquo;s rules</h2>
           <p>
-            Because Zyon runs on Meta&rsquo;s WhatsApp Business Platform, you
+            Because Prantivo runs on Meta&rsquo;s WhatsApp Business Platform, you
             must comply with Meta&rsquo;s and WhatsApp&rsquo;s policies,
             including the WhatsApp Business Messaging Policy and the WhatsApp
             Commerce Policy, as updated from time to time. If anything in this
@@ -87,7 +87,7 @@ export default function AcceptableUsePage() {
           </ul>
 
           <h2>Prohibited content and conduct</h2>
-          <p>You may not use Zyon to create, send, or facilitate:</p>
+          <p>You may not use Prantivo to create, send, or facilitate:</p>
           <ul>
             <li>Anything illegal, or that promotes illegal activity.</li>
             <li>
@@ -123,7 +123,7 @@ export default function AcceptableUsePage() {
             You may not attempt to disrupt, overload, reverse-engineer, or gain
             unauthorised access to the platform or its infrastructure, or to
             other customers&rsquo; data. You may not resell or provide access to
-            Zyon to third parties except as expressly permitted.
+            Prantivo to third parties except as expressly permitted.
           </p>
 
           <h2>Responsible AI use</h2>
@@ -155,7 +155,7 @@ export default function AcceptableUsePage() {
 
           <h2>Reporting abuse</h2>
           <p>
-            If you believe someone is misusing Zyon, or you have received a
+            If you believe someone is misusing Prantivo, or you have received a
             message that breaches this policy, tell us at{" "}
             <span className={styles.ph}>[abuse@yourdomain.com]</span>.
           </p>

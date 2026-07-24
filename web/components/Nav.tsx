@@ -3,14 +3,14 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { waLink, waMessages } from "@/lib/siteConfig";
 import styles from "./Nav.module.css";
 
 const NAV_LINKS = [
-  { label: "Product", href: "#" },
-  { label: "Solutions", href: "#" },
-  { label: "Pricing", href: "#" },
-  { label: "Resources", href: "#" },
-  { label: "Company", href: "#" },
+  { label: "What it does", href: "#platform" },
+  { label: "How it works", href: "#how-it-works" },
+  { label: "Pricing", href: "#pricing" },
+  { label: "FAQ", href: "#faq" },
 ];
 
 export function Nav() {
@@ -27,14 +27,14 @@ export function Nav() {
   return (
     <nav className={`${styles.nav}${scrolled ? ` ${styles.scrolled}` : ""}`}>
       <div className={styles.navInner}>
-        <Link href="/" className={styles.brand} aria-label="Zyon home">
+        <Link href="/" className={styles.brand} aria-label="Prantivo home">
           <svg className={styles.mark} viewBox="0 0 22 22" aria-hidden="true">
             <rect x="2" y="2" width="18" height="18" rx="5" />
             <circle cx="7.5" cy="11" r="1.5" />
             <circle cx="11" cy="11" r="1.5" />
             <circle cx="14.5" cy="11" r="1.5" />
           </svg>
-          Zyon
+          Prantivo
         </Link>
 
         <div className={styles.navLinks}>
@@ -46,7 +46,13 @@ export function Nav() {
         </div>
 
         <div className={styles.navCta}>
-          <Button variant="primary">Book a demo</Button>
+          <Button
+            variant="primary"
+            href={waLink(waMessages.demo)}
+            aria-label="Book a demo on WhatsApp"
+          >
+            Book a demo
+          </Button>
           <button
             className={styles.menuBtn}
             aria-label={menuOpen ? "Close menu" : "Open menu"}

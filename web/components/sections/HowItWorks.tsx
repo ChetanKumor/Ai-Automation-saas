@@ -1,11 +1,12 @@
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { Button } from "@/components/ui/Button";
 import { Reveal } from "@/components/ui/Reveal";
+import { waLink, waMessages } from "@/lib/siteConfig";
 import styles from "./HowItWorks.module.css";
 
 export function HowItWorks() {
   return (
-    <section className={styles.how}>
+    <section id="how-it-works" className={styles.how}>
       <div className="wrap">
         <Reveal className={styles.howHead}>
           <Eyebrow variant="bar">How it works</Eyebrow>
@@ -88,7 +89,13 @@ export function HowItWorks() {
         </div>
 
         <Reveal className={styles.howCta} style={{ transitionDelay: "0.15s" }}>
-          <Button variant="primary">Book a demo</Button>
+          <Button
+            variant="primary"
+            href={waLink(waMessages.demo)}
+            aria-label="Book a demo on WhatsApp"
+          >
+            Book a demo
+          </Button>
         </Reveal>
       </div>
     </section>

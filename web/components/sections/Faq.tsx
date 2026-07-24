@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { Reveal } from "@/components/ui/Reveal";
 import { Button } from "@/components/ui/Button";
+import { waLink, waMessages } from "@/lib/siteConfig";
 import { FAQ_ITEMS } from "./faqData";
 import styles from "./Faq.module.css";
 
@@ -23,7 +24,7 @@ export function Faq() {
   }
 
   return (
-    <section className={styles.faq}>
+    <section id="faq" className={styles.faq}>
       <div className="wrap">
         <div className={styles.faqGrid}>
           <Reveal className={styles.faqHead}>
@@ -34,8 +35,20 @@ export function Faq() {
               unsure? Ask us directly.
             </p>
             <div className={styles.faqCta}>
-              <Button variant="primary">Book a demo</Button>
-              <Button variant="secondary">Talk to us</Button>
+              <Button
+                variant="primary"
+                href={waLink(waMessages.demo)}
+                aria-label="Book a demo on WhatsApp"
+              >
+                Book a demo
+              </Button>
+              <Button
+                variant="secondary"
+                href={waLink(waMessages.talk)}
+                aria-label="Message us on WhatsApp"
+              >
+                Talk to us
+              </Button>
             </div>
           </Reveal>
 

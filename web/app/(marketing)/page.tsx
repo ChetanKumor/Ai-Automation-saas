@@ -6,7 +6,6 @@ import { Proof } from "@/components/sections/Proof";
 import { Problem } from "@/components/sections/Problem";
 import { HowItWorks } from "@/components/sections/HowItWorks";
 import { Platform } from "@/components/sections/Platform";
-import { Solutions } from "@/components/sections/Solutions";
 import { Why } from "@/components/sections/Why";
 import { Trust } from "@/components/sections/Trust";
 import { Pricing } from "@/components/sections/Pricing";
@@ -26,7 +25,7 @@ const softwareApplicationJsonLd = {
   applicationCategory: "BusinessApplication",
   operatingSystem: "Web",
   description:
-    "An AI WhatsApp receptionist, workflow automation, AI agents, CRM, and appointment management on the official WhatsApp Business Platform. Built for clinics, real estate, finance, and any business that books appointments or fields enquiries.",
+    "An AI receptionist for dental clinics. It answers enquiries, books appointments, and hands off to staff on WhatsApp — in Telugu, Hindi, and English — on the official WhatsApp Business Platform.",
   offers: {
     "@type": "Offer",
     priceCurrency: "INR",
@@ -70,7 +69,6 @@ export default function HomePage() {
       <Problem />
       <HowItWorks />
       <Platform />
-      <Solutions />
       <Why />
       <Trust />
       <Pricing />

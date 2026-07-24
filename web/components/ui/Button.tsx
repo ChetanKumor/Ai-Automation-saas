@@ -28,6 +28,21 @@ export function Button({
     .join(" ");
 
   if (href) {
+    // External links (wa.me, http/https) open in a new tab and skip next/link.
+    if (/^https?:\/\//i.test(href)) {
+      return (
+        <a
+          href={href}
+          className={cls}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={rest["aria-label"]}
+        >
+          {children}
+          {icon}
+        </a>
+      );
+    }
     return (
       <Link href={href} className={cls}>
         {children}

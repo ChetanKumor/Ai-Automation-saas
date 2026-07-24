@@ -1,5 +1,6 @@
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { Button } from "@/components/ui/Button";
+import { waLink, waMessages } from "@/lib/siteConfig";
 import { HeroChat } from "./HeroChat";
 import styles from "./Hero.module.css";
 
@@ -14,30 +15,38 @@ export function Hero() {
         <h1 className={styles.h1}>
           <span className={styles.line}>
             <span className={`${styles.lineInner} ${styles.d2}`}>
-              AI infrastructure for
+              AI receptionist
             </span>
           </span>
           <span className={styles.line}>
             <span className={`${styles.lineInner} ${styles.d3}`}>
-              businesses that run
+              for dental clinics —
             </span>
           </span>
           <span className={styles.line}>
             <span className={`${styles.lineInner} ${styles.d4}`}>
-              on WhatsApp
+              answers and books.
             </span>
           </span>
         </h1>
 
         <p className={`${styles.sub} ${styles.reveal} ${styles.d5}`}>
-          An AI receptionist, workflow automation, AI agents, a CRM, and
-          appointment booking — one platform, on the WhatsApp number your
-          customers already use. Your team takes over whenever it needs to.
+          It replies on your clinic&rsquo;s own WhatsApp number in Telugu,
+          Hindi, and English — booking appointments and answering patients,
+          24/7 — with AI voice calling coming next.
         </p>
 
         <div className={`${styles.heroCta} ${styles.reveal} ${styles.d6}`}>
-          <Button variant="primary">Book a demo</Button>
-          <Button variant="secondary">See how it works →</Button>
+          <Button
+            variant="primary"
+            href={waLink(waMessages.demo)}
+            aria-label="Book a demo on WhatsApp"
+          >
+            Book a demo
+          </Button>
+          <Button variant="secondary" href="#how-it-works">
+            See how it works →
+          </Button>
         </div>
       </div>
 

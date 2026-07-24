@@ -97,7 +97,7 @@ export function HeroChat() {
       <div
         className={styles.wa}
         role="img"
-        aria-label="A WhatsApp conversation where the Zyon AI receptionist books a dental appointment for a customer."
+        aria-label="An example WhatsApp conversation where the Prantivo AI receptionist books a dental appointment for a customer."
       >
         <div className={styles.waHead}>
           <div className={styles.waAvatar}>L</div>
@@ -128,8 +128,8 @@ export function HeroChat() {
         </div>
       </div>
       <p className={styles.waCaption}>
-        The AI receptionist booking an appointment on WhatsApp. A staff member
-        can take over the chat at any point.
+        An example of the AI receptionist booking an appointment on WhatsApp.
+        A staff member can take over the chat at any point.
       </p>
     </div>
   );

@@ -8,7 +8,7 @@ export function Why() {
       <div className="wrap">
         <div className={styles.whyGrid}>
           <Reveal className={styles.whyHead}>
-            <Eyebrow variant="bar">Why Zyon</Eyebrow>
+            <Eyebrow variant="bar">Why Prantivo</Eyebrow>
             <h2>The difference is in the architecture</h2>
             <p>
               Anyone can bolt a chatbot onto WhatsApp. What you build it on is
@@ -103,7 +103,7 @@ export function Why() {
               <div>
                 <div className={styles.pillarTitle}>Your number, your data</div>
                 <p className={styles.pillarDesc}>
-                  Zyon works on your existing WhatsApp Business number. Every
+                  Prantivo works on your existing WhatsApp Business number. Every
                   business is isolated; your conversations and contacts are never
                   shared with anyone else on the platform.
                 </p>

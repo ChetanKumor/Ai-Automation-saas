@@ -29,7 +29,7 @@ export function Proof() {
         </div>
         <div className={styles.proofItem}>
           <span className={styles.accentDot} />
-          Five products live · AI Voice Calling soon
+          Answers in Telugu, Hindi &amp; English · AI voice calling soon
         </div>
       </div>
     </div>

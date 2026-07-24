@@ -6,14 +6,14 @@ import styles from "../legal.module.css";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
-    "How Zyon collects, uses, stores, and protects personal data across its WhatsApp automation platform.",
+    "How Prantivo collects, uses, stores, and protects personal data across its WhatsApp automation platform.",
   alternates: {
     canonical: "/privacy",
   },
   openGraph: {
-    title: "Privacy Policy — Zyon",
+    title: "Privacy Policy — Prantivo",
     description:
-      "How Zyon collects, uses, stores, and protects personal data across its WhatsApp automation platform.",
+      "How Prantivo collects, uses, stores, and protects personal data across its WhatsApp automation platform.",
     url: "/privacy",
     siteName: siteConfig.siteName,
     type: "website",
@@ -23,15 +23,15 @@ export const metadata: Metadata = {
         url: siteConfig.ogImage,
         width: 1200,
         height: 630,
-        alt: "Zyon — AI infrastructure for businesses that run on WhatsApp",
+        alt: "Prantivo — the AI receptionist for dental clinics, on WhatsApp",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Privacy Policy — Zyon",
+    title: "Privacy Policy — Prantivo",
     description:
-      "How Zyon collects, uses, stores, and protects personal data across its WhatsApp automation platform.",
+      "How Prantivo collects, uses, stores, and protects personal data across its WhatsApp automation platform.",
     images: [siteConfig.ogImage],
   },
 };
@@ -48,7 +48,7 @@ export default function PrivacyPage() {
             Effective: <span className={styles.ph}>[DATE]</span>
           </div>
           <p className={styles.docIntro}>
-            This Privacy Policy explains how Zyon (&ldquo;Zyon&rdquo;,
+            This Privacy Policy explains how Prantivo (&ldquo;Prantivo&rdquo;,
             &ldquo;we&rdquo;, &ldquo;us&rdquo;) collects, uses, stores, shares,
             and protects personal data when you use our WhatsApp automation
             platform and website. Please read it alongside our Terms of Service
@@ -81,7 +81,7 @@ export default function PrivacyPage() {
           <main className={styles.content}>
             <h2 id="who">1. Who we are</h2>
             <p>
-              Zyon is a software platform that connects to a business&rsquo;s
+              Prantivo is a software platform that connects to a business&rsquo;s
               WhatsApp Business number through Meta&rsquo;s official WhatsApp
               Business Platform (Cloud API) to provide an AI receptionist,
               workflow automation, AI agents, a CRM, and appointment management.
@@ -105,7 +105,7 @@ export default function PrivacyPage() {
             <p>
               For the personal data of our{" "}
               <strong>business customers</strong> — the people who sign up for
-              and administer a Zyon account — we act as the data controller. We
+              and administer a Prantivo account — we act as the data controller. We
               decide how this account, billing, and support data is handled.
             </p>
             <h3>As a data processor</h3>
@@ -114,11 +114,11 @@ export default function PrivacyPage() {
               <strong>
                 conversations between a business and its own end-customers
               </strong>{" "}
-              on WhatsApp, the business is the data controller and Zyon acts as
+              on WhatsApp, the business is the data controller and Prantivo acts as
               the data processor. We process that conversation data only to
               provide the service to that business, on its instructions. Each
               business is responsible for having a lawful basis and the necessary
-              consents to communicate with its own customers and to use Zyon to
+              consents to communicate with its own customers and to use Prantivo to
               do so.
             </p>
 
@@ -162,7 +162,7 @@ export default function PrivacyPage() {
             <div className={styles.callout}>
               <p>
                 We do not ask businesses to collect sensitive personal data
-                through Zyon. If a business chooses to handle sensitive data (for
+                through Prantivo. If a business chooses to handle sensitive data (for
                 example, health information at a clinic), it is responsible for
                 doing so lawfully and for obtaining any required consent from its
                 customers.
@@ -238,7 +238,7 @@ export default function PrivacyPage() {
             <h2 id="retention">7. Data retention</h2>
             <p>
               We keep personal data for as long as a business maintains an active
-              Zyon account and as needed to provide the service. When an account
+              Prantivo account and as needed to provide the service. When an account
               is closed, or when a business or end-customer requests deletion, we
               delete the associated personal data within a reasonable period,
               except where we are required to retain limited records (for
@@ -271,7 +271,7 @@ export default function PrivacyPage() {
             </p>
             <p>
               If you are an <strong>end-customer</strong> whose data is processed
-              by a business through Zyon, that business is the controller of your
+              by a business through Prantivo, that business is the controller of your
               data. You can contact the business directly, or contact us and we
               will refer your request to the relevant business.
             </p>
@@ -288,7 +288,7 @@ export default function PrivacyPage() {
 
             <h2 id="children">12. Children</h2>
             <p>
-              Zyon is intended for use by businesses, not by children. Where a
+              Prantivo is intended for use by businesses, not by children. Where a
               business serves customers who may be minors (for example, a
               clinic), the business is responsible for handling any minor&rsquo;s
               data lawfully and for obtaining verifiable parental or guardian
