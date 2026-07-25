@@ -33,3 +33,19 @@ Reason: The old OS embedded a company snapshot in its own text; the snapshot wen
 Prediction: Within the next ten sessions, at least one recommendation is visibly changed by the hierarchy or the displacement check — a specific piece of engineering work deferred in favour of a clock or a gate, and named as such.
 Review: 2026-09-01
 Outcome: pending
+
+## D-003 — Per-surface session secrets deferred
+Date: 2026-07-25
+Overrides: none
+Reason: the `PORTAL_SESSION_SECRET → SESSION_SECRET` fallback was retained in `3584240` as a deliberate deferral, not an oversight.
+Prediction: before clinic #10, a portal session and an admin session will need independent invalidation, and sharing one secret will force a simultaneous logout of both surfaces.
+Review: at clinic #10, or on the first session-invalidation incident, whichever comes first.
+Outcome: pending
+
+## D-004 — `docs/os/` established as canonical session memory
+Date: 2026-07-25
+Overrides: none; implements D-002
+Reason: the four memory files lived outside the repository, so every session silently skipped the "load state" step of the OS protocol — `state.md` recorded 583 tests against an actual 830.
+Prediction: within the next ten sessions, at least one Claude Code session opens by loading `docs/os/state.md` and visibly corrects a premise in its Phase 0 report as a result.
+Review: 2026-09-15
+Outcome: pending
