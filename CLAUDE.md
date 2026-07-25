@@ -2,9 +2,27 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project memory — read first, every session
+
+Before Phase 0 of any session, read:
+- `docs/os/state.md` — the company as of a commit
+- `docs/os/clocks.md` — external dependencies; a clock runs only when a reference number exists
+- `docs/os/decisions.md` — overrides and irreversible choices, append-only
+- `docs/os/assumptions.md` — untested beliefs the plan depends on
+
+Rules:
+- If `state.md`'s `Verified-at` does not equal HEAD, treat every line as
+  unverified and say so in your Phase 0 report.
+- Never write to `clocks.md`. External clock state is founder-supplied.
+- Never edit an existing `decisions.md` entry. Append and supersede.
+- If your session changes the test count, closes an audit finding, lands a
+  deploy, or completes a numbered issue, update `state.md` in the same commit
+  and refresh `Verified-at`. A session that changes reality and leaves
+  `state.md` behind has left a defect.
+
 ## Project Overview
 
-Multi-tenant WhatsApp AI CRM. Businesses connect their WhatsApp number; inbound messages are handled by an AI agent (Gemini 1.5 Flash) or handed off to a human agent. Each conversation carries its own `mode` (`ai` | `human`) so the AI can be silenced per-conversation without affecting other threads.
+Multi-tenant WhatsApp AI CRM. Businesses connect their WhatsApp number; inbound messages are handled by an AI agent (Gemini 2.5 Flash) or handed off to a human agent. Each conversation carries its own `mode` (`ai` | `human`) so the AI can be silenced per-conversation without affecting other threads.
 
 ## Commands
 

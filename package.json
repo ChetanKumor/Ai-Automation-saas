@@ -8,7 +8,8 @@
     "dev": "nodemon server.js",
     "db:genesis": "node src/db/migrate.js genesis",
     "db:migrate": "node src/db/migrate.js migrate",
-    "db:status": "node src/db/migrate.js status"
+    "db:status": "node src/db/migrate.js status",
+    "os:check": "node scripts/os-check.js"
   },
   "keywords": [],
   "author": "",
