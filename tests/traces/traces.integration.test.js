@@ -30,6 +30,7 @@ const traces              = require('../../src/modules/traces/collector');
 const eventBus            = require('../../core/events');
 const writer              = require('../../src/modules/traces/writer');
 const retention           = require('../../src/modules/traces/retentionCron');
+const configService   = require('../../src/modules/config/configService');
 const { checkScriptedTurn } = require('../../src/modules/validation/scriptedTurnCheck');
 
 const TENANT_ID       = '00000000-0000-0000-0000-mmmm00000022'.replace(/m/g, 'a');
@@ -43,6 +44,25 @@ function istDateString(daysAhead) {
   return new Date(Date.now() + daysAhead * 86400000)
     .toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 }
+
+// The fixture clinic opens every day, 09:00–18:00, with no holidays. Booking
+// hours come from the tenant's config, and a tenant with NO config row inherits
+// clinicDefaults — which closes Sunday. The booking turn below is relative
+// (istDateString(1)), so under the defaults it passed six days a week and
+// failed every Saturday with `closed_day`. Declaring all seven days here makes
+// the calendar arithmetic independent of which day the suite runs on.
+// clinicDefaults' Sunday closure still has its own coverage in
+// tests/appointment/bookingRules.unit.test.js.
+const ALWAYS_OPEN_HOURS = {
+  mon: { open: '09:00', close: '18:00' },
+  tue: { open: '09:00', close: '18:00' },
+  wed: { open: '09:00', close: '18:00' },
+  thu: { open: '09:00', close: '18:00' },
+  fri: { open: '09:00', close: '18:00' },
+  sat: { open: '09:00', close: '18:00' },
+  sun: { open: '09:00', close: '18:00' },
+  holidays: [],
+};
 
 // Poll until fn() resolves truthy (the WA webhook processes after its 200).
 async function eventually(fn, timeoutMs = 4000) {
@@ -202,6 +222,7 @@ describe('turn traces — capture + isolation + probe + retention (Issue 22)', {
         start: '09:00', end: '18:00', slot_minutes: 30,
       })]
     );
+    await configService.writeTenantConfig(TENANT_ID, { hours: ALWAYS_OPEN_HOURS }, 'cli');
 
     knowledgeMock = mock.method(knowledgeService, 'getRelevantChunks', async () => knowledgeChunksResult);
     senderMock = mock.method(waSender, 'sendMessage', async () => 'wamid.out.' + crypto.randomBytes(4).toString('hex'));

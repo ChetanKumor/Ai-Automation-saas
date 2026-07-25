@@ -16,6 +16,26 @@ const conversationService = require('../../src/modules/conversation/conversation
 const callSessions        = require('../../src/modules/voice/callSessions');
 const voiceAdapter        = require('../../src/modules/channels/voice/voiceChannelAdapter');
 const telephony           = require('../../src/modules/telephony/telephonyProvider');
+const configService       = require('../../src/modules/config/configService');
+
+// The fixture clinic opens every day, 09:00–18:00, with no holidays. Booking
+// hours come from the tenant's config, and a tenant with NO config row inherits
+// clinicDefaults — which closes Sunday. The bookings below are relative
+// (`daysAhead: 1`), so under the defaults these tests passed six days a week and
+// failed every Saturday with `closed_day`. Declaring all seven days here makes
+// the calendar arithmetic independent of which day the suite runs on.
+// clinicDefaults' Sunday closure still has its own coverage in
+// tests/appointment/bookingRules.unit.test.js.
+const ALWAYS_OPEN_HOURS = {
+  mon: { open: '09:00', close: '18:00' },
+  tue: { open: '09:00', close: '18:00' },
+  wed: { open: '09:00', close: '18:00' },
+  thu: { open: '09:00', close: '18:00' },
+  fri: { open: '09:00', close: '18:00' },
+  sat: { open: '09:00', close: '18:00' },
+  sun: { open: '09:00', close: '18:00' },
+  holidays: [],
+};
 
 const TENANT_ID        = '00000000-0000-0000-0000-vvvv00000010'.replace(/v/g, 'a');
 const PHONE_NUMBER_ID  = 'pnid_voice_integration';
@@ -113,6 +133,7 @@ describe('Voice turn → existing brain (the PR6 proof; no telephony, no audio)'
         start: '09:00', end: '18:00', slot_minutes: 30,
       })]
     );
+    await configService.writeTenantConfig(TENANT_ID, { hours: ALWAYS_OPEN_HOURS }, 'cli');
 
     // Keep the turn hermetic: no live Gemini embeddings for RAG.
     knowledgeMock = require('node:test').mock.method(knowledgeService, 'getRelevantChunks', async () => []);
