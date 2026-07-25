@@ -96,4 +96,6 @@ gap for the safety panel.
 **The portal itself has no such banner.** An owner editing pricing on a legacy tenant gets
 a saved-successfully confirmation and a new config version, with no indication the value
 will never be spoken. Evidenced at `aiService.js:466-467` and `400-405`; mitigation not
-built. Filed as an issue; not fixed in the session that found it.
+built. Filed as **Issue 34** in `docs/specs/zyon-first-launch-plan.md` (Phase 8), with the
+full finding at `docs/specs/issue-34-legacy-prompt-shadows-portal-config.md`. Not fixed in
+the session that found it.

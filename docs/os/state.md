@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: a33f54c021aedf911771a67eb5497d1440529696
+Verified-at: f560c184923cc06e56a6fbf53fa33a1e87d2ee30
 Verified-on: 2026-07-25
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -73,9 +73,33 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 By issue number, from `docs/specs/zyon-first-launch-plan.md`.
 
-- **Done:** 3, 4, 5, 6, 7, 8, 9, 10, 15, 16, 17, 18, 19, 21, 22
-- **Not done:** 1 (ops), 2 (ops), 11, 12, 13, 14, 20, 23, 24, 27, 28
+**Plan-of-record numbers are the only issue sequence this project has.** There is no
+GitHub issue tracker in use and nothing in the repo references one, so the launch plan is
+the numbering authority — allocate the next free number there. (Whether issues exist on
+github.com is not repo-derivable; what is verified is that nothing in this repo cites
+them.) The sequence runs to **34**, not 28: the original plan defined 1–28 and later work
+kept counting.
+
+- **Done:** 3, 4, 5, 6, 7, 8, 9, 10, 15, 16, 17, 18, 19, 21, 22, 29, 30
+- **Not done:** 1 (ops), 2 (ops), 11, 12, 13, 14, 20, 23, 24, 27, 28, 34
 - **Residue-only** (built and tested; awaiting Issue 20 for a prod render): 25, 26
+- **Allocated, unverified:** 31, 32, 33 ⚠️ — mapped to the voice-review sessions V-004
+  (`5bb60ab`), V-008 (`629f7fb`) and V-009 (`f097b77`). Those commits landed under their
+  V-numbers and write **no `Issue NN` string anywhere in the repo**, so the mapping is
+  recollection, not repo evidence. Recorded so the numbers are not reissued.
+
+Additions since the original 1–28, all in the plan's Phase 8:
+
+- **29** — turn cancellation + coordinated deadlines (V-001/V-003), `1605954`. DONE.
+  Referenced in 12 files incl. `src/routes/internalVoice.js:58,116,220,248`,
+  `src/modules/ai/aiService.js:22,82,190,216,310`, `src/db/db.js:4`,
+  `src/infra/config/env.js:59`, `tests/db/statementTimeout.test.js:3,17`.
+- **30** — per-channel extraction policy (V-002), `2948a10`. DONE.
+  `src/modules/config/schema.js:250`, `tests/crm/extraction.bus.test.js:94,312`,
+  `tests/voice/voiceLifecycle.integration.test.js:181`.
+- **34** — admin-created tenants silently ignore all portal-written prompt copy. OPEN;
+  this is A-007/A-008 promoted to the queue. Full finding at
+  `docs/specs/issue-34-legacy-prompt-shadows-portal-config.md`.
 
 ## Stack (frozen)
 
