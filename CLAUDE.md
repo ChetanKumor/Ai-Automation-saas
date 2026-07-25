@@ -93,3 +93,5 @@ Configured via `.env` (gitignored). Required:
 - `ENCRYPTION_KEY` — 32-byte hex key for AES-256-GCM encryption of wa_token
 - `ADMIN_PASSWORD` — single admin password for the `/admin` dashboard
 - Tenant-level: `phone_number_id` and `wa_token` are stored per-tenant in the DB, not in env vars.
+## Commit conventions
+Do not add Co-Authored-By trailers or any AI attribution to commit messages.
