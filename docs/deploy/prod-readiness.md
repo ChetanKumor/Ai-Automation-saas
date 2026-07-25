@@ -36,11 +36,11 @@ secret manager); N = non-sensitive. **Required?** is for *this* deploy
 | `WEBHOOK_VERIFY_TOKEN` | Token Meta echoes on `GET /webhook` verification. | **Yes** | Y | Operator-chosen random string; must match the value entered in the Meta App webhook config. `generate: openssl rand -hex 24`. |
 | `META_APP_SECRET` | Verifies `X-Hub-Signature-256` on inbound webhooks. | **Yes** | Y | **Meta Business → App → Settings → Basic → App Secret.** Copy at WhatsApp attach time. |
 | `ENCRYPTION_KEY` | 32-byte hex key, AES-256-GCM for per-tenant `wa_token`. | **Yes** | Y | `generate: openssl rand -hex 32` (exactly 64 hex chars). **Rotating this orphans every stored wa_token** — set once, back it up in the secret store. |
-| `ADMIN_PASSWORD` | Single-operator `/admin` login. Also the SESSION_SECRET fallback. | **Yes** | Y | Operator-chosen strong password. `generate: openssl rand -base64 24`. |
+| `ADMIN_PASSWORD` | Single-operator `/admin` login. | **Yes** | Y | Operator-chosen strong password. `generate: openssl rand -base64 24`. |
 | `NODE_ENV` | `production` flips **trust-proxy + secure session cookie** on (server.js §gating). | **Yes (prod)** | N | **Operator must set `production` explicitly.** Railway/Nixpacks does *not* guarantee it. If unset, `/admin` login over Railway's TLS-terminating proxy is bounced immediately (insecure-cookie loop). See §4. |
 | `PORT` | HTTP listen port. | No (injected) | N | **Railway-injected.** Code binds `process.env.PORT` (falls back to 3000). Do not hard-set. |
 | `HOST` | Listen host. Defaults to `0.0.0.0`. | No | N | Leave unset — the default `0.0.0.0` is correct for Railway. (Conformance fix, §5.) |
-| `SESSION_SECRET` | Session cookie signing secret. | Recommended | Y | `generate: openssl rand -hex 32` (**must be ≥32 chars or boot fails**). If unset it falls back to `ADMIN_PASSWORD`, then `'dev-fallback'` — set it in prod so rotating the admin password doesn't invalidate the secret too. |
+| `SESSION_SECRET` | Session cookie signing secret (admin + portal). | **Yes** | Y | `generate: openssl rand -hex 32` (**must be ≥32 chars or boot fails**). There is no fallback: unset, `env.js` refuses to boot. |
 | `LOG_LEVEL` | pino level. Defaults to `info`. | No | N | Leave unset (`info`). Do **not** ship `debug` to prod — it logs request bodies/volume. Called out as a dangerous-to-default-wrong knob. |
 | `IDENTITY_RESOLUTION_ENABLED` | Feature flag, default `false`. | No | N | Leave unset/false for genesis. |
 | `VOICE_ENABLED` | Master switch for the entire voice channel. | No | N | **`false` / unset for this deploy.** Gates `/internal/voice/*`, the telephony wiring, and the voice adapter. Flip on in Issues 11–14. |

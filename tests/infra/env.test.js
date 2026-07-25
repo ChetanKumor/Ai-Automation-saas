@@ -14,6 +14,7 @@ describe('Env validation (src/infra/config/env.js)', () => {
       META_APP_SECRET: 'test-secret',
       ENCRYPTION_KEY: 'a'.repeat(64),
       ADMIN_PASSWORD: 'admin123',
+      SESSION_SECRET: 's'.repeat(32),
       ...envOverrides,
     };
 
@@ -70,6 +71,16 @@ describe('Env validation (src/infra/config/env.js)', () => {
     } catch (err) {
       assert.ok(err.stdout.includes('DATABASE_URL'));
       assert.ok(err.stdout.includes('ENCRYPTION_KEY'));
+      assert.notEqual(err.status, 0);
+    }
+  });
+
+  it('missing SESSION_SECRET → exits naming the var', () => {
+    try {
+      runWithEnv({ SESSION_SECRET: undefined });
+      assert.fail('Should have thrown');
+    } catch (err) {
+      assert.ok(err.stdout.includes('SESSION_SECRET'), `stdout should mention SESSION_SECRET, got: ${err.stdout}`);
       assert.notEqual(err.status, 0);
     }
   });

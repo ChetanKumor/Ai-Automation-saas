@@ -9,6 +9,11 @@ const REQUIRED = [
   'META_APP_SECRET',
   'ENCRYPTION_KEY',
   'ADMIN_PASSWORD',
+  // Required, not "recommended": the session-signing secret has no safe default.
+  // The former `|| ADMIN_PASSWORD || 'dev-fallback'` chains in server.js and
+  // src/portal/routes.js are gone, so an absent value must fail the boot here
+  // rather than silently sign cookies with a guessable string.
+  'SESSION_SECRET',
 ];
 
 const missing = REQUIRED.filter((key) => !process.env[key]);

@@ -65,10 +65,10 @@ router.use((req, res, next) => {
 const isProd = process.env.NODE_ENV === 'production';
 router.use(session({
   name: 'portal.sid',
-  secret: process.env.PORTAL_SESSION_SECRET
-    || process.env.SESSION_SECRET
-    || process.env.ADMIN_PASSWORD
-    || 'dev-fallback',
+  // PORTAL_SESSION_SECRET is optional; unset, the portal shares the required
+  // SESSION_SECRET. There is no further fallback — env.js refuses to boot
+  // without SESSION_SECRET, so this is never undefined.
+  secret: process.env.PORTAL_SESSION_SECRET || process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {

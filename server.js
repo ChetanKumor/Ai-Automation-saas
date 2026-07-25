@@ -71,7 +71,7 @@ if (isProd) {
 app.use('/portal', require('./src/portal/routes'));
 
 app.use(session({
-  secret: process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || 'dev-fallback',
+  secret: process.env.SESSION_SECRET, // required + length-checked in env.js
   resave: false,
   saveUninitialized: false,
   cookie: {
