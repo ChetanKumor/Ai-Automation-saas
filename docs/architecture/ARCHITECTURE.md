@@ -388,6 +388,6 @@ Owned decisions with the phase that owns them — deferred deliberately, not for
 
 ## 10. References
 
-- `zyon-first-launch-plan.md` — plan of record for launch sequencing; authoritative where this document and it overlap.
+- `docs/specs/zyon-first-launch-plan.md` — plan of record for launch sequencing; authoritative where this document and it overlap.
 - `ZYON_V2_SPEC.md` — historical implementation spec; superseded items listed in §2.4.
 - Commit bodies on main — runtime evidence per the operating principles in §4.

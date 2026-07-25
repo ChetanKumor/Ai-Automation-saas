@@ -1,7 +1,7 @@
 # Production-Readiness Audit — 2026-07-16
 
 Read-only technical due-diligence of the repo at `main` @ `709ec0a`, judged against
-the plan of record (`docs/zyon-first-launch-plan (2).md`, Issues 3–28) and the six
+the plan of record (`docs/specs/zyon-first-launch-plan.md`, Issues 3–28) and the six
 architecture invariants. Question answered: **is this system ready to serve its
 first paying clinic, and then ten clinics?**
 
