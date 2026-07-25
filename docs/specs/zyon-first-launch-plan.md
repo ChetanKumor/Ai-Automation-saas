@@ -188,6 +188,51 @@ Each DoD: renders live prod data; rides existing static panel; no new stack.
 Fold in #1's friction; target: software path (config→provision→validate→
 activate) under 15 minutes, measured. DoD: stopwatch evidence.
 
+## Phase 8 — Post-plan additions
+
+Issues 1–28 above are the original plan. The sequence did not stop there.
+**These plan-of-record numbers are the only issue sequence this project has** —
+there is no GitHub issue tracker in use, and nothing in the repo references one.
+Allocate the next free number here; do not restart at 29.
+
+**Issue 29 — feat: turn cancellation + coordinated deadlines (V-001/V-003).**
+**DONE** (`1605954`). Combined close/deadline `AbortSignal` threaded through the
+voice turn; `TURN_BUDGET_MS` pinned strictly below the worker's
+`VOICE_TURN_TIMEOUT_S`; app-pool `statement_timeout`; point-of-no-return so a
+committed booking's confirmation always persists. Evidenced across 12 files —
+`src/routes/internalVoice.js:58,116,220,248`, `src/modules/ai/aiService.js:22,82,190,216,310`,
+`src/db/db.js:4`, `src/infra/config/env.js:59`, `src/modules/traces/writer.js:9,16`,
+`src/modules/traces/collector.js:79`, `src/modules/knowledge/knowledgeService.js:7`,
+`src/modules/conversation/contextAssembler.js:42`,
+`tests/voice/voiceCancellation.integration.test.js:18,148`,
+`tests/db/statementTimeout.test.js:3,17`, `.env.example:65`,
+`docs/deploy/prod-readiness.md:51-52`.
+
+**Issue 30 — fix: per-channel extraction policy (V-002).**
+**DONE** (`2948a10`, merged `dabe207`). `channel` + `msg_type` ride the
+`MESSAGE_RECEIVED` event; voice extraction defaults OFF. Evidenced at
+`src/modules/config/schema.js:250`, `tests/crm/extraction.bus.test.js:94,312`,
+`tests/voice/voiceLifecycle.integration.test.js:181`.
+
+**Issues 31–33 — allocated, unverified.**
+Allocated to the voice-review sessions V-004 (`5bb60ab`, terminal-transition guard
+on `call_sessions`), V-008 (`629f7fb`, slot-grid validation from
+`booking.slot_minutes`) and V-009 (`f097b77`, history excluded by id not OFFSET).
+Those commits landed under their V-numbers and **write no `Issue NN` string
+anywhere in the repo**, so the mapping is recollection, not repo evidence —
+recorded here so the numbers are not reissued. ⚠️ unverified.
+
+**Issue 34 — fix: admin-created tenants silently ignore all portal-written prompt copy.**
+**OPEN.** A non-null `tenants.ai_prompt` short-circuits the config read entirely
+(`src/modules/ai/aiService.js:466-467`, `400-405`), so every portal-written prompt
+field is inert while booking enforcement, doctors and knowledge chunks survive. The
+portal shows the owner no warning. Full finding, the shadowed/survives tables, both
+options and the recommendation: **[`issue-34-legacy-prompt-shadows-portal-config.md`](issue-34-legacy-prompt-shadows-portal-config.md)**.
+Recommended fix is (a) — remove the legacy-prompt field from
+`public/admin/tenant-new.html:39`. DoD: red test = a tenant with a non-null
+`ai_prompt` cannot be created through the admin form; existing legacy tenants
+unchanged; suite green.
+
 ---
 
 ## Cut lines & critical path
