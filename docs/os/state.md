@@ -10,12 +10,12 @@ Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run 
 stated inline. Absence of a marker means the line was checked against HEAD, not that it
 is self-evident.
 
-**Not yet absorbed.** `docs/audit/2026-07-frontend.md` (`90d1da3`) and `D-005` (`56e7f46`)
-landed after the previous verification. This refresh restores **provenance only** — the
-sole change since `f560c184` outside `docs/os/` is that audit document, so every line
-below still holds by the rule in `scripts/os-check.js`. No line has been amended for the
-audit's findings. The `web/` surface record it demands is **F-F004**, filed for Stage 2
-Item 1 of the D-005 program; until that lands, this file says nothing about `web/`.
+**Partially absorbed.** `docs/audit/2026-07-frontend.md` (`90d1da3`) and `D-005`
+(`56e7f46`) landed after the verification before this one. **F-F004 is now absorbed** —
+the `web/` surface record the audit demanded is under *Stack (frozen)* below, and gate 2's
+evidence column names the gap in Issue 20's scope. The audit's other findings are **not**
+reflected here: F-F003 (legal-page placeholders) is blocked on C-1, F-F005 (Telugu `lang`
+attributes) and F-F006–F-F009 are queued for later items of the D-005 program.
 
 ---
 
@@ -55,7 +55,7 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 | # | Gate | Audit (2026-07-16) | **At HEAD** | Evidence for the HEAD verdict |
 |---|---|---|---|---|
 | 1 | Genesis bootstrap works | PASS | **PASS** | `src/db/migrate.js`; `db:genesis`/`db:migrate`/`db:status` in `package.json`. Unchanged since the audit's live throwaway-DB run. |
-| 2 | Live WhatsApp round-trip on prod | PENDING | **PENDING** | No production deploy; no prod evidence log in the repo. Blocked on Issue 20. |
+| 2 | Live WhatsApp round-trip on prod | PENDING | **PENDING** | No production deploy; no prod evidence log in the repo. Blocked on Issue 20. **Issue 20's scope is incomplete:** as scoped today it deploys the Express app and `public/**` and says nothing about `web/`, leaving the surface a prospect sees *first* un-deployed by any reviewable process. Issue 20 is not closeable until it carries a `web/` deploy line item — see F-F004 and the `web/` bullet under *Stack (frozen)*. |
 | 3 | Issue 14 voice gate | PENDING-DID | **PENDING-DID** | Issues 11–13 still absent. External clock C-2 unfiled. |
 | 4 | Tenant isolation audit clean | PASS | **PASS** | Unchanged. The two F-016 letter-violations (`appointmentService.js:171`; dead `identityService.getTimeline`) remain open with zero tenant-facing exposure. |
 | 5 | Issue 18 closed | PASS | **PASS** | Plus `3584240`, which closed the audit's noted `SESSION_SECRET` → `ADMIN_PASSWORD` fallback residual. |
@@ -123,6 +123,30 @@ Verified against `package.json` and `voice-agent/pyproject.toml` + `voice-agent/
 - **Plivo is a throwing stub**, not a live component (`src/modules/telephony/providers/plivo.js`,
   every method raises `NotImplemented`). Listed here as the intended provider, not a
   shipped one.
+- **`web/` is a separate Next.js 15 / React 19 / TypeScript application** — the marketing
+  site, and the only prospect-facing surface. It carries its own dependency tree,
+  `package-lock.json` and `node_modules/`, and nothing in this repository builds, serves,
+  tests or lints it:
+  - not served by `server.js` — `express.static` covers `public/` only (`server.js:90`;
+    the admin mount at `src/admin/adminRoutes.js:62` is also `public/`-derived);
+  - not built by any script in the root `package.json`;
+  - **zero of the 830 tests touch it.** The root suite's green is silent about `web/`, so
+    a `web/` change is evidenced by the build artifact, not by `npm test`.
+  - `web/vercel.json` is **headers-only** — five security headers, no build command, no
+    output directory, no root directory.
+  Introduced `34db490` (2026-06-26), which **predates** `docs/specs/portal-v1-spec.md`
+  (`5c6b4e2`, 2026-07-18) by three weeks. §2's static-stack constraint ("no SPA, no
+  framework, no bundler") is scoped to the portal UI served by `express.static('public')`
+  and does not govern `web/`; the surface has never been in breach of it.
+  ⚠️ **The deploy host is founder-unconfirmed and not repo-derivable.** No `railway.json`,
+  `Dockerfile`, `Procfile`, `nixpacks.toml` or CI workflow exists anywhere in the
+  repository. `web/README.md` names Vercel and `vercel.json` implies it, but a headers
+  file is not a deploy: it configures a host that something else must have chosen. Vercel
+  is convention here, not evidence. The founder must confirm the target; a `D-006` draft
+  awaiting that confirmation sits in `docs/os/decisions.md.draft`.
+  Site configuration is environment-resolved as of Stage 2 Item 1 — see `web/.env.example`
+  for the variables a deploy must supply, and note that a production build **fails** if a
+  required one is missing. See `docs/audit/2026-07-frontend.md` F-F004 and F-F002.
 - **Corrected:** the previous "Neon (dev/test)" was drift. The test path is local
   Postgres via `TEST_DATABASE_URL` (`tests/_support/testEnv.js`, `c673673`). Neon is
   dev-only.

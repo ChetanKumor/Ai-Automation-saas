@@ -29,6 +29,42 @@ npm run start    # serves the production build on port 3100
 
 All routes are statically generated at build time (no SSR, no API routes).
 
+## Environment variables
+
+`lib/siteConfig.ts` resolves everything that varies per deploy from the
+environment **at build time**. There is no production fallback in the
+repository: a production build with a required value missing, or with any value
+still holding a placeholder, **fails** with an error naming the field.
+
+Copy `.env.example` to `.env.local` for local work and set the same variables in
+the deploy environment. The file is the authority; this table mirrors it.
+
+| Variable | Required | Feeds |
+|---|---|---|
+| `NEXT_PUBLIC_SITE_URL` | **Yes** (production) | `metadataBase`, canonical link, both OG image URLs, `robots.txt` sitemap pointer, all five `sitemap.xml` entries |
+| `NEXT_PUBLIC_CONTACT_EMAIL` | **Yes** (production) | Organization JSON-LD `contactPoint.email` |
+| `NEXT_PUBLIC_X_URL` | No | Organization JSON-LD `sameAs` |
+| `NEXT_PUBLIC_LINKEDIN_URL` | No | Organization JSON-LD `sameAs` |
+
+Notes:
+
+- **The brand name is not an environment variable.** It is the `BRAND` constant
+  in `lib/siteConfig.ts` — identical in every environment, so one edit renames
+  the site. `BRAND` is the trading name, never the registered legal entity.
+- **Socials are optional and nullable.** Unset means the account does not exist
+  and no link is rendered anywhere. Do not substitute a plausible-looking
+  handle — the guard rejects the common placeholder forms, and a link to a 404
+  is a false statement about the company either way.
+- **On Vercel**, `NEXT_PUBLIC_SITE_URL` may be left unset: the platform-supplied
+  `VERCEL_PROJECT_PRODUCTION_URL` is used as a fallback and prefixed `https://`.
+  Setting it explicitly is safer and is required on any other host.
+- **In development** nothing is required. The origin falls back to
+  `http://localhost:3100` and the guard does not run.
+- `legalEntityName` is deliberately **exempt** from the guard while it reads
+  `[REGISTERED ENTITY NAME]`. It is blocked on C-1 (business entity
+  registration, `docs/os/clocks.md`) and tracked as F-F003. The exemption is
+  removed in the same commit that fills the legal pages.
+
 ## Folder structure
 
 ```
@@ -68,7 +104,7 @@ web/
 │       ├── Faq.tsx + faqData.ts
 │       └── FinalCta.tsx
 ├── lib/
-│   ├── siteConfig.ts           # Central config: URLs, names, social links
+│   ├── siteConfig.ts           # Central config + build-time placeholder guard
 │   └── useScrollReveal.ts      # Scroll-reveal hook (respects reduced-motion)
 ├── public/
 │   └── favicon.svg             # SVG favicon
@@ -98,8 +134,11 @@ All animations respect `prefers-reduced-motion: reduce` — a global rule in `gl
 Complete these before going live, in priority order:
 
 ### Identity and domain (do first)
-1. Replace `siteUrl` in `lib/siteConfig.ts` with the real production domain
-2. Replace `[REGISTERED ENTITY NAME]` with the exact registered legal entity name (must match Meta submission)
+1. ~~Replace `siteUrl` in `lib/siteConfig.ts`~~ — **done.** The origin is now
+   `NEXT_PUBLIC_SITE_URL`, set in the deploy environment; see *Environment
+   variables* above. A production build without it fails rather than shipping a
+   placeholder, so this item can no longer be silently skipped.
+2. Replace `[REGISTERED ENTITY NAME]` with the exact registered legal entity name (must match Meta submission), and delete the guard exemption in `lib/siteConfig.ts` in the same commit. Blocked on C-1; tracked as F-F003
 3. Update `[REGISTERED ADDRESS]` on legal pages
 4. Update contact email placeholders (`privacy@`, `legal@`, `abuse@`) with real addresses
 5. Update `[CITY]` in Terms governing-law clause
@@ -115,7 +154,11 @@ Complete these before going live, in priority order:
 11. Generate `apple-touch-icon.png` (180x180) — Zyon mark on ink tile — place in `web/public/`
 
 ### Placeholders and CTAs
-12. Update placeholder social URLs in Footer and `siteConfig.ts`
+12. ~~Update placeholder social URLs in Footer and `siteConfig.ts`~~ — **done, and
+    the item was wrong.** `Footer.tsx` has never contained social links; the only
+    render site is the `sameAs` array in `app/layout.tsx`. Socials are now
+    `NEXT_PUBLIC_X_URL` / `NEXT_PUBLIC_LINKEDIN_URL`, optional, and omitted from
+    the JSON-LD entirely when unset. Set them **only** if the accounts exist
 13. Wire "Book a demo" and "Talk to us" CTAs to a real booking URL or contact form
 14. Add real nav link hrefs (currently `#` placeholders)
 15. Swap "Lakeview Dental" in hero chat + final CTA with a real clinic name once a client is onboarded (or keep as illustrative example)
@@ -131,7 +174,10 @@ Complete these before going live, in priority order:
 
 1. In the Vercel dashboard, set **Root Directory** to `web/`
 2. Framework: **Next.js** (auto-detected)
-3. No environment variables required for the marketing site itself
+3. Set the environment variables listed under **Environment variables** above.
+   `NEXT_PUBLIC_CONTACT_EMAIL` is mandatory; `NEXT_PUBLIC_SITE_URL` may be left
+   to Vercel's `VERCEL_PROJECT_PRODUCTION_URL` fallback but is better set
+   explicitly. A production build fails if a required value is missing
 4. Security headers are configured in `vercel.json` (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy)
 5. HTTP-to-HTTPS redirect is handled automatically by Vercel — no config needed
 6. The backend deploys independently (Railway) — this Vercel project has no `/api` routes and must not proxy to the backend
@@ -145,6 +191,6 @@ Complete these before going live, in priority order:
 
 ## Post-launch
 
-- **Google Search Console**: Submit `https://yourdomain.com/sitemap.xml` and verify ownership
+- **Google Search Console**: Submit `$NEXT_PUBLIC_SITE_URL/sitemap.xml` and verify ownership
 - **Rich Results Test**: Validate the three JSON-LD blocks (Organization, SoftwareApplication, FAQPage) at https://search.google.com/test/rich-results
 - **Meta verification**: If Meta requires a verification URL for Tech Provider status, add it to `web/public/` as a static file

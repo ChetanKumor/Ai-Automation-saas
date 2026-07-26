@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.siteUrl),
   title: {
     default: siteConfig.defaultTitle,
-    template: "%s — Prantivo",
+    template: `%s — ${siteConfig.siteName}`,
   },
   description: siteConfig.defaultDescription,
   openGraph: {
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
         url: siteConfig.ogImage,
         width: 1200,
         height: 630,
-        alt: "Prantivo — the AI receptionist for dental clinics, on WhatsApp",
+        alt: `${siteConfig.siteName} — the AI receptionist for dental clinics, on WhatsApp`,
       },
     ],
     locale: "en_IN",
@@ -63,6 +63,14 @@ export const metadata: Metadata = {
   },
 };
 
+// Social accounts may not exist. List only the ones that do — an invented
+// profile URL is a false statement about the company, and search engines read
+// `sameAs` as a claim of ownership.
+const sameAs = [
+  siteConfig.socialUrls.twitter,
+  siteConfig.socialUrls.linkedin,
+].filter((url): url is string => url !== null);
+
 const organizationJsonLd = {
   "@context": "https://schema.org",
   "@type": "Organization",
@@ -72,13 +80,19 @@ const organizationJsonLd = {
   logo: siteConfig.siteUrl + "/favicon.svg",
   description:
     "The AI receptionist for dental clinics — it answers enquiries, books appointments, and hands off to staff on WhatsApp, in Telugu, Hindi, and English.",
-  sameAs: [siteConfig.socialUrls.twitter, siteConfig.socialUrls.linkedin],
-  contactPoint: {
-    "@type": "ContactPoint",
-    contactType: "customer support",
-    email: siteConfig.contactEmail,
-    areaServed: "IN",
-  },
+  // Both keys are omitted entirely rather than emitted empty: an empty
+  // `sameAs` array or a blank support address is a claim about nothing.
+  ...(sameAs.length > 0 ? { sameAs } : {}),
+  ...(siteConfig.contactEmail
+    ? {
+        contactPoint: {
+          "@type": "ContactPoint",
+          contactType: "customer support",
+          email: siteConfig.contactEmail,
+          areaServed: "IN",
+        },
+      }
+    : {}),
 };
 
 export default function RootLayout({

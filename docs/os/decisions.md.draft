@@ -1,0 +1,63 @@
+# Decisions — DRAFT
+
+**This file is not `decisions.md`.** Nothing here is in force. It is a staging area for
+entries that cannot be appended yet because a fact they assert is founder-supplied and
+unconfirmed.
+
+`decisions.md` is append-only and must never be edited by a session. When the founder
+confirms the open questions below, **the founder** appends the entry there — verbatim,
+with the `TODO(founder)` markers replaced — and deletes it from this file.
+
+---
+
+## D-006 — `web/` deploys as a separate frontend host, split from the Express backend
+
+Date: TODO(founder) — the date the deploy target is confirmed, not the date this was drafted
+
+Overrides: nothing prohibited. It **records** an architecture that already exists
+  undocumented since `34db490` (2026-06-26), which is why F-F004 exists. It also
+  clarifies that `docs/specs/portal-v1-spec.md` §2 ("static stack, no SPA, no framework,
+  no bundler") is scoped to the portal UI served by `express.static('public')` and has
+  never governed `web/`.
+
+Reason: The marketing site is a Next.js 15 / React 19 / TypeScript application with its
+  own dependency tree and lockfile. Keeping it on a frontend host with static
+  prerendering, rather than folding it into the Express app, is a deliberate split — but
+  it has never been recorded, so no one could tell the split from an accident.
+
+**Open — must be resolved before this entry is appended:**
+
+- **TODO(founder): which host?** ⚠️ Not repo-derivable. `web/vercel.json` sets five
+  security headers and nothing else — no build command, no output directory, no root
+  directory — and no `railway.json`, `Dockerfile`, `Procfile`, `nixpacks.toml` or CI
+  workflow exists anywhere in the repository. Vercel is implied by convention and by
+  `web/README.md`, not by evidence. Confirm the actual target and name it here.
+- **TODO(founder): which domain, and how is it split with the backend?** The backend is
+  Railway. If the marketing site is at the apex and the app on a subdomain, say so — that
+  choice propagates into `NEXT_PUBLIC_SITE_URL`, the Meta submission, and C-1's name
+  discipline.
+- **TODO(founder): who runs the deploy?** Nothing in the repository builds `web/`. Until a
+  documented command or pipeline exists, "deployed" is a manual act with no reviewable
+  record — the precise condition F-F004 was filed about.
+
+Prediction: TODO(founder) — must be falsifiable. The honest candidate: *the split host
+  costs zero incidents through clinic #10 — no broken deploy caused by the two surfaces
+  drifting apart, and no occasion where a single host would have avoided real work.* If
+  instead the first production incident traces to the split (a stale marketing build
+  pointing at a moved backend, a domain or certificate mismatch, or a deploy nobody
+  remembered to run), the split was premature for a pre-revenue product with one
+  maintainer and the entry should be superseded by one that consolidates.
+
+Review: TODO(founder) — at clinic #10, or on the first deploy incident involving either
+  surface, whichever comes first.
+
+Outcome: pending
+
+**Note for whoever appends this.** Two things land with it, and both are cheap to forget:
+
+1. Issue 20 (first production deploy) gains a `web/` line item. Without it, the first
+   deploy ships the backend and leaves the prospect-facing surface unshipped.
+2. The deploy environment must supply the variables in `web/.env.example`. A production
+   build **fails** without `NEXT_PUBLIC_SITE_URL` and `NEXT_PUBLIC_CONTACT_EMAIL` —
+   deliberately, so the site cannot go live carrying placeholder URLs the way it nearly
+   did. That guard is the fix for F-F002.
