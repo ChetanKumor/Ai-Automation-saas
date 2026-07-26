@@ -49,3 +49,19 @@ Reason: the four memory files lived outside the repository, so every session sil
 Prediction: within the next ten sessions, at least one Claude Code session opens by loading `docs/os/state.md` and visibly corrects a premise in its Phase 0 report as a result.
 Review: 2026-09-15
 Outcome: pending
+
+## D-005 — Frontend modernisation program before any paying customer
+Date: 2026-07-26
+Overrides: G-CLOCK; H5 ranking — this work closes no gate, advances no clock,
+  and answers no named prospect objection.
+Reason: Founder judgement that interface credibility is a precondition for the
+  first ten clinic conversations rather than a consequence of them.
+Prediction: Across the first ten clinic conversations after this ships, interface
+  quality appears in zero stated objections and at least one owner volunteers
+  unprompted that the product looks credible. If the top-two objections remain
+  price, trust, or Telugu accuracy — untested today per A-001 — the polish bought
+  nothing sellable and the unspent backlog is cancelled, not continued.
+Budget: 10 sessions, hard cap. public/admin/** excluded from all polish work.
+  Overrun requires a new entry, not an extension of this one.
+Review: after ten logged clinic conversations, or 2026-10-01, whichever is first.
+Outcome: pending
