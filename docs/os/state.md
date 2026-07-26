@@ -2,13 +2,20 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: f560c184923cc06e56a6fbf53fa33a1e87d2ee30
-Verified-on: 2026-07-25
+Verified-at: 56e7f46e32f3855ab31ff6f58ab27538e8b4931f
+Verified-on: 2026-07-26
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
 stated inline. Absence of a marker means the line was checked against HEAD, not that it
 is self-evident.
+
+**Not yet absorbed.** `docs/audit/2026-07-frontend.md` (`90d1da3`) and `D-005` (`56e7f46`)
+landed after the previous verification. This refresh restores **provenance only** — the
+sole change since `f560c184` outside `docs/os/` is that audit document, so every line
+below still holds by the rule in `scripts/os-check.js`. No line has been amended for the
+audit's findings. The `web/` surface record it demands is **F-F004**, filed for Stage 2
+Item 1 of the D-005 program; until that lands, this file says nothing about `web/`.
 
 ---
 
