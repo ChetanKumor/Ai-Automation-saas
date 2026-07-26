@@ -67,9 +67,23 @@
 /* —— CHAT CARD —— */
 .chatCol {}
 
+/* Column, not row. This stage holds the phone card AND the caption <p> beneath
+   it, and a default `flex-direction: row` made them siblings in a row: both are
+   shrinkable, so the card never reached its 384px max-width (it measured 215px
+   at 1440 and 114px at 380) and the caption sat alongside the phone instead of
+   under it. Every property on .waCaption below — margin-top, the auto side
+   margins, text-align: center, the matching 384px max-width — is written for a
+   caption *under* a 384px card, so the row direction contradicted the stylesheet's
+   own intent.
+   Pre-existing at HEAD, not introduced with the Telugu; it only became obvious
+   here because Telugu words are longer and a 215px card wrapped them to two per
+   line. Fixing it is what F-F005's effort line budgets as "layout at the longer
+   Telugu string lengths". align-items replaces justify-content because the
+   centring wanted is on the cross axis once the main axis is vertical. */
 .chatStage {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   opacity: 0;
   transform: translateY(24px) scale(.98);
   animation: fadeUp .9s var(--ease-out) .5s forwards;
@@ -197,6 +211,30 @@
 }
 
 @keyframes pop { to { opacity: 1; transform: none; } }
+
+/* The Telugu message. The family is scoped to this element rather than to the
+   bubble, so the English line and the timestamp keep rendering in Geist.
+   Slightly larger than the bubble's 0.875rem and looser in leading, because
+   Telugu stacks matras above and below the baseline and gets cramped at a size
+   tuned for Latin — public/demo/styles.css:269-274 makes the same adjustment. */
+.bubbleTe {
+  display: block;
+  font-family: var(--font-te);
+  font-size: 0.9375rem;
+  line-height: 1.62;
+  overflow-wrap: anywhere;
+}
+
+/* The English translation under a reply. Deliberately quieter than the Telugu it
+   translates: the Telugu is the message, this is the aid. */
+.bubbleEn {
+  display: block;
+  margin-top: 5px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--wa-gloss);
+  overflow-wrap: anywhere;
+}
 
 .time {
   display: block;

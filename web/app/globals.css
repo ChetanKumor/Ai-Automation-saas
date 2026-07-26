@@ -34,6 +34,11 @@
   --wa-meta: #8696A0;
   --wa-tick: #53BDEB;
   --wa-online: #25D366;
+  /* The English line under a Telugu reply. Not a WhatsApp colour — WhatsApp has
+     no such element — but it belongs with the mockup palette because it is only
+     ever drawn on --wa-out. --wa-meta (the timestamp grey) measures 2.6:1 there
+     and fails; this is --wa-text at 0.82 alpha, which measures 5.1:1. */
+  --wa-gloss: rgba(233, 237, 239, 0.82);
 
   /* —— Radius —— */
   --r-sm: 4px;
@@ -55,6 +60,15 @@
   /* —— Type families (overridden by next/font CSS vars) —— */
   --font-sans: var(--font-geist-sans, 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
   --font-mono: var(--font-geist-mono, 'Geist Mono', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace);
+
+  /* Telugu. Apply this only to Telugu content, never to a whole component —
+     Geist stays correct for Latin. Mirrors `--te` in public/demo/styles.css:29,
+     which is the same stack for the same reason.
+     The tail is a genuine fallback, not decoration: if the woff2 fails to load,
+     'Noto Sans Telugu' may still resolve from the OS. `system-ui` has no Telugu
+     coverage on Windows and would tofu, and there is no better vanilla option —
+     the same trade-off C-1 records for the demo and portal surfaces. */
+  --font-te: var(--font-telugu, 'Noto Sans Telugu', system-ui, sans-serif);
 }
 
 /* —— Base reset —— */

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Noto_Sans_Telugu } from "next/font/google";
 import { siteConfig } from "@/lib/siteConfig";
 import "./globals.css";
 
@@ -12,6 +12,31 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap",
+});
+
+// Telugu. A second family, not a subset flag on an existing one: Geist has no
+// Telugu coverage at any subset, so `subsets: ["telugu"]` on it would change
+// nothing.
+//
+// Two lines here are load-bearing and both fail silently if wrong:
+//
+//   subsets: ["telugu"] — next/font fetches only the subsets named. A family
+//     that supports Telugu ships none of its glyphs unless the subset is
+//     declared, and the page then renders tofu, which reads as a content bug
+//     rather than a font-config bug. Verify with the emitted @font-face
+//     `unicode-range`: it must cover U+0C00–U+0C7F.
+//
+//   display: "swap" — never "optional". "optional" drops the face outright on a
+//     slow connection, which is exactly the network a Hyderabad prospect browses
+//     from; the Telugu would fall back to a family that has no Telugu.
+//
+// Latin digits inside a Telugu string (times like "5:30") are not in the telugu
+// subset and do not need to be — the browser resolves them per glyph down the
+// stack in `--font-te`.
+const notoSansTelugu = Noto_Sans_Telugu({
+  variable: "--font-telugu",
+  subsets: ["telugu"],
   display: "swap",
 });
 
@@ -101,7 +126,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} ${notoSansTelugu.variable}`}
+    >
       <body>
         <script
           type="application/ld+json"
