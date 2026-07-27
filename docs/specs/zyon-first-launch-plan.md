@@ -223,15 +223,26 @@ anywhere in the repo**, so the mapping is recollection, not repo evidence —
 recorded here so the numbers are not reissued. ⚠️ unverified.
 
 **Issue 34 — fix: admin-created tenants silently ignore all portal-written prompt copy.**
-**OPEN.** A non-null `tenants.ai_prompt` short-circuits the config read entirely
-(`src/modules/ai/aiService.js:466-467`, `400-405`), so every portal-written prompt
-field is inert while booking enforcement, doctors and knowledge chunks survive. The
-portal shows the owner no warning. Full finding, the shadowed/survives tables, both
-options and the recommendation: **[`issue-34-legacy-prompt-shadows-portal-config.md`](issue-34-legacy-prompt-shadows-portal-config.md)**.
-Recommended fix is (a) — remove the legacy-prompt field from
-`public/admin/tenant-new.html:39`. DoD: red test = a tenant with a non-null
-`ai_prompt` cannot be created through the admin form; existing legacy tenants
-unchanged; suite green.
+**DONE.** Shipped in two halves. A non-null `tenants.ai_prompt` short-circuits the
+config read entirely (`src/modules/ai/aiService.js:466-467`, `400-405`), so every
+portal-written prompt field is inert while booking enforcement, doctors and knowledge
+chunks survive. Full finding, the shadowed/survives tables, both options and the
+recommendation: **[`issue-34-legacy-prompt-shadows-portal-config.md`](issue-34-legacy-prompt-shadows-portal-config.md)**.
+
+- **The warning (F-F001, `6ceb8f0`).** The portal now tells an owner when their saved
+  settings are shadowed, and names which fields are inert. A safety net over the
+  hazard, not a removal of it — legacy tenants exist and can still be created
+  deliberately, so the notice stays.
+- **The hazard (option (a), this commit).** The free-text prompt field is gone from
+  `public/admin/tenant-new.html`, and `POST /admin/api/tenants` refuses a non-empty
+  `ai_prompt` rather than quietly honouring it — removing the input alone would have
+  left the API surface unchanged and invited a rebuilt UI to reset the trap. Admin-
+  created tenants are now born on the renderer, matching `provisioningService.js:226`.
+
+The precedence chain in `aiService` is untouched, as the finding requires. Setting a
+legacy prompt remains possible **on purpose** via `scripts/update-prompt.js`; the issue
+removed the accident, not the capability. Covered by `tests/admin/tenantCreate.test.js`
+(form + route, 5 tests).
 
 ---
 

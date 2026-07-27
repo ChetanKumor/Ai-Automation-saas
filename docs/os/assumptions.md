@@ -43,6 +43,12 @@ Scope note: the prod-genesis session settles the **Node brain-path half only**. 
 Depends on it: D-001's entire justification and the ~15–18 sessions spent on the portal
 Cheapest test: for a tenant with a non-null `tenants.ai_prompt`, trace which portal-written config fields reach the prompt and which are overridden by the legacy path.
 Status: **tested this session — FALSE for legacy-prompt tenants, true otherwise.**
+Outcome (2026-07-27, Issue 34 option (a)): unchanged as a statement of fact — the
+precedence below is deliberate and was not touched. What changed is who can land in it:
+the admin form no longer offers a prompt field and the create route refuses a non-empty
+`ai_prompt`, so **no tenant is born legacy by accident any more.** Deliberate creation via
+`scripts/update-prompt.js` still works, so the analysis below stays live for that
+population and for existing legacy tenants.
 
 `src/modules/ai/aiService.js:466-467` — `configForPrompt` opens with
 `if (hasLegacyPrompt(tenant)) return null;`. The tenant config document is **never read**.
@@ -80,12 +86,17 @@ quotes nothing and knows no hours — not one that books on a holiday.
 Blast radius is bounded: `provisioningService.js:196,226` sets `ai_prompt: null` ("born on
 the renderer"), so every portal-provisioned tenant is on the rendered path. Only the admin
 tenant-create form (`public/admin/tenant-new.html:39`), `scripts/update-prompt.js`, and the
-voice seed script set a legacy prompt.
+voice seed script set a legacy prompt. ⚠️ **Superseded by Issue 34 (2026-07-27):** the
+admin form is no longer one of them — the field and the route's acceptance of the
+parameter are both gone. Two surfaces remain, both deliberate.
 
 ## A-008 — An owner editing a shadowed field is told their edit took effect
 Depends on it: whether A-007 is a latent trap or an active one
 Cheapest test: read the portal's save path for a legacy-prompt tenant and check for a warning surface.
-Status: **confirmed true — and the mitigation is not built.**
+Status: **confirmed true when written — mitigation now built (2026-07-27).**
+F-F001 (`6ceb8f0`) gave the owner the warning the portal never had; Issue 34 option (a)
+then removed the accidental route into the state at all. The paragraph below describes the
+gap as it stood when filed; it is no longer the current state.
 
 The condition is surfaced to the *operator* three ways: an advisory validation check
 (`validationService.js:294-298`), `has_ai_prompt` on the admin detail route

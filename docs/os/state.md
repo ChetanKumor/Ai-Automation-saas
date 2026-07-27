@@ -14,10 +14,10 @@ is self-evident.
 full. The D-005 frontend modernisation program is **COMPLETE** — its ledger, including
 what shipped, what stays open and why, and what was deliberately not scheduled, is under
 *Frontend modernisation program (D-005)* below. Eight of the audit's nine findings closed;
-**F-F003 is the only one open**, blocked on external clock C-1. **Issue 34 remains open**
-for its backend half — F-F001 closed the owner-facing warning at `6ceb8f0` but the
-precedence in `aiService.js` is deliberate and untouched, so the recommended fix
-(removing the prompt field from `public/admin/tenant-new.html:39`) is still unmade.
+**F-F003 is the only one open**, blocked on external clock C-1. **Issue 34 is now closed**
+— F-F001 shipped the owner-facing warning at `6ceb8f0`, and option (a) removed the hazard
+at the commit this file is stamped to. The precedence in `aiService.js` is deliberate and
+remains untouched.
 
 ---
 
@@ -66,7 +66,7 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Test suite: **863 tests / 149 suites / 0 fail** (`npm test`, raw: `# tests 863 / # pass 863 / # fail 0`)
+- Test suite: **868 tests / 151 suites / 0 fail** (`npm test`, raw: `# tests 868 / # pass 868 / # fail 0`)
 - Audit findings closed: **F-001** (`2d5da98`), **F-003** (`d22dfc5`), **F-003b** (`7a505a6`),
   **F-004** (`e071f69`), **F-005** (`e15bbae`), **F-006** (`58aa1d5`), **F-007** (`d914649`),
   **F-010** (`ba45acc`). Open: F-002, F-008, F-009, F-011 – F-017.
@@ -89,8 +89,8 @@ github.com is not repo-derivable; what is verified is that nothing in this repo 
 them.) The sequence runs to **34**, not 28: the original plan defined 1–28 and later work
 kept counting.
 
-- **Done:** 3, 4, 5, 6, 7, 8, 9, 10, 15, 16, 17, 18, 19, 21, 22, 29, 30
-- **Not done:** 1 (ops), 2 (ops), 11, 12, 13, 14, 20, 23, 24, 27, 28, 34
+- **Done:** 3, 4, 5, 6, 7, 8, 9, 10, 15, 16, 17, 18, 19, 21, 22, 29, 30, 34
+- **Not done:** 1 (ops), 2 (ops), 11, 12, 13, 14, 20, 23, 24, 27, 28
 - **Residue-only** (built and tested; awaiting Issue 20 for a prod render): 25, 26
 - **Allocated, unverified:** 31, 32, 33 ⚠️ — mapped to the voice-review sessions V-004
   (`5bb60ab`), V-008 (`629f7fb`) and V-009 (`f097b77`). Those commits landed under their
@@ -106,9 +106,17 @@ Additions since the original 1–28, all in the plan's Phase 8:
 - **30** — per-channel extraction policy (V-002), `2948a10`. DONE.
   `src/modules/config/schema.js:250`, `tests/crm/extraction.bus.test.js:94,312`,
   `tests/voice/voiceLifecycle.integration.test.js:181`.
-- **34** — admin-created tenants silently ignore all portal-written prompt copy. OPEN;
-  this is A-007/A-008 promoted to the queue. Full finding at
+- **34** — admin-created tenants silently ignore all portal-written prompt copy. **DONE**
+  in two halves: the owner-facing warning (F-F001, `6ceb8f0`) and option (a), the removal
+  of the hazard (this commit). This is A-007/A-008 promoted to the queue. Full finding at
   `docs/specs/issue-34-legacy-prompt-shadows-portal-config.md`.
+  The prompt field is gone from `public/admin/tenant-new.html` and
+  `POST /admin/api/tenants` now refuses a non-empty `ai_prompt`
+  (`src/admin/adminRoutes.js:104-121`) instead of forwarding it, so admin-created
+  tenants are born on the renderer like `provisioningService.js:226` already did.
+  **The capability was preserved, not removed** — `scripts/update-prompt.js` still sets a
+  legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
+  (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
 
 ## Frontend modernisation program (D-005) — COMPLETE
 
@@ -192,7 +200,7 @@ Verified against `package.json` and `voice-agent/pyproject.toml` + `voice-agent/
   - not served by `server.js` — `express.static` covers `public/` only (`server.js:90`;
     the admin mount at `src/admin/adminRoutes.js:62` is also `public/`-derived);
   - not built by any script in the root `package.json`;
-  - **zero of the 863 tests touch it.** The root suite's green is silent about `web/`, so
+  - **zero of the 868 tests touch it.** The root suite's green is silent about `web/`, so
     a `web/` change is evidenced by the build artifact, not by `npm test`.
   - `web/vercel.json` is **headers-only** — five security headers, no build command, no
     output directory, no root directory.
@@ -234,8 +242,23 @@ all branches fast-forward onto main · one issue per session · runtime evidence
   transcripts. ⚠️ market claim, not repo-derivable.
 - `VOICE_STREAM_TURNS=true` is the only perceptual latency fix required at deploy.
 - **Portal-written prompt copy is silently inert on any tenant carrying a legacy
-  `tenants.ai_prompt`** — see A-007 in `docs/os/assumptions.md`. Affects admin-created
-  tenants only; portal-provisioned tenants are born on the renderer.
+  `tenants.ai_prompt`** — see A-007 in `docs/os/assumptions.md`. **No longer reachable by
+  accident** (Issue 34): the admin form no longer offers the field and the create route
+  refuses it, so every newly created tenant — admin or portal — is born on the renderer.
+  The condition still exists for any tenant deliberately given a prompt via
+  `scripts/update-prompt.js` or the voice seed script, and for any legacy tenant already
+  carrying one; those keep their prompt and their precedence behaviour unchanged, and the
+  F-F001 portal notice is what warns their owner. ⚠️ **Zero such tenants are known to
+  exist** — there is no production deploy, so this is a hazard retained for a population
+  that is currently empty.
+- **The test suite makes live third-party API calls, so `# fail 0` is not purely a
+  function of the code.** The Item 4 session saw `npm test` return `862 / fail 1` on a
+  live Gemini embedding 503, then pass unchanged on re-run. This weakens every green
+  claim in this file, including `os:check`'s — that script shells out to the same suite,
+  so a third-party outage reads as state drift. **Open.** The obvious fix is a stubbed
+  embedding in the test path; deliberately not done in the Issue 34 session that recorded
+  it. Distinct from the Neon-latency nondeterminism under *Resolved* below, which was a
+  different cause and is genuinely closed.
 
 ## Resolved
 
@@ -243,3 +266,6 @@ all branches fast-forward onto main · one issue per session · runtime evidence
   `c673673` (TEST-FLAKE-02). `tests/_support/testEnv.js` is the single seam that
   repoints the suite at a local Postgres via `TEST_DATABASE_URL`, loaded through
   `--require` so it beats every module-level pool construction. Neon is dev-only now.
+  **This closed the database cause only.** A second, unrelated source of suite
+  nondeterminism — live Gemini calls in the test path — is open under *Known open risks*.
+  Do not read this entry as "the suite is deterministic."

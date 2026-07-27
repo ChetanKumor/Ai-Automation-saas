@@ -102,6 +102,26 @@ router.post('/api/tenants', requireAuth, apiLimiter, requireAdminHeader, async (
     const { business_name, phone_number_id, wa_token, waba_id, ai_prompt, ai_enabled } = req.body;
     if (!business_name) return res.status(400).json({ error: 'Business name is required' });
 
+    // Issue 34: this route no longer births legacy-prompt tenants. A non-null
+    // tenants.ai_prompt makes configForPrompt return before reading the config
+    // document at all (aiService.js:466-467), so every field the owner later
+    // saves in the portal is silently inert. Removing the form field alone would
+    // leave the API surface unchanged and invite a rebuilt UI to reset the trap,
+    // so the parameter is refused here too.
+    //
+    // Refused only when it carries text: a browser holding a cached copy of the
+    // old form still posts `ai_prompt: null`, and 400-ing that would break
+    // creation for a caller who supplied nothing. Empty is not the hazard.
+    //
+    // The capability is preserved, not removed — scripts/update-prompt.js remains
+    // the deliberate path for setting a legacy prompt.
+    if (typeof ai_prompt === 'string' && ai_prompt.trim() !== '') {
+      return res.status(400).json({
+        error: 'ai_prompt is not accepted here. Tenants are created on the rendered prompt; ' +
+               'set a legacy prompt deliberately via scripts/update-prompt.js.',
+      });
+    }
+
     const encryptedToken = wa_token ? encrypt(wa_token) : null;
 
     // Shared insert path (Issue 15). Omitting slug/active/status keeps the DB
@@ -111,7 +131,7 @@ router.post('/api/tenants', requireAuth, apiLimiter, requireAdminHeader, async (
       phone_number_id: phone_number_id || null,
       wa_token: encryptedToken,
       waba_id: waba_id || null,
-      ai_prompt: ai_prompt || null,
+      ai_prompt: null,   // born on the renderer (Issue 34), as provisioningService does
       ai_enabled: ai_enabled !== false,
     });
     res.status(201).json(tenant);

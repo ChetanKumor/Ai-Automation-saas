@@ -1,7 +1,15 @@
 # Issue 34 — Admin-created tenants silently ignore all portal-written prompt copy
 
 Appendix to `docs/specs/zyon-first-launch-plan.md`, which carries the compact entry and
-remains the queue. Filed 2026-07-25 against `a33f54c`. Status: **open, not implemented.**
+remains the queue. Filed 2026-07-25 against `a33f54c`. Status: **CLOSED 2026-07-27.**
+
+Shipped in two halves: the owner-facing warning (F-F001, `6ceb8f0`) and the recommended
+option **(a)** below (this session) — the prompt field removed from
+`public/admin/tenant-new.html`, and `POST /admin/api/tenants` changed to refuse a
+non-empty `ai_prompt` rather than forward it, so the API surface closed with the UI.
+Option (b) was not built and is not queued. `scripts/update-prompt.js` still sets a legacy
+prompt deliberately, and the F-F001 notice still fires for a tenant it creates — both
+proven by live run. The analysis below is the historical finding and is not edited.
 
 Origin: A-007 in `docs/os/assumptions.md`, found while reconciling project memory
 against HEAD.
