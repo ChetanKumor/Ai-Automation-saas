@@ -229,4 +229,97 @@ describe('portal readiness (route-level)', { skip: ADMIN ? false : 'DATABASE_URL
       assert.equal(b.body.run, null);
     } finally { server.close(); }
   });
+
+  // ── F-F001: the shadow verdict, end to end ─────────────────────────────────
+  // The other tests here seed validation_runs by hand. These two do NOT — they
+  // run the REAL validationService against a clinic that has a hand-written
+  // `tenants.ai_prompt` and one that doesn't, let it persist, read the result
+  // back through the REAL portal route, and hand the payload to the SHIPPED
+  // frontend predicate. That closes every seam at once: if the check is renamed,
+  // if its severity changes, or if the owner-safe projection stops carrying
+  // severity, an owner silently stops being warned — and this test goes red.
+  //
+  // No network: validateTenant's deps are injected, and kb.retrieval skips
+  // behind an empty knowledge base, so no embedding call is made.
+  describe('shadowed-by-custom-script verdict (F-F001)', () => {
+    const ShadowNotice = require('../../public/portal/shadow-notice');
+    const DEPS = { getRelevantChunks: async () => [], pingNumber: async () => 'Clinic' };
+
+    let shadowed, clean;
+
+    before(async () => {
+      const validation = require('../../src/modules/validation/validationService');
+      shadowed = await seedOwner({ tenantName: 'Legacy Clinic', email: 'cara@legacy.test', password: 'legacy-pass-3' });
+      clean = await seedOwner({ tenantName: 'Rendered Clinic', email: 'dan@rendered.test', password: 'rendered-pass-4' });
+
+      // The ONLY difference between the two clinics.
+      await db.query('UPDATE tenants SET ai_prompt=$2 WHERE id=$1',
+        [shadowed.tenantId, 'You are the receptionist for Legacy Clinic. Be brief.']);
+
+      for (const t of [shadowed, clean]) {
+        await validation.validateTenant(t.tenantId, { deps: DEPS, skip: ['turn.scripted'] });
+      }
+    });
+
+    it('a clinic with a hand-written script reads as shadowed through the real route', async () => {
+      const server = await start();
+      try {
+        const cookie = await authedCookie(server, shadowed.email, shadowed.password);
+        const res = await req(server, { method: 'GET', path: '/portal/api/readiness', cookie });
+        assert.equal(res.status, 200);
+        assert.ok(res.body.run, 'validateTenant must have persisted a run');
+
+        const check = res.body.run.checks.find((c) => c.name === ShadowNotice.CHECK_NAME);
+        assert.ok(check, 'the projection must carry the check the notice reads');
+        assert.equal(check.severity, 'warn');
+
+        assert.equal(ShadowNotice.isShadowed(res.body.run), true);
+        // What the owner actually meets on the pricing page.
+        const html = ShadowNotice.noticeHtml('pricing', res.body.run);
+        assert.match(html, /Your receptionist is following a custom script/);
+        assert.match(html, /Saved but not in use:<\/strong> your prices/);
+        assert.match(html, /Still working normally/);
+        // And on save.
+        assert.match(ShadowNotice.savedMessage(3, res.body.run, 'pricing'), /not reaching your receptionist yet/);
+      } finally { server.close(); }
+    });
+
+    it('a portal-provisioned clinic sees no warning at all', async () => {
+      const server = await start();
+      try {
+        const cookie = await authedCookie(server, clean.email, clean.password);
+        const res = await req(server, { method: 'GET', path: '/portal/api/readiness', cookie });
+        assert.equal(res.status, 200);
+
+        const check = res.body.run.checks.find((c) => c.name === ShadowNotice.CHECK_NAME);
+        assert.equal(check.severity, 'pass');
+        assert.equal(ShadowNotice.isShadowed(res.body.run), false);
+        assert.equal(ShadowNotice.noticeHtml('pricing', res.body.run), '');
+        assert.equal(ShadowNotice.savedMessage(3, res.body.run, 'pricing'), 'Saved · v3');
+      } finally { server.close(); }
+    });
+
+    // INV-1 (mandatory cross-tenant negative): the shadowed clinic's verdict must
+    // never leak into a neighbouring clinic's portal — a false warning is as
+    // damaging as a missing one.
+    it('the shadowed clinic’s verdict never reaches another tenant (INV-1)', async () => {
+      const server = await start();
+      try {
+        const cookie = await authedCookie(server, clean.email, clean.password);
+        for (const path of [
+          `/portal/api/readiness?tenantId=${shadowed.tenantId}`,
+          '/portal/api/readiness',
+        ]) {
+          const res = await req(server, {
+            method: 'GET', path, cookie,
+            headers: { 'X-Tenant-Id': shadowed.tenantId },
+            body: { tenantId: shadowed.tenantId },
+          });
+          assert.equal(ShadowNotice.isShadowed(res.body.run), false,
+            'an injected tenant id must not surface the neighbour’s verdict');
+          assert.equal(ShadowNotice.noticeHtml('pricing', res.body.run), '');
+        }
+      } finally { server.close(); }
+    });
+  });
 });

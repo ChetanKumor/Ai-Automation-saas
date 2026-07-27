@@ -106,14 +106,34 @@
                          note: 'Handled by Prantivo during onboarding' },
     'turn.scripted':   { label: 'Test call', actor: 'operator', material: true,
                          note: 'Run by Prantivo before go-live' },
-    'tenant.legacy_prompt': { label: 'Using the latest instruction format', actor: 'system', material: false },
+    // `labelWarn` (F-F001): this row's label used to read "Using the latest
+    // instruction format" in BOTH states — so on precisely the clinics the check
+    // was warning about, the owner-facing string asserted the opposite of the
+    // finding, directly above a sub-line saying the finding. An unsuppressed
+    // check that still reads the reassuring case tells the same lie, louder;
+    // the label has to move with the verdict.
+    //
+    // `material` stays FALSE on purpose. Making it material would NOT gate
+    // go-live (deriveGoLive counts only `fail`, and this check is a `warn`) —
+    // it would just add a row the ring scores as PASSED, making the ring less
+    // honest, not more. The escalation this finding needs is the page notice
+    // and the qualified save, not a scoreboard entry.
+    'tenant.legacy_prompt': { label: 'Using the latest instruction format',
+                              labelWarn: 'Following a custom script', actor: 'system', material: false },
   };
   // Unknown/future check → a safe, honest default (prettified name, material system):
   // a check we don't have copy for still counts against readiness rather than
   // silently vanishing from the ring.
-  const checkMeta = (name) => CHECK_META[name] || {
-    label: String(name).replace(/[._]/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()),
-    actor: 'system', material: true,
+  //
+  // `severity` is optional: callers that only need actor/material keep passing
+  // the name alone and get identical behaviour to before.
+  const checkMeta = (name, severity) => {
+    const m = CHECK_META[name] || {
+      label: String(name).replace(/[._]/g, ' ').replace(/\b\w/g, (m2) => m2.toUpperCase()),
+      actor: 'system', material: true,
+    };
+    if (severity === 'warn' && m.labelWarn) return Object.assign({}, m, { label: m.labelWarn });
+    return m;
   };
 
   const $ = (sel, root) => (root || document).querySelector(sel);
@@ -419,18 +439,61 @@
     if (await dialog(copy)) await runLifecycle(action, btn);
   });
 
+  // One readiness fetch per page load, shared by the header control and the
+  // shadow notice below so adding the notice costs no extra round trip. Home is
+  // excluded at both call sites — it runs its own richer fetch in home.js.
+  // Never rejects: a failure resolves to null and each consumer stays quiet.
+  let readinessP = null;
+  function readinessOnce() {
+    if (!readinessP) {
+      readinessP = fetch('/portal/api/readiness', { headers: { Accept: 'application/json' } })
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null);
+    }
+    return readinessP;
+  }
+
   // Populate the header Go-live control on pages OTHER than Home (Home renders its
   // own, richer, from its readiness fetch, so we skip it to avoid a double render).
   // Pure chrome: any failure leaves the header empty and never blocks the page.
   async function renderHeaderLifecycle() {
     try { await window.Portal.me; } catch (_) { return; }
     if (activeId === 'home') return;
-    try {
-      const res = await fetch('/portal/api/readiness', { headers: { Accept: 'application/json' } });
-      if (!res.ok) return;
-      const data = await res.json();
-      renderLifecycle(data.status, deriveGoLive(data.run));
-    } catch (_) { /* header stays empty — non-critical */ }
+    const data = await readinessOnce();
+    if (!data) return;
+    renderLifecycle(data.status, deriveGoLive(data.run));
+  }
+
+  // ── Shadow notice (F-F001) ─────────────────────────────────────────────────
+  // Tells an owner whose clinic runs on a hand-written script WHICH of this
+  // page's settings their receptionist isn't reading — before they spend an
+  // afternoon editing them. Copy and page list live in shadow-notice.js; this
+  // only places the result.
+  //
+  // Injected rather than added to eleven HTML files so the notice can never
+  // drift page to page, and so a page's markup carries no dead placeholder on
+  // the clinics (the overwhelming majority) that aren't affected.
+  //
+  // Runs EVEN WHEN EMBEDDED, unlike the header control: an owner going through
+  // the onboarding wizard is the single person about to waste the most effort,
+  // so the wizard's iframed steps are the last place to suppress this.
+  async function renderShadowNotice() {
+    const SN = window.ShadowNotice;
+    if (!SN || !SN.pageNotice(activeId)) return; // page writes nothing shadowed
+    try { await window.Portal.me; } catch (_) { return; }
+    const data = await readinessOnce();
+    if (!data) return;
+    const html = SN.noticeHtml(activeId, data.run);
+    if (!html) return;
+    const head = $('.page-head');
+    const content = $('.content');
+    if (!content) return;
+    const holder = document.createElement('div');
+    holder.innerHTML = html;
+    const node = holder.firstElementChild;
+    if (!node) return;
+    if (head && head.parentNode === content) content.insertBefore(node, head.nextSibling);
+    else content.insertBefore(node, content.firstChild);
   }
 
   function wireChrome() {
@@ -488,6 +551,18 @@
   wireChrome();
 
   // Kick auth off immediately; pages await Portal.me before requesting data.
+  // The save confirmation for a config page (F-F001). "Saved · v3" alone is the
+  // false success A-008 names: on an affected clinic the value is stored and
+  // versioned, and the receptionist will never say it. Reads the verdict from
+  // the SAVE RESPONSE'S own readiness payload — the freshest one in existence at
+  // that instant — and degrades to the plain message whenever shadow-notice.js
+  // isn't loaded or the verdict isn't known.
+  function savedMessage(version, readiness) {
+    const SN = window.ShadowNotice;
+    if (!SN) return 'Saved · v' + version;
+    return SN.savedMessage(version, readiness && readiness.run, activeId);
+  }
+
   window.Portal = {
     icons: I,
     me: bootstrap(),
@@ -495,6 +570,7 @@
     deriveGoLive,
     checkMeta,     // the single owner-facing check copy map (Home + wizard read it)
     applyLifecycle,
+    savedMessage,
     embedded,
   };
 
@@ -502,4 +578,5 @@
   // Skipped when embedded — the header itself is hidden, so rendering into it
   // would be a wasted fetch.
   if (!embedded) renderHeaderLifecycle();
+  renderShadowNotice(); // page content, not chrome — runs embedded too
 })();

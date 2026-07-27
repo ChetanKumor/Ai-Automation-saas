@@ -34,7 +34,10 @@
   // one home, because the blocked-go-live dialog needs the same copy on every
   // page, not just this one. Signature unchanged, so PortalHome.metaFor (the
   // wizard's Review step) is untouched.
-  const metaFor = (name) => window.Portal.checkMeta(name);
+  // `severity` is optional and only affects checks whose LABEL depends on the
+  // verdict (F-F001's tenant.legacy_prompt). Callers reading actor/material
+  // keep passing the name alone.
+  const metaFor = (name, severity) => window.Portal.checkMeta(name, severity);
 
   const BANNER = {
     draft:     { label: 'Draft', meaning: 'Your receptionist isn’t live yet. Finish the setup below, then go live.' },
@@ -159,6 +162,19 @@
     if (m.actor === 'operator') {
       return { icon: IC.op, iconCls: 'op', badge: 'Operator-run', badgeCls: 'muted' };
     }
+    // An ADVISORY warn is not "ready" (F-F001). `warn` isn't `fail`, so this row
+    // used to take the green tick below — putting a reassuring ✓ in the loudest
+    // element of the row, directly beside copy saying the owner's settings
+    // aren't reaching their receptionist. Amber alert instead (--fail is already
+    // amber, not red: nothing is broken). Advisory rows render no badge, so the
+    // icon is the whole signal.
+    //
+    // Deliberately scoped to NON-MATERIAL rows: doctor.schedule also warns
+    // ("3/4 doctors bookable"), and re-badging a material check is a change to
+    // the readiness surface this finding doesn't call for.
+    if (!m.material && c.severity === 'warn') {
+      return { icon: IC.alert, iconCls: 'fail' };
+    }
     if (!failed) {
       return { icon: IC.check, iconCls: 'pass', badge: 'Ready', badgeCls: 'ok' };
     }
@@ -173,15 +189,22 @@
   // default — no opts passed) for the ordinary standalone-page href, so this
   // page's own rendering is unchanged.
   function checkRow(c, opts) {
-    const m = metaFor(c.name);
+    // Severity-aware (F-F001): this row used to render the label
+    // "Using the latest instruction format" directly above a sub-line saying an
+    // older one was in use — the row contradicted itself, and the reassuring
+    // half was the bigger, bolder half.
+    const m = metaFor(c.name, c.severity);
     const st = rowState(c, m);
     const advisory = !m.material;
 
     // Sub-line: for a failing owner item show the fix; for operator items the note.
     let sub = '';
     if (advisory) {
+      // Names the CONSEQUENCE, not the mechanism. "An older instruction format"
+      // told an owner nothing they could act on or even worry about correctly;
+      // what they need to know is that their saved settings aren't being read.
       sub = c.severity === 'warn'
-        ? '<div class="check__fix">An older instruction format is in use — Prantivo can refresh it.</div>' : '';
+        ? '<div class="check__fix">Your saved settings aren’t reaching your receptionist yet — Prantivo can switch this over.</div>' : '';
     } else if (st.skipped) {
       sub = '<div class="check__fix">Not part of your current setup.</div>';
     } else if (m.actor === 'owner' && c.severity === 'fail' && m.fix) {

@@ -171,9 +171,11 @@
       renderSummary();
       baseline = JSON.stringify(collect());
       $('summaryStale').hidden = true;
-      saveNote.textContent = 'Saved · v' + data.version;
+      // F-F001: qualified when this page's settings are shadowed by a custom script.
+      const savedMsg = window.Portal.savedMessage(data.version, data.readiness);
+      saveNote.textContent = savedMsg;
       saveNote.className = 'save-note save-note--saved';
-      toast('Saved · v' + data.version, true);
+      toast(savedMsg, true);
       if (data.readiness && window.Portal && window.Portal.renderLifecycle) {
         window.Portal.renderLifecycle(data.readiness.status, window.Portal.deriveGoLive(data.readiness.run));
       }

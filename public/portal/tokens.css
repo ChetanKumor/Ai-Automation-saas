@@ -453,6 +453,60 @@ textarea.input { resize: vertical; min-height: 74px; }
 .save-note--dirty { color: var(--amber); font-weight: 600; }
 
 /* ============================================================================
+ * Shadow notice (F-F001) — "your receptionist is following a custom script"
+ *
+ * Sits at the top of every page whose settings a hand-written script overrides,
+ * injected by shell.js from shadow-notice.js. Amber, matching the receptionist
+ * page's .gap-notice: nothing is broken and no data is lost, the settings just
+ * aren't reaching the receptionist yet. Red would read as an outage and send an
+ * owner chasing a fault that doesn't exist.
+ *
+ * Roomier than .gap-notice because it carries a title, what's affected, and
+ * what still works — an owner has to be able to tell those apart at a glance.
+ * ========================================================================== */
+.shadow-notice {
+  display: flex;
+  gap: 11px;
+  margin: 0 0 var(--s-5);
+  padding: 14px 16px;
+  background: var(--amber-050);
+  border: 1px solid var(--amber-200);
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+}
+.shadow-notice__icon {
+  width: 18px; height: 18px;
+  flex: none;
+  margin-top: 1px;
+  color: var(--amber);
+}
+.shadow-notice__body { min-width: 0; }
+.shadow-notice__title {
+  margin: 0 0 5px;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.shadow-notice__text {
+  margin: 0 0 5px;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.shadow-notice__also {
+  margin: 0 0 5px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  font-weight: 600;
+}
+.shadow-notice__ask {
+  margin: 7px 0 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  font-weight: 600;
+  color: var(--amber);
+}
+
+/* ============================================================================
  * Toast (bottom-right, auto-dismiss) — shared with future save flows
  * ========================================================================== */
 .toast-host {
