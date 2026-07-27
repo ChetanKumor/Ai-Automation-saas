@@ -20,10 +20,25 @@
   --text-secondary: #A2A6AD;
   --text-tertiary: #6C6F77;
 
-  /* —— Functional accent (links / focus / live dot only) —— */
-  --accent: #5C8DF0;
-  --accent-hover: #7CA4F4;
-  --accent-glow: rgba(92, 141, 240, 0.35);
+  /* —— Functional accent (links / focus / live dot only) ——
+     The brand accent is teal, the value the owner portal has carried since
+     portal v1 S2. It was periwinkle #5C8DF0 here, so a prospect met a blue
+     site and then logged in to a teal tool and saw two vendors (F-F008).
+     The site moved, not the portal: the portal's tokens are consumed across
+     seven-plus pages and covered by the root suite, this file is not.
+
+     The hex is NOT the portal's #0f766e, and that is deliberate — recorded
+     here at the point of divergence, the same way tokens.css:19 records why
+     the portal's --bg differs from the demo's. #0f766e is the teal-700 step,
+     drawn for the portal's near-white #f6f8fa ground. On this file's
+     near-black --ink-900 it measures 3.58:1, which fails WCAG AA for text,
+     and --accent IS text here: legal.module.css:221 and :288 paint every
+     inline link with it. #14b8a6 is the same ramp two steps lighter and
+     measures 7.86:1 — better than the 6.08:1 the blue gave. Same brand,
+     the step that suits an inverted ground. */
+  --accent: #14b8a6;
+  --accent-hover: #2DD4BF;
+  --accent-glow: rgba(20, 184, 166, 0.35);
 
   /* —— WhatsApp authentic palette — MOCKUP ONLY —— */
   --wa-bg: #0B141A;

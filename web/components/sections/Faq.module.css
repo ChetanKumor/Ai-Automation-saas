@@ -96,11 +96,17 @@
 .faqAWrap {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 0.35s var(--ease-out);
+  /* Pairs with inert={!isOpen} in Faq.tsx. visibility is the one hiding
+     property that still transitions: closing holds `visible` for the full
+     0.35s and flips at the end, so the collapse animation survives; opening
+     flips to `visible` immediately. display:none would kill both. */
+  visibility: hidden;
+  transition: grid-template-rows 0.35s var(--ease-out), visibility 0.35s;
 }
 
 .open .faqAWrap {
   grid-template-rows: 1fr;
+  visibility: visible;
 }
 
 .faqAInner {

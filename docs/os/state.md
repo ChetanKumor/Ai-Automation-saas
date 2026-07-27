@@ -10,18 +10,14 @@ Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run 
 stated inline. Absence of a marker means the line was checked against HEAD, not that it
 is self-evident.
 
-**Partially absorbed.** `docs/audit/2026-07-frontend.md` (`90d1da3`) and `D-005`
-(`56e7f46`) landed after the verification before this one. **F-F004 is now absorbed** —
-the `web/` surface record the audit demanded is under *Stack (frozen)* below, and gate 2's
-evidence column names the gap in Issue 20's scope. The audit's other findings are **not**
-reflected here: F-F003 (legal-page placeholders) is blocked on C-1, and F-F006–F-F009 are
-queued for the final item of the D-005 program. **F-F005 closed** at `634b7aa`.
-**F-F001 closed** at `6ceb8f0` — the portal now warns an owner when a hand-written
-`tenants.ai_prompt` is shadowing their saved settings, names which of them are inert and
-which still work, and no longer reports unqualified success on a save. Owner-facing half
-only: the backend precedence in `aiService.js` is deliberate and untouched, so **Issue 34
-remains open** for its recommended fix (removing the prompt field from
-`public/admin/tenant-new.html:39`).
+**Fully absorbed.** `docs/audit/2026-07-frontend.md` (`90d1da3`) is now reflected here in
+full. The D-005 frontend modernisation program is **COMPLETE** — its ledger, including
+what shipped, what stays open and why, and what was deliberately not scheduled, is under
+*Frontend modernisation program (D-005)* below. Eight of the audit's nine findings closed;
+**F-F003 is the only one open**, blocked on external clock C-1. **Issue 34 remains open**
+for its backend half — F-F001 closed the owner-facing warning at `6ceb8f0` but the
+precedence in `aiService.js` is deliberate and untouched, so the recommended fix
+(removing the prompt field from `public/admin/tenant-new.html:39`) is still unmade.
 
 ---
 
@@ -113,6 +109,66 @@ Additions since the original 1–28, all in the plan's Phase 8:
 - **34** — admin-created tenants silently ignore all portal-written prompt copy. OPEN;
   this is A-007/A-008 promoted to the queue. Full finding at
   `docs/specs/issue-34-legacy-prompt-shadows-portal-config.md`.
+
+## Frontend modernisation program (D-005) — COMPLETE
+
+Authorised by `D-005` (`56e7f46`), specified by `docs/audit/2026-07-frontend.md`
+(`90d1da3`). Closed at the commit this file is stamped to. The audit is the historical
+record of what was found and is not edited; this section is the ledger of what was done
+about it.
+
+**Shipped — 8 of 9 findings**
+
+| Finding | S | What closed it | Commit |
+|---|---|---|---|
+| F-F001 | S-B | Portal warns an owner when a legacy `tenants.ai_prompt` shadows their saved settings; names which fields are inert | `6ceb8f0` |
+| F-F002 | S-A | `web/lib/siteConfig.ts` resolves from environment; production build refuses placeholders (**unblocked portion only** — see Open) | `9b5486a` |
+| F-F004 | S-A | `web/` recorded as a first-class surface under *Stack (frozen)*; gate 2 names the gap in Issue 20's scope (**partial** — see Open) | `9b5486a` |
+| F-F005 | S-A | Hero plays a Telugu conversation; `Noto_Sans_Telugu` with `subsets: ["telugu"]`; first two lines verbatim from `public/demo/fixture.json` | `634b7aa` |
+| F-F006 | S-A | Mobile nav drawer closes on link tap and on Escape; focus returns to the toggle | *this commit* |
+| F-F007 | S-A | Collapsed FAQ answers carry `inert` + `visibility: hidden` — out of the a11y tree, out of Ctrl+F, out of the tab order | *this commit* |
+| F-F008 | S-A/S-B | `web/` adopts the portal's teal brand accent. The site moved, not the portal | *this commit* |
+| F-F009 | S-A | Four colour-only focus indicators gained the existing 2px/4px ring | *this commit* |
+
+**Open, and why**
+
+- **F-F003** — the legal pages still ship bracketed placeholders. Blocked on **C-1**
+  (business entity registration, `docs/os/clocks.md`). Not schedulable: the fix is to
+  write facts that do not exist yet.
+- **F-F002 residual** — `legalEntityName` remains exempt in `siteConfig.ts`'s guard, and
+  the deploy-environment values are unset. Blocked on C-1 and on the domain purchase,
+  which is deferred by founder decision. While the exemption line exists, an unfiled
+  external clock is holding a production build open on a knowingly false statement.
+- **F-F004 residual** — the `web/` deploy host is founder-unconfirmed. `D-006` is drafted
+  in `docs/os/decisions.md.draft`, not `decisions.md`, awaiting that confirmation.
+
+**Deliberately not scheduled**
+
+- The **nine S5 appendix items** of the audit. Not cut for cost — they are below the
+  threshold at which a prospect notices.
+- The **cross-surface token values file and its drift test** (the audit's "token
+  question" remedy). Cut by founder decision and still cut. `--accent` was the only one
+  of the three divergences that carried brand meaning, and F-F008 resolved it directly.
+
+**Spend against the cap**
+
+Five sessions of D-005's ten-session hard cap: the Stage 1 audit (`90d1da3`), then
+Stage 2 items 1 (`9b5486a`), 2 (`634b7aa`), 3 (`6ceb8f0`) and 4 (this commit). The
+audit's own effort lines budget **17h** for the eight findings that shipped, of a 20h
+total; the 3h remainder is F-F003. ⚠️ Actual hours are not recorded anywhere in the
+repository — no session log exists — so the 17h is the estimate, not a measurement.
+Five sessions remain unspent and are **not** carried forward: D-005's terms cancel the
+unspent backlog if the prediction fails.
+
+**Note for the D-005 review (2026-10-01, or ten logged clinic conversations)**
+
+D-005's prediction is about **objections raised in clinic conversations**. Roughly
+two-thirds of this program by effort is `web/` work, and `web/` is **undeployed by
+founder decision** — no prospect has seen any of it. A review that scores the prediction
+against conversations held before a `web/` deploy is testing the portal and demo
+surfaces only. **The review is therefore partial, not failed**, and the Outcome must
+record which of the two it is. Not written here: the review date has not arrived and
+the judgement is the founder's.
 
 ## Stack (frozen)
 

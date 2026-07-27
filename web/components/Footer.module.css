@@ -112,6 +112,8 @@
 
 .fcol a:focus-visible {
   outline: none;
+  box-shadow: 0 0 0 2px var(--ink-900), 0 0 0 4px var(--accent);
+  border-radius: var(--r-sm);
   color: var(--accent);
 }
 

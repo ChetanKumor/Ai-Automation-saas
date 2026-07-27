@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { waLink, waMessages } from "@/lib/siteConfig";
@@ -16,6 +16,8 @@ const NAV_LINKS = [
 export function Nav() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -23,6 +25,24 @@ export function Nav() {
     onScroll();
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // Escape closes the drawer. Bound only while it is open, so the listener does
+  // not sit on the document for the whole session. If focus is inside the drawer
+  // when it closes, return it to the toggle — otherwise dismissing with the
+  // keyboard drops focus onto <body> and the next Tab restarts from the top.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const focusWasInside = mobileMenuRef.current?.contains(
+        document.activeElement
+      );
+      setMenuOpen(false);
+      if (focusWasInside) menuBtnRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [menuOpen]);
 
   return (
     <nav className={`${styles.nav}${scrolled ? ` ${styles.scrolled}` : ""}`}>
@@ -54,6 +74,7 @@ export function Nav() {
             Book a demo
           </Button>
           <button
+            ref={menuBtnRef}
             className={styles.menuBtn}
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
@@ -78,10 +99,19 @@ export function Nav() {
 
       <div
         id="mobile-menu"
+        ref={mobileMenuRef}
         className={`${styles.mobileMenu}${menuOpen ? ` ${styles.open}` : ""}`}
       >
         {NAV_LINKS.map((link) => (
-          <a key={link.label} href={link.href}>
+          // Every link is an in-page anchor, so navigating does not unmount the
+          // nav and nothing else clears menuOpen. Without this the drawer — a
+          // full-width panel at 0.95 alpha with a 14px blur — stays open on top
+          // of the section the tap just scrolled to.
+          <a
+            key={link.label}
+            href={link.href}
+            onClick={() => setMenuOpen(false)}
+          >
             {link.label}
           </a>
         ))}

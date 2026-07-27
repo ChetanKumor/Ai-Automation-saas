@@ -80,7 +80,13 @@ export function Faq() {
                       <polyline points="6 9 12 15 18 9" />
                     </svg>
                   </button>
-                  <div className={styles.faqAWrap}>
+                  {/* inert removes a collapsed answer from the accessibility
+                      tree, from in-page find, and from the tab order. The
+                      0fr/1fr grid only hides it visually: without this the
+                      answer is still announced, still matched by Ctrl+F, and
+                      would be tabbable the first time one gains a link.
+                      React 19 passes the boolean through natively. */}
+                  <div className={styles.faqAWrap} inert={!isOpen}>
                     <div className={styles.faqAInner}>
                       <div className={styles.faqA} id={panelId}>
                         {item.answer}
