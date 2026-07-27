@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 634b7aa343700348d997c1373197ef8757276bbc
-Verified-on: 2026-07-26
+Verified-at: 6ceb8f0f9f166b00be9ff78647767a6e2ae5e811
+Verified-on: 2026-07-27
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -14,8 +14,14 @@ is self-evident.
 (`56e7f46`) landed after the verification before this one. **F-F004 is now absorbed** —
 the `web/` surface record the audit demanded is under *Stack (frozen)* below, and gate 2's
 evidence column names the gap in Issue 20's scope. The audit's other findings are **not**
-reflected here: F-F003 (legal-page placeholders) is blocked on C-1, F-F005 (Telugu `lang`
-attributes) and F-F006–F-F009 are queued for later items of the D-005 program.
+reflected here: F-F003 (legal-page placeholders) is blocked on C-1, and F-F006–F-F009 are
+queued for the final item of the D-005 program. **F-F005 closed** at `634b7aa`.
+**F-F001 closed** at `6ceb8f0` — the portal now warns an owner when a hand-written
+`tenants.ai_prompt` is shadowing their saved settings, names which of them are inert and
+which still work, and no longer reports unqualified success on a save. Owner-facing half
+only: the backend precedence in `aiService.js` is deliberate and untouched, so **Issue 34
+remains open** for its recommended fix (removing the prompt field from
+`public/admin/tenant-new.html:39`).
 
 ---
 
@@ -64,7 +70,7 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Test suite: **830 tests / 142 suites / 0 fail** (`npm test`, raw: `# tests 830 / # pass 830 / # fail 0`)
+- Test suite: **863 tests / 149 suites / 0 fail** (`npm test`, raw: `# tests 863 / # pass 863 / # fail 0`)
 - Audit findings closed: **F-001** (`2d5da98`), **F-003** (`d22dfc5`), **F-003b** (`7a505a6`),
   **F-004** (`e071f69`), **F-005** (`e15bbae`), **F-006** (`58aa1d5`), **F-007** (`d914649`),
   **F-010** (`ba45acc`). Open: F-002, F-008, F-009, F-011 – F-017.
@@ -130,7 +136,7 @@ Verified against `package.json` and `voice-agent/pyproject.toml` + `voice-agent/
   - not served by `server.js` — `express.static` covers `public/` only (`server.js:90`;
     the admin mount at `src/admin/adminRoutes.js:62` is also `public/`-derived);
   - not built by any script in the root `package.json`;
-  - **zero of the 830 tests touch it.** The root suite's green is silent about `web/`, so
+  - **zero of the 863 tests touch it.** The root suite's green is silent about `web/`, so
     a `web/` change is evidenced by the build artifact, not by `npm test`.
   - `web/vercel.json` is **headers-only** — five security headers, no build command, no
     output directory, no root directory.
