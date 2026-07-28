@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 8559f197ffe573c4bccaca3708072f80681dbc9e
+Verified-at: 74e13e10488f83f88ed6cd019592ec66f1b559dd
 Verified-on: 2026-07-27
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -88,6 +88,20 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   `docs/design/brand-values.md` + `tests/design/tokenDrift.test.js`, which bind the four
   `:root` surfaces (portal, demo/shared, demo/styles, web) to one recorded table.
   ⚠️ D2–D5 are unstarted; `--teal-hover`/`--teal-press` are removed in D5.
+- Portal v2's governing documents are now **in the repo** (`74e13e1`): the design spec
+  (`docs/design/portal-v2-spec.md`), the approved Batch 1 mockups
+  (`docs/design/prantivo-mockups-batch1.html`) and the 5-session plan
+  (`docs/specs/portal-v2-batch1.md`). The mockups landed on disk as `portal-v2-spec.html`
+  and were renamed to the path the plan's Basis line already cites. Docs only — no source
+  file changed, so this is a provenance-only `Verified-at` bump.
+  ⚠️ **The spec's own Status line still reads "Proposal"** while the plan and the commit
+  that landed it both call it frozen. The required override exists — **D-005** overrides
+  the H5 ranking §0.2 demands and carries its falsifiable prediction — so the work is
+  authorised; only the Status line is stale.
+  ⚠️ **D-005's budget is 10 sessions, hard cap, and 5 were spent before D1.** Batch 1 is
+  D1–D5, so completing it lands exactly on the cap. The spec estimates 14–18 sessions for
+  the full document; **any Batch 2 needs a new decisions.md entry, not an extension** —
+  D-005 says so in terms.
 
 ### Remaining before first live call
 
