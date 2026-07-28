@@ -139,7 +139,7 @@
 .check__link svg { width: 13px; height: 13px; }
 /* A real link (the fix-page is built) reads teal + underlines on hover; the
    inert "Coming soon" span (no href) never does. */
-a.check__link:hover { color: var(--teal-700); text-decoration: underline; }
+a.check__link:hover { color: var(--teal-press); text-decoration: underline; }
 
 /* Advisory checks read subordinate to material ones. */
 .check--advisory { opacity: .8; }
@@ -185,7 +185,7 @@ a.check__link:hover { color: var(--teal-700); text-decoration: underline; }
   margin-bottom: var(--s-5);
 }
 .setup-cta__body { flex: 1; min-width: 0; }
-.setup-cta__title { font-size: 14.5px; font-weight: 700; color: var(--teal-700); letter-spacing: -.01em; }
+.setup-cta__title { font-size: 14.5px; font-weight: 700; color: var(--teal-press); letter-spacing: -.01em; }
 .setup-cta__sub { color: var(--ink-2); font-size: 13px; margin-top: 3px; line-height: 1.5; }
 .setup-cta .btn { flex: none; }
 

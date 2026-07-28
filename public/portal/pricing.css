@@ -194,7 +194,7 @@
 .pay-toggle[aria-pressed="true"] {
   background: var(--teal-050);
   border-color: var(--teal-100);
-  color: var(--teal-700);
+  color: var(--teal-press);
 }
 .pay-toggle[aria-pressed="true"] .pay-toggle__check {
   background: var(--teal);

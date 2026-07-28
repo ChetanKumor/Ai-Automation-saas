@@ -35,7 +35,7 @@
   flex: none;
   width: 42px;
   font: 700 13px/1 var(--mono);
-  color: var(--teal-700);
+  color: var(--teal-press);
 }
 .hist-row__main { flex: 1; min-width: 0; }
 .hist-row__top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
@@ -90,7 +90,7 @@
   display: inline-flex;
   font-size: 12px;
   font-weight: 600;
-  color: var(--teal-700);
+  color: var(--teal-press);
   background: var(--teal-050);
   border: 1px solid var(--teal-100);
   border-radius: 999px;
@@ -111,7 +111,7 @@
   border: 1px solid var(--teal-100);
   border-radius: var(--radius-sm);
   font-size: 12.5px;
-  color: var(--teal-700);
+  color: var(--teal-press);
   font-weight: 600;
 }
 

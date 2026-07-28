@@ -22,39 +22,85 @@
   --ink: #0f172a;       /* primary text */
   --ink-2: #334155;     /* secondary text */
   --muted: #64748b;     /* labels, meta, help text */
-  --faint: #94a3b8;     /* disabled / de-emphasised */
-  --line: #e2e8f0;      /* hairline borders */
+  --faint: #94a3b8;     /* disabled / de-emphasised — non-text only (2.8:1) */
+  --line: #e2e8f0;      /* hairline borders — the primary structural device */
   --line-2: #eef2f6;    /* softer inner dividers */
+  --line-3: #cbd5e1;    /* border darkening on hover */
 
-  /* ── Accent (teal) — the one and only ── */
-  --teal: #0f766e;
-  --teal-050: #f0fdfa;
-  --teal-100: #ccfbf1;
-  --teal-600: #0d6b63;
-  --teal-700: #0f5f59;
-  --accent: var(--teal);
+  /* ── Ink field — the one dark ground in the product (Verbatim panel, D4) ── */
+  --field: #0c1420;
+  --field-2: #141c2a;
+  --field-line: rgba(255, 255, 255, .10);
+  --field-ink: #e8edf2;
+  --field-muted: #94a3b8;
+
+  /* ── Accent (teal) — the one and only ───────────────────────────────────────
+   * Two names changed meaning here (spec §2.1, plan §0.1). The old ramp used
+   * --teal-600 / --teal-700 as darker steps BELOW the base --teal; the v2 ramp
+   * is the standard 50–900 convention in which --teal-700 IS the base. Same two
+   * names, two incompatible conventions — so the old values live on under
+   * intent names and every consumer was migrated onto them in the same commit.
+   * Nothing repaints: this step is plumbing, not a recolour.
+   * ────────────────────────────────────────────────────────────────────────── */
+  --teal-hover: #0d6b63;   /* transitional: was --teal-600. Removed in D5. */
+  --teal-press: #0f5f59;   /* transitional: was --teal-700. Removed in D5. */
+
+  --teal-50:  #f0fdfa;   /* active nav fill, selected row, subtle info fill */
+  --teal-100: #ccfbf1;   /* badge fill on light ground */
+  --teal-200: #99f6e4;   /* chart series fill, hover on tinted surfaces */
+  --teal-300: #5eead4;   /* reserved */
+  --teal-400: #2dd4bf;   /* accent hover on the ink ground — 9.4:1 on --field */
+  --teal-500: #14b8a6;   /* accent on the ink ground — 7.9:1 on --field */
+  --teal-600: #0d9488;   /* chart series 1 — 3.9:1, large text / non-text only */
+  --teal-700: #0f766e;   /* THE accent on the light ground — 5.4:1 on --card */
+  --teal-800: #115e59;   /* primary button hover — 7.4:1 */
+  --teal-900: #134e4a;   /* primary button pressed — 9.6:1 */
+
+  --teal-050: var(--teal-50);          /* deprecated alias — kept so nothing breaks */
+  --teal: var(--teal-700);             /* #0f766e, exactly as before */
+  --accent: var(--teal-700);           /* the alias components use on light ground */
+  --accent-on-field: var(--teal-500);  /* the alias components use on the ink ground */
 
   /* ── Semantic (states only — never used decoratively) ── */
   --green: #16a34a;
   --green-050: #f0fdf4;
   --green-100: #dcfce7;
+  --green-200: #bbf7d0;
+  --green-500: #22c55e;
   --green-700: #15803d;
 
   --amber: #b45309;
   --amber-050: #fffbeb;
   --amber-100: #fef3c7;
   --amber-200: #fde68a;
+  --amber-500: #f59e0b;
+  --amber-700: var(--amber);
 
   --red: #b91c1c;
   --red-050: #fef2f2;
   --red-100: #fee2e2;
+  --red-200: #fecaca;
+  --red-500: #dc2626;
+  --red-700: var(--red);
 
-  /* ── Radius / shadow ── */
-  --radius: 14px;
-  --radius-sm: 10px;
-  --radius-xs: 8px;
-  --shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 6px 16px rgba(15, 23, 42, .06);
+  /* ── Radius (spec §2.4) — smaller elements take smaller radii ── */
+  --r-xs: 4px;      /* badges, tags, checkboxes */
+  --r-sm: 6px;      /* buttons, inputs, selects, nav items, row hover */
+  --r-md: 10px;     /* cards, banners, dropdown menus, toasts */
+  --r-lg: 14px;     /* modals, mobile sheets, the Verbatim panel */
+  --r-full: 999px;  /* pills, avatars, the readiness ring, toggle knobs */
+
+  --radius: var(--r-md);      /* legacy aliases — no existing rule breaks */
+  --radius-sm: var(--r-sm);
+  --radius-xs: var(--r-xs);
+
+  /* ── Elevation (spec §2.5) — cards do NOT cast. Only floating things do.
+   * Two layers always: a tight contact shadow and a soft ambient one. Slate-
+   * tinted, never pure black — black on a cool grey reads dirty. ── */
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, .06);
+  --shadow-md: 0 2px 4px rgba(15, 23, 42, .05), 0 8px 20px rgba(15, 23, 42, .08);
+  --shadow-lg: 0 4px 8px rgba(15, 23, 42, .06), 0 20px 48px rgba(15, 23, 42, .14);
+  --shadow: var(--shadow-md);   /* legacy alias */
 
   /* ── Spacing rhythm (8px base) ── */
   --s-1: 4px;
@@ -64,16 +110,48 @@
   --s-5: 24px;
   --s-6: 32px;
   --s-7: 48px;
+  --s-8: 64px;   /* empty-state vertical padding */
+  --s-9: 96px;   /* sign-in page vertical centring */
+
+  /* ── Motion (spec §2.7) ── */
+  --dur-1: 120ms;   /* hover, focus, colour change, toggle */
+  --dur-2: 180ms;   /* dropdown, toast, inline expand, tooltip */
+  --dur-3: 240ms;   /* modal, mobile drawer, Verbatim panel sheet */
+  --dur-4: 600ms;   /* the readiness ring's first draw. Nothing else. */
+  --ease-out: cubic-bezier(.16, 1, .3, 1);      /* entrances, expansions */
+  --ease-in-out: cubic-bezier(.4, 0, .2, 1);    /* state changes, exits */
+  --ease-linear: linear;                        /* progress, indeterminate */
 
   /* ── Layout ── */
   --sidebar-w: 232px;
   --content-max: 760px;
+  --panel-w: 360px;   /* Verbatim panel, D4 */
 
-  /* ── Type ── */
-  --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --te: 'Noto Sans Telugu', system-ui, sans-serif;      /* greeting fields (Phase 5) */
-  --hi: 'Noto Sans Devanagari', system-ui, sans-serif;
+  /* ── Type ───────────────────────────────────────────────────────────────────
+   * ONE family across all three scripts. The six Telugu/Devanagari faces are
+   * unicode-range-scoped away from Latin (U+0C00-0C7F / U+0900-097F), so Latin
+   * characters inside a lang="te" element resolve to the NEXT family in the
+   * stack — 'Noto Sans' must therefore appear there too, or a price renders in
+   * a different family from the sentence containing it.
+   * The previous --sans named a premium-SaaS default face that has no
+   * @font-face anywhere in public/, so it silently resolved to system-ui and
+   * had no Telugu at all. The declaration is now true rather than aspirational.
+   * ────────────────────────────────────────────────────────────────────────── */
+  --sans: 'Noto Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --te: 'Noto Sans Telugu', 'Noto Sans', system-ui, sans-serif;
+  --hi: 'Noto Sans Devanagari', 'Noto Sans', system-ui, sans-serif;
   --mono: ui-monospace, 'SF Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
+
+  /* Type scale (spec §2.2) — defined here, applied to rules in D5. */
+  --t-display: 600 30px/1.2 var(--sans);      --ls-display: -.025em;
+  --t-h1:      600 22px/1.27 var(--sans);     --ls-h1: -.018em;
+  --t-h2:      600 17px/1.4 var(--sans);      --ls-h2: -.011em;
+  --t-h3:      600 15px/1.47 var(--sans);     --ls-h3: -.006em;
+  --t-body:    400 15px/1.6 var(--sans);
+  --t-body-sm: 400 13.5px/1.48 var(--sans);
+  --t-label:   500 13px/1.38 var(--sans);
+  --t-help:    400 12.5px/1.44 var(--sans);
+  --t-micro:   600 11px/1.27 var(--sans);     --ls-micro: .05em;
 }
 
 * { box-sizing: border-box; }
@@ -164,11 +242,11 @@ a { color: var(--teal); }
 .nav__item:hover svg { color: var(--muted); }
 .nav__item--active {
   background: var(--teal-050);
-  color: var(--teal-700);
+  color: var(--teal-press);
   font-weight: 600;
 }
 .nav__item--active svg { color: var(--teal); }
-.nav__item--active:hover { background: var(--teal-050); color: var(--teal-700); }
+.nav__item--active:hover { background: var(--teal-050); color: var(--teal-press); }
 
 /* Unbuilt pages: visible but inert, with a quiet "Soon" tag (never a 404). */
 .nav__item--soon { color: var(--faint); cursor: default; }
@@ -244,11 +322,12 @@ a { color: var(--teal); }
 /* ============================================================================
  * Card
  * ========================================================================== */
+/* A card is a background and a hairline, nothing else (spec §2.5). On the
+ * reference products a resting surface is drawn, not floated. */
 .card {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
   padding: 22px 24px;
 }
 .card + .card { margin-top: var(--s-4); }
@@ -274,7 +353,7 @@ a { color: var(--teal); }
 .badge--ok    { color: var(--green-700); background: var(--green-050); border-color: var(--green-100); }
 .badge--warn  { color: var(--amber);     background: var(--amber-050); border-color: var(--amber-200); }
 .badge--muted { color: var(--muted);     background: var(--bg);        border-color: var(--line); }
-.badge--teal  { color: var(--teal-700);  background: var(--teal-050);  border-color: var(--teal-100); }
+.badge--teal  { color: var(--teal-press);  background: var(--teal-050);  border-color: var(--teal-100); }
 
 /* Live-status dot (pulsing) — reused from the demo's live pill */
 .badge__dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
@@ -309,7 +388,7 @@ a { color: var(--teal); }
 .btn svg { width: 15px; height: 15px; }
 .btn:hover { background: var(--bg); color: var(--ink); }
 .btn--primary { background: var(--teal); border-color: var(--teal); color: #fff; }
-.btn--primary:hover { background: var(--teal-700); border-color: var(--teal-700); color: #fff; }
+.btn--primary:hover { background: var(--teal-press); border-color: var(--teal-press); color: #fff; }
 .btn--block { width: 100%; }
 .btn:disabled, .btn[aria-disabled="true"] {
   cursor: default;

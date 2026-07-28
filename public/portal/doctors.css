@@ -87,7 +87,7 @@
 .day-toggle[aria-pressed="true"] {
   background: var(--teal-050);
   border-color: var(--teal-100);
-  color: var(--teal-700);
+  color: var(--teal-press);
 }
 
 /* ── Working hours pair ── */
@@ -114,10 +114,10 @@
 .lang-toggle[aria-pressed="true"] {
   background: var(--teal-050);
   border-color: var(--teal-100);
-  color: var(--teal-700);
+  color: var(--teal-press);
 }
 .lang-toggle__native { font-weight: 500; color: var(--faint); }
-.lang-toggle[aria-pressed="true"] .lang-toggle__native { color: var(--teal-700); opacity: .8; }
+.lang-toggle[aria-pressed="true"] .lang-toggle__native { color: var(--teal-press); opacity: .8; }
 
 /* ── Warnings: quiet, never blocking (booking offers the intersection) ── */
 .doc__warn {

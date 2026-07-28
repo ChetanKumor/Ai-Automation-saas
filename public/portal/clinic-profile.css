@@ -66,14 +66,14 @@
 .lang-toggle[aria-pressed="true"] {
   background: var(--teal-050);
   border-color: var(--teal-100);
-  color: var(--teal-700);
+  color: var(--teal-press);
 }
 .lang-toggle[aria-pressed="true"] .lang-toggle__check {
   background: var(--teal);
   border-color: var(--teal);
   color: #fff;
 }
-.lang-toggle[aria-pressed="true"] .lang-toggle__native { color: var(--teal-600); }
+.lang-toggle[aria-pressed="true"] .lang-toggle__native { color: var(--teal-hover); }
 
 @media (max-width: 480px) {
   .phone-row__remove { width: 40px; }

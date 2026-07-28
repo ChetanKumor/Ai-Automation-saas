@@ -43,7 +43,7 @@
   font-weight: 700;
   letter-spacing: .04em;
   text-transform: uppercase;
-  color: var(--teal-700);
+  color: var(--teal-press);
 }
 .summary__text {
   margin-top: 4px;

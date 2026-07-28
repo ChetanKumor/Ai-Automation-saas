@@ -59,7 +59,7 @@
   cursor: pointer;
   transition: background .12s, border-color .12s;
 }
-.starter:hover { background: var(--teal-050); border-color: var(--teal-100); color: var(--teal-700); }
+.starter:hover { background: var(--teal-050); border-color: var(--teal-100); color: var(--teal-press); }
 .starter:disabled { opacity: .5; cursor: default; }
 .starter:disabled:hover { background: var(--bg); border-color: var(--line); color: var(--ink-2); }
 

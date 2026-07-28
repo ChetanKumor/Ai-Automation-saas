@@ -40,7 +40,7 @@
 .segmented__btn--active,
 .segmented__btn--active:hover {
   background: var(--teal-050);
-  color: var(--teal-700);
+  color: var(--teal-press);
 }
 .segmented__btn:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
 
@@ -61,7 +61,7 @@
   font-weight: 700;
   letter-spacing: .03em;
   text-transform: uppercase;
-  color: var(--teal-700);
+  color: var(--teal-press);
   background: var(--teal-050);
   border: 1px solid var(--teal-100);
   border-radius: 999px;
