@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 69ceb7f1a882ed5521e3b55ad1dc93412ce8682e
+Verified-at: 8559f197ffe573c4bccaca3708072f80681dbc9e
 Verified-on: 2026-07-27
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -66,7 +66,7 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Test suite: **868 tests / 151 suites / 0 fail** (`npm test`, raw: `# tests 868 / # pass 868 / # fail 0`)
+- Test suite: **869 tests / 151 suites / 0 fail** (`npm test`, raw: `# tests 869 / # pass 869 / # fail 0`)
 - Audit findings closed: **F-001** (`2d5da98`), **F-003** (`d22dfc5`), **F-003b** (`7a505a6`),
   **F-004** (`e071f69`), **F-005** (`e15bbae`), **F-006** (`58aa1d5`), **F-007** (`d914649`),
   **F-010** (`ba45acc`). Open: F-002, F-008, F-009, F-011 – F-017.
@@ -77,6 +77,17 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   §10 explicitly authorises ("or defer to v1.1 and ship FAQ-only").
 - Demo: DEMO-00 (real Sarvam Telugu booking fixture), DEMO-01 (two-pane patient thread
   proof surface), DEMO-02 (inbox + clinic snapshot).
+- **Portal v2 Batch 1: D1 of D5 landed** (`8559f19`). Token layer only — no markup, no
+  JS, no behaviour. `--teal-600`/`--teal-700` changed meaning (old darker-steps convention
+  → standard 50–900 ramp), so their 21 consumers across 11 stylesheets were migrated onto
+  transitional `--teal-hover`/`--teal-press` in the same commit; teal renders unchanged
+  (verified by resolving all 610 `var()` uses before and after — zero colour deltas).
+  `--sans` no longer names a face the repo does not ship: Noto Sans Latin 400/500/600/700
+  is self-hosted via `scripts/demo/fetch_fonts.js`, which now takes an output directory and
+  a family list. Card shadow deleted; radius tightened to 4/6/10/14. New:
+  `docs/design/brand-values.md` + `tests/design/tokenDrift.test.js`, which bind the four
+  `:root` surfaces (portal, demo/shared, demo/styles, web) to one recorded table.
+  ⚠️ D2–D5 are unstarted; `--teal-hover`/`--teal-press` are removed in D5.
 
 ### Remaining before first live call
 
@@ -234,7 +245,9 @@ Verified against `package.json` and `voice-agent/pyproject.toml` + `voice-agent/
   - not served by `server.js` — `express.static` covers `public/` only (`server.js:90`;
     the admin mount at `src/admin/adminRoutes.js:62` is also `public/`-derived);
   - not built by any script in the root `package.json`;
-  - **zero of the 868 tests touch it.** The root suite's green is silent about `web/`, so
+  - **zero of the 869 tests touch it** — `tests/design/tokenDrift.test.js` parses
+    `web/app/globals.css` as text but executes nothing in it. The root suite's green is
+    silent about `web/` behaviour, so
     a `web/` change is evidenced by the build artifact, not by `npm test`.
   - `web/vercel.json` is **headers-only** — five security headers, no build command, no
     output directory, no root directory.
