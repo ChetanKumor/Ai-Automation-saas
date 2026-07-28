@@ -89,13 +89,47 @@ github.com is not repo-derivable; what is verified is that nothing in this repo 
 them.) The sequence runs to **34**, not 28: the original plan defined 1–28 and later work
 kept counting.
 
-- **Done:** 3, 4, 5, 6, 7, 8, 9, 10, 15, 16, 17, 18, 19, 21, 22, 29, 30, 34
+- **Done:** 3, 4, 5, 6, 7, 8, 9, 10, 15, 16, 17, 18, 19, 21, 22, 29, 30, 31, 32, 33, 34
 - **Not done:** 1 (ops), 2 (ops), 11, 12, 13, 14, 20, 23, 24, 27, 28
 - **Residue-only** (built and tested; awaiting Issue 20 for a prod render): 25, 26
-- **Allocated, unverified:** 31, 32, 33 ⚠️ — mapped to the voice-review sessions V-004
-  (`5bb60ab`), V-008 (`629f7fb`) and V-009 (`f097b77`). Those commits landed under their
-  V-numbers and write **no `Issue NN` string anywhere in the repo**, so the mapping is
-  recollection, not repo evidence. Recorded so the numbers are not reissued.
+
+**Issues 31–33 — verified complete (2026-07-28), was "allocated, unverified."** The
+Issue-NN ↔ V-number mapping is still recollection, not a repo-written fact — no
+`Issue NN` string exists anywhere in the repo for these three, and that residual is
+unchanged. What this session verified is the underlying fix each number was allocated
+to, independent of the numbering question:
+
+- **31 / V-004** (terminal-transition guard on `call_sessions`, `5bb60ab`) —
+  `callSessions.updateStatus` guards the terminal UPDATE on
+  `WHERE status = 'in_progress'` (`src/modules/voice/callSessions.js:51-70`);
+  `voiceChannelAdapter.endSession` emits `call.ended` only when a transition actually
+  happened, never on the no-op path (`voiceChannelAdapter.js:69-83`). Three dedicated
+  tests reproduce a sequential double-end, a failed→completed flip attempt, and a
+  concurrent double-end, each asserting exactly one transition and one emission
+  (`tests/voice/voiceLifecycle.integration.test.js:285-348`).
+- **32 / V-008** (slot-grid validation, `629f7fb`) — `bookAppointment` rejects
+  off-grid times before the INSERT (`src/modules/appointment/appointmentService.js:309-322`,
+  `isOnGrid` at `:98-100`), sourced from the same `resolveBookingRules` both
+  `bookAppointment` and `checkAvailability` share, so a slot never offered can never
+  book and vice versa. `tests/appointment/slotGrid.unit.test.js` covers rejection,
+  acceptance, grid-size variation, the IST timezone frame, and parity with
+  `checkAvailability` (9 tests).
+- **33 / V-009** (history excluded by id not `OFFSET 1`, `f097b77`) —
+  `customerService.getRecentMessages` requires `excludeMessageId` and excludes
+  `WHERE id <> $3` (`src/modules/customer/customerService.js:34-46`), threaded through
+  the shared `assembleConversationContext` from both the WhatsApp and voice channels
+  (`contextAssembler.js:54-56`, `internalVoice.js:184-186`).
+  `tests/customer/historyExclusion.integration.test.js` reproduces the exact
+  cross-channel race the old `OFFSET 1` query got wrong (a concurrent WhatsApp message
+  landing mid-turn) and proves the fix keeps it while dropping only the current row.
+  ⚠️ Residual: the review's recommended `id DESC` tiebreaker on the `ORDER BY` was not
+  added — affects ordering among same-millisecond writes only, not the exclusion
+  correctness the finding was about.
+
+Verification this session: `node --test` on each file above (13/13, 9/9, 3/3), plus a
+full `npm test` re-run clean at `95fbfde` (868/868, 151 suites — unchanged from the
+recorded figure) and `npm run os:check` OK. No source file changed, so `Verified-at`
+above is untouched — this commit only adds docs/os/ content.
 
 Additions since the original 1–28, all in the plan's Phase 8:
 
