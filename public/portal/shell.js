@@ -36,25 +36,56 @@
     check:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
   };
 
-  // Sidebar order = the owner's mental model (spec §4), NOT system structure.
-  // Every row navigates: v1 has no placeholder entries. Documents (spec §5.8)
-  // was deferred to v1.1 with FAQ-only knowledge shipping instead (spec §10
-  // Phase 4 allows exactly that), so PORTAL-P6-S18 removed its permanently
-  // disabled "Soon" row rather than freeze a promise into v1 — and the kb check
-  // copy below no longer tells owners to "upload a document" they cannot upload.
+  // ── Sidebar IA (v2 spec §3.0) ──────────────────────────────────────────────
+  // The order is still the owner's mental model (portal-v1 §4), NOT system
+  // structure — only the GROUPING is new. A flat 12-item list was the single
+  // clearest "internal admin panel" signal left in the portal.
+  //
+  // Groups are labels, not accordions: nothing collapses. With twelve items,
+  // collapsing hides more than it helps.
+  //
+  // `today` is DELIBERATELY EMPTY. It is the reserved Tier 2 slot
+  // (Conversations · Appointments · Patients, spec §0.4) and renders nothing
+  // until it has items. Declaring it now is the whole point: it is what stops
+  // Tier 2 forcing an IA rewrite, and it costs one array entry to reserve.
+  const GROUPS = [
+    { id: 'root',      label: null },              // Home — ungrouped, no header
+    { id: 'today',     label: 'Today' },           // reserved for Tier 2; empty by design
+    { id: 'clinic',    label: 'Your clinic' },
+    { id: 'knowledge', label: 'What it knows' },
+    { id: 'behaviour', label: 'How it behaves' },
+    { id: 'check',     label: 'Check' },
+  ];
+
+  // Documents (spec §5.8) still does not exist. It is listed as an INERT `Soon`
+  // row rather than hidden, per spec §3.0: "an owner who reads the nav learns
+  // the product's shape". PORTAL-P6-S18 had removed this row to avoid freezing
+  // a promise into v1; the v2 spec reverses that deliberately, and the row
+  // navigates nowhere, so it can never 404.
+  //
+  // `knows` sits under CHECK, not under WHAT IT KNOWS. It is a read-only
+  // summary the owner INSPECTS, not knowledge they edit — and in the v1 flat
+  // order it already sat immediately adjacent to Test and History. Filing it
+  // under WHAT IT KNOWS would also put a group header directly above an item
+  // with the identical label.
   const NAV = [
-    { id: 'home',        label: 'Home',            icon: I.home,     href: 'index.html' },
-    { id: 'profile',     label: 'Clinic profile',  icon: I.building, href: 'clinic-profile.html' },
-    { id: 'hours',       label: 'Hours & holidays', icon: I.clock,   href: 'hours.html' },
-    { id: 'pricing',     label: 'Pricing',         icon: I.tag,      href: 'pricing.html' },
-    { id: 'doctors',     label: 'Doctors',         icon: I.doctor,   href: 'doctors.html' },
-    { id: 'booking',     label: 'Booking rules',   icon: I.calendar, href: 'booking-rules.html' },
-    { id: 'faqs',        label: 'FAQs',            icon: I.help,     href: 'faqs.html' },
-    { id: 'receptionist',label: 'Receptionist',    icon: I.bot,      href: 'receptionist.html' },
-    { id: 'safety',      label: 'Safety & handoff', icon: I.shield,  href: 'safety.html' },
-    { id: 'knows',       label: 'What it knows',   icon: I.bulb,     href: 'knows.html' },
-    { id: 'test',        label: 'Test',            icon: I.message,  href: 'test.html' },
-    { id: 'history',     label: 'History',         icon: I.history,  href: 'history.html' },
+    { id: 'home',        label: 'Home',             icon: I.home,     href: 'index.html',           group: 'root' },
+
+    { id: 'profile',     label: 'Clinic profile',   icon: I.building, href: 'clinic-profile.html',  group: 'clinic' },
+    { id: 'hours',       label: 'Hours & holidays', icon: I.clock,    href: 'hours.html',           group: 'clinic' },
+    { id: 'pricing',     label: 'Pricing',          icon: I.tag,      href: 'pricing.html',         group: 'clinic' },
+    { id: 'doctors',     label: 'Doctors',          icon: I.doctor,   href: 'doctors.html',         group: 'clinic' },
+    { id: 'booking',     label: 'Booking rules',    icon: I.calendar, href: 'booking-rules.html',   group: 'clinic' },
+
+    { id: 'faqs',        label: 'FAQs',             icon: I.help,     href: 'faqs.html',            group: 'knowledge' },
+    { id: 'documents',   label: 'Documents',        icon: I.file,     soon: true,                   group: 'knowledge' },
+
+    { id: 'receptionist',label: 'Receptionist',     icon: I.bot,      href: 'receptionist.html',    group: 'behaviour' },
+    { id: 'safety',      label: 'Safety & handoff', icon: I.shield,   href: 'safety.html',          group: 'behaviour' },
+
+    { id: 'knows',       label: 'What it knows',    icon: I.bulb,     href: 'knows.html',           group: 'check' },
+    { id: 'test',        label: 'Test',             icon: I.message,  href: 'test.html',            group: 'check' },
+    { id: 'history',     label: 'History',          icon: I.history,  href: 'history.html',         group: 'check' },
   ];
 
   // One-line meaning per lifecycle state (spec §5.1 status banner + header control).
@@ -138,18 +169,116 @@
 
   const $ = (sel, root) => (root || document).querySelector(sel);
 
+  function navItemHtml(item, activeId) {
+    if (item.soon) {
+      return `<span class="nav__item nav__item--soon" aria-disabled="true" title="Coming soon">
+        ${item.icon}<span>${item.label}</span><span class="nav__soon">Soon</span></span>`;
+    }
+    const active = item.id === activeId ? ' nav__item--active' : '';
+    return `<a class="nav__item${active}" href="${item.href}"${active ? ' aria-current="page"' : ''}>
+      ${item.icon}<span>${item.label}</span></a>`;
+  }
+
+  // Walks GROUPS in order and emits a `.grp` label above each group that has
+  // items. A group with no items emits NOTHING — not an empty header, not a
+  // stray gap — which is what lets `today` be declared and stay invisible.
+  //
+  // Each group is a role="group" wrapper named by its own label via
+  // aria-labelledby, so the grouping a sighted owner sees is the grouping a
+  // screen reader announces — a bare styled <div> would render the labels
+  // decorative and flatten the nav back to twelve undifferentiated links.
   function renderNav(activeId) {
     const nav = $('#nav');
     if (!nav) return;
-    nav.innerHTML = NAV.map((item) => {
-      if (item.soon) {
-        return `<span class="nav__item nav__item--soon" aria-disabled="true" title="Coming soon">
-          ${item.icon}<span>${item.label}</span><span class="nav__soon">Soon</span></span>`;
-      }
-      const active = item.id === activeId ? ' nav__item--active' : '';
-      return `<a class="nav__item${active}" href="${item.href}"${active ? ' aria-current="page"' : ''}>
-        ${item.icon}<span>${item.label}</span></a>`;
+    nav.innerHTML = GROUPS.map((g) => {
+      const items = NAV.filter((i) => i.group === g.id);
+      if (!items.length) return '';
+      const rows = items.map((i) => navItemHtml(i, activeId)).join('');
+      if (!g.label) return `<div class="nav__grp" role="group">${rows}</div>`;
+      const gid = 'grp-' + g.id;
+      return `<div class="nav__grp" role="group" aria-labelledby="${gid}">
+        <div class="grp" id="${gid}">${g.label}</div>${rows}</div>`;
     }).join('');
+  }
+
+  // ── Sidebar identity (spec §3.0) ───────────────────────────────────────────
+  // Injected rather than added to thirteen HTML files, for the same reason the
+  // nav and the shadow notice are: thirteen copies of a block cannot be kept
+  // from drifting, and a page's markup should carry no placeholder for chrome
+  // it does not own.
+  //
+  // The owner EMAIL the spec draws here is not available: GET /portal/api/me
+  // returns `user: { id, role }` and no address (routes.js:171). Surfacing it
+  // needs a route change, which this session does not make — so the second line
+  // states the ROLE, which is true and already on the page. Recorded as a
+  // finding rather than fabricated or silently dropped.
+  function initials(name) {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '·';
+    return (parts.length === 1 ? parts[0].slice(0, 2) : parts[0][0] + parts[1][0]).toUpperCase();
+  }
+
+  function renderIdentity(me) {
+    const foot = $('.side__foot');
+    if (!foot || foot.querySelector('.who')) return;
+    const name = (me.tenant && me.tenant.name) || 'Your clinic';
+    const role = (me.user && me.user.role) || '';
+    const who = document.createElement('div');
+    who.className = 'who';
+    who.innerHTML =
+      `<span class="av" aria-hidden="true">${esc(initials(name))}</span>
+       <span class="who__body">
+         <span class="who__name">${esc(name)}</span>
+         <span class="who__sub">${esc(role ? role[0].toUpperCase() + role.slice(1) : 'Signed in')}</span>
+       </span>`;
+    foot.insertBefore(who, foot.firstChild);
+
+    const avatar = $('#topUser');
+    if (avatar) {
+      avatar.textContent = initials(name);
+      avatar.setAttribute('title', `${name} · signed in as ${role || 'owner'}`);
+      avatar.hidden = false;
+    }
+  }
+
+  // ── Top bar chrome (spec §3.0) ─────────────────────────────────────────────
+  // Order: burger · breadcrumb (nested only) · spacer · lifecycle · ⌘K · avatar.
+  // Injected into the existing `.top` so no page markup changes.
+  //
+  // The BREADCRUMB slot renders nothing today. The spec's only nested view is
+  // History → snapshot, which is a MODAL rather than a route, so no portal page
+  // is currently nested. The slot exists so the first genuinely nested screen
+  // does not have to re-cut the top bar; it is the same reservation `today` is.
+  const SEARCH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>';
+
+  function buildTopBar() {
+    const top = $('.top');
+    if (!top || top.querySelector('.kbd')) return;
+
+    const spacer = top.querySelector('.top__spacer');
+    const crumb = document.createElement('nav');
+    crumb.className = 'crumb';
+    crumb.id = 'crumb';
+    crumb.setAttribute('aria-label', 'Breadcrumb');
+    crumb.hidden = true; // nothing is nested yet — see above
+    if (spacer) top.insertBefore(crumb, spacer);
+
+    // Mac shows ⌘K, everything else Ctrl K. Reading the real platform beats
+    // showing a Mac glyph to the Windows majority of Indian clinic owners.
+    const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
+    const kbd = document.createElement('button');
+    kbd.type = 'button';
+    kbd.className = 'kbd';
+    kbd.id = 'cmdkHint';
+    kbd.setAttribute('aria-label', `Search pages (${mac ? 'Command' : 'Control'} K)`);
+    kbd.innerHTML = `${SEARCH_ICON}<span>${mac ? '⌘' : 'Ctrl'} K</span>`;
+    top.appendChild(kbd);
+
+    const user = document.createElement('span');
+    user.className = 'top__u';
+    user.id = 'topUser';
+    user.hidden = true; // unhidden by renderIdentity once the name is known
+    top.appendChild(user);
   }
 
   // ── Eligibility (spec §5.13) ───────────────────────────────────────────────
@@ -195,6 +324,19 @@
   // `hostEl` lets a caller render into an element other than the header's own
   // #lifecycle (the wizard's Review step surfaces the control inline —
   // PORTAL-P6-S16); defaults to #lifecycle.
+  // Presentation is v2 spec §3.0's four-row table. The BEHAVIOUR is unchanged
+  // from PORTAL-P6-S18: same `data-lifecycle` actions, same eligibility source,
+  // same confirmation dialogs. Only what the owner sees changed.
+  //
+  // The important change is the ineligible case. It used to be a DISABLED
+  // primary button with the reason beside it — a control whose most prominent
+  // element is one the owner cannot press, and which offers no way to reach the
+  // thing blocking it. It is now a status object that LINKS to Home, where the
+  // blocking items actually live. A dead button is not a state; it is a dead end.
+  //
+  // `.golive` stays the wrapper class: applyLifecycle finds every mounted
+  // control with it (including the wizard's second one, PORTAL-P6-S16), and
+  // wizard.css keys `.wiz__golive:empty` off it.
   function renderLifecycle(status, opts, hostEl) {
     const host = hostEl || $('#lifecycle');
     if (!host) return;
@@ -203,7 +345,7 @@
     if (meta.control === 'live') {
       host.innerHTML =
         `<div class="golive">
-          <span class="badge badge--ok"><span class="badge__dot"></span>Live</span>
+          <span class="lc lc--live"><span class="dot dot--live"></span>Live</span>
           <button class="btn" type="button" data-lifecycle="pause">Pause</button>
         </div>`;
       return;
@@ -211,31 +353,35 @@
     if (meta.control === 'paused') {
       host.innerHTML =
         `<div class="golive">
-          <span class="badge badge--warn">Paused</span>
+          <span class="lc lc--paused"><span class="dot"></span>Paused</span>
           <button class="btn btn--primary" type="button" data-lifecycle="resume">Resume</button>
         </div>`;
       return;
     }
 
     const st = opts || {};
-    let reason = '';
-    let title = 'Start answering calls and messages';
-    if (!st.eligible) {
-      if (st.blockers > 0) {
-        reason = `<span class="golive__reason">${st.blockers} ${st.blockers === 1 ? 'item needs' : 'items need'} your attention</span>`;
-        title = 'Finish the highlighted setup items, then go live';
-      } else if (st.operatorPending) {
-        reason = `<span class="golive__reason golive__reason--muted">Waiting on Prantivo</span>`;
-        title = 'Prantivo completes the remaining go-live steps with you';
-      } else {
-        reason = `<span class="golive__reason">Setup checks haven’t passed yet</span>`;
-        title = 'Setup checks haven’t passed yet';
-      }
+    if (st.eligible) {
+      host.innerHTML =
+        `<div class="golive"><button class="btn btn--primary" type="button"
+          data-lifecycle="activate" title="Start answering calls and messages">Go live</button></div>`;
+      return;
     }
-    const dis = st.eligible ? '' : ' disabled aria-disabled="true"';
+
+    // Ineligible. The count names what is left; "0 left" is never rendered —
+    // when nothing is owner-actionable the remaining work is Prantivo's, and
+    // saying so is more use than a zero.
+    let tail = '';
+    let title = 'Setup checks haven’t passed yet';
+    if (st.blockers > 0) {
+      tail = `<span class="lc__ct">${st.blockers} left</span>`;
+      title = 'Finish the highlighted setup items, then go live';
+    } else if (st.operatorPending) {
+      tail = `<span class="lc__ct">With Prantivo</span>`;
+      title = 'Prantivo completes the remaining go-live steps with you';
+    }
     host.innerHTML =
-      `<div class="golive">${reason}<button class="btn btn--primary" type="button"
-        data-lifecycle="activate"${dis} title="${title}">Go live</button></div>`;
+      `<div class="golive"><a class="lc lc--draft" href="index.html" title="${title}">
+        <span class="dot"></span>Not live${tail}</a></div>`;
   }
 
   // ── Lifecycle actions (PORTAL-P6-S18) ──────────────────────────────────────
@@ -509,6 +655,16 @@
       try { await fetch('/portal/api/logout', { method: 'POST' }); } catch (_) {}
       window.location.replace('login.html');
     });
+
+    // Page header gains a shadow once the content has scrolled under it. Only
+    // meaningful where the header is sticky (mobile), and cheap enough that
+    // gating it on a media query would cost more than it saves.
+    const head = $('.page-head');
+    if (head) {
+      const onScroll = () => head.classList.toggle('is-stuck', window.scrollY > 4);
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+    }
   }
 
   // Session guard + brand fill. Returns { user, tenant }. 401 → login.html.
@@ -529,6 +685,7 @@
     const me = await res.json();
     const nameEl = $('#clinicName');
     if (nameEl && me.tenant && me.tenant.name) nameEl.textContent = me.tenant.name;
+    renderIdentity(me);
     return me;
   }
 
@@ -548,6 +705,10 @@
 
   const activeId = document.body.getAttribute('data-page') || 'home';
   renderNav(activeId);
+  // Skipped when embedded: the whole `.top` is `display:none` inside the wizard
+  // iframe, so building its controls would only add hidden nodes and a second
+  // ⌘K listener competing with the parent frame's.
+  if (!embedded) buildTopBar();
   wireChrome();
 
   // Kick auth off immediately; pages await Portal.me before requesting data.
@@ -572,6 +733,11 @@
     applyLifecycle,
     savedMessage,
     embedded,
+    activeId,
+    // The command palette navigates the SAME list the sidebar renders, from the
+    // same array — so a page can never be reachable from one and not the other.
+    nav: NAV,
+    groups: GROUPS,
   };
 
   // Header go-live control on non-home pages (Home renders its own from home.js).
