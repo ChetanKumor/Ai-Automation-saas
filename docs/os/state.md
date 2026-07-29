@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 74e13e10488f83f88ed6cd019592ec66f1b559dd
-Verified-on: 2026-07-27
+Verified-at: 3275eda0445469eba3fc09925cd5509100dd1e3f
+Verified-on: 2026-07-29
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -77,7 +77,27 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   §10 explicitly authorises ("or defer to v1.1 and ship FAQ-only").
 - Demo: DEMO-00 (real Sarvam Telugu booking fixture), DEMO-01 (two-pane patient thread
   proof surface), DEMO-02 (inbox + clinic snapshot).
-- **Portal v2 Batch 1: D1 of D5 landed** (`8559f19`). Token layer only — no markup, no
+- **Portal v2 Batch 1: D2 of D5 landed** (`ae5e607`). Grouped navigation, top bar,
+  lifecycle control, command palette. Presentation only — no route, no fetch, no
+  dependency, no behaviour change; suite **869/151/0, unmoved**. Every changed path is
+  under `public/portal/` (16 files; new `cmdk.js`). The flat 12-item sidebar became four
+  labelled groups plus an empty `TODAY` group reserved for Tier 2, and the active nav item
+  gained a 2px bar that survives greyscale where the tint alone does not.
+  ⚠️ **The spec's nav drawing did not match the shipped product**, and three corrections
+  were folded back into `docs/design/portal-v2-spec.md` §3.0/§1.3/§3.7 in `3275eda`:
+  the portal has **12 navigation destinations, not 14** (13 sidebar rows, 13 files with the
+  shell, 14 `.html` — statements about *stylesheet* coverage saying "14 pages" remain
+  correct); **`knows.html` was absent from the spec's nav entirely** and is now filed under
+  CHECK, the sidebar being its only inbound link; and **`Documents` returns as an inert
+  `Soon` row** (no page — `PORTAL-P6-S18` had removed it; the v2 spec reverses that).
+  ⚠️ The sidebar footer ships **clinic name + role, not email** — `/portal/api/me` returns
+  `{ id, role }` and no address, and surfacing one needs a route.
+  ⚠️ **History's snapshot is a modal, but spec §3.7 specifies a full-page sub-view.**
+  Unresolved, deferred to D5 or later; the top bar's breadcrumb slot stays empty for
+  exactly as long as it stays a modal.
+  ⚠️ `knows.html`'s future is **undecided** — D4 Phase 0 reads it and rules on retire vs
+  retain as a linked advanced view (spec §1.3).
+- **Portal v2 Batch 1: D1 landed** (`8559f19`). Token layer only — no markup, no
   JS, no behaviour. `--teal-600`/`--teal-700` changed meaning (old darker-steps convention
   → standard 50–900 ramp), so their 21 consumers across 11 stylesheets were migrated onto
   transitional `--teal-hover`/`--teal-press` in the same commit; teal renders unchanged
@@ -87,7 +107,7 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   a family list. Card shadow deleted; radius tightened to 4/6/10/14. New:
   `docs/design/brand-values.md` + `tests/design/tokenDrift.test.js`, which bind the four
   `:root` surfaces (portal, demo/shared, demo/styles, web) to one recorded table.
-  ⚠️ D2–D5 are unstarted; `--teal-hover`/`--teal-press` are removed in D5.
+  ⚠️ D3–D5 are unstarted; `--teal-hover`/`--teal-press` are removed in D5.
 - Portal v2's governing documents are now **in the repo** (`74e13e1`): the design spec
   (`docs/design/portal-v2-spec.md`), the approved Batch 1 mockups
   (`docs/design/prantivo-mockups-batch1.html`) and the 5-session plan
@@ -102,6 +122,10 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   D1–D5, so completing it lands exactly on the cap. The spec estimates 14–18 sessions for
   the full document; **any Batch 2 needs a new decisions.md entry, not an extension** —
   D-005 says so in terms.
+- **F-V001** (open) — ₹ (U+20B9) font coverage divergence. Blocks D4 Phase 0. See
+  `docs/specs/portal-v2-batch1.md` §6.
+- **F-V002** (open) — Variable-font duplication in `public/demo/`. Own session after
+  Batch 1. See `docs/specs/portal-v2-batch1.md` §6.
 
 ### Remaining before first live call
 
