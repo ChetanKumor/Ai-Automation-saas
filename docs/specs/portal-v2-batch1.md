@@ -113,11 +113,11 @@ Every visual element on the approved artboards, mapped to where it is implemente
 | Active-item 2px left bar | `tokens.css` `.nav__item--active::before` | new pseudo-element; survives greyscale where a tint alone does not |
 | `Soon` badge on unbuilt items | existing `tokens.css` pattern | **preserve as built**, restyle only |
 | Brand mark 30→28px, `--r-sm` | `.brand__mark` | value change |
-| Clinic identity footer | 14 `.html` + `.side__foot` | new markup block in the sidebar partial |
+| Clinic identity footer | `shell.js` + `.side__foot` | injected, not added to each `.html` — one copy cannot drift. Ships clinic name + **role** (no email exists; see spec §3.0) |
 | Top bar 56px | `.top` | height + padding |
 | Lifecycle control (4 states) | `shell.js` + `.lc` rules | reads existing lifecycle state already in shell's payload |
 | `⌘K` hint | `.kbd` | static |
-| Command palette | **new** `cmdk.js` | fuzzy over the 14 page titles; no network |
+| Command palette | **new** `cmdk.js` | fuzzy over the **12 navigation destinations**; no network |
 | Page header + hairline | `.page-head` | `--t-h1`, bottom border, `--s-6` margin |
 | Mobile drawer | existing `.side` transform | preserve mechanism, restyle |
 | `is-embedded` wizard mode | existing rules | **must survive unchanged** — verify the wizard iframe still renders |
@@ -239,9 +239,17 @@ Truth strip · Verbatim panel · card/table/input restyles · empty states.
 
 **Done when**
 - `npm test` returns **`tests 831 / fail 0`**, unchanged.
-- Screenshots: all 14 pages' sidebar at 1440; drawer open at 380; **the wizard at 380 with `is-embedded` active**, proving the iframe still renders correctly.
+- Screenshots: the sidebar on all **12 navigation destinations** at 1440 (not 14 — `login.html` has no shell and `wizard.html` is not a destination); drawer open at 380; **the wizard at 380 with `is-embedded` active**, proving the iframe still renders correctly.
 - `⌘K` opens, arrows navigate, Enter routes, Escape closes. Keyboard-only screenshot with a visible focus ring.
 - Lifecycle control screenshotted in all four states against real tenant data.
+
+**LANDED — `ae5e607`.** Closing suite **869 / 151 / fail 0**, unmoved from the D1 baseline. The `831` above was stale when written; the invariant that held was the *delta*, not the number. Four corrections this session made to the plan and spec, all recorded above and in spec §3.0 / §1.3 / §3.7:
+1. **12 navigation destinations**, not 14 — see spec §3.0 for the full count breakdown.
+2. **`knows.html` filed under CHECK**; it was missing from the spec's nav drawing entirely, and the sidebar is its only inbound link.
+3. **`Documents` restored as an inert `Soon` row** — it has no page; `PORTAL-P6-S18` had removed it, and the v2 spec reverses that deliberately.
+4. **Sidebar footer ships role, not email** — `/portal/api/me` returns `{ id, role }` and no address.
+
+One process note worth carrying forward: **Issue 17's single-writer guard greps `scripts/` as well as `src/`.** A throwaway screenshot script that forced lifecycle states with a raw `UPDATE tenants SET status` failed the suite, correctly. Drive states through `lifecycleService.transition()` instead.
 
 ---
 
@@ -277,10 +285,19 @@ Verbatim panel · buttons/inputs/tables · mobile table conversion.
 ### D4 · `feat(portal): verbatim preview panel`
 
 **Phase 0 — STOP conditions**
-1. D3 merged.
-2. Locate the prompt-preview endpoint under `/portal/api/`. **If it is operator-only, do not add a route** — ship the degraded panel per §2.4 and file the endpoint as a separate issue. Report which path was taken before writing code.
-3. Confirm the enabled-languages list is available client-side on each editing page.
-4. **Before writing any code:** render the fixture Telugu strings and confirm zero tofu at 19px/600 on the target devices. The panel makes vernacular rendering the most prominent element in the product; if the faces are wrong this session is premature.
+1. **Resolve F-V001 before writing panel code.** Hard STOP gate for D4. Check order:
+   1. Full Noto Sans face
+   2. `unicode-range: U+20B9`
+   3. Accept and document in `docs/design/brand-values.md`
+2. D3 merged.
+3. Locate the prompt-preview endpoint under `/portal/api/`. **If it is operator-only, do not add a route** — ship the degraded panel per §2.4 and file the endpoint as a separate issue. Report which path was taken before writing code.
+4. Confirm the enabled-languages list is available client-side on each editing page.
+5. **Before writing any code:** render the fixture Telugu strings and confirm zero tofu at 19px/600 on the target devices. The panel makes vernacular rendering the most prominent element in the product; if the faces are wrong this session is premature.
+6. **Read `knows.html`, report exactly what it renders, and determine whether it is a subset of the Verbatim panel.** `knows.html` ("What it knows", `PORTAL-P5-S15`) answers the same question the panel answers — *what will the receptionist actually say?* — and D2 filed it under CHECK without deciding its future (spec §1.3). Report the finding, then choose:
+   - **Retire it** if the panel is a strict superset — two surfaces answering one question is how they drift apart.
+   - **Retain it as a linked advanced view** if it shows anything the panel does not (whole-config breadth versus per-page depth), and link the panel to it.
+
+   **Report before deciding.** The sidebar is `knows.html`'s only inbound link, so deciding from assumption rather than from the page deletes a real surface.
 
 **Hard constraints**
 - No route added. No configService call. No write path of any kind — the panel is read-only.
@@ -375,6 +392,14 @@ Three items, named so they are not silently absorbed:
 1. **F-F008's `web/` half** — `web/app/globals.css` `--accent`. One session, ~1h, after Batch 1. Until then the finding stays open.
 2. **A native Telugu review** of the greeting and price fixture strings. Blocking for D4's Phase 0. Not an engineering task.
 3. **`README.md:141`** still reads *"Build the AI Operating System for businesses."* Not a surface, so it breaches nothing — but it is the first thing a visitor to the repository reads, and it contradicts the naming rule this whole redesign enforces. One line, any session.
+4. **F-V001 — ₹ (U+20B9) resolves outside the portal font stack.** Blocks D4 Phase 0. Google's Latin subset excludes U+20B9. Neither `--sans` nor `--te` guarantees the rupee sign, so prices may render the ₹ from `system-ui`, producing different weight and baseline across platforms. Most visible on the Verbatim panel (19px / 600). Resolution order:
+   1. Check whether the full Noto Sans face already contains U+20B9.
+   2. If not, add a `unicode-range: U+20B9` face.
+   3. Otherwise accept the divergence and document it in `docs/design/brand-values.md`.
+5. **F-V002 — Variable font duplication.** Noto Sans is a variable font. Multiple `@font-face` rules currently serve the same underlying font file. Touches `public/demo/`. Not a Batch 1 task — own session after Batch 1. Intended fix:
+   - one `@font-face` per family
+   - `font-weight: 400 700`
+   - generated through `scripts/demo/fetch_fonts.js`
 
 ---
 

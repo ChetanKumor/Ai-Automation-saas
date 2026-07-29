@@ -40,7 +40,7 @@ Two items in the Stage-1 audit are resolved by this design rather than added to 
 | Login | yes (`login.html`) | Sign in | **1** |
 | Dashboard | yes (Home/Readiness) | Home | **1** |
 | AI Settings | yes (Receptionist + Safety & handoff) | Receptionist · Safety & handoff | **1** |
-| Knowledge Base | yes (FAQs + Documents) | FAQs · Documents | **1** |
+| Knowledge Base | **partly** — FAQs only; Documents was never built | FAQs · Documents *(inert `Soon` row — see §3.0)* | **1** |
 | Tenant Settings | yes, split across 5 pages | Clinic profile · Hours · Pricing · Doctors · Booking rules | **1** |
 | Conversations | no (demo `inbox.html` is a proof surface, not the portal) | Conversations | **2** |
 | Appointments | no (`appointments` table exists) | Appointments | **2** |
@@ -103,6 +103,15 @@ So: **ruled, legible, verifiable.** Hairline rules as the primary structural dev
 Justification: it makes the highest-consequence rendering detail in the product — vernacular glyph fidelity, per the audit's C-1 and Preserve-As-Is #1 — the most visible thing in the interface, where a tofu box would be caught in the first five seconds instead of in a demo. It converts the product's core promise from a claim into a continuously visible fact. And it means the portal's memorable element is something no competitor's dashboard has, because no competitor's dashboard has to render Telugu.
 
 Cost, stated: it is the one part of this spec that needs new markup rather than new token values.
+
+**`knows.html` is the Verbatim panel's predecessor, and its status is undecided.** The page shipped at `PORTAL-P5-S15` as "What it knows": a read-only summary of what the receptionist has been told, assembled through the renderer's own gates. That is the same question the Verbatim panel answers — *what will it actually say?* — asked one step earlier and without the ink ground. D2 filed it under CHECK (§3.0) so it stays reachable, which is a placement decision, **not** a decision about its future.
+
+**D4 Phase 0 decides**, and only after reading the page:
+
+- **Retire it** — if the Verbatim panel is a strict superset of what `knows.html` renders, keeping both leaves two surfaces answering one question, which is how they drift apart.
+- **Retain it as a linked advanced view** — if it shows anything the panel does not (whole-config breadth rather than per-page depth, for instance), it earns its place, and the panel should link to it.
+
+**Not decided here.** Deciding before reading the page is how a real surface gets deleted on an assumption, and `knows.html` has exactly one inbound link to lose.
 
 ### 1.4 Reconciling the two signatures
 
@@ -525,9 +534,11 @@ Every chart has an empty state (`No calls yet this week` with the axis still dra
 
 #### Command palette (Tier 1, cheap)
 
-`⌘K` / `Ctrl+K`. Fuzzy search over the 13 pages, the doctor list, and the treatment list. 560px, `--r-lg`, `--shadow-lg`, positioned 15vh from the top. Arrow keys navigate, Enter opens, Escape closes.
+`⌘K` / `Ctrl+K`. Fuzzy search over the **12 navigation destinations** (§3.0). 560px, `--r-lg`, `--shadow-lg`, positioned 15vh from the top. Arrow keys navigate, Enter opens, Escape closes.
 
-This is ~80 lines of vanilla JS with no dependency and it is the highest ratio of perceived sophistication to effort in the entire specification. It is also genuinely useful in a 14-page product where the owner is looking for one fee.
+> **Corrected at D2.** This read *"the 13 pages, the doctor list, and the treatment list"*. Two corrections. The page count is **12 navigation destinations**, not 13 — `Documents` is an inert row and is excluded, because a result that routes nowhere is worse than no result. And **the doctor and treatment lists were not built**: searching them means reading tenant data, which would have made the palette the one component in D2 that needed a fetch. It ships as titles only. Adding data search later is a real feature with a real cost, not a detail that was skipped.
+
+This is ~80 lines of vanilla JS with no dependency and it is the highest ratio of perceived sophistication to effort in the entire specification. It is also genuinely useful in a product of this size where the owner is looking for one fee.
 
 #### Other components
 
@@ -645,6 +656,21 @@ Each screen states only what differs from §2. Shared behaviour — focus rings,
 
 **Sidebar.** The current flat 12-item list is replaced with four labelled groups. The order is the owner's mental model, not the system's structure — the ordering principle in portal-v1 §4 is kept; only the grouping is new. A flat 12-item list is the single clearest "internal admin panel" signal in the current portal.
 
+> **Inventory, corrected at D2 (`ae5e607`).** An earlier draft of this section assumed **14 navigation destinations**. That number was never true, and it conflated three different counts. The real figures:
+>
+> | Count | Value | What it is |
+> |---|---|---|
+> | **Navigation destinations** | **12** | Pages the owner can actually navigate to from the sidebar or `⌘K` |
+> | Sidebar rows | 13 | The 12 destinations plus `Documents`, which is **inert** |
+> | Files with the shell | 13 | The 12 destinations plus `wizard.html` |
+> | `.html` files in `public/portal/` | 14 | The 13 above plus `login.html` |
+>
+> **`Documents` is an inert `Soon` row, not a destination.** It has no page and no `href`; it is listed so the nav teaches the product's shape, and it cannot 404. `⌘K` deliberately excludes it — a search result that goes nowhere is worse than no result.
+>
+> **`wizard.html` and `login.html` are pages, not destinations.** Neither appears in the nav. `login.html` carries no shell at all; `wizard.html` carries the shell but is reached from Home, and its steps embed other pages via `is-embedded`.
+>
+> Statements elsewhere in this document that say "all 14 pages" about the **stylesheet or the file sweep** are correct — `tokens.css` genuinely is linked by all 14 `.html` files, `login.html` included. Only claims about *navigation* were wrong.
+
 ```
 ◆ Prantivo                      brand mark, --teal-700, 30px, --r-sm
   AI Receptionist               --t-micro, --faint
@@ -660,25 +686,34 @@ Each screen states only what differs from §2. Shared behaviour — focus rings,
 
   WHAT IT KNOWS
   ▸  FAQs
-  ▸  Documents
+  ▸  Documents         [Soon]    inert — no page, no href
 
   HOW IT BEHAVES
   ▸  Receptionist
   ▸  Safety & handoff
 
   CHECK
+  ▸  What it knows               knows.html — see below
   ▸  Test
   ▸  History
   ─────────────────────────      --line
   ◔  Sri Dental Care             clinic name, --t-body-sm
-     owner@sridental.in          --t-help, --muted
+     Owner                       role, --t-help, --muted
 ```
 
-Groups are labels, not accordions — nothing collapses, because with 12 items collapsing hides more than it helps. **Reserved slot:** a `TODAY` group (Conversations · Appointments · Patients) sits directly beneath Home when Tier 2 ships. Designing the group structure now is what stops Tier 2 forcing an IA rewrite.
+**`knows.html` belongs under CHECK.** An earlier draft of this diagram omitted it entirely while listing `Documents`, which had it been built as drawn would have orphaned a real, shipped page — the sidebar is `knows.html`'s only inbound link. It sits under CHECK rather than WHAT IT KNOWS for two reasons: it is a read-only summary the owner *inspects* rather than knowledge they *edit*, and in the v1 flat order it already sat immediately adjacent to Test and History. Filing it under WHAT IT KNOWS would also place a group header directly above an item with the identical label.
+
+Groups are labels, not accordions — nothing collapses, because with 12 items collapsing hides more than it helps. **Reserved slot:** a `TODAY` group (Conversations · Appointments · Patients) sits directly beneath Home when Tier 2 ships. Designing the group structure now is what stops Tier 2 forcing an IA rewrite. It is declared and renders nothing while empty (shipped at D2).
 
 Unbuilt items are listed with an inert `Soon` badge rather than hidden — this pattern already exists in `tokens.css` and is correct: an owner who reads the nav learns the product's shape.
 
+**Sidebar footer — clinic name + role.** 28px avatar with the clinic's initials in `--teal-100` / `--teal-800`, the clinic name at `--t-body-sm` weight 600, and the signed-in **role** at `--t-help` `--muted`. Both truncate with ellipsis.
+
+> **Corrected at D2.** This previously read *clinic name + owner email*. **The email is not obtainable.** `GET /portal/api/me` returns `user: { id, role }` and no address (`src/portal/routes.js:171`); surfacing one would require a route change, which D2 was scoped to exclude. Role is the correct identity field for this slot — it is true, it is already on the page, and it preserves the two-line composition. Should an email ever be wanted here, it is a backend change first, not a design change.
+
 **Top bar.** 56px, `--card`, `1px --line` bottom. Left: mobile burger, then a breadcrumb only when nested (History → snapshot). Right, in order: the lifecycle control, the command-palette hint (`⌘K` in `--faint` `--mono`), the account menu.
+
+> **Breadcrumb — reserved, renders nothing today (D2).** The slot exists in the top bar and is shipped hidden, because **no portal view is currently nested.** The one nested view this section names — History → snapshot — is implemented as a **modal**, not a route (see §3.7), so there is no parent to walk back to. The slot is kept rather than deleted so the first genuinely nested screen does not have to re-cut the top bar; it is the same kind of reservation as the empty `TODAY` nav group.
 
 **Lifecycle control.** The most important control in the product, and it is a status object rather than a button:
 
@@ -941,6 +976,21 @@ Expanded, it names the FAQs used and the tools called. This line is the product 
 A table: timestamp (tabular, relative under 24h) · section · changed by · version (`--mono`) · `View`. Grouped under sticky date headers (`Today`, `Yesterday`, `12 Aug 2026`).
 
 Clicking opens a **snapshot view** — a full-page sub-view, not a modal, showing the section's values at that version as read-only fields in the same layout as the live page, so the owner is reading a form they recognise rather than JSON. A diff toggle marks changed fields with a `--amber-200` left bar and the previous value beneath in `--muted` strikethrough.
+
+> **UNRESOLVED DIVERGENCE — spec vs product (recorded at D2).**
+>
+> | | |
+> |---|---|
+> | **This spec describes** | a full-page sub-view, explicitly *"not a modal"* |
+> | **The product ships** | a **modal** (`PORTAL-P6-S17`, the first user of the shared `.modal` component in `tokens.css`) |
+>
+> Neither has been chosen yet, and **D2 did not resolve it** — D2 was presentation-only and touched no routes. The divergence has one consequence beyond History itself: the breadcrumb slot in §3.0 stays empty for exactly as long as this stays a modal, because a modal has no route to be nested under.
+>
+> **Deferred to D5 or later.** Whoever picks it up decides one of:
+> 1. Move the product to a full-page sub-view, which needs a route and activates the breadcrumb; or
+> 2. Amend this spec to accept the modal, and record the breadcrumb slot as reserved for something else.
+>
+> Do not treat the modal as a defect until that choice is made.
 
 **Restore** is a primary button in the snapshot view, confirmed in a modal: `Restore this version?` / `This creates a new version with these values. Nothing is deleted — you can undo it the same way.` History is never rewritten (portal-v1 §5.12) and the copy must make the owner confident of that before they press it.
 
