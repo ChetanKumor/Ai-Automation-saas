@@ -7,6 +7,7 @@ const express = require('express');
 const db                  = require('../../src/db/db');
 const hmac                = require('../../src/utils/hmac');
 const { encrypt }         = require('../../src/utils/encryption');
+const { clinicDefaults }  = require('../../src/modules/config/defaults');
 const aiService           = require('../../src/modules/ai/aiService');
 const appointmentService  = require('../../src/modules/appointment/appointmentService');
 const knowledgeService    = require('../../src/modules/knowledge/knowledgeService');
@@ -162,6 +163,28 @@ describe('voice turn cancellation + deadlines (Issue 29)', () => {
         days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
         start: '09:00', end: '18:00', slot_minutes: 30,
       })]
+    );
+    // CLINIC hours, which are a different thing from the doctor's days above and
+    // are the ones book_appointment actually gates on. They live in
+    // `tenant_configs`, and this fixture used to seed no config row at all — so
+    // hours fell back to clinicDefaults, which closes Sunday. Every subtest here
+    // books `istDateString(+1/+2/+3)`, so the suite went red on exactly the days
+    // when that offset landed on a Sunday (TEST-FLAKE-03: green six days a week,
+    // red on Fridays) with a perfectly correct `closed_day` refusal.
+    //
+    // These tests are about TURN CANCELLATION, not about opening hours, so they
+    // seed the precondition they depend on rather than inheriting a default that
+    // is right for a real clinic and wrong for them.
+    //
+    // `hours` is REPLACED wholesale, not merged: each day is a discriminated
+    // union ({ closed: true } XOR { open, close }) and a key-additive merge onto
+    // clinicDefaults would leave Sunday carrying both branches.
+    const openAllWeek = Object.fromEntries(
+      ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((d) => [d, { open: '09:00', close: '18:00' }]));
+    const config = { ...structuredClone(clinicDefaults), hours: { ...openAllWeek, holidays: [] } };
+    await db.query(
+      'INSERT INTO tenant_configs (tenant_id, version, config) VALUES ($1, 1, $2)',
+      [TENANT_ID, JSON.stringify(config)]
     );
 
     knowledgeMock = mock.method(knowledgeService, 'getRelevantChunks', async () => []);
