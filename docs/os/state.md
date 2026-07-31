@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 8ffac8df04984cd9f29a9f1b753fa0a1d97ff1ab
+Verified-at: 3765cdb0d198eb33656195e326c4374cca8c9c14
 Verified-on: 2026-07-29
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -66,14 +66,15 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Test suite: **869 tests / 151 suites / 1 fail** (`npm test`, raw: `# tests 869 / # pass 868 / # fail 1`)
-  ⚠️ The single failure is **TEST-FLAKE-03**, a calendar-dependent flake in
-  `tests/voice/voiceCancellation.integration.test.js:270` that is **not caused by any
-  committed change**: it fails on every day when today+2 lands on a Sunday. Reproduced
-  at `95d0f5f` with a clean tree. Filed at `docs/specs/portal-v2-batch1.md` §6.7 with the
-  mechanism and two candidate fixes. The recorded count moved from 0 fail to 1 fail
-  without a source change, which is the honest reading — the previous 0 was a run on a
-  day the flake could not fire.
+- Test suite: **869 tests / 151 suites / 0 fail** (`npm test`, raw: `# tests 869 / # pass 869 / # fail 0`)
+  **TEST-FLAKE-03 is CLOSED** (`3765cdb`). It was a calendar-dependent failure in
+  `tests/voice/voiceCancellation.integration.test.js:270`, red on every day when today+2
+  landed on a Sunday and green the other six: the fixture seeded Dr. Rao for all seven days
+  but seeded no `tenant_configs` row, so CLINIC hours — which are what `book_appointment`
+  gates on — fell back to `clinicDefaults`, which closes Sunday. The fixture now seeds its
+  own seven-day hours. `clinicDefaults` is unchanged; closing Sunday by default is correct
+  product behaviour and the test was wrong to depend on it not being. No test was added:
+  869/151 is unmoved across D3 and this fix.
 - Audit findings closed: **F-001** (`2d5da98`), **F-003** (`d22dfc5`), **F-003b** (`7a505a6`),
   **F-004** (`e071f69`), **F-005** (`e15bbae`), **F-006** (`58aa1d5`), **F-007** (`d914649`),
   **F-010** (`ba45acc`). Open: F-002, F-008, F-009, F-011 – F-017.
