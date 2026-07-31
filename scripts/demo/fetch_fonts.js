@@ -13,6 +13,9 @@
 // Latin is fetched as the `latin` subset only, not `latin-ext`. Google serves
 // those as separate files; latin-ext would double the face count for codepoints
 // this product does not currently set.
+//
+// The `rupee` family is the exception to "one entry, one subset" — see F-V001
+// and the CATALOGUE comment below.
 'use strict';
 
 const fs = require('fs');
@@ -29,6 +32,18 @@ const CATALOGUE = {
   latin: { css: 'Noto+Sans:wght@400;500;600;700', subset: 'latin', file: 'noto-latin' },
   telugu: { css: 'Noto+Sans+Telugu:wght@400;600;700', subset: 'telugu', file: 'noto-telugu' },
   devanagari: { css: 'Noto+Sans+Devanagari:wght@400;600;700', subset: 'devanagari', file: 'noto-devanagari' },
+  // F-V001 — the rupee sign. U+20B9 is absent from Google's `latin` subset but
+  // present in Noto Sans's `devanagari` one, so every ₹ in the product otherwise
+  // renders from system-ui: Roboto on Android, SF on iOS, Segoe on Windows, each
+  // at a different weight and baseline from the Noto digits beside it. Most
+  // visible on the Verbatim panel, which sets prices at 19px/600 on an ink ground.
+  //
+  // Shipping Noto Sans's whole 120 KB devanagari subset for one glyph would also
+  // shadow the Devanagari family for Hindi. So we take the glyph ALONE through
+  // Google's `text=` subsetter — same family, weight-matched, ~830 bytes a face.
+  // `subset: null` marks the text= path; Google emits no `/* subset */` comment
+  // for those responses and declares `unicode-range: U+20b9` itself.
+  rupee: { css: 'Noto+Sans:wght@400;500;600;700', text: '₹', subset: null, file: 'noto-rupee' },
 };
 
 const wanted = process.argv.slice(3);
@@ -70,15 +85,42 @@ function parseBlocks(css) {
   return blocks;
 }
 
+// The `text=` path. One request PER WEIGHT on purpose: asking for all four at
+// once makes Google serve a single VARIABLE file referenced by four @font-face
+// rules, which is exactly the duplication F-V002 exists to remove. Per-weight
+// requests return distinct static instances, matching the one-file-per-weight
+// shape the other faces already have — so F-V002 can collapse them uniformly.
+async function fetchTextBlocks(fam) {
+  const weights = (fam.css.split('wght@')[1] || '400').split(';');
+  const blocks = [];
+  for (const weight of weights) {
+    const family = fam.css.split(':')[0];
+    const css = await fetchText(
+      `https://fonts.googleapis.com/css2?family=${family}:wght@${weight}` +
+      `&text=${encodeURIComponent(fam.text)}&display=swap`
+    );
+    const url = (css.match(/url\(([^)]+)\)/) || [])[1];
+    const unicodeRange = (css.match(/unicode-range:\s*([^;]+);/) || [])[1];
+    if (!url) throw new Error(`no face for ${family} @${weight} text='${fam.text}'`);
+    blocks.push({ subset: null, weight, url, unicodeRange });
+  }
+  return blocks;
+}
+
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const faces = [];
 
   for (const fam of FAMILIES) {
-    const css = await fetchText(
-      `https://fonts.googleapis.com/css2?family=${fam.css}&display=swap`
-    );
-    const blocks = parseBlocks(css).filter((b) => b.subset === fam.subset);
+    let blocks;
+    if (fam.text) {
+      blocks = await fetchTextBlocks(fam);
+    } else {
+      const css = await fetchText(
+        `https://fonts.googleapis.com/css2?family=${fam.css}&display=swap`
+      );
+      blocks = parseBlocks(css).filter((b) => b.subset === fam.subset);
+    }
     if (blocks.length === 0) throw new Error(`no ${fam.subset} blocks for ${fam.css}`);
 
     for (const b of blocks) {

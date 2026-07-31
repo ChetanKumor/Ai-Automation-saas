@@ -1,0 +1,388 @@
+/* ============================================================================
+ * Verbatim preview panel (spec §2.10, §1.3) — THE SIGNATURE
+ *
+ * The one place in the product with an ink ground. Everywhere else Prantivo is
+ * a calm near-white tool; here it inverts, because this panel carries Telugu
+ * and Devanagari at display size and a tofu box has to be caught in five
+ * seconds rather than in a demo.
+ *
+ * Three forms, one markup tree — the JS never rebuilds the panel to change
+ * shape, it only toggles `.is-collapsed`:
+ *
+ *   >= 1280px    docked right, --panel-w, full height
+ *   1024-1279    44px rail, vertical "Preview" label
+ *   <  1024px    bottom sheet with a persistent handle carrying the greeting's
+ *                first line, so even collapsed the owner sees their
+ *                receptionist's voice
+ *
+ * Read-only. Nothing in this file styles a control that writes.
+ * ========================================================================== */
+
+.vp {
+  /* Local to the ink ground. tokens.css carries --field-line; the bubble and
+   * the disabled footer button need one step brighter to read against
+   * --field-2, which sits above --field. Kept here rather than in tokens.css:
+   * D5 owns the token layer, and nothing outside this panel uses an ink line. */
+  --field-line-2: rgba(255, 255, 255, .16);
+
+  width: var(--panel-w);
+  flex: none;
+  align-self: flex-start;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  z-index: 15;              /* under the sidebar (40) and the top bar (20) */
+  background: var(--field);
+  border-left: 1px solid rgba(15, 23, 42, .16);
+  display: flex;
+  flex-direction: column;
+  color: var(--field-ink);
+}
+
+/* The 2px regeneration line (spec §2.10). A progress line at the panel top,
+ * NOT a spinner over the content — the previous value must stay readable while
+ * the new one is being assembled. Zero-height when idle so it occupies no
+ * space and cannot shift the header. */
+.vp__prog {
+  height: 0;
+  flex: none;
+  background: var(--teal-500);
+  border-radius: 0 1px 1px 0;
+  width: 0;
+  transition: width var(--dur-3) var(--ease-linear);
+}
+.vp.is-busy .vp__prog { height: 2px; width: 92%; }
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.vp__h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 16px;
+  flex: none;
+  border-bottom: 1px solid var(--field-line);
+}
+.vp__lb {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font: 600 11px/1 var(--sans);
+  letter-spacing: .075em;
+  text-transform: uppercase;
+  color: var(--field-muted);
+}
+.vp__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--teal-500);
+  flex: none;
+  animation: vp-pulse 2.4s var(--ease-in-out) infinite;
+}
+@keyframes vp-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+
+.vp__sel {
+  margin-left: auto;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  background: var(--field-2);
+  border: 1px solid var(--field-line);
+  color: var(--field-ink);
+  font: 500 12px/1 var(--sans);
+  cursor: pointer;
+}
+.vp__sel:disabled { opacity: .55; cursor: default; }
+
+/* Collapse control. 26px square, so it clears the 24x24 AA target floor and
+ * grows to 44px on the sheet, where it is the handle's neighbour. */
+.vp__x {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: transparent;
+  border: 1px solid var(--field-line);
+  color: var(--field-muted);
+  cursor: pointer;
+  flex: none;
+}
+.vp__x svg { width: 13px; height: 13px; }
+.vp__x:hover { color: var(--field-ink); background: var(--field-2); }
+
+/* ── Body ───────────────────────────────────────────────────────────────── */
+.vp__b {
+  flex: 1;
+  min-height: 0;
+  padding: 18px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* The bubble — where Telugu is the hero. 19/34 per spec §2.2's vernacular
+ * scale: matras and conjuncts sit above and below the baseline and are
+ * unreadable at Latin's optical size, and cramped leading is exactly where
+ * Telugu starts looking broken. */
+.vp__bub {
+  background: var(--field-2);
+  border: 1px solid var(--field-line-2);
+  border-radius: var(--r-md);
+  padding: 14px 15px;
+}
+.vp__te { font: 600 19px/34px var(--te); color: var(--field-ink); }
+.vp__hi { font: 600 19px/34px var(--hi); color: var(--field-ink); }
+.vp__en { font: 600 16px/26px var(--sans); color: var(--field-ink); }
+.vp__bub p { margin: 0; }
+
+/* The English gloss. Mandatory, never aria-hidden — it is the accessible
+ * content for an owner who does not read Telugu fluently, and a preview they
+ * cannot verify is theatre (spec §2.10). */
+.vp__gloss {
+  font: 400 12.5px/1.6 var(--sans);
+  color: var(--field-muted);
+  margin: 9px 0 0;
+  padding-left: 2px;
+}
+.vp__gloss b {
+  display: block;
+  font: 600 10.5px/1.4 var(--sans);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #6E7784;
+  margin-bottom: 3px;
+}
+
+.vp__hr { height: 1px; background: var(--field-line); margin: 18px 0; border: 0; }
+
+.vp__k {
+  font: 600 11px/1 var(--sans);
+  letter-spacing: .075em;
+  text-transform: uppercase;
+  color: var(--field-muted);
+  margin: 0 0 11px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* Link out to the whole-config view. knows.html is NOT a subset of this panel
+ * (it carries every section at once plus the built-in protections, which the
+ * panel never shows), so it is retained as the advanced view and named here. */
+.vp__k a { margin-left: auto; color: var(--teal-400); text-transform: none; letter-spacing: 0; font-weight: 500; }
+
+/* Wrapping matters here. Most values are a short number and sit on the label's
+ * line; a few — the week's hours summary, a written policy — are a sentence. On
+ * a 360px column an unwrapped row runs the value back over its own label. */
+.vp__fact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 6px 0;
+  font: 400 13.5px/1.5 var(--sans);
+}
+.vp__fact-l { color: #B4BCC7; }
+.vp__fact-v {
+  margin-left: auto;
+  text-align: right;
+  min-width: 0;
+  color: var(--field-ink);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.vp__fact-v--none { color: #6E7784; font-weight: 400; font-style: italic; }
+
+/* Warnings. Tappable — each focuses the field it is about (spec §2.10). */
+.vp__warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px 11px;
+  border-radius: var(--r-sm);
+  background: rgba(245, 158, 11, .10);
+  border: 1px solid rgba(245, 158, 11, .24);
+  font: 400 12.5px/1.5 var(--sans);
+  color: #FCD34D;
+  text-align: left;
+  cursor: pointer;
+}
+.vp__warn svg { width: 14px; height: 14px; flex: none; margin-top: 1px; }
+.vp__warn:hover { background: rgba(245, 158, 11, .16); }
+
+.vp__empty { font: 400 13px/1.6 var(--sans); color: var(--field-muted); margin: 0; }
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+.vp__f {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  flex: none;
+  border-top: 1px solid var(--field-line);
+}
+.vp__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: var(--r-sm);
+  background: transparent;
+  border: 1px solid var(--field-line);
+  color: var(--field-ink);
+  font: 500 12.5px/1 var(--sans);
+  text-decoration: none;
+  cursor: pointer;
+}
+.vp__btn svg { width: 13px; height: 13px; }
+.vp__btn:hover { background: var(--field-2); }
+/* `Hear it` ships disabled. Its reason sits adjacent, never in a tooltip —
+ * a disabled control whose reason is hover-only is not a reason. */
+.vp__btn[disabled] {
+  color: #5A6472;
+  border-color: var(--field-line-2);
+  cursor: not-allowed;
+  background: transparent;
+}
+.vp__why { font: 400 11.5px/1.35 var(--sans); color: #6E7784; flex: 1; }
+.vp__f .vp__btn--end { margin-left: auto; }
+
+/* Focus. Ink ground gets the 2px --teal-500 ring plus a 2px --field inner ring
+ * so it reads against both the panel and any bubble behind it (spec §2.11). */
+.vp :focus-visible,
+.vp__rail:focus-visible {
+  outline: 2px solid var(--teal-500);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px var(--field);
+}
+
+/* ── Rail (1024-1279, and any collapsed desktop panel) ──────────────────── */
+.vp__rail {
+  display: none;
+  width: 100%;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: transparent;
+  border: 0;
+  color: var(--field-muted);
+  cursor: pointer;
+  padding: 14px 0;
+}
+.vp__rail-t {
+  writing-mode: vertical-rl;
+  font: 600 11px/1 var(--sans);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.vp__rail:hover { color: var(--field-ink); }
+.vp__rail .vp__dot { animation: none; }
+
+/* ── Sheet handle (<1024) ───────────────────────────────────────────────── */
+.vp__grip { display: none; }
+
+/* ==========================================================================
+ * Collapsed, >= 1024px: the panel becomes a 44px rail.
+ * ======================================================================== */
+@media (min-width: 1024px) {
+  .vp.is-collapsed { width: 44px; }
+  .vp.is-collapsed .vp__h,
+  .vp.is-collapsed .vp__b,
+  .vp.is-collapsed .vp__f { display: none; }
+  .vp.is-collapsed .vp__rail { display: flex; flex-direction: column; }
+}
+
+/* 1024-1279: docking is not offered — the content column cannot afford 360px
+ * beside it — so the panel is a rail that opens over the content. */
+@media (min-width: 1024px) and (max-width: 1279.98px) {
+  .vp:not(.is-collapsed) {
+    position: fixed;
+    inset: 0 0 0 auto;
+    height: 100vh;
+    box-shadow: var(--shadow-lg);
+    z-index: 45;
+  }
+}
+
+/* ==========================================================================
+ * < 1024px: bottom sheet.
+ * The handle is PERSISTENT and carries the greeting's first line, so even
+ * collapsed the owner sees their receptionist's voice (spec §2.10).
+ * ======================================================================== */
+@media (max-width: 1023.98px) {
+  .vp {
+    position: fixed;
+    inset: auto 0 0 0;
+    width: auto;
+    height: auto;
+    max-height: 82vh;
+    border-left: 0;
+    border-top: 1px solid var(--field-line);
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    box-shadow: var(--shadow-lg);
+    z-index: 45;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .vp__rail { display: none; }
+
+  .vp__grip {
+    display: block;
+    width: 100%;
+    background: transparent;
+    border: 0;
+    color: inherit;
+    padding: 8px 16px 10px;
+    cursor: pointer;
+    text-align: left;
+    flex: none;
+  }
+  .vp__grip-bar {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--field-line-2);
+    margin: 0 auto 10px;
+  }
+  .vp__grip-row { display: flex; align-items: center; gap: 8px; }
+  /* One line only. The greeting is vernacular, so it keeps the vernacular
+   * size floor even truncated — 15px, not Latin's 13. */
+  .vp__grip-te {
+    font: 600 15px/24px var(--te);
+    color: var(--field-ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 1;
+  }
+  .vp__grip-chev { color: var(--field-muted); flex: none; transition: transform var(--dur-2) var(--ease-in-out); }
+  .vp__grip-chev svg { width: 14px; height: 14px; display: block; }
+  .vp:not(.is-collapsed) .vp__grip-chev { transform: rotate(180deg); }
+
+  .vp.is-collapsed .vp__h,
+  .vp.is-collapsed .vp__b,
+  .vp.is-collapsed .vp__f { display: none; }
+
+  .vp__b { max-height: 46vh; }
+  /* 44x44 touch targets on mobile (spec §2.11). The footer wraps rather than
+   * squeezing: `Hear it` is disabled and its reason has to stay readable, and
+   * at 380px a single row puts the reason in a two-word column. */
+  .vp__f { flex-wrap: wrap; padding-bottom: 16px; }
+  .vp__btn { height: 44px; padding: 0 14px; }
+  .vp__why { order: 3; flex-basis: 100%; }
+  .vp__f .vp__btn--end { margin-left: auto; }
+  .vp__sel { height: 32px; }
+  .vp__x { width: 32px; height: 32px; }
+}
+
+/* Under reduce, the live dot stops pulsing and the progress line paints at its
+ * final width rather than sweeping (spec §2.11 / §2.7). */
+@media (prefers-reduced-motion: reduce) {
+  .vp__dot { animation: none; }
+  .vp__prog { transition: none; }
+  .vp__grip-chev { transition: none; }
+}
