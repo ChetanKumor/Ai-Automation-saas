@@ -137,19 +137,23 @@
                          note: 'Handled by Prantivo during onboarding' },
     'turn.scripted':   { label: 'Test call', actor: 'operator', material: true,
                          note: 'Run by Prantivo before go-live' },
-    // `labelWarn` (F-F001): this row's label used to read "Using the latest
-    // instruction format" in BOTH states — so on precisely the clinics the check
-    // was warning about, the owner-facing string asserted the opposite of the
-    // finding, directly above a sub-line saying the finding. An unsuppressed
-    // check that still reads the reassuring case tells the same lie, louder;
-    // the label has to move with the verdict.
+    // F-F001. This entry survives; the ROW does not — renderChecks omits this
+    // check from the rendered list entirely (D3, spec §3.2). It is not a task an
+    // owner can complete, and a checklist row implies otherwise. It surfaces as
+    // the truth strip and only as the strip.
+    //
+    // The pass-state label used to read "Using the latest instruction format" —
+    // affirmative, unconditional, and shown on precisely the clinics the check
+    // was warning about. It now names what is being checked instead of asserting
+    // the reassuring outcome, so neither verdict can read as a denial of the
+    // other. `labelWarn` is unchanged.
     //
     // `material` stays FALSE on purpose. Making it material would NOT gate
     // go-live (deriveGoLive counts only `fail`, and this check is a `warn`) —
     // it would just add a row the ring scores as PASSED, making the ring less
-    // honest, not more. The escalation this finding needs is the page notice
-    // and the qualified save, not a scoreboard entry.
-    'tenant.legacy_prompt': { label: 'Using the latest instruction format',
+    // honest, not more. The escalation this finding needs is the strip and the
+    // qualified save, not a scoreboard entry.
+    'tenant.legacy_prompt': { label: 'How your receptionist gets its instructions',
                               labelWarn: 'Following a custom script', actor: 'system', material: false },
   };
   // Unknown/future check → a safe, honest default (prettified name, material system):
@@ -542,6 +546,37 @@
     }));
   }
 
+  // ── Error ladder, layer 3 (spec §2.9) ──────────────────────────────────────
+  // The page could not load at all: alert icon, what failed, one muted line, one
+  // retry. Ten pages were each rendering this as a bare grey sentence inside the
+  // loading placeholder — the same string ten times, and the only state in the
+  // portal with no way out of it except the browser's own reload button.
+  //
+  // The other three layers are untouched and stay where they are: field errors
+  // inline (layer 1), the card banner on a failed save (layer 2), and the 401
+  // redirect to sign-in (layer 4). This adds a shared implementation of one
+  // layer; it does not collapse the ladder.
+  //
+  // Retry RELOADS rather than re-running the page's own loader: every one of
+  // these pages derives its whole form from a single GET, so a partial recovery
+  // could leave half the page describing one response and half another.
+  const ALERT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>';
+
+  function pageError(host, what) {
+    const el = typeof host === 'string' ? document.getElementById(host) : host;
+    if (!el) return;
+    el.hidden = false;
+    el.innerHTML =
+      `<div class="pg-err">
+        <div class="pg-err__i">${ALERT_ICON}</div>
+        <div class="pg-err__t">Couldn’t load ${esc(what)}</div>
+        <p class="pg-err__d">Your settings are safe. This is a problem on our side.</p>
+        <button class="btn btn--primary" type="button" data-page-retry>Try again</button>
+      </div>`;
+    const btn = el.querySelector('[data-page-retry]');
+    if (btn) btn.addEventListener('click', () => window.location.reload());
+  }
+
   // Minimal toast (tokens.css .toast). Pages that already own a toast keep
   // theirs; this is only for actions fired from the shell's own control.
   function toast(msg) {
@@ -610,37 +645,104 @@
     renderLifecycle(data.status, deriveGoLive(data.run));
   }
 
-  // ── Shadow notice (F-F001) ─────────────────────────────────────────────────
-  // Tells an owner whose clinic runs on a hand-written script WHICH of this
-  // page's settings their receptionist isn't reading — before they spend an
-  // afternoon editing them. Copy and page list live in shadow-notice.js; this
-  // only places the result.
+  // ── Truth strip (spec §2.9, F-F001) ────────────────────────────────────────
+  // A full-width band between the top bar and the page header, rendered ONLY
+  // when system state and the owner's reasonable expectation diverge. The
+  // conditions and every word of copy live in shadow-notice.js; this places the
+  // result and wires its two actions.
   //
-  // Injected rather than added to eleven HTML files so the notice can never
-  // drift page to page, and so a page's markup carries no dead placeholder on
-  // the clinics (the overwhelming majority) that aren't affected.
+  // It REPLACES the inline per-page notice this function used to insert into
+  // `.content` after `.page-head`. One component, not two: a global strip built
+  // alongside the working per-page notice would have put two amber blocks on
+  // every shadowed page reporting one condition. The per-page copy did not go
+  // away — it is what the strip says when it is standing on a shadowed page,
+  // and its full text is the lead of the "What this affects" modal.
   //
+  // Injected rather than added to twelve HTML files so it can never drift page
+  // to page, and so a page's markup carries no dead placeholder on the clinics
+  // (the overwhelming majority) where no condition holds.
+
+  // The live region is mounted EMPTY and synchronously, before any fetch. A
+  // screen reader announces a polite region when its contents change, not when
+  // an already-populated region is inserted — so filling this node later is what
+  // produces the single announcement. Mounting it pre-filled would produce none.
+  function mountStripHost() {
+    const main = $('.main');
+    const top = $('.top');
+    if (!main || !top || $('#truthStrip')) return null;
+    const host = document.createElement('div');
+    host.id = 'truthStrip';
+    host.setAttribute('role', 'status');
+    host.setAttribute('aria-live', 'polite');
+    main.insertBefore(host, top.nextSibling);
+    return host;
+  }
+
+  // `lastStripKey` is the re-announcement guard. Every caller below re-runs on
+  // lifecycle changes and after saves; without the key an identical strip would
+  // be rewritten into a live region each time and announced again. undefined =
+  // never rendered, null = rendered as absent.
+  let lastStripKey;
+  function applyTruthStrip(readiness) {
+    const SN = window.ShadowNotice;
+    const host = $('#truthStrip') || mountStripHost();
+    if (!SN || !host) return;
+    const opts = { embedded };
+    const s = SN.stripFor(activeId, readiness, opts);
+    const key = s ? s.key : null;
+    if (key === lastStripKey) return; // same condition — do not re-announce
+    lastStripKey = key;
+    host.innerHTML = s ? SN.stripHtml(activeId, readiness, opts) : '';
+  }
+
   // Runs EVEN WHEN EMBEDDED, unlike the header control: an owner going through
   // the onboarding wizard is the single person about to waste the most effort,
   // so the wizard's iframed steps are the last place to suppress this.
   async function renderShadowNotice() {
-    const SN = window.ShadowNotice;
-    if (!SN || !SN.pageNotice(activeId)) return; // page writes nothing shadowed
+    if (!window.ShadowNotice) return;
+    mountStripHost();
     try { await window.Portal.me; } catch (_) { return; }
-    const data = await readinessOnce();
-    if (!data) return;
-    const html = SN.noticeHtml(activeId, data.run);
-    if (!html) return;
-    const head = $('.page-head');
-    const content = $('.content');
-    if (!content) return;
-    const holder = document.createElement('div');
-    holder.innerHTML = html;
-    const node = holder.firstElementChild;
-    if (!node) return;
-    if (head && head.parentNode === content) content.insertBefore(node, head.nextSibling);
-    else content.insertBefore(node, content.firstChild);
+    // Home fetches its own readiness (a richer render) and hands it here via
+    // `portal:readiness` — see the listener below. Awaiting readinessOnce() on
+    // Home too would be the second round trip this strip is required not to
+    // make, and shell.js is asserted to hold exactly one readiness fetch.
+    if (activeId === 'home') return;
+    applyTruthStrip(await readinessOnce());
   }
+
+  // Two ways the strip learns the state, neither of them a request of its own:
+  //   • `portal:readiness` — Home dispatching the payload it already fetched.
+  //   • `portal:lifecycle` — any Pause/Resume/Go-live response, from any page.
+  // A pause updating the strip with no network call is the point.
+  document.addEventListener('portal:readiness', (e) => applyTruthStrip(e.detail));
+  document.addEventListener('portal:lifecycle', (e) => {
+    const d = e.detail || {};
+    if (!d.readiness) return;
+    applyTruthStrip({ status: d.status || d.readiness.status, run: d.readiness.run });
+  });
+
+  // "What this affects" — the strip's one modal. Lists every section a
+  // hand-written script shadows, with the nav's OWN hrefs and labels passed in,
+  // so this dialog can never link somewhere the sidebar doesn't.
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-ts-modal]');
+    if (!btn) return;
+    e.preventDefault();
+    const SN = window.ShadowNotice;
+    if (!SN) return;
+    const data = await readinessOnce();
+    const navItem = (id) => NAV.find((n) => n.id === id) || {};
+    // Titled from the BUTTON, not from SN.TITLE — the notice inside the body
+    // already carries SN.TITLE as its own heading, and using it twice made the
+    // dialog open with the same sentence stacked on itself.
+    await dialog({
+      title: 'What this affects',
+      sub: 'Every setting your receptionist isn’t reading yet. Everything else works normally.',
+      body: SN.affectsHtml(activeId, data && data.run,
+        (id) => navItem(id).href, (id) => navItem(id).label),
+      dismissLabel: 'Close',
+    });
+  });
 
   function wireChrome() {
     const app = $('#app');
@@ -731,6 +833,9 @@
     deriveGoLive,
     checkMeta,     // the single owner-facing check copy map (Home + wizard read it)
     applyLifecycle,
+    applyTruthStrip,   // Home calls this with the payload IT fetched — never a second request
+    readinessOnce,     // the one shared readiness promise (non-Home pages)
+    pageError,         // error ladder layer 3, shared by every page's loader
     savedMessage,
     embedded,
     activeId,

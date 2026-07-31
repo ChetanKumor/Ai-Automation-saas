@@ -173,9 +173,7 @@
       if (!res.ok) throw new Error('load ' + res.status);
       render(await res.json());
     } catch (_) {
-      const msg = $('loadMsg');
-      msg.textContent = 'We couldn’t load what your receptionist knows. Refresh the page to try again.';
-      msg.className = 'state-msg state-msg--error';
+      window.Portal.pageError('loadCard', 'what your receptionist knows');
     }
   }
 

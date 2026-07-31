@@ -215,9 +215,7 @@
       if (!res.ok) throw new Error('load ' + res.status);
       data = await res.json();
     } catch (_) {
-      const msg = $('loadMsg');
-      msg.textContent = 'We couldn’t load your clinic profile. Refresh the page to try again.';
-      msg.className = 'state-msg state-msg--error';
+      window.Portal.pageError('loadCard', 'your clinic profile');
       return;
     }
 

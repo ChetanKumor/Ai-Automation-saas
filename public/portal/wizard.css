@@ -11,6 +11,15 @@
 
 .wiz { max-width: 100%; }
 
+/* The wizard is the last consumer of `.state-msg`. D3 replaced that grey
+ * one-liner with skeletons and the shared `.pg-err` block on all twelve nav
+ * pages, and deleted the rule from each page stylesheet; the wizard's own two
+ * uses are out of D3's scope, so the rule moves here rather than being left
+ * behind in home.css for a page that no longer renders it. Restyling the
+ * wizard's own loading states is a separate piece of work. */
+.state-msg { color: var(--muted); font-size: 14px; padding: 8px 2px; }
+.state-msg--error { color: var(--red); }
+
 /* ── Progress ── */
 .wiz__progress { margin-bottom: var(--s-4); }
 .wiz__step-label {

@@ -405,9 +405,7 @@
       if (!res.ok) throw new Error('load ' + res.status);
       data = await res.json();
     } catch (_) {
-      const msg = $('loadMsg');
-      msg.textContent = 'We couldn’t load your doctors. Refresh the page to try again.';
-      msg.className = 'state-msg state-msg--error';
+      window.Portal.pageError('loadCard', 'your doctors');
       return;
     }
 

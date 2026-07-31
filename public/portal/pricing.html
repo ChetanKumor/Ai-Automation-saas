@@ -46,9 +46,17 @@
           <p class="page-head__sub">Your fees and treatment prices. Your receptionist quotes these exactly. Anything not listed here, it will offer to check and call you back — it never guesses a price.</p>
         </div>
 
-        <!-- Loading / error placeholder (replaced once the form loads) -->
+        <!-- Loading: label/control pairs at real heights (16px label, 40px input),
+             so the form does not jump when it arrives. Held invisible for 300ms
+             by .sk-wrap — a fast response never flashes a skeleton. -->
         <section class="card" id="loadCard">
-          <div class="state-msg" id="loadMsg">Loading your prices…</div>
+          <div class="sk-wrap">
+            <div class="sk-stack">
+              <div class="sk-field"><div class="sk sk-line"></div><div class="sk sk-input"></div></div>
+              <div class="sk-field"><div class="sk sk-line"></div><div class="sk sk-input"></div></div>
+              <div class="sk-field"><div class="sk sk-line"></div><div class="sk sk-input"></div></div>
+            </div>
+          </div>
         </section>
 
         <!-- Pricing form (revealed by JS once values are loaded) -->
@@ -106,7 +114,17 @@
                 </label>
               </div>
 
-              <p class="field__help treatments__empty" id="treatmentsEmpty" hidden>No treatments yet. Add the ones patients ask about most — your receptionist can only quote what’s listed here.</p>
+              <!-- Empty: the consequence, not the void. Price is the question
+                   patients ask most, and an unlisted treatment is one the
+                   receptionist has to refuse to quote. -->
+              <div class="emp emp--inline treatments__empty" id="treatmentsEmpty" hidden>
+                <div class="emp__i" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0l-7.2-7.2A2 2 0 0 1 3 12V4a1 1 0 0 1 1-1h8a2 2 0 0 1 1.4.6l7.2 7.2a2 2 0 0 1 0 2.6Z"/><path d="M7.5 7.5h.01"/></svg>
+                </div>
+                <div class="emp__t">Add the treatments patients ask about</div>
+                <p class="emp__d">Price is the question patients ask most. Your receptionist can only quote what’s listed here — for anything else it offers to check and call back.</p>
+                <button class="btn btn--primary" id="emptyAddTreatment" type="button">Add a treatment</button>
+              </div>
             </div>
           </section>
 

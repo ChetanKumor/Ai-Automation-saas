@@ -320,9 +320,7 @@
       if (!res.ok) throw new Error('load ' + res.status);
       data = await res.json();
     } catch (_) {
-      const msg = $('loadMsg');
-      msg.textContent = 'We couldn’t load your prices. Refresh the page to try again.';
-      msg.className = 'state-msg state-msg--error';
+      window.Portal.pageError('loadCard', 'your prices');
       return;
     }
 
@@ -343,13 +341,18 @@
       markDirty();
     });
     $('showArchived').addEventListener('change', refreshArchived);
-    $('addTreatment').addEventListener('click', () => {
+    // The card's own "Add a treatment" and the empty state's primary run the
+    // same handler — an owner with no treatments should not have to find the
+    // ghost button above the empty state to leave it.
+    const addTreatment = () => {
       const row = addTreatmentRow();
       refreshArchived();
       markDirty();
       const n = row.querySelector('.tr__name');
       if (n && n.focus) n.focus();
-    });
+    };
+    $('addTreatment').addEventListener('click', addTreatment);
+    $('emptyAddTreatment').addEventListener('click', addTreatment);
     form.addEventListener('submit', save);
 
     $('loadCard').hidden = true;

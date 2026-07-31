@@ -52,14 +52,29 @@
 
         <!-- Status banner + ring + checks injected here -->
         <div id="banner"></div>
+        <!-- Loading: the shape of the answer (ring + headline + two lines), not a
+             spinner. This layout is known before the request returns, so a
+             spinner would discard information we already have. `.sk-wrap` holds
+             it invisible for 300ms — a response faster than that never shows it. -->
         <section class="card" id="readinessCard">
-          <div class="state-msg">Loading your readiness…</div>
+          <div class="readiness sk-wrap">
+            <div class="ring-sk"></div>
+            <div class="readiness__summary sk-stack" style="flex:1">
+              <div class="sk sk-line" style="width:220px"></div>
+              <div class="sk sk-line" style="width:min(100%,340px)"></div>
+              <div class="sk sk-line" style="width:140px"></div>
+            </div>
+          </div>
         </section>
         <div id="checks"></div>
       </main>
     </div>
   </div>
 
+  <!-- Before shell.js: the shell reads window.ShadowNotice on boot to mount the
+       truth strip. Every nav page loads it now, not just the seven whose own
+       settings a hand-written script shadows — the strip is portal-wide. -->
+  <script src="./shadow-notice.js"></script>
   <script src="./shell.js"></script>
   <script src="./cmdk.js"></script>
   <script src="./home.js"></script>

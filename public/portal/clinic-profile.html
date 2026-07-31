@@ -46,9 +46,17 @@
           <p class="page-head__sub">Your clinic's name, address and contact details — the facts your receptionist uses when talking to patients.</p>
         </div>
 
-        <!-- Loading / error placeholder (replaced once the form loads) -->
+        <!-- Loading: label/control pairs at real heights (16px label, 40px input),
+             so the form does not jump when it arrives. Held invisible for 300ms
+             by .sk-wrap — a fast response never flashes a skeleton. -->
         <section class="card" id="loadCard">
-          <div class="state-msg" id="loadMsg">Loading your clinic profile…</div>
+          <div class="sk-wrap">
+            <div class="sk-stack">
+              <div class="sk-field"><div class="sk sk-line"></div><div class="sk sk-input"></div></div>
+              <div class="sk-field"><div class="sk sk-line"></div><div class="sk sk-input"></div></div>
+              <div class="sk-field"><div class="sk sk-line"></div><div class="sk sk-input"></div></div>
+            </div>
+          </div>
         </section>
 
         <!-- Profile form (revealed by JS once values are loaded) -->

@@ -46,9 +46,17 @@
           <p class="page-head__sub">What your receptionist does when a patient needs a person, and what it says to someone describing an emergency.</p>
         </div>
 
-        <!-- Loading / error placeholder (replaced once the form loads) -->
+        <!-- Loading: label/control pairs at real heights (16px label, 40px input),
+             so the form does not jump when it arrives. Held invisible for 300ms
+             by .sk-wrap — a fast response never flashes a skeleton. -->
         <section class="card" id="loadCard">
-          <div class="state-msg" id="loadMsg">Loading your safety settings…</div>
+          <div class="sk-wrap">
+            <div class="sk-stack">
+              <div class="sk-field"><div class="sk sk-line"></div><div class="sk sk-input"></div></div>
+              <div class="sk-field"><div class="sk sk-line"></div><div class="sk sk-input"></div></div>
+              <div class="sk-field"><div class="sk sk-line"></div><div class="sk sk-input"></div></div>
+            </div>
+          </div>
         </section>
 
         <form id="safetyForm" novalidate hidden>

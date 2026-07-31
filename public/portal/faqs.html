@@ -46,19 +46,27 @@
           <p class="page-head__sub">Your receptionist answers from these. Keep answers short and factual — exact facts like prices, hours, and doctors belong on their own pages, not here.</p>
         </div>
 
-        <!-- Loading / error placeholder (replaced once the list loads) -->
+        <!-- Loading: 4 rows at the real 48px row height, so the list does not
+             jump when it arrives. Held invisible for 300ms by .sk-wrap. -->
         <section class="card" id="loadCard">
-          <div class="state-msg" id="loadMsg">Loading your FAQs…</div>
+          <div class="sk-wrap">
+            <div class="sk-rows">
+              <div class="sk sk-row"></div>
+              <div class="sk sk-row"></div>
+              <div class="sk sk-row"></div>
+              <div class="sk sk-row"></div>
+            </div>
+          </div>
         </section>
 
         <!-- Empty state: an instruction with concrete examples, never a blank panel (spec §4) -->
-        <section class="card empty" id="emptyCard" hidden>
-          <div class="empty__icon" aria-hidden="true">
+        <section class="card emp" id="emptyCard" hidden>
+          <div class="emp__i" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.5 1.5c0 1.5-2 2-2 3.5"/><path d="M12 17h.01"/></svg>
           </div>
-          <div class="empty__title">Add your first FAQ so your receptionist can answer it</div>
-          <p class="empty__sub">Think of what patients ask that isn’t a price, an hour, or a doctor — those already have their own pages. A few to start with:</p>
-          <ul class="empty__examples">
+          <div class="emp__t">Add your first FAQ so your receptionist can answer it</div>
+          <p class="emp__d">Think of what patients ask that isn’t a price, an hour, or a doctor — those already have their own pages. A few to start with:</p>
+          <ul class="emp__examples">
             <li>“Do you accept insurance?”</li>
             <li>“Where can I park?”</li>
             <li>“Do you see children?”</li>
@@ -85,6 +93,10 @@
 
   <div class="toast-host" id="toastHost"></div>
 
+  <!-- Before shell.js: the shell reads window.ShadowNotice on boot to mount the
+       truth strip. Every nav page loads it now, not just the seven whose own
+       settings a hand-written script shadows — the strip is portal-wide. -->
+  <script src="./shadow-notice.js"></script>
   <script src="./shell.js"></script>
   <script src="./cmdk.js"></script>
   <script src="./faqs.js"></script>

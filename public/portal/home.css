@@ -43,22 +43,27 @@
   gap: 28px;
   padding: 28px 24px;
 }
+/* 132px / 10px stroke (spec §3.2). The old 160px/12px ring was the loudest
+ * object on the screen by a wide margin; at 132px it is still unmistakably the
+ * signature and no longer shouts over the sentence beside it that says what to
+ * do next. The draw itself is driven from home.js (animateRing) so it can be
+ * suppressed after the first view and under reduced motion — a transition
+ * declared here would run on every render. */
 .ring {
   flex: none;
   position: relative;
-  width: 160px;
-  height: 160px;
+  width: 132px;
+  height: 132px;
 }
-.ring svg { width: 160px; height: 160px; transform: rotate(-90deg); }
-.ring__track { fill: none; stroke: var(--line-2); stroke-width: 12; }
+.ring svg { width: 132px; height: 132px; transform: rotate(-90deg); border-radius: var(--r-full); }
+.ring__track { fill: none; stroke: var(--line-2); stroke-width: 10; }
 .ring__fill {
   fill: none;
-  stroke: var(--teal);
-  stroke-width: 12;
+  stroke: var(--teal-700);
+  stroke-width: 10;
   stroke-linecap: round;
-  transition: stroke-dashoffset .9s cubic-bezier(.4, 0, .2, 1);
 }
-.ring--complete .ring__fill { stroke: var(--green); }
+.ring--complete .ring__fill { stroke: var(--green-700); }
 
 .ring__center {
   position: absolute;
@@ -70,14 +75,20 @@
   text-align: center;
 }
 .ring__num {
-  font-size: 40px;
-  font-weight: 700;
-  letter-spacing: -.03em;
-  line-height: 1;
+  font: var(--t-display);
+  letter-spacing: var(--ls-display);
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
-.ring__den { font-size: 15px; font-weight: 600; color: var(--faint); margin-top: 2px; }
+.ring__den {
+  font: var(--t-help);
+  color: var(--muted);
+  margin-top: 5px;
+  font-variant-numeric: tabular-nums;
+}
+/* At 100% the numeral has nothing left to count — a check says it in one glyph. */
+.ring__done { color: var(--green-700); }
+.ring__done svg { width: 38px; height: 38px; }
 
 .readiness__summary { min-width: 0; }
 .readiness__headline { font-size: 18px; font-weight: 700; letter-spacing: -.01em; line-height: 1.3; }
@@ -94,6 +105,9 @@
   color: var(--muted);
   margin: 0 0 10px 2px;
 }
+/* Every group after the first needs air above it, or two headers read as one
+ * list with a stray label in the middle. */
+.checks__group-label--later,
 .checks__advisory-label { margin-top: 26px; }
 
 .check {
@@ -145,31 +159,26 @@ a.check__link:hover { color: var(--teal-press); text-decoration: underline; }
 .check--advisory { opacity: .8; }
 .check--advisory .check__label { font-weight: 500; color: var(--ink-2); }
 
-/* ── Empty state (no validation run yet): an instruction, not a blank panel ── */
-.empty {
-  text-align: center;
-  padding: 40px 24px 44px;
-}
-.empty__mark {
-  width: 52px; height: 52px;
-  margin: 0 auto 16px;
-  border-radius: 14px;
-  background: var(--teal-050);
-  color: var(--teal);
-  display: grid;
-  place-items: center;
-}
-.empty__mark svg { width: 26px; height: 26px; }
-.empty__title { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
-.empty__body { color: var(--muted); font-size: 14px; margin: 8px auto 0; max-width: 400px; line-height: 1.6; }
+/* The empty and error states now use the shared `.emp` / `.pg-err` vocabulary in
+ * tokens.css — this page's private `.empty` block was the only copy of a shape
+ * six other pages also needed, and it has been folded into the shared one. */
 
-/* ── Load / error fallbacks ── */
-.state-msg { color: var(--muted); font-size: 14px; padding: 8px 2px; }
+/* Loading skeleton — the ring's own shape, so the layout does not move when the
+ * real ring arrives. A circle at full stroke, not a spinner. */
+.ring-sk {
+  width: 132px; height: 132px;
+  flex: none;
+  border-radius: var(--r-full);
+  border: 10px solid var(--line-2);
+}
 
 @media (max-width: 520px) {
-  .readiness { flex-direction: column; align-items: flex-start; gap: 20px; }
-  .ring, .ring svg { width: 132px; height: 132px; }
-  .ring__num { font-size: 34px; }
+  .readiness { flex-direction: column; align-items: center; gap: 20px; text-align: center; }
+  .ring, .ring svg { width: 104px; height: 104px; }
+  .ring-sk { width: 104px; height: 104px; border-width: 8px; }
+  .ring__num { font-size: 26px; }
+  .ring__done svg { width: 30px; height: 30px; }
+  .readiness__summary { text-align: center; }
   .check__link { display: none; }   /* keep mobile rows to label + state */
 }
 

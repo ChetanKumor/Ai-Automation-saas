@@ -232,11 +232,15 @@ describe('F-F001 readiness row (shell.js + home.js)', () => {
     const metaSrc = shell.slice(shell.indexOf('const CHECK_META'), shell.indexOf('const $ = (sel, root)'));
     const checkMeta = new Function(`${metaSrc}; return checkMeta;`)();
 
-    assert.equal(checkMeta('tenant.legacy_prompt').label, 'Using the latest instruction format',
-      'the pass-state label is unchanged');
-    assert.equal(checkMeta('tenant.legacy_prompt', 'pass').label, 'Using the latest instruction format');
-    assert.notEqual(checkMeta('tenant.legacy_prompt', 'warn').label, 'Using the latest instruction format',
-      'a warned clinic must NOT be told it is on the latest format');
+    // D3: the pass-state string moved. It used to read "Using the latest
+    // instruction format" — affirmative and unconditional, on exactly the
+    // clinics the check warns about. It now names WHAT is being checked, so
+    // neither verdict reads as a denial of the other. `labelWarn` is unchanged.
+    assert.equal(checkMeta('tenant.legacy_prompt').label, 'How your receptionist gets its instructions',
+      'the pass-state label states the condition rather than asserting the reassuring case');
+    assert.equal(checkMeta('tenant.legacy_prompt', 'pass').label, 'How your receptionist gets its instructions');
+    assert.notEqual(checkMeta('tenant.legacy_prompt', 'warn').label, 'How your receptionist gets its instructions',
+      'a warned clinic must NOT get the neutral label');
     assert.equal(checkMeta('tenant.legacy_prompt', 'warn').label, 'Following a custom script');
 
     // Every other check is severity-independent — one arg or two, same answer.

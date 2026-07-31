@@ -252,21 +252,25 @@
       if (!res.ok) throw new Error('load ' + res.status);
       data = await res.json();
     } catch (_) {
-      const msg = $('loadMsg');
-      msg.textContent = 'We couldn’t load your hours. Refresh the page to try again.';
-      msg.className = 'state-msg state-msg--error';
+      window.Portal.pageError('loadCard', 'your hours');
       return;
     }
 
     fill(data.hours);
     baseline = JSON.stringify(collect());
-    $('addHoliday').addEventListener('click', () => {
+    // Two buttons, one behaviour: the card's own "Add a holiday" and the empty
+    // state's primary. The empty state's button is the whole point of an empty
+    // state — an owner who has none should not have to find the ghost button
+    // above it.
+    const addHoliday = () => {
       const row = addHolidayRow();
       refreshHolidayEmpty();
       markDirty();
       const d = row.querySelector('.holiday__date');
       if (d && d.focus) d.focus();
-    });
+    };
+    $('addHoliday').addEventListener('click', addHoliday);
+    $('emptyAddHoliday').addEventListener('click', addHoliday);
     form.addEventListener('submit', save);
 
     $('loadCard').hidden = true;

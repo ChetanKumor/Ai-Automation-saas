@@ -47,9 +47,17 @@
           <p class="page-head__meta" id="metaLine" hidden></p>
         </div>
 
-        <!-- Loading / error placeholder (replaced once the data loads) -->
+        <!-- Loading: 4 rows at the real 48px row height, so the list does not
+             jump when it arrives. Held invisible for 300ms by .sk-wrap. -->
         <section class="card" id="loadCard">
-          <div class="state-msg" id="loadMsg">Loading what your receptionist knows…</div>
+          <div class="sk-wrap">
+            <div class="sk-rows">
+              <div class="sk sk-row"></div>
+              <div class="sk sk-row"></div>
+              <div class="sk sk-row"></div>
+              <div class="sk sk-row"></div>
+            </div>
+          </div>
         </section>
 
         <div id="sections" hidden>

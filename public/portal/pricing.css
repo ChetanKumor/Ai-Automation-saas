@@ -12,8 +12,6 @@
  * ========================================================================== */
 
 /* Loading / error placeholder (home.css isn't linked here, so define locally) */
-.state-msg { color: var(--muted); font-size: 14px; padding: 8px 2px; }
-.state-msg--error { color: var(--red); }
 
 /* ── Money input: a ₹ sign sitting inside the field ── */
 .money { position: relative; }

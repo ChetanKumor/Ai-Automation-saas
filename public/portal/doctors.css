@@ -12,24 +12,7 @@
  * width. Nothing shrinks into an unreadable strip at ~380px.
  * ========================================================================== */
 
-/* Loading / error placeholder (home.css isn't linked here, so define locally) */
-.state-msg { color: var(--muted); font-size: 14px; padding: 8px 2px; }
-.state-msg--error { color: var(--red); }
-
-/* ── Empty state: an instruction, not a blank panel ── */
-.empty { text-align: center; padding: var(--s-6) var(--s-4); }
-.empty__icon {
-  width: 46px; height: 46px;
-  margin: 0 auto var(--s-3);
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--teal-050);
-  color: var(--teal);
-}
-.empty__icon svg { width: 24px; height: 24px; }
-.empty__title { font-size: 15px; font-weight: 700; letter-spacing: -.01em; color: var(--ink); }
-.empty__sub { color: var(--muted); font-size: 13px; margin: 6px auto var(--s-4); max-width: 40ch; line-height: 1.55; }
+/* Empty state: the shared `.emp` vocabulary in tokens.css. */
 
 /* ── Doctor card ── */
 .doc {

@@ -1,6 +1,35 @@
 /* ============================================================================
- * "Your receptionist isn't reading this yet" notice (F-F001).
+ * The TRUTH STRIP, and the F-F001 notice it grew out of.
  *
+ * ── What this file is now (D3) ──────────────────────────────────────────────
+ * One component, not two. It began as the per-page "your receptionist isn't
+ * reading this yet" notice; D3 promotes it to the portal-wide strip described
+ * in spec §2.9 — a band between the top bar and the page header that renders
+ * ONLY when the system's state and the owner's reasonable expectation diverge,
+ * and does not exist at all when they agree.
+ *
+ * It was deliberately NOT built as a second component alongside the notice.
+ * A parallel global strip would have put two amber blocks on every shadowed
+ * page, both reporting one condition. One component makes that impossible by
+ * construction rather than by discipline.
+ *
+ * So the copy resolves page-aware from the single SHADOWED table below:
+ *   • on a shadowed page → the strip names what THIS page loses
+ *   • anywhere else      → the general sentence
+ *   • the full explanation (what still works, what to ask for) moved into the
+ *     "What this affects" modal, where an owner who wants it can ask for it —
+ *     rather than occupying six lines of every page, permanently.
+ *
+ * Three conditions ship, in priority order: a custom script is in use, the
+ * receptionist is paused, the receptionist is not live yet. A fourth
+ * ("partially connected") was specified and is NOT built: /portal/api/readiness
+ * carries no channel-connection state, and deriving it from the whatsapp/voice
+ * checks is unsound — a SKIPPED voice check means voice is switched off for the
+ * clinic, not "not set up yet", and since voice.config is material a tenant
+ * with it failing can never be live, so the not-live condition would always
+ * win. It would have been unreachable code.
+ *
+ * ── The original notice, unchanged in substance ─────────────────────────────
  * Some clinics were set up with a hand-written script instead of the settings
  * in this portal. For those, the receptionist reads the script and IGNORES
  * every prompt field these pages write — but the portal still showed "Saved ·
@@ -44,6 +73,16 @@
   const CHECK_NAME = 'tenant.legacy_prompt';
 
   // ── Affected pages, keyed by <body data-page> ──────────────────────────────
+  //
+  // ⚠ HAND-MAINTAINED against A-007's audited snapshot of what the renderer
+  // actually reads (docs/specs/issue-34-legacy-prompt-shadows-portal-config.md).
+  // Nothing derives it and no test can catch it drifting: if shadowing
+  // behaviour changes and this table does not, the strip's "What this affects"
+  // modal will list the wrong sections — confidently, in the owner's own words,
+  // which is worse than listing none. Re-audit this table against
+  // templates/clinic.js whenever the prompt head changes. Issue 34 closed the
+  // hazard that created legacy tenants; it did not change what they shadow.
+  //
   // Straight off A-007's "Shadowed" table: every config path rendered only by
   // templates/clinic.js, mapped to the page that writes it. `what` names the
   // owner's OWN words back to them — "your prices", not "pricing.*" — because a
@@ -159,5 +198,153 @@
     return isShadowed(run) === true ? base + ' — not reaching your receptionist yet' : base;
   }
 
-  return { CHECK_NAME, SHADOWED, SURVIVES, TITLE, isShadowed, pageNotice, noticeHtml, savedMessage };
+  // ══════════════════════════════════════════════════════════════════════════
+  // THE TRUTH STRIP (spec §2.9)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  const ICON_ALERT =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>';
+  const ICON_INFO =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>';
+
+  // The reassurance clause is identical across every legacy-condition variant,
+  // general or page-specific, so the two never read as different severities of
+  // the same fact.
+  const SAFE = 'Prantivo is fixing this — your saved changes are safe.';
+
+  /**
+   * Which condition holds, or null for none. Priority is the order of the
+   * checks below and it is not arbitrary:
+   *   1. a custom script is in use — the owner's edits are silently inert, the
+   *      only condition where what they are doing right now is wasted effort;
+   *   2. paused — the receptionist WAS answering and has stopped;
+   *   3. not live — the receptionist has never answered yet, which is the
+   *      expected state during setup and the least urgent of the three.
+   *
+   * `readiness` is the {status, run} payload the lifecycle control already
+   * consumes. No verdict (never validated, no payload) → the legacy condition
+   * cannot be evaluated and is skipped rather than guessed, exactly as
+   * isShadowed does; the lifecycle conditions read `status`, which is always
+   * present.
+   *
+   * `opts.embedded` — this page is a step inside the onboarding wizard's
+   * iframe. Only the legacy condition may render there, and that exclusion is
+   * the whole rule stated back to itself: during setup, "your receptionist
+   * isn't answering calls yet" is not a divergence between system state and
+   * the owner's expectation, it is a description of the task they are in the
+   * middle of. The legacy condition stays because an owner in the wizard is the
+   * single person about to waste the most effort on settings that are inert.
+   *
+   * @returns {null|{key,tone,icon,text,action}}
+   */
+  function stripFor(pageId, readiness, opts) {
+    if (!readiness) return null;
+    const run = readiness.run;
+    const status = readiness.status;
+    const embedded = !!(opts && opts.embedded);
+
+    if (isShadowed(run) === true) {
+      const page = pageNotice(pageId);
+      // On a shadowed page the strip says what THIS page loses — the same claim
+      // the inline notice used to make, in one line. Elsewhere it generalises.
+      const text = page
+        ? `${page.readonly ? 'Shown here but not in use' : 'Saved but not in use'}: ${page.what}. ${SAFE}`
+        : `Some of your settings aren’t reaching your receptionist yet. ${SAFE}`;
+      return {
+        key: 'legacy:' + (page ? pageId : '*'),
+        tone: 'warn',
+        icon: ICON_ALERT,
+        text,
+        action: { label: 'What this affects', modal: 'affects' },
+      };
+    }
+
+    if (embedded) return null; // see opts.embedded above
+
+    if (status === 'paused') {
+      return {
+        key: 'paused',
+        tone: 'warn',
+        icon: ICON_ALERT,
+        text: 'Your receptionist is paused. Calls and messages aren’t being answered.',
+        // Fires the shell's existing delegated lifecycle handler — same action,
+        // same confirmation dialog, same single request path as the header
+        // control. The strip adds a second way to reach it, not a second
+        // implementation of it.
+        action: { label: 'Resume', lifecycle: 'resume' },
+      };
+    }
+
+    // "Not live" covers `validated` as well as `draft` (spec §2.9's row is
+    // *Not live*, not *draft*). A validated tenant has passed its checks and
+    // still answers nothing until someone presses Go live — telling that owner
+    // nothing would be the strip lying by omission on the one screen where the
+    // remaining action is theirs.
+    if (status === 'draft' || status === 'validated') {
+      return {
+        key: 'notlive',
+        tone: 'info',
+        icon: ICON_INFO,
+        text: 'Your receptionist isn’t answering calls yet. Changes are saved and will apply when you go live.',
+        // On Home the checks list IS "what's left" and it is already on screen;
+        // a link to the page you are standing on is a dead affordance.
+        action: pageId === 'home' ? null : { label: 'See what’s left', href: 'index.html' },
+      };
+    }
+
+    return null;
+  }
+
+  /** The strip as HTML — '' when no condition holds, so a caller can assign it. */
+  function stripHtml(pageId, readiness, opts) {
+    const s = stripFor(pageId, readiness, opts);
+    if (!s) return '';
+    let action = '';
+    if (s.action && s.action.href) {
+      action = `<a class="ts__a" href="${esc(s.action.href)}">${esc(s.action.label)}</a>`;
+    } else if (s.action && s.action.lifecycle) {
+      action = `<button class="ts__a" type="button" data-lifecycle="${esc(s.action.lifecycle)}">${esc(s.action.label)}</button>`;
+    } else if (s.action && s.action.modal) {
+      action = `<button class="ts__a" type="button" data-ts-modal="${esc(s.action.modal)}">${esc(s.action.label)}</button>`;
+    }
+    return `<div class="ts ts--${esc(s.tone)}">${s.icon}<span>${esc(s.text)}</span>${action}</div>`;
+  }
+
+  /**
+   * Body for the "What this affects" modal: every section a hand-written script
+   * shadows, not merely the current page's.
+   *
+   * `hrefFor(pageId)` is supplied by the caller (shell.js owns the nav table) so
+   * this file never carries a second copy of the portal's URLs — a link here
+   * that disagreed with the sidebar would be its own small lie. A page with no
+   * resolvable href renders as plain text rather than a dead link.
+   *
+   * The scope is NEVER guessed. It is read from SHADOWED, which is the audited
+   * list; if a page is missing from that table this modal under-reports rather
+   * than inventing an entry.
+   */
+  function affectsHtml(pageId, run, hrefFor, labelFor) {
+    const rows = Object.keys(SHADOWED).map((id) => {
+      const label = (labelFor && labelFor(id)) || id;
+      const href = hrefFor && hrefFor(id);
+      const link = href ? `<a class="lc-block__link" href="${esc(href)}">Open</a>` : '';
+      return `<li class="lc-block">
+        <div class="lc-block__body">
+          <div class="lc-block__label">${esc(label)}</div>
+          <div class="lc-block__sub">${esc(SHADOWED[id].what)}</div>
+        </div>${link}
+      </li>`;
+    }).join('');
+
+    // The page-specific notice leads when there is one: an owner who opened
+    // this from Pricing wants their prices addressed first, then the rest.
+    const lead = noticeHtml(pageId, run);
+    return `${lead}<ul class="lc-blocks">${rows}</ul>`;
+  }
+
+  return {
+    CHECK_NAME, SHADOWED, SURVIVES, TITLE, SAFE,
+    isShadowed, pageNotice, noticeHtml, savedMessage,
+    stripFor, stripHtml, affectsHtml,
+  };
 });

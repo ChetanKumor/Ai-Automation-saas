@@ -258,9 +258,7 @@
       renderList(data.revisions);
       $('truncatedNote').hidden = !data.truncated;
     } catch (_) {
-      const msg = $('loadMsg');
-      msg.textContent = 'We couldn’t load your history. Refresh the page to try again.';
-      msg.className = 'state-msg state-msg--error';
+      window.Portal.pageError('loadCard', 'your history');
     }
   }
 

@@ -22,6 +22,10 @@
     op:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>',
     arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
     spark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>',
+    // The `Handled by Prantivo` group's badge. A lock is the honest glyph for a
+    // check the owner can see and cannot action (spec §2.9 badge list).
+    lock:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>',
+    plug:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6"/><path d="M6 8h12v3a6 6 0 0 1-12 0Z"/><path d="M12 17v5"/></svg>',
   };
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
@@ -89,22 +93,68 @@
     return { passed, total };
   }
 
+  // ── The readiness ring (spec §3.2) ─────────────────────────────────────────
+  // 132px, 10px stroke, --line-2 track, --teal-700 progress, round cap; green
+  // with a check at 100%. The product's ONE bold element and its only
+  // orchestrated moment, spent here because Home is the screen an owner opens
+  // every day.
+  //
+  // Accessibility is the reason this is two nodes and not one. `.ring` is
+  // role="img" with the whole sentence as its label — which makes its subtree
+  // presentational, so the numeral inside it can never itself be a live region.
+  // The spec asks for both a labelled image AND a score that announces after a
+  // save, so the live region is a visually-hidden sibling carrying the same
+  // sentence. Screen readers therefore read the ring once on arrival and once
+  // per change, never twice for the same event.
+  const RING_R = 61;
+  const RING_C = 2 * Math.PI * RING_R;
+
   function ringSvg(passed, total) {
-    const R = 68, C = 2 * Math.PI * R;
     const frac = total > 0 ? passed / total : 0;
-    const offset = C * (1 - frac);
+    const offset = RING_C * (1 - frac);
     const complete = total > 0 && passed === total;
-    return `<div class="ring${complete ? ' ring--complete' : ''}">
-      <svg viewBox="0 0 160 160" aria-hidden="true">
-        <circle class="ring__track" cx="80" cy="80" r="${R}"></circle>
-        <circle class="ring__fill" cx="80" cy="80" r="${R}"
-          stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}"></circle>
+    const label = `${passed} of ${total} checks complete`;
+    return `<div class="ring${complete ? ' ring--complete' : ''}" role="img" aria-label="${esc(label)}">
+      <svg viewBox="0 0 132 132">
+        <circle class="ring__track" cx="66" cy="66" r="${RING_R}"></circle>
+        <circle class="ring__fill" cx="66" cy="66" r="${RING_R}"
+          stroke-dasharray="${RING_C.toFixed(1)}"
+          stroke-dashoffset="${offset.toFixed(1)}" data-offset="${offset.toFixed(1)}"></circle>
       </svg>
-      <div class="ring__center">
-        <div class="ring__num">${passed}</div>
-        <div class="ring__den">of ${total} ready</div>
+      <div class="ring__center" aria-hidden="true">
+        ${complete
+          ? `<div class="ring__done">${IC.check}</div>`
+          : `<div class="ring__num">${passed}</div><div class="ring__den">of ${total}</div>`}
       </div>
-    </div>`;
+    </div>
+    <p class="vh" role="status">${esc(label)}</p>`;
+  }
+
+  // Draws 0 → value over --dur-4, ONCE per session. A ring that re-animates on
+  // every visit stops being a moment and becomes a delay; sessionStorage is
+  // what makes it the former. Under reduced motion it is never started at all,
+  // so the markup's final offset simply stands — the ring is correct before
+  // this function runs, and this only ever adds the transition.
+  const RING_DRAWN = 'portal.ring.drawn';
+  function animateRing(root) {
+    const fill = (root || document).querySelector('.ring__fill');
+    if (!fill) return;
+    let seen = false;
+    try { seen = sessionStorage.getItem(RING_DRAWN) === '1'; } catch (_) { seen = true; }
+    const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (seen || reduced) return;
+    try { sessionStorage.setItem(RING_DRAWN, '1'); } catch (_) { /* private mode — draw anyway */ }
+
+    const target = fill.getAttribute('data-offset');
+    fill.style.transition = 'none';
+    fill.setAttribute('stroke-dashoffset', RING_C.toFixed(1)); // empty
+    // Two frames: one for the empty state to be painted, one for the transition
+    // to have something to interpolate from. A single rAF collapses both writes
+    // into one style recalculation and the ring appears already full.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      fill.style.transition = `stroke-dashoffset var(--dur-4) var(--ease-out)`;
+      fill.setAttribute('stroke-dashoffset', target);
+    }));
   }
 
   // `opts.cardEl`/`opts.checksEl` let a caller render into different elements
@@ -146,6 +196,7 @@
 
     const checksEl = (opts && opts.checksEl) || document.getElementById('checks');
     checksEl.innerHTML = renderChecks(run, opts);
+    animateRing(card);
   }
 
   // Row state → { cls, icon, badge, badgeCls }
@@ -160,7 +211,7 @@
       return { icon: IC.op, iconCls: 'op', badge: 'Not in use', badgeCls: 'muted', skipped: true };
     }
     if (m.actor === 'operator') {
-      return { icon: IC.op, iconCls: 'op', badge: 'Operator-run', badgeCls: 'muted' };
+      return { icon: IC.op, iconCls: 'op', badge: 'Operator-run', badgeCls: 'muted', lock: true };
     }
     // An ADVISORY warn is not "ready" (F-F001). `warn` isn't `fail`, so this row
     // used to take the green tick below — putting a reassuring ✓ in the loudest
@@ -226,7 +277,7 @@
       : '';
 
     const badge = advisory ? '' :
-      `<span class="badge badge--${st.badgeCls}">${st.badge}</span>`;
+      `<span class="badge badge--${st.badgeCls}">${st.lock ? IC.lock : ''}${st.badge}</span>`;
 
     return `<div class="check${advisory ? ' check--advisory' : ''}">
       <span class="check__icon check__icon--${st.iconCls}">${st.icon}</span>
@@ -241,11 +292,36 @@
   // Returns the checks HTML (previously wrote directly to #checks — now
   // returned so a caller can target a different container, e.g. the wizard's
   // Review step). `opts` is threaded straight through to checkRow.
+  // Grouped by WHO ACTS (spec §3.2). The copy map from portal-v1 §5.1 is
+  // binding and unchanged — this is grouping only, no rewording.
+  //
+  // The second group is the honest presentation of an operator-run check: it
+  // carries the lock badge and no fix link, which stops an owner hunting for a
+  // control that does not exist. That was already true of the rows; what was
+  // missing was a header saying so, leaving six checks in one undifferentiated
+  // list of which four were not the owner's to do.
+  //
+  // `tenant.legacy_prompt` is removed from the rendered list entirely (spec
+  // §3.2). It is not a task an owner can complete, and a checklist row implies
+  // otherwise; it surfaces as the truth strip and only as the strip. Filtered by
+  // NAME rather than by `!material` on purpose — a future advisory check should
+  // still render, and silently swallowing every non-material check would be the
+  // same class of bug as the unknown-check default exists to prevent.
+  const HIDDEN_CHECKS = ['tenant.legacy_prompt'];
+
   function renderChecks(run, opts) {
     const ran = new Map(run.checks.map((c) => [c.name, c]));
+    const shown = run.checks.filter((c) => !HIDDEN_CHECKS.includes(c.name));
 
-    // Material rows in catalog order (the order the run recorded them).
-    const material = run.checks.filter((c) => metaFor(c.name).material);
+    // Catalog order is preserved within each group (the order the run recorded).
+    const needed = shown.filter((c) => {
+      const m = metaFor(c.name);
+      return m.material && m.actor !== 'operator';
+    });
+    const operator = shown.filter((c) => {
+      const m = metaFor(c.name);
+      return m.material && m.actor === 'operator';
+    });
 
     // Operator checks that were SKIPPED still appear (owner should know they exist
     // and that Prantivo owns them — §5.1). Skipped owner/system checks are omitted:
@@ -254,34 +330,53 @@
       .filter((s) => metaFor(s.name).actor === 'operator' && !ran.has(s.name))
       .map((s) => ({ name: s.name, severity: 'skipped' }));
 
-    const advisory = run.checks.filter((c) => !metaFor(c.name).material);
+    const advisory = shown.filter((c) => !metaFor(c.name).material);
 
-    let html = '<div class="checks">';
-    html += '<p class="checks__group-label">Setup checks</p>';
-    html += material.concat(skippedOps).map((c) => checkRow(c, opts)).join('');
-    if (advisory.length) {
-      html += '<p class="checks__group-label checks__advisory-label">Advisory</p>';
-      html += advisory.map((c) => checkRow(c, opts)).join('');
-    }
-    html += '</div>';
-    return html;
+    const group = (label, rows, extraCls) => (rows.length
+      ? `<p class="checks__group-label${extraCls || ''}">${label}</p>`
+        + rows.map((c) => checkRow(c, opts)).join('')
+      : '');
+
+    return '<div class="checks">'
+      + group('Needed to go live', needed)
+      + group('Handled by Prantivo', operator.concat(skippedOps), ' checks__group-label--later')
+      + group('Advisory', advisory, ' checks__advisory-label')
+      + '</div>';
   }
 
+  // Nothing has been checked yet. Names the action, not the absence — "no
+  // readiness check has run" describes the system's bookkeeping; what the owner
+  // needs to know is that pressing Go live is what runs it.
   function renderEmpty(opts) {
     const el = (opts && opts.cardEl) || document.getElementById('readinessCard');
     el.innerHTML =
-      `<div class="empty">
-        <div class="empty__mark">${IC.spark}</div>
-        <div class="empty__title">No readiness check has run yet</div>
-        <div class="empty__body">Fill in your clinic’s details, then press <strong>Go live</strong> —
-          that runs the readiness check and tells you what’s still missing.</div>
+      `<div class="emp">
+        <div class="emp__i">${IC.spark}</div>
+        <div class="emp__t">Let’s check your setup</div>
+        <p class="emp__d">Nothing has been checked yet. Fill in your clinic’s details, then press
+          Go live — that runs the check and tells you exactly what’s still missing.</p>
       </div>`;
   }
 
+  // The validation run itself failed (spec §3.2). The ring is NOT rendered and
+  // no score is shown: a false green here is worse than an error, and a ring
+  // drawn from a failed request would be a number we invented. Retry reloads
+  // rather than re-fetching in place — the whole page derives from this one
+  // payload, so a partial recovery would leave the banner and the checks list
+  // describing different runs.
   function renderError(opts) {
     const el = (opts && opts.cardEl) || document.getElementById('readinessCard');
     el.innerHTML =
-      `<div class="state-msg">We couldn’t load your readiness just now. Refresh the page to try again.</div>`;
+      `<div class="pg-err">
+        <div class="pg-err__i">${IC.alert}</div>
+        <div class="pg-err__t">Couldn’t check your setup</div>
+        <p class="pg-err__d">Your settings are safe. This is a problem on our side.</p>
+        <button class="btn btn--primary" type="button" data-retry>Try again</button>
+      </div>`;
+    const btn = el.querySelector('[data-retry]');
+    if (btn) btn.addEventListener('click', () => window.location.reload());
+    const checksEl = (opts && opts.checksEl) || document.getElementById('checks');
+    if (checksEl) checksEl.innerHTML = '';
   }
 
   // Onboarding entry point (PORTAL-P6-S16, spec §6 + Deliverable 6). Three
@@ -355,6 +450,11 @@
   function render(data) {
     window.Portal.renderLifecycle(data.status, window.Portal.deriveGoLive(data.run));
     renderBanner(data.status);
+    // The truth strip is shell chrome, but Home is the one page that fetches
+    // readiness itself — so it HANDS the payload over rather than letting the
+    // strip request its own. That is what keeps this page at exactly one
+    // readiness round trip, and it is why shell.js contains a single fetch.
+    document.dispatchEvent(new CustomEvent('portal:readiness', { detail: data }));
     if (!data.run) { renderEmpty(); return; }
     renderReadiness(data.run);
   }
@@ -370,7 +470,7 @@
   // Every function here is pure (data + DOM targets in, no hidden state) and
   // every option defaults to this page's own behavior, so nothing above changes.
   window.PortalHome = {
-    metaFor, computeScore, ringSvg, renderBanner, renderReadiness, renderChecks,
+    metaFor, computeScore, ringSvg, animateRing, renderBanner, renderReadiness, renderChecks,
     checkRow, renderEmpty, renderError, fmtDate,
   };
 })();

@@ -63,13 +63,24 @@
     return el;
   }
 
+  // Provenance chips, plus the one entry that is not a fact but a warning.
+  //
+  // With no saved settings this line used to read "No saved config yet" — a
+  // grey chip stating an absence the owner could already infer, wedged between
+  // two chips about FAQs and latency. What it never said is the thing that
+  // matters: the reply above it came from the defaults, so the owner is reading
+  // a sample and judging their receptionist by it. That gets its own line, in
+  // front of the chips, with somewhere to go.
   function provenanceLine(p) {
     const parts = [];
-    parts.push(p.config_version != null ? `Config v${p.config_version}` : 'No saved config yet');
+    if (p.config_version != null) parts.push(`Config v${p.config_version}`);
     parts.push(p.knowledge_used ? 'used your FAQs' : 'no FAQ match used');
     (p.tool_calls || []).forEach((name) => parts.push(TOOL_LABEL[name] || name));
     parts.push(`${(p.latency_ms / 1000).toFixed(1)}s`);
-    return parts.map((t) => `<span>${esc(t)}</span>`).join('');
+    const chips = parts.map((t) => `<span>${esc(t)}</span>`).join('');
+    if (p.config_version != null) return chips;
+    return '<span class="msg__prov-warn">Save your clinic details first — the test uses your real '
+      + 'settings, not a sample. <a href="clinic-profile.html">Clinic profile</a></span>' + chips;
   }
 
   function resolveReceptionistBubble(pendingEl, text, provenance) {

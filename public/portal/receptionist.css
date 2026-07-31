@@ -15,8 +15,6 @@
  * reserved --te/--hi specifically for this page — see its Phase 5 comment).
  * ========================================================================== */
 
-.state-msg { color: var(--muted); font-size: 14px; padding: 8px 2px; }
-.state-msg--error { color: var(--red); }
 
 /* ── Segmented control (Tone, Response length) ── */
 .segmented {

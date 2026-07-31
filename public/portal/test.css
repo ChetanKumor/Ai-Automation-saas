@@ -103,6 +103,16 @@
   flex-wrap: wrap;
 }
 .msg__prov span + span::before { content: '·'; margin-right: 6px; color: var(--line); }
+/* Not a chip: the reply above was generated from defaults, which is the one
+ * thing on this line an owner has to act on. Takes the whole row and drops the
+ * separator the sibling chips share. */
+.msg__prov-warn {
+  flex-basis: 100%;
+  color: var(--amber);
+  font: var(--t-help);
+}
+.msg__prov-warn + span::before { content: none !important; margin-right: 0 !important; }
+.msg__prov-warn a { color: inherit; font-weight: 600; }
 
 /* System-style notices inside the log (rate limit / quota) */
 .msg--system { align-self: center; max-width: 90%; }

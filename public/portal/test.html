@@ -79,6 +79,10 @@
 
   <div class="toast-host" id="toastHost"></div>
 
+  <!-- Before shell.js: the shell reads window.ShadowNotice on boot to mount the
+       truth strip. Every nav page loads it now, not just the seven whose own
+       settings a hand-written script shadows — the strip is portal-wide. -->
+  <script src="./shadow-notice.js"></script>
   <script src="./shell.js"></script>
   <script src="./cmdk.js"></script>
   <script src="./test.js"></script>

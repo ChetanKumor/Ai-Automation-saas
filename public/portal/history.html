@@ -46,15 +46,31 @@
           <p class="page-head__sub">Changes to your clinic settings, and who made them. Doctor edits aren’t tracked here yet.</p>
         </div>
 
-        <!-- Loading / error placeholder -->
+        <!-- Loading: 5 rows at the real 48px row height, so the list does not
+             jump when it arrives. Held invisible for 300ms by .sk-wrap. -->
         <section class="card" id="loadCard">
-          <div class="state-msg" id="loadMsg">Loading your history…</div>
+          <div class="sk-wrap">
+            <div class="sk-rows">
+              <div class="sk sk-row"></div>
+              <div class="sk sk-row"></div>
+              <div class="sk sk-row"></div>
+              <div class="sk sk-row"></div>
+              <div class="sk sk-row"></div>
+            </div>
+          </div>
         </section>
 
-        <!-- Empty state: fresh tenant, no edits yet -->
-        <section class="card" id="emptyCard" hidden>
-          <div class="card__title">Nothing changed yet</div>
-          <p class="card__sub" style="margin-top:8px">When you save changes on any page — Clinic profile, Hours, Pricing and the rest — they’ll show up here with the date and who made them.</p>
+        <!-- Empty: a fresh clinic has genuinely changed nothing, so there is no
+             work to invite here — the action is to go and set something up. The
+             consequence line is what this page is FOR: every save is recoverable,
+             which an owner has no way of knowing until they need it. -->
+        <section class="card emp" id="emptyCard" hidden>
+          <div class="emp__i" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 8v4l3 2"/></svg>
+          </div>
+          <div class="emp__t">Your changes will be saved here</div>
+          <p class="emp__d">Every edit you make is recorded with the date and who made it, and any earlier version can be restored. Set up your clinic details and the first entry appears here.</p>
+          <a class="btn btn--primary" href="clinic-profile.html">Go to Clinic profile</a>
         </section>
 
         <!-- History list -->
@@ -112,6 +128,10 @@
 
   <div class="toast-host" id="toastHost"></div>
 
+  <!-- Before shell.js: the shell reads window.ShadowNotice on boot to mount the
+       truth strip. Every nav page loads it now, not just the seven whose own
+       settings a hand-written script shadows — the strip is portal-wide. -->
+  <script src="./shadow-notice.js"></script>
   <script src="./shell.js"></script>
   <script src="./cmdk.js"></script>
   <script src="./history.js"></script>

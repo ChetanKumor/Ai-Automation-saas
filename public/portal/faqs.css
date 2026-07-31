@@ -12,25 +12,12 @@
  * ~380px.
  * ========================================================================== */
 
-/* Loading / error placeholder (home.css isn't linked here, so define locally) */
-.state-msg { color: var(--muted); font-size: 14px; padding: 8px 2px; }
-.state-msg--error { color: var(--red); }
-
-/* ── Empty state: an instruction with concrete examples, not a blank panel ── */
-.empty { text-align: center; padding: var(--s-6) var(--s-4); }
-.empty__icon {
-  width: 46px; height: 46px;
-  margin: 0 auto var(--s-3);
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--teal-050);
-  color: var(--teal);
-}
-.empty__icon svg { width: 24px; height: 24px; }
-.empty__title { font-size: 15px; font-weight: 700; letter-spacing: -.01em; color: var(--ink); }
-.empty__sub { color: var(--muted); font-size: 13px; margin: 6px auto 0; max-width: 44ch; line-height: 1.55; }
-.empty__examples {
+/* ── Empty state ──
+ * The shared `.emp` vocabulary in tokens.css, plus the example chips below,
+ * which are this page's own — nowhere else in the portal offers samples. The
+ * description runs straight into them, so it drops the shared bottom margin. */
+.emp .emp__d { margin-bottom: 0; }
+.emp__examples {
   list-style: none;
   margin: var(--s-3) auto var(--s-4);
   padding: 0;
@@ -39,7 +26,7 @@
   flex-direction: column;
   gap: 6px;
 }
-.empty__examples li {
+.emp__examples li {
   font-size: 13px;
   color: var(--ink-2);
   background: var(--bg);

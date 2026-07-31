@@ -359,6 +359,65 @@ a { color: var(--teal); }
 }
 .top__spacer { flex: 1; }
 
+/* ============================================================================
+ * Truth strip (spec §2.9) — the one band that says what the system is doing
+ *
+ * Renders ONLY when the system's state and the owner's reasonable expectation
+ * diverge; when they agree it does not exist. An always-present banner is
+ * wallpaper within a week, so the empty case is NO ELEMENT — not a collapsed
+ * one, not a zero-height one.
+ *
+ * Full width, between .top and .content: it describes the whole product, not
+ * the page, so it must not sit inside .content's max-width column where it
+ * would read as page content. In normal flow rather than sticky — the top bar
+ * already carries the lifecycle badge, and pinning 40px more of a 820px phone
+ * viewport permanently costs the owner more than the reminder is worth.
+ * ========================================================================== */
+.ts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 20px;
+  flex: none;
+  font: var(--t-body-sm);
+  border-bottom: 1px solid;
+}
+.ts svg { width: 16px; height: 16px; flex: none; }
+/* The action is a link BUTTON: underlined and inheriting the strip's colour, so
+ * it reads as the strip's own affordance rather than a second accent in a band
+ * that is already carrying a semantic colour. */
+.ts__a {
+  margin-left: auto;
+  flex: none;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  padding: 0 0 1px;
+  cursor: pointer;
+}
+.ts__a:hover { opacity: .78; }
+.ts--warn { background: var(--amber-050); border-color: var(--amber-200); color: var(--amber-700); }
+.ts--info { background: var(--line-2);    border-color: var(--line);      color: var(--ink-2); }
+.ts--info svg { color: var(--muted); }
+
+/* Below 560px the strip wraps to its own height and the action drops onto a
+ * second line. A 40px band would truncate every one of these sentences. */
+@media (max-width: 560px) {
+  .ts {
+    align-items: flex-start;
+    padding: 9px 16px;
+    line-height: 1.45;
+    flex-wrap: wrap;
+  }
+  .ts svg { margin-top: 2px; }
+  .ts__a { margin-left: 26px; margin-top: 4px; flex-basis: 100%; }
+}
+
 /* Breadcrumb slot — renders only when a view is genuinely nested. Nothing is
  * today (History's snapshot is a modal, not a route), so it ships hidden. */
 .crumb {
@@ -505,9 +564,6 @@ a { color: var(--teal); }
   70%  { box-shadow: 0 0 0 5px rgba(22, 163, 74, 0); }
   100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
 }
-@media (prefers-reduced-motion: reduce) {
-  .badge--ok .badge__dot { animation: none; }
-}
 
 /* ============================================================================
  * Button
@@ -595,9 +651,6 @@ a.lc--draft:hover { border-color: var(--line-3); color: var(--ink-2); }
   0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, .45); }
   70%  { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
   100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .dot--live { animation: none; }
 }
 
 /* Blocked-go-live dialog: the checks still standing between the owner and live,
@@ -770,6 +823,104 @@ textarea.input { resize: vertical; min-height: 74px; }
   font-weight: 600;
   color: var(--amber);
 }
+/* Inside the strip's "What this affects" modal the notice is the body, not a
+ * page banner — it owns the full width and needs no bottom gap of its own. */
+.modal__body > .shadow-notice { margin: 0 0 var(--s-4); }
+
+/* ============================================================================
+ * Empty · loading · error (spec §2.9)
+ *
+ * The three states most responsible for whether a product feels finished, and
+ * the three a portal built page-by-page is most likely to leave as bare text.
+ * One vocabulary here; every page composes it.
+ * ========================================================================== */
+
+/* ── Empty ──────────────────────────────────────────────────────────────────
+ * Copy INVITES the action and names the CONSEQUENCE of not acting. It never
+ * describes the void: "No treatments yet" tells an owner something they can
+ * already see. What they don't know is that their receptionist cannot quote a
+ * price it was never given. */
+.emp { text-align: center; padding: var(--s-8) var(--s-5); }
+.emp__i {
+  width: 48px; height: 48px;
+  margin: 0 auto var(--s-4);
+  border-radius: var(--r-full);
+  background: var(--bg);
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+.emp__i svg { width: 24px; height: 24px; }
+.emp__t { font: var(--t-h3); letter-spacing: var(--ls-h3); color: var(--ink); }
+.emp__d {
+  font: var(--t-help);
+  color: var(--muted);
+  margin: 6px auto var(--s-4);
+  max-width: 38ch;
+}
+/* An empty state nested inside a populated card (holiday rows, treatment rows)
+ * — same vocabulary, a third of the vertical spend, no icon well. */
+.emp--inline { padding: var(--s-5) var(--s-4); }
+.emp--inline .emp__i { width: 36px; height: 36px; margin-bottom: var(--s-3); }
+.emp--inline .emp__i svg { width: 18px; height: 18px; }
+
+/* ── Error, page level (ladder layer 3) ─────────────────────────────────────
+ * Layer 1 (field), layer 2 (card banner) and layer 4 (401 → sign-in) are
+ * unchanged and live elsewhere. This is the block that replaces content when
+ * the page could not load at all: what failed, one muted line, one retry. */
+.pg-err { text-align: center; padding: var(--s-7) var(--s-5); }
+.pg-err__i {
+  width: 48px; height: 48px;
+  margin: 0 auto var(--s-4);
+  border-radius: var(--r-full);
+  background: var(--amber-050);
+  display: grid;
+  place-items: center;
+  color: var(--amber);
+}
+.pg-err__i svg { width: 24px; height: 24px; }
+.pg-err__t { font: var(--t-h3); letter-spacing: var(--ls-h3); color: var(--ink); }
+.pg-err__d { font: var(--t-help); color: var(--muted); margin: 6px auto var(--s-4); max-width: 38ch; }
+
+/* ── Loading ────────────────────────────────────────────────────────────────
+ * Skeletons in the SHAPE of the answer, at the real heights, never a spinner
+ * on a page whose layout is already known.
+ *
+ * The 300ms rule is enforced in CSS, not JS: the wrapper is transparent until
+ * 300ms have passed, so a fast response swaps the real content in before the
+ * skeleton was ever visible. `both` fill keeps opacity 0 through the delay —
+ * without it the skeleton flashes at full opacity on frame 1. */
+.sk {
+  background: var(--line-2);
+  border-radius: var(--r-xs);
+  position: relative;
+  overflow: hidden;
+}
+.sk::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .75), transparent);
+  animation: skshimmer 1.4s infinite;
+}
+@keyframes skshimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.sk-wrap { animation: skreveal 1ms linear 300ms both; }
+@keyframes skreveal { from { opacity: 0; } to { opacity: 1; } }
+
+/* Real heights, per spec: 16px line · 40px input · 48px row. Never animate a
+ * skeleton's height — the layout must not move while it waits. */
+.sk-line  { height: 16px; }
+.sk-input { height: 40px; }
+.sk-row   { height: 48px; }
+.sk-stack { display: grid; gap: var(--s-3); }
+.sk-stack + .sk-stack { margin-top: var(--s-5); }
+/* A label/control pair: the shape every config page's card actually resolves to. */
+.sk-field { display: grid; gap: var(--s-2); }
+.sk-field .sk-line { width: 128px; }
+.sk-rows { display: grid; gap: var(--s-2); }
 
 /* ============================================================================
  * Toast (bottom-right, auto-dismiss) — shared with future save flows
@@ -1000,6 +1151,21 @@ textarea.input { resize: vertical; min-height: 74px; }
 .muted { color: var(--muted); }
 .center { text-align: center; }
 
+/* Visually hidden, still announced. Used for the readiness score's live region:
+ * the ring itself is role="img", which makes its subtree presentational, so the
+ * numeral inside it can never be a live region. The sentence lives here instead
+ * and the ring keeps its label. */
+.vh {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ============================================================================
  * Mobile — sidebar becomes an off-canvas drawer (spec: true ~380px)
  * ========================================================================== */
@@ -1072,3 +1238,34 @@ body.is-embedded { background: var(--card); } /* flush with the wizard card that
 .app.is-embedded .content { max-width: none; padding: 2px 2px 4px; }
 .app.is-embedded .page-head__title { display: none; } /* the wizard step shows its own title */
 .app.is-embedded .page-head { margin-bottom: var(--s-4); }
+
+/* ============================================================================
+ * Reduced motion (spec §2.7) — GLOBAL, and last so it wins
+ *
+ * This replaces two narrow blocks that switched off exactly two pulsing dots
+ * (`.badge--ok .badge__dot` and `.dot--live`) and nothing else — every
+ * transition, the drawer slide, the modal rise and the readiness ring's draw
+ * all still ran. Modelled on web/app/globals.css:146-163.
+ *
+ * The last rule is the one that is easy to forget: any element whose RESTING
+ * state is a transform or an opacity an animation was meant to remove must be
+ * reset here, or honouring the preference leaves it permanently invisible.
+ * The ring is handled in JS (home.js paints it at its final value rather than
+ * drawing to it) because its resting state is an attribute, not a style.
+ * ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: .01ms !important;
+    transition-delay: 0ms !important;
+  }
+
+  /* Nothing may be left mid-animation and therefore invisible. */
+  .sk-wrap { opacity: 1; }
+  .sk::after { display: none; }
+  .app.is-open .side { transform: none; }
+}
