@@ -400,6 +400,8 @@ Three items, named so they are not silently absorbed:
    - one `@font-face` per family
    - `font-weight: 400 700`
    - generated through `scripts/demo/fetch_fonts.js`
+6. **F-V003 — `readinessOnce()` swallows 401 to null.** Non-Home pages leave the header blank on a dead session instead of redirecting. `shell.js:592-600`. Error ladder layer 4. Found in D3 Phase 0, not fixed there — behaviour change, D3 is presentation-only.
+7. **TEST-FLAKE-03 — `voiceCancellation.integration.test.js:270` fails on any day when today+2 is a Sunday.** `istDateString(2)` picks the booking date; the fixture seeds Dr. Rao for all seven days but seeds **no `tenant_configs` row**, so clinic hours fall back to `clinicDefaults`, which closes Sunday. `book_appointment` refuses with `closed_day`, no row is written, and `assert.equal(appts.length, 1, 'the committed booking stands')` fails. Reproduced at `95d0f5f` with a clean tree, so it is not D3's. It passed in D3's own Phase 0 baseline the previous day (today+2 was a Saturday) and has failed every run since — which is exactly the signature. Fix is one of: seed the fixture's hours explicitly, or advance the date to the next open day. Not a D3 task; D3's only permitted test edit was the `shell.js` label assertion.
 
 ---
 

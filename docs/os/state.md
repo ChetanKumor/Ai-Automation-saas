@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 3275eda0445469eba3fc09925cd5509100dd1e3f
+Verified-at: be4c1e07
 Verified-on: 2026-07-29
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -66,7 +66,14 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Test suite: **869 tests / 151 suites / 0 fail** (`npm test`, raw: `# tests 869 / # pass 869 / # fail 0`)
+- Test suite: **869 tests / 151 suites / 1 fail** (`npm test`, raw: `# tests 869 / # pass 868 / # fail 1`)
+  ⚠️ The single failure is **TEST-FLAKE-03**, a calendar-dependent flake in
+  `tests/voice/voiceCancellation.integration.test.js:270` that is **not caused by any
+  committed change**: it fails on every day when today+2 lands on a Sunday. Reproduced
+  at `95d0f5f` with a clean tree. Filed at `docs/specs/portal-v2-batch1.md` §6.7 with the
+  mechanism and two candidate fixes. The recorded count moved from 0 fail to 1 fail
+  without a source change, which is the honest reading — the previous 0 was a run on a
+  day the flake could not fire.
 - Audit findings closed: **F-001** (`2d5da98`), **F-003** (`d22dfc5`), **F-003b** (`7a505a6`),
   **F-004** (`e071f69`), **F-005** (`e15bbae`), **F-006** (`58aa1d5`), **F-007** (`d914649`),
   **F-010** (`ba45acc`). Open: F-002, F-008, F-009, F-011 – F-017.
@@ -77,7 +84,27 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   §10 explicitly authorises ("or defer to v1.1 and ship FAQ-only").
 - Demo: DEMO-00 (real Sarvam Telugu booking fixture), DEMO-01 (two-pane patient thread
   proof surface), DEMO-02 (inbox + clinic snapshot).
-- **Portal v2 Batch 1: D2 of D5 landed** (`ae5e607`). Grouped navigation, top bar,
+- **Portal v2 Batch 1: D3 of D5 landed** (`be4c1e0`, harness `503cd51`). The truth strip,
+  readiness check grouping, the restyled ring, and the empty/loading/error sweep.
+  Presentation only — no route, no fetch, no dependency, no behaviour change; suite
+  **869/151 unmoved**, and the one permitted test edit was a string swap inside an
+  existing `it()` (`portalShadowNotice.unit.test.js:235`), so the count did not move.
+  Every changed path is under `public/portal/` bar that one test file.
+  **This closes F-F001's portal half.** The strip was built by EXTENDING
+  `shadow-notice.js`, not by adding a second component — a parallel global strip
+  alongside the working per-page notice would have put two amber blocks on every
+  shadowed page reporting one condition; a `probe()` pass in the harness asserts there
+  is exactly one. The per-page notice did not go away: it is what the strip says when
+  standing on a shadowed page, and its full text is the lead of the strip's
+  *What this affects* modal.
+  ⚠️ **The spec's fourth strip condition, *partially connected*, was NOT built.**
+  `/portal/api/readiness` carries no channel-connection state, and deriving it from the
+  whatsapp/voice checks is unsound twice over: a SKIPPED `voice.config` means voice is
+  switched off for that clinic rather than unconfigured, and since `voice.config` is
+  material a tenant with it failing can never be `live`, so the higher-priority
+  not-live condition would always win. It would have been unreachable code.
+  `validationService.js` was not opened; `material: false` is unchanged.
+- **Portal v2 Batch 1: D2** (`ae5e607`). Grouped navigation, top bar,
   lifecycle control, command palette. Presentation only — no route, no fetch, no
   dependency, no behaviour change; suite **869/151/0, unmoved**. Every changed path is
   under `public/portal/` (16 files; new `cmdk.js`). The flat 12-item sidebar became four
@@ -212,7 +239,7 @@ about it.
 
 | Finding | S | What closed it | Commit |
 |---|---|---|---|
-| F-F001 | S-B | Portal warns an owner when a legacy `tenants.ai_prompt` shadows their saved settings; names which fields are inert | `6ceb8f0` |
+| F-F001 | S-B | Portal warns an owner when a legacy `tenants.ai_prompt` shadows their saved settings; names which fields are inert. **Portal half fully closed at `be4c1e0`** — the warning became the portal-wide truth strip, and Home no longer renders `Using the latest instruction format` on the clinics the check is warning about. The renderer is unchanged. | `6ceb8f0`, `be4c1e0` |
 | F-F002 | S-A | `web/lib/siteConfig.ts` resolves from environment; production build refuses placeholders (**unblocked portion only** — see Open) | `9b5486a` |
 | F-F004 | S-A | `web/` recorded as a first-class surface under *Stack (frozen)*; gate 2 names the gap in Issue 20's scope (**partial** — see Open) | `9b5486a` |
 | F-F005 | S-A | Hero plays a Telugu conversation; `Noto_Sans_Telugu` with `subsets: ["telugu"]`; first two lines verbatim from `public/demo/fixture.json` | `634b7aa` |
