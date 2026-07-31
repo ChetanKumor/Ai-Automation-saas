@@ -284,7 +284,7 @@ const loginCookie = (port, email, password) =>
 
     // S16-c: fully-configured tenant, Review step — the readiness ring + check
     // rows reused from window.PortalHome, plus the Go-live control.
-    const reviewReady = "document.getElementById('wizReview') && !document.getElementById('wizReview').hidden && document.querySelector('#wizReadinessCard .ring, #wizReadinessCard .empty')";
+    const reviewReady = "document.getElementById('wizReview') && !document.getElementById('wizReview').hidden && document.querySelector('#wizReadinessCard .ring, #wizReadinessCard .emp')";
     await shoot(cdp, { url: `${base}/wizard.html`, out: path.join(OUT, 'wizard-s16-review-desktop.png'),
       width: 1280, height: 1200, cookie: readyCookie, port, waitFor: reviewReady });
     await shoot(cdp, { url: `${base}/wizard.html`, out: path.join(OUT, 'wizard-s16-review-mobile.png'),

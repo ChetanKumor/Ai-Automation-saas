@@ -514,10 +514,10 @@ const adminLoginCookie = (port, password) =>
       width: 380, height: 820, mobile: true, port, waitFor: "document.getElementById('form')" });
     await shoot(cdp, { url: `${base}/index.html`, out: path.join(OUT, 'home-desktop.png'),
       width: 1280, height: 900, cookie, port,
-      waitFor: "document.querySelector('.ring')||document.querySelector('.empty')" });
+      waitFor: "document.querySelector('.ring')||document.querySelector('.emp')" });
     await shoot(cdp, { url: `${base}/index.html`, out: path.join(OUT, 'home-mobile.png'),
       width: 380, height: 820, mobile: true, cookie, port,
-      waitFor: "document.querySelector('.ring')||document.querySelector('.empty')" });
+      waitFor: "document.querySelector('.ring')||document.querySelector('.emp')" });
 
     // S4: clinic profile — the first config-write page. Desktop + 380px show the
     // loaded form (the seeded tenant carries real identity values); the third shot
@@ -857,7 +857,7 @@ const adminLoginCookie = (port, password) =>
     // /portal/api/lifecycle/*, which runs the real validate → activate chain.
     // Order is load-bearing — Ready Dental moves draft → live → paused across
     // these shots, so each one captures the state the previous shot left.
-    const homeReady = "document.querySelector('#checks .check, #readinessCard .empty')";
+    const homeReady = "document.querySelector('#checks .check, #readinessCard .emp')";
     const goLiveBtn = "document.querySelector('[data-lifecycle=\"activate\"]')";
     const modalUp = "document.querySelector('.modal-host .modal')";
 
