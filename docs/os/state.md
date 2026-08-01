@@ -85,7 +85,38 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   §10 explicitly authorises ("or defer to v1.1 and ship FAQ-only").
 - Demo: DEMO-00 (real Sarvam Telugu booking fixture), DEMO-01 (two-pane patient thread
   proof surface), DEMO-02 (inbox + clinic snapshot).
-- **Portal v2 Batch 1 is COMPLETE. D5b landed** (harness `shootD5b.js`). Table
+- **Portal v2 Batch 1 is COMPLETE.** Six sessions, one issue each, `869 / 151 / fail 0`
+  throughout — the count never moved, which was the plan's own signal that no session
+  touched behaviour (`docs/specs/portal-v2-batch1.md` §5).
+
+  | Session | Commit | What landed |
+  |---|---|---|
+  | D1 | `8559f19` | Tokens, self-hosted Noto Sans, token-drift guard |
+  | D2 | `ae5e607` | Grouped navigation, top bar, lifecycle control, `⌘K` |
+  | D3 | `be4c1e0` | Truth strip, readiness grouping, empty/loading/error sweep |
+  | D4 | `08f2fa4` | Verbatim preview panel |
+  | D5a | `bde2aee` | Component sweep, transitional teal tokens retired |
+  | D5b | `bfdce87` | Table styles, tabular figures, mobile pass |
+
+  **Outstanding — NOT closed by Batch 1.** Both are acceptance obligations, not
+  new work, and neither is dischargeable from a keyboard in this repository:
+
+  - **The portal-v1 §11 acceptance run is UNATTEMPTED.** `docs/specs/portal-v2-batch1.md`
+    §5 defines batch acceptance as re-running that criterion end to end on a fresh
+    tenant — operator creates an owner account, the owner completes the wizard **on a
+    phone, unaided, in under 45 minutes**, readiness reaches green, Go live, then a
+    treatment price is edited and the Test page quotes the new price on the next
+    message — and the redesign is successful only if that run is *faster* than before.
+    **Batch 1 is COMPLETE but not ACCEPTED until it passes.** If it comes back slower,
+    §5 reopens D5 and names the sticky save bar and the table→card conversions as the
+    suspects.
+  - **Telugu on a real Android device.** D4's DoD asks for it in terms ("verified on a
+    real Android device, not an emulator"); D4 had no device and verified headless
+    Chrome on Windows only, at 19/34 and 34/58. Conjuncts, matras and inline Latin
+    digits were correct with no tofu, and the rupee sign was asserted objectively via
+    `CSS.getPlatformFontsForNode` — but the device check itself is outstanding.
+
+- **Portal v2 Batch 1: D5b landed** (harness `shootD5b.js`). Table
   rules, tabular figures, table→card below 640px, the sticky mobile save bar and
   the 320px sweep. Suite **869/151/0, unmoved**. Every changed path is under
   `public/portal/` bar the evidence harness. No route, no fetch, no dependency,
@@ -286,12 +317,31 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   cap. It is one session over.** Nobody authorised the eleventh; the split was a scoping
   decision taken inside D5 and its budget consequence was not carried back here at the
   time. Recorded rather than netted off, because a hard cap that quietly absorbs an
-  overrun is not a cap. The overrun is one session on presentation work, not a schedule
-  risk to anything on the critical path — but the **founder owns whether it is ratified,
-  written off, or deducted from a future allocation**, and no session may treat it as
-  settled until that entry exists. The spec estimates 14–18 sessions for the full
-  document; **any Batch 2 needs a new decisions.md entry, not an extension** — D-005 says
-  so in terms, and that requirement is now doubly binding.
+  overrun is not a cap.
+
+  **SETTLED — the founder has written the overrun off.** The previous version of this
+  line said the disposition was the founder's to make and that no session could treat it
+  as settled until the entry existed. This is that entry, founder-supplied and recorded
+  verbatim:
+
+  > Batch 1 closed at 11 sessions against a cap of 10. Written off. The
+  > eleventh was the D5 split (components / mobile), taken because a single
+  > session touching every component, every register and the 320px sweep
+  > produces a diff nobody can review. Root cause of the overrun is not the
+  > split: four sessions were consumed by defects the plan could not have
+  > listed, because the plan was written from a source-read audit and every
+  > one of those defects was only findable by measuring a running portal —
+  > the --teal-600/700 collision, the absent global focus ring,
+  > tokens.css:474's 10px overflow, and eight sub-44px touch targets.
+  > Carry forward: Batch 2's estimate is drawn from measurement, not reading.
+
+  Written off means the eleventh session is not deducted from any future allocation and
+  is not carried as a debt. It does **not** mean the cap was raised: D-005's cap stands
+  at 10 and the program stands at 11 against it, on the record. The spec estimates 14–18
+  sessions for the full document; **any Batch 2 needs a new decisions.md entry, not an
+  extension** — D-005 says so in terms, and that requirement is now doubly binding.
+  ⚠️ **This write-off is recorded here and nowhere else.** No `decisions.md` entry was
+  appended for it — see the note under *Spend against the cap* below.
 - **F-V001** — **CLOSED** at D4 Phase 0 on resolution path 1. `Noto Sans` now
   carries U+20B9 through four weight-distinct `text=`-subsetted faces of ~830
   bytes each (3.2 KB total), generated by a new `rupee` entry in
@@ -437,9 +487,20 @@ repository — no session log exists — so the 17h is the estimate, not a measu
 **not** carried forward: D-005's terms cancel the unspent backlog if the prediction
 fails." Those five were not left unspent — they were spent on Portal v2 Batch 1, which
 took **six** sessions rather than five because D5 was split into D5a and D5b. The
-program therefore stands at **11 sessions against a 10-session hard cap**. See the
-budget note under *Portal v2's governing documents* above; the cap question is the
-founder's to settle and is not settled here.
+program therefore stands at **11 sessions against a 10-session hard cap**.
+
+**The cap question is SETTLED: written off by the founder.** The full text and what
+"written off" does and does not mean are under *Portal v2's governing documents* above,
+where the budget note lives. Summarised here so this ledger is not read alone: the
+eleventh session is neither a debt nor a raised cap, and the founder's stated root cause
+is that the plan was written from a source-read audit, so four sessions went to defects
+only a running portal could have surfaced. ⚠️ **No `decisions.md` entry exists for this.**
+D-005's own terms say "Overrun requires a new entry, not an extension of this one", and
+`decisions.md` is the register where a founder decision carrying a prediction and a
+review date belongs. The write-off is recorded in `state.md` only, on founder
+instruction. If the founder wants it in the append-only register it is a one-entry
+append — and it is **not** `D-006`, which is already claimed by the draft in
+`docs/os/decisions.md.draft`.
 
 **Note for the D-005 review (2026-10-01, or ten logged clinic conversations)**
 

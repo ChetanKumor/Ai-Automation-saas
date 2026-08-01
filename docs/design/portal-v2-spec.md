@@ -847,6 +847,16 @@ This is a platform invariant presented as a trust feature (portal-v1 §5.10's pa
 *Mobile:* the table becomes cards — treatment name at `--t-h3`, price at `--t-h2` right-aligned, duration and `starts at` as meta. Editing opens a bottom sheet, because inline cell editing on a phone is not viable.
 *Verbatim:* the fee list, live, with a warning for any treatment missing a price.
 
+> **Deviation, deliberate, recorded at D5b (`bfdce87`). Pricing keeps INLINE editing on mobile — no bottom sheet.**
+>
+> The card form ships as specified above: name at `--t-h3`, price at `--t-h2` right-aligned and tabular, duration and *starts at* as `--muted` meta. **Only the bottom sheet was not built**, and the sheet's own rationale is why.
+>
+> "Inline cell editing on a phone is not viable" describes **click-a-cell-in-a-grid** — the interaction the *Treatments table* paragraph above specifies for desktop, where a cell is a small target inside a wide row and editing in place on a 360px screen would be genuinely unusable. **This page never shipped that interaction.** `PORTAL-P2-S6` built full-width stacked inputs on purpose and wrote the reason at the top of `pricing.css` (`pricing.css:9-11`); the deviation is therefore against a premise this spec assumed, not against a decision the page made.
+>
+> The consequence is that the sheet would contain the same five stacked inputs the card already shows — a chrome change around an identical interaction, for which the owner pays an extra tap to open and an extra tap to dismiss. It also carried the only real risk in D5b's mobile pass: moving those inputs into a sheet is the one way that session could have disturbed the card's dirty mechanism, which was a STOP condition.
+>
+> **This does not reverse the spec's rule for grids.** Any future Tier-1 page that ships a genuine cell grid on mobile takes the sheet. Full findings at `docs/specs/portal-v2-batch1.md` §3 (D5b).
+
 #### Doctors
 
 Card-grid rather than a table: one card per doctor, 2-up on desktop, 1-up below 900px. Avatar initial in a `--teal-50` circle · name `--t-h3` · specialisation `--muted` · language chips · a compact weekly availability strip (seven 24px cells, `--teal-100` where available, `--line-2` where not, day initial beneath) · leave dates as a count with a disclosure · `Edit` and `Remove` ghost actions.

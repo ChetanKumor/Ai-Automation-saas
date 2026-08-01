@@ -541,7 +541,9 @@ INV-1 tenant scoping · INV-2 configService as the only write path · INV-3 owne
 
 ## 6. Outside this scope
 
-Three items, named so they are not silently absorbed:
+Named so they are not silently absorbed. The list opened at three and grew as Batch 1 ran;
+items are never renumbered, because other documents cite them by number (`§6.2` is the
+native Telugu review):
 
 1. **F-F008's `web/` half** — `web/app/globals.css` `--accent`. One session, ~1h, after Batch 1. Until then the finding stays open.
 2. **A native Telugu review** of the greeting and price fixture strings. Blocking for D4's Phase 0. Not an engineering task.
@@ -652,8 +654,47 @@ Three items, named so they are not silently absorbed:
    not. **Fix when scheduled:** pad `.content` by the collapsed sheet's height
    the way `has-save-bar` already pads it by the bar's, which needs the collapsed
    height to become a token rather than an emergent sum of grip paddings.
+   **Reported as filed** at Batch 1 close; unchanged, still open, still unowned.
 8. **F-V003 — `readinessOnce()` swallows 401 to null.** Non-Home pages leave the header blank on a dead session instead of redirecting. `shell.js:592-600`. Error ladder layer 4. Found in D3 Phase 0, not fixed there — behaviour change, D3 is presentation-only.
 9. **TEST-FLAKE-03 — CLOSED.** Fixed by seeding a `tenant_configs` row with seven-day open hours in the fixture, so the subtest controls its own preconditions. `clinicDefaults` is unchanged. Original report: **`voiceCancellation.integration.test.js:270` failed on any day when today+2 is a Sunday.** `istDateString(2)` picks the booking date; the fixture seeds Dr. Rao for all seven days but seeds **no `tenant_configs` row**, so clinic hours fall back to `clinicDefaults`, which closes Sunday. `book_appointment` refuses with `closed_day`, no row is written, and `assert.equal(appts.length, 1, 'the committed booking stands')` fails. Reproduced at `95d0f5f` with a clean tree, so it is not D3's. It passed in D3's own Phase 0 baseline the previous day (today+2 was a Saturday) and has failed every run since — which is exactly the signature. Fix is one of: seed the fixture's hours explicitly, or advance the date to the next open day. Not a D3 task; D3's only permitted test edit was the `shell.js` label assertion.
+
+### Carries — read before the next portal session
+
+Not findings, and not scoped to Batch 2. Two working rules Batch 1 paid for, recorded
+here because §6 is where a future session looks for what this batch learned and the plan
+did not know. Both are about the same thing: **the difference between reading a
+stylesheet and measuring a running portal.**
+
+**C1 — The 320px width assertion and the touch-target sweep run EVERY session, not only
+the mobile one.** `tokens.css:474` shipped in **D3** and put a 10px horizontal scrollbar
+on eleven of the twelve navigation destinations. It survived **D4 and D5a** — two full
+sessions, each closing with screenshots — because no width measurement existed anywhere
+in the harness until D5b's Phase 0 built one. Nothing about that defect was subtle; it
+was simply never asked about. A screenshot at 380px does not fail when the document is
+330px wide inside a 320px viewport, and a human looking at that screenshot does not
+either. §3's per-session DoD asks for a 320px check only in D5, and that placement is
+what let a D3 regression live to D5. **The check belongs in every session's DoD**, next
+to `npm test`, and it costs one `scrollWidth > clientWidth` probe per page. Same for the
+sub-44px sweep: D5b's DoD required two pages and measuring all twelve found **eight**
+failures, the worst of them `.golive .btn` at 32px — the most consequential button in the
+product, the smallest target on a phone. The two pages the plan named would not have
+found it.
+
+**C2 — A comment asserting a measurable property is a claim, not documentation. Verify
+it or delete it.** `.switch` carried the comment *"the hit area stays 44px via the
+label"*. It was false, and it had been false since the component shipped. The label
+measured **72×20**, and the 44×26 input the comment was counting on was
+`position: absolute` inside a label that was never `position: relative` — so the input
+was positioned against a distant ancestor and the hit area the comment promised did not
+exist on the page at all. The comment is *why* nobody checked: it reads like a note from
+someone who already had. A prose assertion about a rendered dimension is the one kind of
+comment that cannot be reviewed by reading, and it is the one kind this portal has
+several of. **When next in `tokens.css`, grep it for other measurable claims** —
+comments naming a px value, a contrast ratio, a hit area or a breakpoint — and either
+attach a measurement to each or strike it. `.check__link`'s neighbour is the precedent
+in the other direction: its sibling comment described an inert *"Coming soon"* span that
+had been removed at `PORTAL-P6-S18`, so the file was documenting an element that no
+longer existed.
 
 ---
 
