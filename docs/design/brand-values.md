@@ -98,8 +98,33 @@ just as loudly as an undocumented change.
 
 ## Not compared
 
-`--teal-hover` (`#0d6b63`) and `--teal-press` (`#0f5f59`) exist only on `portal`
-and are transitional: they carry the values `--teal-600`/`--teal-700` held before
-the v2 ramp landed, so that renaming those two steps repainted nothing. They are
-removed in D5, at which point their consumers move onto `--teal-800`/`--teal-900`
-and this note goes with them.
+~~`--teal-hover` (`#0d6b63`) and `--teal-press` (`#0f5f59`)~~ — **REMOVED in D5a.**
+
+They existed only on `portal` and were transitional: they carried the values
+`--teal-600`/`--teal-700` held before the v2 ramp landed, so that renaming those
+two steps repainted nothing.
+
+D5a resolved all seventeen consumers and deleted both declarations. The
+prediction recorded here — "their consumers move onto `--teal-800`/`--teal-900`"
+— **was wrong, and the way it was wrong is the useful part.** Only ONE of the
+seventeen was a button-fill hover (`.btn--primary:hover` → `--teal-800`) and two
+more were text-colour hovers (also `--teal-800`). The other fourteen were resting
+or *selected*-state text colours — uppercase labels, selected pills, chips, a
+version number — that the word "press" described only by accident of which value
+D1 happened to park them on. Those took `--teal-700`, the accent on the light
+ground; sending them to `--teal-900` because of a token's name would have
+darkened six selected-pill treatments that were never a press state. One more
+(`.segmented__btn--active`) left the ramp entirely: the foundations sheet draws a
+selected segment as a raised `--card` tile, and spec §2.1 rations the accent to
+the primary action, the current nav position, links, focus and the live
+indicator — a chosen tone is none of those.
+
+**Lesson for the next transitional rename:** a token parked by a mechanical
+migration records where a value *was*, not what it *means*. The rename is only
+half the work; the other half is reading each site.
+
+Still not compared, and still portal-only: `--amber-50` / `--green-50` /
+`--red-50`. D5a made the unpadded names canonical to match `--teal-50`, and left
+the zero-padded `--amber-050` / `--green-050` / `--red-050` as aliases — those
+three ARE shared with the demo surfaces and keep their rows in the tables above,
+which they still satisfy because an alias resolves.

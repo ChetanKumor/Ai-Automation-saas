@@ -85,7 +85,58 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   §10 explicitly authorises ("or defer to v1.1 and ship FAQ-only").
 - Demo: DEMO-00 (real Sarvam Telugu booking fixture), DEMO-01 (two-pane patient thread
   proof surface), DEMO-02 (inbox + clinic snapshot).
-- **Portal v2 Batch 1: D4 of D5 landed** — the **Verbatim preview panel**, the
+- **Portal v2 Batch 1: D5a landed** (harness `shootD5a.js`). The shared component
+  layer plus the six worklist items accumulated across D1–D4. Suite **869/151/0,
+  unmoved**. Every changed path is under `public/portal/` bar the evidence harness.
+  No route, no fetch, no dependency, no build step; **no test changed** — D5a's
+  Phase 0 checked whether any test asserts the not-live condition's page coverage
+  and none does, so the one permitted edit was never spent.
+  **D5 was SPLIT.** D5b still owes table rules, tabular figures, table→card below
+  768px, the sticky mobile save bar and the 320px sweep.
+  ⚠️ **`--teal-hover`/`--teal-press` are GONE**, closing the transitional state D1
+  opened. This was the session's real visual risk and it did not resolve the way
+  the plan predicted: of the 17 consumers only **one** was a button-fill hover,
+  two more were text-colour hovers, and the other **fourteen were resting or
+  *selected*-state text colours** that the word "press" fitted only by accident.
+  Those took `--teal-700` (the accent on the light ground), not `--teal-900`.
+  A blanket replace would have darkened six selected-pill treatments that were
+  never a press state. Recorded in `docs/design/brand-values.md` under
+  *Not compared*, with the lesson stated: a token parked by a mechanical
+  migration records where a value **was**, not what it **means**.
+  ⚠️ **The portal had no global focus ring before this commit.** The plan called
+  `H` a "retune" of two cited lines; both citations were stale and the real
+  inventory was five component-local rules, with every button, link, nav item,
+  truth-strip action and modal close falling through to the browser default.
+  `booking-rules.css` was additionally stripping the outline and replacing it with
+  a colour-only tint — forbidden by spec §2.11 — while the second copy of the same
+  toggle in `safety.css` did it correctly. One `:focus-visible` rule now covers the
+  portal; the ink ground keeps its own in `verbatim.css`.
+  **F-V004's contradiction is CLOSED** (its missing-endpoint half stays open). On a
+  legacy clinic the Verbatim panel called itself *Live preview* beside a pulsing
+  teal dot while the truth strip 40px above said those settings were not reaching
+  the receptionist. The header now reads `Saved settings` and drops the dot,
+  sourced from the same `run.checks` field `shadow-notice.js` reads through the same
+  shared readiness promise — no new fetch. Photographed with the amber strip in one
+  frame, against a clean-tenant control.
+  Also: the not-live strip is suppressed **on Home only** (the ring and the grouped
+  checks say it better and more specifically; the legacy and paused conditions still
+  fire everywhere including Home) · the last two card shadows (`.doc`, `.faq`) are
+  gone · `.modal` moved to `--shadow-lg` (the drawer already had it; the toast
+  correctly stays `--shadow-md`) · `--amber-50`/`--green-50`/`--red-50` are canonical
+  with the padded names aliased, matching the teal convention · every disabled
+  control now carries a visible adjacent reason · `.btn--danger` is no longer a solid
+  red fill · error toasts persist with a Dismiss instead of fading out after 2.6s.
+  ⚠️ **Two deliberate spec deviations, both recorded in
+  `docs/specs/portal-v2-batch1.md` §3:** a busy button keeps `disabled` (it is the
+  only double-submit guard on the save path, and the save discipline had to behave
+  identically), and `Saved · v{N}` is not in `--mono` (the version is written with
+  `textContent` by ten scripts; wrapping it means touching the save call).
+  ⚠️ **F-V005 filed** — the Verbatim panel can contradict itself on first paint
+  (a warning computed from an unfilled form, beside a FACTS row falling back to the
+  saved value). Pre-existing in D4, **not** a D5a regression. Observed once;
+  a scripted probe mirroring the shot's conditions returned 0/12, so the frequency
+  is unestablished and the probe is retained as a reported diagnostic.
+- **Portal v2 Batch 1: D4** — the **Verbatim preview panel**, the
   product's signature surface and the largest new one in Batch 1. New
   `public/portal/verbatim.{css,js}`, mounted on the eight editing pages plus Test
   (nine mounts), absent from Home, History and `knows.html`. Suite **869/151/0,
@@ -190,7 +241,15 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   finding and the `familyName`-vs-`postScriptName` trap in
   `docs/specs/portal-v2-batch1.md` §6.
 - **F-V002** (open) — Variable-font duplication in `public/demo/`. Own session after
-  Batch 1. See `docs/specs/portal-v2-batch1.md` §6.
+  Batch 1. See `docs/specs/portal-v2-batch1.md` §6, which now carries the
+  **exclusion** that entry was missing: the four `noto-rupee-*.woff2` static faces
+  F-V001 added are not duplication and must survive the consolidation unchanged.
+  Folding them into a variable face silently reverts F-V001.
+- **F-V004** — the **contradiction half is CLOSED** at D5a; the missing
+  rendered-composite endpoint stays open. See the D5a bullet above.
+- **F-V005** (open, new) — the Verbatim panel can contradict itself on first paint.
+  Pre-existing in D4, found by D5a's evidence run, frequency unestablished.
+  `docs/specs/portal-v2-batch1.md` §6 item 9.
 
 ### Remaining before first live call
 

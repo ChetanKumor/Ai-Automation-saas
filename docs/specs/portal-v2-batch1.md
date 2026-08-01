@@ -319,6 +319,21 @@ Everything else. This is the largest new surface in Batch 1 and it does not shar
 - Editing a fee updates the FACTS block within one debounce, with the previous value readable throughout.
 - Keyboard: panel reachable by Tab, warnings focus their field, Escape collapses the sheet.
 
+**LANDED — `08f2fa4`** (harness `8a36d22`, docs `1403631`). Closing suite
+**869 / 151 / fail 0**, unmoved. Two Phase-0 rulings this session made, recorded
+here because the plan asked for them and only `docs/os/state.md` carried the
+answer until D5a backfilled it:
+
+1. **`knows.html` is NOT a subset of the Verbatim panel. RETAINED, and its nav
+   row stays.** This settles the question §2.4 and D2's correction 2 left open.
+   It carries whole-config breadth in one view, and the built-in-protections
+   card, which quotes verified guardrail instructions the panel never shows —
+   the panel is per-page depth, `knows.html` is whole-clinic breadth. The panel
+   links to it (*See all*). `knows.html` was not modified, and it is not retired
+   in D5 either.
+2. **No prompt-preview endpoint exists** — filed as F-V004 below, and the panel
+   ships the degraded-but-honest form §2.4 authorised.
+
 ---
 
 ### D5 · `feat(portal): component sweep and mobile pass`
@@ -348,6 +363,56 @@ Anything not on the Batch 1 artboards.
 - Zero horizontal scroll at 320px on all 14. Recorded as a scripted check, not eyeballed.
 - Every disabled control in the portal has a visible reason beside it.
 - Keyboard tab-through of Pricing and Safety & handoff with the ring visible at every stop.
+
+**D5 WAS SPLIT.** D5a (this commit) took the shared component layer plus the six
+worklist items that had accumulated across D1–D4. **D5b still owes:** table rules
+and tabular figures, table→card below 768px, the sticky mobile save bar, and the
+320px sweep — with §3's Phase-0 items 2 and 3 (enumerate every `<table>`; record
+the fixed-width baseline) still unspent, because D5a touched no table.
+
+**D5a — LANDED.** Suite **869 / 151 / fail 0**, unmoved. Worklist: W1 (17
+consumers resolved per site, both transitional tokens deleted), W2 (`.doc`,
+`.faq` shadows gone), W3 (`.modal` → `--shadow-lg`; the drawer already had it),
+W4 (`--amber-50`/`--green-50`/`--red-50` canonical, padded names aliased), W5
+(not-live strip suppressed on Home), W6 (F-V004's contradiction — see §6).
+Components: buttons 5×6, inputs 6 states with read-only visually distinct from
+disabled, toggle and segmented carrying their state word, badges, card-footer
+states, toasts, the portal's first global focus ring, and a visible reason beside
+every disabled control.
+
+Three things D5a found that the plan did not predict, all recorded at the point
+of use:
+1. **There was no portal-wide focus ring at all.** §2.5's row calls this a
+   "retune" of `tokens.css:406` + `login.html:26`; both references were stale,
+   and the real inventory was five component-local rules with every button, link,
+   nav item and modal close falling through to the UA default. `H` was
+   *adding* the ring, not retuning it — and `booking-rules.css:105` was stripping
+   the outline and replacing it with a colour-only tint, which §2.11 forbids and
+   which the second copy of the same toggle never did.
+2. **`.btn--danger` was a solid red fill.** Now `--card` with a `--red-200`
+   hairline and `--red-700` text, per §2.9: a filled red button is the most
+   attractive target on screen at the moment the owner is about to do something
+   irreversible.
+3. **Ten page scripts each carried their own `toast()`, and all ten faded ERRORS
+   out after 2.6s.** Now one implementation in `shell.js`: success clears itself
+   at 4s with `role="status"`, an error persists with a Dismiss and
+   `role="alert"`. An error toast that removes itself is one the owner can miss,
+   and what they missed is that their change did not save.
+
+**One deliberate deviation from spec §2.9, recorded rather than silently
+resolved:** a busy button keeps `disabled`. The spec says busy is
+"non-interactive but not disabled, so it keeps focus"; every save path in this
+portal uses `disabled` as its ONLY double-submit guard, and this session's hard
+constraint was that the save discipline behave identically. `aria-busy`, the
+spinner and the held width all ship; `disabled` stays until a re-entry guard
+exists to replace it. `Portal.setBusy()` is the single seam where that swap will
+happen.
+
+**The `v{N}` is not in `--mono`.** §2.9 asks for it. `Portal.savedMessage()`
+returns `Saved · v13` as one string and ten page scripts write it with
+`textContent`; wrapping the numeral needs those scripts to switch to `innerHTML`,
+which is the save path. Tabular figures on the whole note buy the column
+alignment the mono was for. Deferred to a session allowed to touch the save call.
 
 ---
 
@@ -420,6 +485,19 @@ Three items, named so they are not silently absorbed:
    - one `@font-face` per family
    - `font-weight: 400 700`
    - generated through `scripts/demo/fetch_fonts.js`
+
+   ⚠️ **EXCLUSION — read before consolidating anything.** The four
+   `noto-rupee-{400,500,600,700}.woff2` faces that F-V001 added are **NOT**
+   duplication and must survive this session unchanged. They are `text=`-subsetted
+   **static** faces of ~830 bytes each carrying exactly U+20B9, declared under
+   family `Noto Sans` with `unicode-range: U+20b9`. Folding them into one variable
+   `@font-face` at `font-weight: 400 700` would either drop the rupee glyph or
+   pull in the 120 KB Devanagari subset that F-V001 deliberately avoided — and
+   the failure is silent: `₹` falls back to system-ui and renders in a different
+   typeface from the digits beside it, which is the exact defect F-V001 closed.
+   Consolidate the **ten `unicode-range`-subsetted faces** only. Re-assert with
+   `CSS.getPlatformFontsForNode` against a control, as F-V001 did; comparing
+   `postScriptName`, not `familyName` (see item 4's trap).
 6. **F-V004 — no owner-facing rendered-composite preview exists.** Found in D4
    Phase 0; the panel ships around it. §2.4 assumed "the existing prompt-preview
    endpoint" and portal-v1 §5.15 implies one — there is none. All 36 routes in
@@ -438,6 +516,43 @@ Three items, named so they are not silently absorbed:
    route over `renderSystemPrompt`, plus a decision about how much of the
    composite an owner should see. Out of scope for Batch 1 — D4's hard constraint
    was no new route.
+
+   **The CONTRADICTION half is CLOSED (D5a/W6); the missing endpoint is still
+   open.** The panel labelled itself *Live preview* beside a pulsing teal dot
+   while, on a legacy clinic, the truth strip 40px above it said those settings
+   were not reaching the receptionist. Two components, one screen, opposite
+   claims — and the confident one was wrong. When the legacy condition holds the
+   header now reads **`Saved settings`** and drops the live dot, sourced from the
+   same `run.checks` `tenant.legacy_prompt` severity `shadow-notice.js` reads,
+   through the same shared readiness promise; no new fetch. Asserted in
+   `scripts/portal/shootD5a.js` and photographed with the amber strip in the same
+   frame (`shots/d5a-w6-legacy-pricing.png`), against a clean-tenant control that
+   still reads *Live preview* with its dot.
+   **Still open:** there is no rendered-composite endpoint, so the greeting
+   bubble still shows stored state. The panel now says so; it is not yet able to
+   show otherwise.
+
+9. **F-V005 — the Verbatim panel can contradict itself on first paint.** Found in
+   D5a's evidence run, NOT introduced by it (`warnings()`, `live()`, `render()`
+   and the fetch sequencing are byte-unchanged from D4). One shot caught the
+   panel showing *No consultation fee — the most-asked price on any call* directly
+   beneath a FACTS row reading *Consultation ₹500*.
+   **Mechanism:** `warnings()` reads ONLY the live DOM (`verbatim.js:370`) while
+   the FACTS row falls back to the SAVED value (`verbatim.js:253`). The panel
+   renders the moment its own `/knowledge-summary` fetch resolves, which races the
+   page's independent `/config/pricing` fetch. When the panel wins, it computes
+   warnings against a form that has not been filled — and nothing re-renders it
+   afterwards, because `fill()` sets `.value` programmatically and that fires no
+   `input` event. The stale warning then survives until the owner types.
+   ⚠️ **Frequency not established.** Observed once; a scripted probe mirroring the
+   shot's exact conditions (2× device scale, panel expanded, both tenants) came
+   back 0/12. It is a real race with a clear mechanism and an unknown rate, not a
+   reliably reproducible defect. The probe is retained in `shootD5a.js` as a
+   reported diagnostic rather than an assertion, so a future session inherits the
+   measurement rather than the anecdote.
+   **Fix when scheduled:** have the page signal fill completion, or have
+   `warnings()` fall back to the saved value the way the FACTS row already does.
+   Out of D5a's scope (Verbatim panel beyond W6).
 7. **F-V003 — `readinessOnce()` swallows 401 to null.** Non-Home pages leave the header blank on a dead session instead of redirecting. `shell.js:592-600`. Error ladder layer 4. Found in D3 Phase 0, not fixed there — behaviour change, D3 is presentation-only.
 8. **TEST-FLAKE-03 — CLOSED.** Fixed by seeding a `tenant_configs` row with seven-day open hours in the fixture, so the subtest controls its own preconditions. `clinicDefaults` is unchanged. Original report: **`voiceCancellation.integration.test.js:270` failed on any day when today+2 is a Sunday.** `istDateString(2)` picks the booking date; the fixture seeds Dr. Rao for all seven days but seeds **no `tenant_configs` row**, so clinic hours fall back to `clinicDefaults`, which closes Sunday. `book_appointment` refuses with `closed_day`, no row is written, and `assert.equal(appts.length, 1, 'the committed booking stands')` fails. Reproduced at `95d0f5f` with a clean tree, so it is not D3's. It passed in D3's own Phase 0 baseline the previous day (today+2 was a Saturday) and has failed every run since — which is exactly the signature. Fix is one of: seed the fixture's hours explicitly, or advance the date to the next open day. Not a D3 task; D3's only permitted test edit was the `shell.js` label assertion.
 
