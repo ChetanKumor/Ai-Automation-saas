@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: f785f10e74e64e87e1500cc0f4c2eb8499b76f2f
+Verified-at: 221c1fb48fbae2f113defdabe5c6594138cf1283
 Verified-on: 2026-08-01
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
