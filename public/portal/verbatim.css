@@ -189,7 +189,6 @@
   min-width: 0;
   color: var(--field-ink);
   font-weight: 500;
-  font-variant-numeric: tabular-nums;
 }
 .vp__fact-v--none { color: #6E7784; font-weight: 400; font-style: italic; }
 
@@ -346,6 +345,15 @@
     z-index: 45;
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
+  /* D5b — two fixed surfaces, one bottom edge. The sticky save bar is pinned to
+   * the bottom too, and the panel was covering it: the owner would have been
+   * looking for their Save button underneath a reference surface, which is the
+   * exact failure the bar exists to prevent.
+   *
+   * The PANEL yields, not the bar. The bar is the action and it exists only
+   * while the card is dirty; the panel is a reference surface that is always
+   * there. It slides back down the moment the change is saved. */
+  body.has-save-bar .vp { bottom: var(--save-bar-h); }
   .vp__rail { display: none; }
 
   .vp__grip {

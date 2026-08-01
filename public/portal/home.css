@@ -74,17 +74,16 @@
   justify-content: center;
   text-align: center;
 }
+/* Figures are tabular — the one block in tokens.css carries it (D5b). */
 .ring__num {
   font: var(--t-display);
   letter-spacing: var(--ls-display);
   color: var(--ink);
-  font-variant-numeric: tabular-nums;
 }
 .ring__den {
   font: var(--t-help);
   color: var(--muted);
   margin-top: 5px;
-  font-variant-numeric: tabular-nums;
 }
 /* At 100% the numeral has nothing left to count — a check says it in one glyph. */
 .ring__done { color: var(--green-700); }
@@ -140,10 +139,15 @@
   align-items: center;
   gap: 10px;
 }
+/* The route to the fix. It was --faint (#94a3b8) — 2.8:1 on --card, which the
+ * token's own comment marks "non-text only". A link telling an owner how to
+ * unblock go-live is text, and it was the quietest text on the page. It reads
+ * as the portal's link colour now, --teal-700 at 5.4:1, which is also what
+ * tokens.css gives every other <a> before this rule overrode it. */
 .check__link {
   font-size: 12px;
   font-weight: 600;
-  color: var(--faint);
+  color: var(--teal-700);
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -151,8 +155,8 @@
   text-decoration: none;
 }
 .check__link svg { width: 13px; height: 13px; }
-/* A real link (the fix-page is built) reads teal + underlines on hover; the
-   inert "Coming soon" span (no href) never does. */
+/* Always an <a>: the inert "Coming soon" span this comment used to also describe
+ * was removed at PORTAL-P6-S18 and home.js has rendered a real link ever since. */
 a.check__link:hover { color: var(--teal-800); text-decoration: underline; }
 
 /* Advisory checks read subordinate to material ones. */
@@ -179,7 +183,31 @@ a.check__link:hover { color: var(--teal-800); text-decoration: underline; }
   .ring__num { font-size: 26px; }
   .ring__done svg { width: 30px; height: 30px; }
   .readiness__summary { text-align: center; }
-  .check__link { display: none; }   /* keep mobile rows to label + state */
+
+  /* D5b — THE FIX LINK IS BACK. This rule was `.check__link { display: none }`,
+   * described as keeping mobile rows to label + state. What it actually did was
+   * delete the route to the fix from the one surface that decides whether a
+   * clinic can go live, on the one device portal-v1 §11's acceptance criterion
+   * is measured on. A mobile owner saw which check was failing and had no way to
+   * act on it — the check row named a problem and then dead-ended.
+   *
+   * The state row now takes its own line under the label instead. The basis
+   * subtracts the indent (26px icon + 13px gap): a `100%` basis plus a left
+   * margin is precisely the overflow this session found in the truth strip.
+   * The link carries a 44px target because it is the thing being tapped. */
+  .check { flex-wrap: wrap; }
+  .check__state {
+    flex-basis: calc(100% - 39px);
+    margin-left: 39px;
+    justify-content: flex-start;
+    gap: var(--s-3);
+  }
+  .check__link {
+    min-height: 44px;
+    padding: 0 var(--s-2);
+    margin-left: calc(-1 * var(--s-2));   /* label and link stay flush left */
+    font-size: 12.5px;
+  }
 }
 
 /* ── Onboarding entry point (PORTAL-P6-S16) — quiet, one clear action ── */

@@ -25,7 +25,7 @@
 .phone-row .input { flex: 1; min-width: 0; }
 .phone-row__remove {
   flex: none;
-  width: 42px;
+  width: 44px;   /* see clinic-profile.css — this file loads after tokens.css */
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -131,7 +131,8 @@
 }
 
 @media (max-width: 480px) {
-  .phone-row__remove { width: 40px; }
+  /* The 40px narrowing that used to sit here is gone — see clinic-profile.css;
+     this file loads after tokens.css and beat the shared 44px block. */
   .input--narrow { max-width: none; }
   .prot__icon { display: none; }
 }

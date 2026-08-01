@@ -55,6 +55,7 @@
  * the segment, so the ring is pulled inside rather than clipped by the track. */
 .segmented__btn:focus-visible { outline-offset: -1px; }
 
+
 /* ── Greeting, one block per enabled language ── */
 .greet-field { margin-top: var(--s-4); }
 .greet-field:first-child { margin-top: 0; }
@@ -107,6 +108,17 @@
 }
 .pace__label { font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
 .pace__value { margin-top: 6px; font-size: 13px; font-weight: 650; color: var(--ink-2); }
+
+/* Touch targets. Stated HERE, at the foot of this file, and not in tokens.css's
+ * shared 44px block: this file loads second, so its own `height: 28px` and
+ * `height: 20px` beat anything that block declares — and they have to come after
+ * the rules they are correcting, which is why this sits last rather than beside
+ * the component. Tone, Response length and Pace are three of the four controls
+ * on this page; all three were 20–28px tall on a phone. */
+@media (max-width: 860px) {
+  .segmented__btn { height: 44px; }
+  .pace__slider { height: 44px; }
+}
 
 @media (max-width: 560px) {
   .card__foot { flex-direction: column; align-items: stretch; gap: 10px; }

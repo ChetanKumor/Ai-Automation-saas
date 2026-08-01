@@ -72,14 +72,22 @@
   box-shadow: 0 0 0 3px var(--red-050);
 }
 
-/* ── Holidays ── */
-.holidays { display: flex; flex-direction: column; gap: 8px; }
+/* ── Holidays ──
+ * A register, and now drawn like one (spec §2.9, D5b): a rule beneath each row
+ * and nothing else — no vertical rules, no cell borders, no zebra. It was a
+ * gapped stack with no rules at all, which is the one register on this page that
+ * did not match the weekly grid sitting directly above it. */
+.holidays { display: flex; flex-direction: column; }
 .holiday-row {
   display: grid;
   grid-template-columns: 170px minmax(0, 1fr) auto auto;
   gap: 8px;
   align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid var(--line-2);
 }
+.holiday-row:first-child { border-top: 0; padding-top: 2px; }
+.holiday-row:last-of-type { padding-bottom: 2px; }
 .holiday__date { min-width: 0; }
 .holiday__name { min-width: 0; }
 .holiday__past {
@@ -100,7 +108,8 @@
 
 .holiday__remove {
   flex: none;
-  width: 42px; height: 38px;
+  width: 44px; height: 44px;   /* the touch-target floor — this file loads after
+                                * tokens.css, so its block cannot raise it */
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -133,21 +142,41 @@
 .holidays__add svg { width: 14px; height: 14px; }
 .holidays__empty { margin: 4px 0 0; }
 
-/* ── Mobile: stack the day grid; never shrink it (spec: true ~380px) ── */
+/* ── Mobile: stack the day grid; never shrink it (spec: true ~380px) ──
+ *
+ * Spec §3.3's mobile form for a day is "day name and toggle on line one, the
+ * time pair on line two at full width". The stack already existed; D5b puts the
+ * toggle up beside the name where the spec asks for it, which also saves a line
+ * on a page that has seven of them.
+ * ────────────────────────────────────────────────────────────────────────── */
 @media (max-width: 560px) {
   .day {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 9px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 9px 12px;
   }
-  .day__name { flex: none; font-size: 13.5px; }
+  /* Explicit placement, not auto: the DOM order is name · body · toggle · error,
+   * and auto-placement would drop the toggle below the times rather than beside
+   * the day name. */
+  .day__name   { grid-column: 1; grid-row: 1; font-size: 13.5px; }
+  .day__toggle { grid-column: 2; grid-row: 1; justify-self: end; }
+  .day__body   { grid-column: 1 / -1; grid-row: 2; }
+  .day__error  { grid-column: 1 / -1; }
   .day__times { width: 100%; }
   .day__time { flex: 1 1 0; width: auto; }
-  .day__toggle { align-self: flex-start; }
 
+  /* Holidays: date on its own line, then label + remove.
+   *
+   * D5b — THE `Past` BADGE IS BACK. It was `display: none !important` here, so a
+   * dimmed row on a phone had nothing whatsoever explaining why it was dimmed:
+   * the row reads as broken rather than as history. It takes its own line under
+   * the label. The basis SUBTRACTS the indent — a `100%` basis plus a left
+   * margin is exactly the defect this session found in the truth strip. */
   .holiday-row { grid-template-columns: minmax(0, 1fr) auto; }
-  .holiday__date { grid-column: 1 / -1; }
-  .holiday__name { grid-column: 1 / 2; }
-  .holiday__remove { grid-column: 2 / 3; }
-  .holiday__past { display: none !important; }
+  .holiday__date   { grid-column: 1 / -1; grid-row: 1; }
+  .holiday__name   { grid-column: 1; grid-row: 2; }
+  .holiday__remove { grid-column: 2; grid-row: 2; }
+  .holiday-row--past .holiday__past { grid-column: 1 / -1; grid-row: 3; justify-self: start; }
+  /* Touch targets for this page's controls live in tokens.css's one 44px block. */
 }

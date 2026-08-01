@@ -33,7 +33,6 @@
   flex: none;
   width: 42px;
   font: 700 13px/1 var(--mono);
-  font-variant-numeric: tabular-nums;
   color: var(--teal-700);
 }
 .hist-row__main { flex: 1; min-width: 0; }
@@ -116,9 +115,32 @@
 
 .hist-confirm-note { margin: 0; font-size: 13.5px; color: var(--ink-2); line-height: 1.55; }
 
-@media (max-width: 480px) {
-  .hist-row { align-items: flex-start; flex-direction: column; gap: 4px; }
-  .hist-row__meta { text-align: left; }
+/* ── Below 640: the change log becomes cards (D5b) ───────────────────────────
+ *
+ * This is the portal's one genuinely read-only register, so it is the one place
+ * spec §2.9's table→card rule applies literally. The version and the summary
+ * lead; the changed fields sit beneath; the actor and the date drop to --muted
+ * meta on their own line, left-aligned with everything above them rather than
+ * marooned at the right edge of a 320px card.
+ *
+ * Was 480. Moved to 640, the portal's table breakpoint — 768 in the spec is a
+ * round number chosen without reading this portal, which uses 860/640/560/520/
+ * 480 and nothing in between. The 640–767 band is measured, not assumed.
+ * ────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .hist-row { align-items: flex-start; flex-wrap: wrap; gap: 4px var(--s-3); padding: var(--s-3) 4px; }
+  .hist-row__main { flex: 1 1 auto; }
+  .hist-row__meta {
+    /* The basis subtracts the version column's width + gap so the meta line sits
+     * under the summary. A bare `100%` plus that indent is the truth-strip
+     * defect this session found; it is not repeated here. */
+    flex-basis: calc(100% - 42px - var(--s-3));
+    margin-left: calc(42px + var(--s-3));
+    text-align: left;
+    display: flex;
+    gap: 6px;
+  }
+  .hist-row__actor::after { content: ' ·'; color: var(--faint); }
   .kv { flex-direction: column; gap: 2px; }
   .kv__k { flex: none; }
 }

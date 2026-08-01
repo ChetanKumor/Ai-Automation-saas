@@ -15,7 +15,8 @@
 .phone-row .input { flex: 1; min-width: 0; }
 .phone-row__remove {
   flex: none;
-  width: 42px;
+  width: 44px;   /* the touch-target floor; the mobile block in tokens.css cannot
+                  * raise it from here, because this file loads second */
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -78,6 +79,6 @@
  * two copies of one component stop disagreeing. */
 .lang-toggle[aria-pressed="true"] .lang-toggle__native { color: var(--teal-700); opacity: .8; }
 
-@media (max-width: 480px) {
-  .phone-row__remove { width: 40px; }
-}
+/* The 40px narrowing that used to sit here is gone: this file loads after
+ * tokens.css, so it beat the shared 44px touch-target block and made the one
+ * destructive control on the page the smallest thing to aim at. */

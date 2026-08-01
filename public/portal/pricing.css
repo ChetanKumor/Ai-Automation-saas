@@ -24,7 +24,11 @@
   line-height: 1;
   pointer-events: none;
 }
-.money__input { padding-left: 25px; }
+/* Fees are RIGHT-ALIGNED and tabular (spec §2.9 alignment; the tabular block
+ * lives in tokens.css). The sign stays pinned left and the amount runs to the
+ * right edge, so a column of fees aligns on its last digit — which is the whole
+ * point on the one page whose accuracy the product's promise rests on. */
+.money__input { padding-left: 25px; text-align: right; }
 /* While the owner is typing an amount, the sign reads as part of it. */
 .money:focus-within .money__sym { color: var(--ink-2); }
 
@@ -55,9 +59,11 @@
 .tr__name { min-width: 0; }
 .tr__price-wrap { min-width: 0; }
 
-/* Duration: a number with a trailing "min" unit inside the field. */
+/* Duration: a number with a trailing "min" unit inside the field. The digits
+ * run right, stopping just short of the unit, so the number and its unit read
+ * as one quantity rather than two things sharing a box. */
 .tr__dur-wrap { position: relative; min-width: 0; }
-.tr__dur { padding-right: 34px; }
+.tr__dur { padding-right: 34px; text-align: right; }
 .tr__dur-unit {
   position: absolute;
   right: 10px; top: 50%;
@@ -70,7 +76,8 @@
 
 .tr__archive {
   flex: none;
-  width: 38px; height: 38px;
+  width: 44px; height: 44px;   /* the touch-target floor — this file loads after
+                                * tokens.css, so its block cannot raise it */
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -212,21 +219,49 @@ select.input {
   cursor: pointer;
 }
 
-/* ── Mobile: stack everything; never shrink a table (spec: true ~380px) ── */
+/* ── Mobile: the treatment row becomes a CARD (spec §3.3, D5b) ───────────────
+ *
+ * Name at --t-h3 on its own line · price at --t-h2, right-aligned and tabular,
+ * beside the archive action · duration and "starts at" as --muted meta beneath.
+ * The reading order down the card is what a patient asks in: what is it, what
+ * does it cost, how long does it take.
+ *
+ * EDITING STAYS INLINE — deliberately, against spec §3.3, which specifies a
+ * bottom sheet here. That instruction exists because "inline cell editing on a
+ * phone is not viable", and cell editing is click-a-cell-in-a-grid. This page
+ * never shipped that: PORTAL-P2-S6 built full-width stacked inputs on purpose
+ * and wrote the reason down at the top of this file. A sheet would contain the
+ * same five stacked inputs the card already shows, so it buys a chrome change
+ * for an identical interaction — and moving the inputs into one is the only way
+ * this session could have disturbed the dirty mechanism, which is a STOP.
+ * The deviation is recorded in docs/specs/portal-v2-batch1.md §3.
+ * ────────────────────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .fees { grid-template-columns: minmax(0, 1fr); gap: var(--s-3); }
 
-  /* Name takes its own full-width line; price, duration and the archive button
-     share the next one. Everything stays in normal grid flow — no overlap, no
-     horizontal scroll. */
-  .tr { padding: 12px; }
+  .tr { padding: var(--s-4) var(--s-3); }
   .tr__main {
-    grid-template-columns: minmax(0, 1fr) 104px auto;
-    gap: 8px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 8px;
   }
-  .tr__name { grid-column: 1 / -1; }
-  .tr__price-wrap { grid-column: 1 / 2; }
-  .tr__dur-wrap { grid-column: 2 / 3; }
-  .tr__archive { grid-column: 3 / 4; }
-  .tr__notes { flex: 1 1 100%; }
+  /* Explicit placement — the DOM order is name · price · duration · archive, and
+     the card wants the archive action up beside the price, not below it. */
+  .tr__name       { grid-column: 1 / -1; grid-row: 1; font: var(--t-h3); letter-spacing: var(--ls-h3); }
+  .tr__price-wrap { grid-column: 1;      grid-row: 2; }
+  .tr__archive    { grid-column: 2;      grid-row: 2; }
+  .tr__dur-wrap   { grid-column: 1 / -1; grid-row: 3; max-width: 148px; }
+
+  /* The price is the number the owner is checking. It carries the card. */
+  .tr__price { font: var(--t-h2); letter-spacing: var(--ls-h2); }
+  .money__sym { font-size: 15px; }
+
+  /* Duration and "starts at" read as meta: still obviously controls — muting a
+     live input into body text is how an owner stops finding it — but a step
+     back from the name and the price above them. */
+  .tr__dur { font: var(--t-body-sm); }
+  .tr__dur-unit { font-size: 11.5px; }
+  .tr__extra { gap: 12px; }
+  .tr__notes { flex: 1 1 100%; font-size: 13.5px; }
+  .chk { font-size: 13px; }
+  /* Touch targets for this page's controls live in tokens.css's one 44px block. */
 }

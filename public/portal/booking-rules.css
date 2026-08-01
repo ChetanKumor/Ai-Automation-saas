@@ -60,7 +60,7 @@
 /* The unit sits OUTSIDE the input rather than inside it: "30" reads as a number
    the owner typed, and "days ahead" as our label for it. */
 .unit { display: flex; align-items: center; gap: 9px; }
-.unit__input { width: 96px; text-align: center; font-variant-numeric: tabular-nums; }
+.unit__input { width: 96px; text-align: center; }
 .unit__label { font-size: 13.5px; color: var(--muted); }
 
 .input--narrow { width: auto; min-width: 168px; }

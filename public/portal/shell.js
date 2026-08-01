@@ -766,6 +766,70 @@
       window.addEventListener('scroll', onScroll, { passive: true });
       onScroll();
     }
+
+    mountSaveBar();
+  }
+
+  // ── Sticky save bar (spec §2.9), mobile only ───────────────────────────────
+  //
+  // THE SAVE PATH IS NOT TOUCHED. This function reads two things and writes
+  // neither: the dirty class the page already puts on #saveNote, and the busy
+  // state setBusy() already puts on #saveBtn. Its own Save forwards a click to
+  // the real footer button — which is type="submit" inside the page's <form>, so
+  // the page's existing submit handler runs and `fill(data.section)` still
+  // refills the SERVER's returned value. There is one save path; this is a
+  // second button pointing at it, not a second implementation.
+  //
+  // MOUNTED BY FEATURE DETECT, not a page allowlist: a single #saveNote and
+  // #saveBtn inside one .card__foot. That is exactly the six single-form writing
+  // pages (clinic-profile, hours, pricing, booking-rules, receptionist, safety).
+  //
+  // NOT on Doctors and FAQs, deliberately. Those write a .save-note per CARD —
+  // one doctor, one FAQ, each with its own save button — so a single global Save
+  // has no referent. Their footers also sit directly beneath the fields just
+  // edited, which is the condition this bar exists to fix.
+  //
+  // Discard is a reload. The page refetches and refills from the server, which
+  // IS what discarding unsaved changes means, and it needs no knowledge of any
+  // page's baseline snapshot.
+  function mountSaveBar() {
+    if (embedded) return;
+    const note = $('#saveNote');
+    const btn = $('#saveBtn');
+    if (!note || !btn || !note.closest('.card__foot')) return;
+
+    const bar = document.createElement('div');
+    bar.className = 'save-bar';
+    bar.id = 'stickySave';
+    bar.hidden = true;
+    bar.setAttribute('role', 'region');
+    bar.setAttribute('aria-label', 'Unsaved changes');
+    bar.innerHTML =
+      '<button class="btn btn--ghost" id="stickyDiscardBtn" type="button">Discard</button>' +
+      '<button class="btn btn--primary save-bar__save" id="stickySaveBtn" type="button">Save changes</button>';
+    document.body.appendChild(bar);
+
+    const save = bar.querySelector('#stickySaveBtn');
+    save.addEventListener('click', () => btn.click());
+    bar.querySelector('#stickyDiscardBtn').addEventListener('click', () => window.location.reload());
+
+    // The bar exists only while the card is dirty. `has-save-bar` is what pads
+    // the scroll container, so the padding appears and disappears with the bar
+    // rather than reserving 68px of a phone viewport permanently.
+    const sync = () => {
+      const dirty = note.classList.contains('save-note--dirty');
+      bar.hidden = !dirty;
+      document.body.classList.toggle('has-save-bar', dirty);
+    };
+    new MutationObserver(sync).observe(note, { attributes: true, attributeFilter: ['class'] });
+
+    // Mirror the real button's busy state so the bar cannot be pressed a second
+    // time mid-save. Observation only — setBusy is called on the footer button
+    // by the page, never from here.
+    new MutationObserver(() => setBusy(save, btn.hasAttribute('aria-busy')))
+      .observe(btn, { attributes: true, attributeFilter: ['aria-busy'] });
+
+    sync();
   }
 
   // Session guard + brand fill. Returns { user, tenant }. 401 → login.html.

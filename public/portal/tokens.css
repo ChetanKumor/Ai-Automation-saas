@@ -462,7 +462,27 @@ a { color: var(--teal-700); }
 .ts--info svg { color: var(--muted); }
 
 /* Below 560px the strip wraps to its own height and the action drops onto a
- * second line. A 40px band would truncate every one of these sentences. */
+ * second line. A 40px band would truncate every one of these sentences.
+ *
+ * D5b — THE OVERFLOW. This block shipped in D3 as
+ *   .ts__a { margin-left: 26px; flex-basis: 100%; }
+ * and it put a horizontal scrollbar on EVERY page the strip renders on, which
+ * is eleven of the twelve. `flex-basis: 100%` resolves against the flex
+ * container's CONTENT box — 288px inside .ts's 16px padding at a 320px
+ * viewport — and the 26px margin is then added on top of it, so the item's
+ * right edge lands at 16 + 26 + 288 = 330. The overflow is exactly
+ * `margin-left - padding-right` = 26 - 16 = 10px, identical at every width,
+ * which is why the baseline table read `10` twenty-two times.
+ *
+ * Home measured clean only because D5a suppressed the not-live strip there.
+ * One rule wearing eleven page names; it was invisible until a width
+ * measurement existed to catch it.
+ *
+ * The basis now subtracts the indent, so the item is exactly the width that is
+ * left. The underline moves from `border-bottom` to `text-decoration` at the
+ * same time: a border on a now-full-width item draws a hairline clean across
+ * the strip, 4px above the strip's own bottom border, which reads as a broken
+ * divider rather than a link. */
 @media (max-width: 560px) {
   .ts {
     align-items: flex-start;
@@ -471,7 +491,15 @@ a { color: var(--teal-700); }
     flex-wrap: wrap;
   }
   .ts svg { margin-top: 2px; }
-  .ts__a { margin-left: 26px; margin-top: 4px; flex-basis: 100%; }
+  .ts__a {
+    margin-left: 26px;
+    margin-top: 4px;
+    flex-basis: calc(100% - 26px);
+    text-align: left;
+    border-bottom: 0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
 }
 
 /* Breadcrumb slot — renders only when a view is genuinely nested. Nothing is
@@ -770,7 +798,6 @@ a.lc--draft:hover { border-color: var(--line-3); color: var(--ink-2); }
   padding-left: 6px;
   margin-left: 2px;
   border-left: 1px solid var(--line);
-  font-variant-numeric: tabular-nums;
 }
 .dot { width: 6px; height: 6px; flex: none; border-radius: var(--r-full); background: currentColor; }
 /* The ONE ambient animation in the product (spec §2.7). It stops under
@@ -953,8 +980,8 @@ select.input { padding-right: var(--s-2); }
 }
 .in-wrap .input:hover,
 .in-wrap .input:focus { border: none; box-shadow: none; }
-/* Fees and versions are compared down a column, so their figures are tabular. */
-.tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+/* `.tnum` and the portal-wide tabular-figure block live at the foot of this
+ * file, under Utilities — see the note there for why they have to be last. */
 
 /* Read-only, non-editable value (e.g. timezone — a v1 constant) */
 /* Read-only value, borderless — same treatment as .input[readonly] above, and
@@ -1016,13 +1043,69 @@ select.input { padding-right: var(--s-2); }
 .save-note svg { width: 14px; height: 14px; flex: none; }
 .save-note--saved { color: var(--muted); font-weight: 500; }
 .save-note--dirty { color: var(--amber-700); font-weight: 600; }
-/* Spec §2.9 sets the `v{N}` in --mono. The message is written with textContent
- * by ten page scripts through Portal.savedMessage, as one string — putting a
- * span round the numeral means those scripts switching to innerHTML, and the
- * save path is the one thing this session must not alter. Tabular figures on
- * the whole note get the column alignment the mono was for; the face itself
- * waits for a session that is allowed to touch the save call. */
-.save-note { font-variant-numeric: tabular-nums; }
+/* `.save-note`'s tabular figures — and the reason the v{N} is not in --mono —
+ * moved into the one tabular block above at D5b. */
+
+/* ============================================================================
+ * Sticky save bar (spec §2.9) — MOBILE ONLY
+ *
+ * Appears when the page's card is dirty. On a phone the card footer scrolls out
+ * of reach and the owner cannot find the button, which is the most likely single
+ * cause of failing portal-v1 §11's acceptance criterion: a fresh clinic
+ * configured on a phone, unaided, in under 45 minutes.
+ *
+ * DRIVEN BY THE EXISTING DIRTY STATE, NOT A NEW ONE. Six page scripts each set
+ * `saveNote.className = 'save-note save-note--dirty'` and the bar reads that
+ * class through a MutationObserver (shell.js). Its Save is `saveBtn.click()` on
+ * the real footer button, which is `type="submit"` inside the page's form, so
+ * the page's own submit handler runs — there is ONE save path, not two, and
+ * `fill(data.section)` still refills the server's returned value.
+ *
+ * `--save-bar-h` is declared here rather than measured in JS so that the
+ * scroll container's bottom padding and the bar's own height can never disagree:
+ * both are computed from the same token.
+ * ========================================================================== */
+/* --s-3 padding top and bottom + a 44px touch target + the 1px top border. The
+ * border counts: without it the Verbatim sheet, which is positioned off this
+ * token, lands one pixel inside the bar. */
+:root { --save-bar-h: calc(2 * var(--s-3) + 44px + 1px); }
+
+.save-bar {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  /* Above the Verbatim panel's mobile bottom sheet (45), which shares this edge
+   * and yields to the bar while a card is dirty (verbatim.css). Still under the
+   * drawer scrim (39→ the drawer itself sits above content but the scrim covers
+   * the page) and well under modals (100), so a confirmation always wins. */
+  z-index: 46;
+  display: none;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  /* The inset keeps the buttons clear of the home indicator on a notched phone;
+   * it is 0 on every device that does not have one. */
+  padding-bottom: calc(var(--s-3) + env(safe-area-inset-bottom, 0px));
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  box-shadow: var(--shadow-md);
+}
+.save-bar__save { margin-left: auto; }
+.save-bar .btn { flex: 1 1 0; justify-content: center; }
+
+/* Mobile only, at the same breakpoint the drawer and the 44px touch targets use
+ * — a tablet in portrait is a touch device too, and its footer scrolls away for
+ * the same reason a phone's does. */
+@media (max-width: 860px) {
+  .save-bar { display: flex; }
+  /* Content must not hide behind it. Same token, so the gap can never be wrong. */
+  body.has-save-bar .content {
+    padding-bottom: calc(56px + var(--save-bar-h) + env(safe-area-inset-bottom, 0px));
+  }
+}
+/* Embedded in the onboarding wizard: the wizard supplies its own Back/Continue
+ * bar, and two fixed bars at the bottom of one viewport is one too many. */
+.app.is-embedded ~ .save-bar,
+body.is-embedded .save-bar { display: none !important; }
 
 /* ============================================================================
  * Shadow notice (F-F001) — "your receptionist is following a custom script"
@@ -1452,6 +1535,68 @@ select.input { padding-right: var(--s-2); }
 .muted { color: var(--muted); }
 .center { text-align: center; }
 
+/* ============================================================================
+ * Tabular figures (spec §2.2, §2.9) — ONE block, portal-wide
+ *
+ * Proportional figures make a column of fees jitter, and a jittering fee column
+ * undermines a product whose entire promise is price accuracy. Every number the
+ * owner reads down a column, compares against another, or checks against what
+ * they typed is listed here.
+ *
+ * `.tnum` was declared in D5a and had ZERO consumers — every occurrence of it in
+ * the repository was inside the evidence harness's synthesised component sheet,
+ * never in shipped markup. It is the vehicle now rather than dead code: this is
+ * the single declaration that carries tabular figures, and the sites join its
+ * selector instead of each stylesheet repeating `font-variant-numeric`. Seven
+ * scattered copies of that declaration have been folded in here.
+ *
+ * WHY `!important`, AND WHY THIS IS THE ONE PLACE IT IS RIGHT.
+ * `font:` RESETS `font-variant-numeric` to `normal`. The portal's whole type
+ * scale is font shorthands — `--t-h1` through `--t-micro` are shorthand values,
+ * by design — so `.save-note { font: var(--t-help) }`, `.ring__num { font:
+ * var(--t-display) }` and `.hist-row__version { font: 700 13px/1 var(--mono) }`
+ * each silently wipe this property as collateral damage from setting a size.
+ * Three of those live in home.css and history.css, which load AFTER this file,
+ * so source order cannot fix it and neither can specificity. The alternatives
+ * were to abandon the shorthand type scale or to go back to repeating the
+ * declaration beside every shorthand — which is the scattering this block
+ * exists to end. `font-feature-settings` is not a `font` sub-property and
+ * survives regardless; the pair is kept so the two never disagree.
+ *
+ * D5a's copy of `.tnum` sat immediately after `.save-note` for exactly this
+ * reason, without saying so. Now it says so.
+ *
+ * HONESTY: `.day__time` and `.holiday__date` are native <input type="time"> and
+ * <input type="date">. The property computes on the host element and inherits
+ * into Chrome's ::-webkit-datetime-edit, but the glyphs the native widget
+ * actually selects are the browser's decision, not this stylesheet's. The
+ * harness asserts the computed value on the host and claims nothing stronger.
+ * ========================================================================== */
+.tnum,
+/* card footer: "Version 12" · "Saved · v13". Spec §2.9 additionally sets the
+ * v{N} in --mono; it is not, deliberately — Portal.savedMessage() returns the
+ * whole message as ONE string that ten page scripts write with textContent, so
+ * wrapping the numeral means those scripts switching to innerHTML, and that is
+ * the save path. Tabular figures on the whole note buy the column alignment the
+ * mono was for. Recorded in docs/specs/portal-v2-batch1.md §3. */
+.save-note,
+.lc__ct,                                  /* lifecycle pill: "2 left" */
+.ring__num, .ring__den, .readiness__ran,  /* readiness score, denominator, date */
+.hist-row__version, .hist-row__meta, .hist-truncated,
+.kv__v, .plain-list li,                   /* What it knows + the history snapshot */
+.money__input, .tr__dur, #archivedCount,  /* fees, treatment prices, durations */
+.day__time, .holiday__date,               /* weekly hours, holiday dates */
+.hours-pair__input,                       /* doctor working hours */
+.unit__input, .summary__text,             /* slot/advance/buffer + the summary sentence */
+.phone-row .input,                        /* clinic + escalation numbers */
+.faq-count,                               /* "12 of 50 FAQs" */
+#remainingBadge,                          /* "20 test messages left today" */
+.wiz__step-label,                         /* "Step 1 of 7" */
+.vp__fact-v {                             /* the Verbatim panel's FACTS column */
+  font-variant-numeric: tabular-nums !important;
+  font-feature-settings: "tnum" 1;
+}
+
 /* Visually hidden, still announced. Used for the readiness score's live region:
  * the ring itself is role="img", which makes its subtree presentational, so the
  * numeral inside it can never be a live region. The sentence lives here instead
@@ -1516,13 +1661,54 @@ select.input { padding-right: var(--s-2); }
 
 /* Touch targets. Spec §2.9/§2.11: controls are 44px on mobile, which is also
  * the 2.2 AA touch-target floor. Applied at the drawer breakpoint rather than
- * at 480px because a tablet in portrait is a touch device too. */
+ * at 480px because a tablet in portrait is a touch device too.
+ *
+ * D5b measured every interactive box on every page at 380 instead of trusting
+ * this block, and it was not enough: `.btn` was covered, but eight other
+ * controls were not, because none of them is a `.btn`. The worst of them is
+ * `.golive .btn`, which this file pins to 32px — the go-live control, the single
+ * most consequential button in the product, was the smallest target on a phone.
+ * A checkbox is measured at its LABEL, which is what the thumb actually lands
+ * on; the raw 15px box inside is not the target and never was. */
 @media (max-width: 860px) {
   .btn { height: 44px; }
   .btn--sm { height: 36px; }
   .input, .in-wrap, .field__static { height: 44px; }
   .in-wrap .pre, .in-wrap .input { height: 42px; }
   textarea.input { height: auto; }
+
+  /* The lifecycle control. `.golive .btn` overrides `.btn`'s height above, so it
+   * needs saying again here rather than inheriting the fix. 44 inside a 56px
+   * top bar leaves 6px either side. */
+  .golive .btn { height: 44px; padding: 0 var(--s-4); font-size: 13px; }
+  .top__burger { width: 44px; height: 44px; }
+  .kbd { height: 44px; }
+  .modal__close { width: 44px; height: 44px; }
+  .toast__x { width: 44px; height: 44px; }
+  /* The truth strip's action is a link-button on its own line below 560px; at
+   * 20.6px tall it was the smallest thing on the page that does something. */
+  .ts__a { min-height: 44px; display: inline-flex; align-items: center; }
+
+  /* Pill toggles, row actions and checkbox labels. Not one of these is a `.btn`,
+   * which is exactly why the rule above never reached them. Listed here rather
+   * than in six page stylesheets because three of the classes appear in two
+   * files each and would otherwise drift apart. */
+  .pay-toggle, .lang-toggle, .day-toggle { min-height: 44px; }
+  .chk, .show-archived, .day__toggle { min-height: 44px; }
+  /* `.switch`'s own comment claims "the hit area stays 44px via the label"; the
+   * label measured 72×20. The hidden 44×26 input it was counting on is
+   * `position: absolute` inside a label that is not `position: relative`, so it
+   * is placed against some ancestor, not against the switch. The label is the
+   * target, and now it is 44 tall. Both copies (booking-rules, safety). */
+  .switch { min-height: 44px; }
+  .doc__remove, .faq__remove { min-height: 44px; }
+  /* `min-height` does nothing to a non-replaced inline box, and `.know-edit` is
+   * a bare <a>. It has to become a flex box before it can have a height. */
+  .know-edit {
+    min-height: 44px; min-width: 44px;
+    display: inline-flex; align-items: center; justify-content: flex-end;
+  }
+  .vp__grip { min-height: 44px; }
 }
 
 @media (max-width: 480px) {

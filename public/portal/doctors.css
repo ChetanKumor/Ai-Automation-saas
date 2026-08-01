@@ -188,8 +188,9 @@
   .doc { padding: var(--s-4); }
   .doc__row { grid-template-columns: minmax(0, 1fr); gap: var(--s-4); }
 
-  /* Days keep wrapping but each toggle grows to share the row evenly. */
-  .day-toggle { flex: 1 1 62px; min-width: 62px; padding: 10px 8px; }
+  /* Days keep wrapping but each toggle grows to share the row evenly. Height
+     comes from tokens.css's shared 44px touch-target block. */
+  .day-toggle { flex: 1 1 62px; min-width: 62px; padding: 0 8px; }
 
   /* The hours pair goes full width: two fields sharing one line, never squeezed. */
   .hours-pair { width: 100%; }
