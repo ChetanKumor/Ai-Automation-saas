@@ -65,3 +65,28 @@ Budget: 10 sessions, hard cap. public/admin/** excluded from all polish work.
   Overrun requires a new entry, not an extension of this one.
 Review: after ten logged clinic conversations, or 2026-10-01, whichever is first.
 Outcome: pending
+
+## D-007 — Batch 1 portal overrun written off
+Date: 2026-08-01
+Overrides: none. This is **the new entry D-005's Budget clause requires** ("Overrun
+  requires a new entry, not an extension of this one"). It does not amend D-005: that
+  entry's cap, prediction and review date are untouched, and `D-006` is claimed by the
+  unappended draft in `docs/os/decisions.md.draft`.
+Decision: Batch 1 closed at 11 sessions against D-005's cap of 10. The eleventh session
+  is **written off** — neither a debt carried forward nor a raised cap. D-005's cap
+  stands at 10; the program stands at 11 against it.
+Reason: the eleventh was the D5 split (components / mobile). The overrun's root cause was
+  not the split. Four of eleven sessions went to defects the plan could not have listed,
+  because the plan was written from a source-read audit and every one was only findable by
+  measuring a running portal: the `--teal-600`/`--teal-700` naming collision, the absent
+  global focus ring, `tokens.css:474`'s 10px overflow across eleven pages, and eight
+  sub-44px touch targets including the go-live control.
+Prediction: Batch 2, if scoped from measurement of the running portal rather than from
+  reading source, comes in within its stated cap. If it overruns by more than one session,
+  the estimating method is wrong and the cap mechanism is not the remedy.
+Review: at Batch 2 close, or 2026-10-31, whichever is first.
+Note: **Batch 2 is not scheduled.** G-PROOF remains false — no production deploy, no live
+  call. Nothing is queued behind Batch 1. A written-off overrun is not clearance to start
+  the next batch, and this entry must not be read as authorising one: per D-005's own
+  terms, Batch 2 needs its own entry before a session may open it.
+Outcome: pending
