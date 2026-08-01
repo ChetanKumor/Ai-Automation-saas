@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 83826f0fc3df68823f6a6c1cf54befa15d704aa7
+Verified-at: 839384d40047a918c3e13f6d26d5d9c38e56f8ae
 Verified-on: 2026-08-01
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -85,14 +85,66 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   §10 explicitly authorises ("or defer to v1.1 and ship FAQ-only").
 - Demo: DEMO-00 (real Sarvam Telugu booking fixture), DEMO-01 (two-pane patient thread
   proof surface), DEMO-02 (inbox + clinic snapshot).
+- **Portal v2 Batch 1 is COMPLETE. D5b landed** (harness `shootD5b.js`). Table
+  rules, tabular figures, table→card below 640px, the sticky mobile save bar and
+  the 320px sweep. Suite **869/151/0, unmoved**. Every changed path is under
+  `public/portal/` bar the evidence harness. No route, no fetch, no dependency,
+  no build step, **no test changed**.
+  ⚠️ **The session's real finding was not a table.** `tokens.css:474` —
+  `.ts__a { margin-left: 26px; flex-basis: 100% }` inside `.ts { padding: 9px
+  16px }` — put a horizontal scrollbar on **eleven of the twelve navigation
+  destinations**, at 320px and at 380px. `flex-basis: 100%` resolves against the
+  flex container's *content* box and the margin is added on top, so the overflow
+  is exactly `margin-left − padding-right` = 10px at every width. Shipped in D3;
+  invisible for two sessions because no width measurement existed. Home measured
+  clean only because D5a had suppressed the not-live strip there. **Baseline
+  1/12 pages clean → 12/12 after.** The 640–767 band is measured too (7 pages ×
+  3 widths, zero overflow), not argued from the content column's max-width.
+  ⚠️ **`.golive .btn` was pinned to 32px** — the go-live control, the most
+  consequential button in the product, was the smallest touch target on a phone.
+  One of eight sub-44px targets found by measuring every interactive box on all
+  twelve pages rather than the two the session required; the others were
+  `.segmented__btn` (28), `.pace__slider` (20), `.switch` (20), `.starter` (41),
+  `.ts__a` (21), `.top__burger` (38) and `.know-edit` (31 wide). `.switch`'s own
+  comment claimed *"the hit area stays 44px via the label"* while its label
+  measured 72×20.
+  ⚠️ **Two elements the portal DELETED on mobile rather than laying out, both
+  restored:** the `Past` badge on a holiday row (`hours.css:152`), the only thing
+  explaining why a row is dimmed; and `.check__link` (`home.css:182`), the route
+  to the fix on the surface that decides go-live, hidden on the exact device
+  portal-v1 §11's 45-minute criterion is measured on — a mobile owner saw which
+  check was failing and had no way to act on it. `.check__link` was also
+  `--faint`, **2.8:1 on `--card`**, a step the token's own comment marks
+  "non-text only"; it is `--teal-700` now.
+  **No `.tb` component was built, deliberately.** There is no `<table>`,
+  `<thead>` or `role="table"` anywhere in `public/portal/` — every register is
+  div rows and each page owns its row class. A shared table class with no
+  consumers would have been exactly the dead code `.tnum` had been since D5a
+  (declared, and used only inside the evidence harness). `.tnum` is now the one
+  block carrying tabular figures for all 25 numeric sites, with seven scattered
+  copies folded in. It needs `!important`: `font:` resets
+  `font-variant-numeric`, this portal's whole type scale is font shorthands by
+  design, and three of the clobbering rules live in stylesheets that load after
+  `tokens.css`.
+  ⚠️ **Deviation from spec §3.3, recorded:** Pricing keeps INLINE editing on
+  mobile — no bottom sheet. §3.3's rationale is that "inline cell editing on a
+  phone is not viable", meaning click-a-cell-in-a-grid; this page never shipped
+  that, `PORTAL-P2-S6` chose full-width stacked inputs on purpose, and a sheet
+  would hold the same inputs the card already shows. The card form ships
+  otherwise as specified. ⚠️ **Breakpoint is 640, not the spec's 768** — 768
+  appears nowhere in this portal (860/640/560/520/480), and 640 sits inside
+  §2.12's own `480–767` *tables → cards* band.
+  ⚠️ **F-V006 filed** — the Verbatim panel's collapsed mobile sheet overlaps the
+  last ~57px of page content when the card is clean; nothing pads for it.
+  Pre-existing in D4. Its *other* half is fixed: the sheet was also covering the
+  new save bar, and now yields to it.
 - **Portal v2 Batch 1: D5a landed** (harness `shootD5a.js`). The shared component
   layer plus the six worklist items accumulated across D1–D4. Suite **869/151/0,
   unmoved**. Every changed path is under `public/portal/` bar the evidence harness.
   No route, no fetch, no dependency, no build step; **no test changed** — D5a's
   Phase 0 checked whether any test asserts the not-live condition's page coverage
   and none does, so the one permitted edit was never spent.
-  **D5 was SPLIT.** D5b still owes table rules, tabular figures, table→card below
-  768px, the sticky mobile save bar and the 320px sweep.
+  **D5 was SPLIT.** D5b closed the remainder — see the D5b bullet above.
   ⚠️ **`--teal-hover`/`--teal-press` are GONE**, closing the transitional state D1
   opened. This was the session's real visual risk and it did not resolve the way
   the plan predicted: of the 17 consumers only **one** was a button-fill hover,
@@ -227,10 +279,19 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   that landed it both call it frozen. The required override exists — **D-005** overrides
   the H5 ranking §0.2 demands and carries its falsifiable prediction — so the work is
   authorised; only the Status line is stale.
-  ⚠️ **D-005's budget is 10 sessions, hard cap, and 5 were spent before D1.** Batch 1 is
-  D1–D5, so completing it lands exactly on the cap. The spec estimates 14–18 sessions for
-  the full document; **any Batch 2 needs a new decisions.md entry, not an extension** —
-  D-005 says so in terms.
+  ⚠️ **D-005's budget is 10 sessions, hard cap, and 5 were spent before D1.** This line
+  previously read "Batch 1 is D1–D5, so completing it lands exactly on the cap." **That is
+  no longer true, and the reason is the D5 split.** Batch 1 shipped in **six** sessions —
+  D1, D2, D3, D4, D5a, D5b — so the program has now consumed **11 of a 10-session hard
+  cap. It is one session over.** Nobody authorised the eleventh; the split was a scoping
+  decision taken inside D5 and its budget consequence was not carried back here at the
+  time. Recorded rather than netted off, because a hard cap that quietly absorbs an
+  overrun is not a cap. The overrun is one session on presentation work, not a schedule
+  risk to anything on the critical path — but the **founder owns whether it is ratified,
+  written off, or deducted from a future allocation**, and no session may treat it as
+  settled until that entry exists. The spec estimates 14–18 sessions for the full
+  document; **any Batch 2 needs a new decisions.md entry, not an extension** — D-005 says
+  so in terms, and that requirement is now doubly binding.
 - **F-V001** — **CLOSED** at D4 Phase 0 on resolution path 1. `Noto Sans` now
   carries U+20B9 through four weight-distinct `text=`-subsetted faces of ~830
   bytes each (3.2 KB total), generated by a new `rupee` entry in
@@ -372,8 +433,13 @@ Stage 2 items 1 (`9b5486a`), 2 (`634b7aa`), 3 (`6ceb8f0`) and 4 (this commit). T
 audit's own effort lines budget **17h** for the eight findings that shipped, of a 20h
 total; the 3h remainder is F-F003. ⚠️ Actual hours are not recorded anywhere in the
 repository — no session log exists — so the 17h is the estimate, not a measurement.
-Five sessions remain unspent and are **not** carried forward: D-005's terms cancel the
-unspent backlog if the prediction fails.
+⚠️ **Corrected at D5b.** This paragraph used to end "Five sessions remain unspent and are
+**not** carried forward: D-005's terms cancel the unspent backlog if the prediction
+fails." Those five were not left unspent — they were spent on Portal v2 Batch 1, which
+took **six** sessions rather than five because D5 was split into D5a and D5b. The
+program therefore stands at **11 sessions against a 10-session hard cap**. See the
+budget note under *Portal v2's governing documents* above; the cap question is the
+founder's to settle and is not settled here.
 
 **Note for the D-005 review (2026-10-01, or ten logged clinic conversations)**
 

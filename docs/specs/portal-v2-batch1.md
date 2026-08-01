@@ -414,6 +414,95 @@ returns `Saved · v13` as one string and ten page scripts write it with
 which is the save path. Tabular figures on the whole note buy the column
 alignment the mono was for. Deferred to a session allowed to touch the save call.
 
+**D5b — LANDED.** Table rules, tabular figures, table→card below 640px, the
+sticky mobile save bar, and the 320px sweep. Suite **869 / 151 / fail 0**,
+unmoved. Every changed path is under `public/portal/` bar the evidence harness
+`scripts/portal/shootD5b.js`, which lands in its own `chore` commit per the
+D3/D4/D5a precedent. **Batch 1 is complete.**
+
+The session's real finding was not a table. **`tokens.css:474` put a horizontal
+scrollbar on eleven of the twelve navigation destinations**, from D3, invisible
+until a width measurement existed:
+
+```css
+.ts__a { margin-left: 26px; flex-basis: 100%; }   /* inside .ts { padding: 9px 16px } */
+```
+
+`flex-basis: 100%` resolves against the flex container's CONTENT box (288px
+inside 16px padding at a 320px viewport) and the 26px margin is added on top, so
+the item's right edge lands at 16 + 26 + 288 = 330. The overflow is exactly
+`margin-left - padding-right` = 10px at **every** width, which is why the
+baseline table read `10` twenty-two times. Home measured clean only because D5a
+suppressed the not-live strip there. The basis now subtracts the indent, and the
+underline moves from `border-bottom` to `text-decoration` — a border on a
+full-width item drew a hairline across the strip 4px above the strip's own
+bottom border.
+
+Six things this session found that the plan did not predict:
+
+1. **There is no `<table>`, `<thead>` or `role="table"` anywhere in
+   `public/portal/`,** and §2.5's row calls for `.tb` rules. Every register is
+   div rows and each page owns its row class — the convention is named in
+   `history.css:4`. **No `.tb` component was built**: a shared class with no
+   consumers is the dead code the `.tnum` item below objects to. Section A is
+   asserted per row class instead, on the property that matters — a row is drawn
+   by a rule beneath it and by nothing else. All six registers passed on
+   vertical-rule count and zebra; **`.holiday-row` had no rule at all** and was
+   the one register on its page that did not match the weekly grid above it.
+2. **`.tnum` had ZERO consumers.** Declared in D5a, used only inside the evidence
+   harness's synthesised sheet, never in shipped markup. It is now the one block
+   that carries tabular figures for all 25 numeric sites, with seven scattered
+   copies of the declaration folded into it.
+3. **`font:` resets `font-variant-numeric`** — and this portal's entire type
+   scale is font shorthands by design, three of them in stylesheets that load
+   after `tokens.css`. Source order and specificity both fail. The block carries
+   `!important`, stated and justified at the point of use. D5a's copy sat
+   immediately after `.save-note` for exactly this reason without saying so.
+4. **Eight touch targets under 44px, on ten pages the required two would not have
+   found.** The worst was **`.golive .btn`, pinned to 32px** — the go-live
+   control, the most consequential button in the product, was the smallest thing
+   to aim at on a phone. Also `.segmented__btn` (28px), `.pace__slider` (20px)
+   and `.switch` (20px) — whose own comment claims *"the hit area stays 44px via
+   the label"*, while the label measured 72×20 and the 44×26 input it was
+   counting on is `position: absolute` inside a label that is not
+   `position: relative`. Measured at the EFFECTIVE target: a 15px checkbox inside
+   a `<label>` is hit through the label, and measuring the raw input reports a
+   failure the owner cannot experience.
+5. **`.check__link` was `--faint`, 2.8:1 on `--card`** — the token's own comment
+   marks that step "non-text only". A link telling an owner how to unblock
+   go-live is text, and it was the quietest text on the page. Now `--teal-700`,
+   which is what `tokens.css` gives every other `<a>` before this rule overrode
+   it. Its stale sibling comment described an inert "Coming soon" span removed at
+   PORTAL-P6-S18.
+6. **Two fixed surfaces share the bottom edge on the eight editing pages.** The
+   Verbatim panel's mobile sheet is `position: fixed; bottom: 0; z-index: 45`,
+   and it covered the new save bar — the owner would have been hunting for Save
+   underneath a reference surface, which is the exact failure the bar exists to
+   prevent. The **panel** yields, not the bar: the bar is the action and exists
+   only while dirty, the panel is always there.
+
+**Deviation from spec §3.3, deliberate: Pricing keeps INLINE editing on mobile —
+no bottom sheet.** §3.3 specifies "editing opens a bottom sheet, because inline
+cell editing on a phone is not viable", and cell editing means
+click-a-cell-in-a-grid. This page never shipped that. `PORTAL-P2-S6` built
+full-width stacked inputs deliberately and wrote the reason at the top of
+`pricing.css`. A sheet would contain the same five stacked inputs the card
+already shows — a chrome change for an identical interaction — and moving those
+inputs into one is the only way this session could have disturbed the dirty
+mechanism, which was a STOP condition. The card form ships as specified
+otherwise: name at `--t-h3`, price at `--t-h2` right-aligned and tabular,
+duration and *starts at* as `--muted` meta.
+
+**Breakpoint 640, not 768.** §2.9 says tables become cards below 768px; 768 is
+not used anywhere in this portal, which runs 860/640/560/520/480. 640 is where
+every table-shaped list already switched and it sits inside §2.12's own `480–767`
+*tables → cards* band. **The 640–767 gap is measured, not argued** — seven pages
+carrying a register, at 640/700/767, zero overflow.
+
+**Residual, not fixed:** the Verbatim panel's collapsed sheet overlaps the last
+~57px of `.content` when the page is clean. Pre-existing in D4 — nothing pads for
+it — and unchanged here; the save bar's own padding is exact and asserted.
+
 ---
 
 ## 4. Invariant guard
@@ -553,8 +642,18 @@ Three items, named so they are not silently absorbed:
    **Fix when scheduled:** have the page signal fill completion, or have
    `warnings()` fall back to the saved value the way the FACTS row already does.
    Out of D5a's scope (Verbatim panel beyond W6).
-7. **F-V003 — `readinessOnce()` swallows 401 to null.** Non-Home pages leave the header blank on a dead session instead of redirecting. `shell.js:592-600`. Error ladder layer 4. Found in D3 Phase 0, not fixed there — behaviour change, D3 is presentation-only.
-8. **TEST-FLAKE-03 — CLOSED.** Fixed by seeding a `tenant_configs` row with seven-day open hours in the fixture, so the subtest controls its own preconditions. `clinicDefaults` is unchanged. Original report: **`voiceCancellation.integration.test.js:270` failed on any day when today+2 is a Sunday.** `istDateString(2)` picks the booking date; the fixture seeds Dr. Rao for all seven days but seeds **no `tenant_configs` row**, so clinic hours fall back to `clinicDefaults`, which closes Sunday. `book_appointment` refuses with `closed_day`, no row is written, and `assert.equal(appts.length, 1, 'the committed booking stands')` fails. Reproduced at `95d0f5f` with a clean tree, so it is not D3's. It passed in D3's own Phase 0 baseline the previous day (today+2 was a Saturday) and has failed every run since — which is exactly the signature. Fix is one of: seed the fixture's hours explicitly, or advance the date to the next open day. Not a D3 task; D3's only permitted test edit was the `shell.js` label assertion.
+7. **F-V006 (open, new) — the Verbatim panel's collapsed mobile sheet overlaps
+   page content.** Below 1024px the panel is `position: fixed; bottom: 0` and
+   ~57px tall collapsed, and nothing pads `.content` for it, so the last ~57px of
+   every editing page sits under it whenever the card is clean. Pre-existing in
+   D4, found by D5b while solving the adjacent problem (the sheet also covered
+   the new save bar — that half IS fixed: `body.has-save-bar .vp` lifts the panel
+   by `--save-bar-h`). The dirty case is exact and asserted; the clean case is
+   not. **Fix when scheduled:** pad `.content` by the collapsed sheet's height
+   the way `has-save-bar` already pads it by the bar's, which needs the collapsed
+   height to become a token rather than an emergent sum of grip paddings.
+8. **F-V003 — `readinessOnce()` swallows 401 to null.** Non-Home pages leave the header blank on a dead session instead of redirecting. `shell.js:592-600`. Error ladder layer 4. Found in D3 Phase 0, not fixed there — behaviour change, D3 is presentation-only.
+9. **TEST-FLAKE-03 — CLOSED.** Fixed by seeding a `tenant_configs` row with seven-day open hours in the fixture, so the subtest controls its own preconditions. `clinicDefaults` is unchanged. Original report: **`voiceCancellation.integration.test.js:270` failed on any day when today+2 is a Sunday.** `istDateString(2)` picks the booking date; the fixture seeds Dr. Rao for all seven days but seeds **no `tenant_configs` row**, so clinic hours fall back to `clinicDefaults`, which closes Sunday. `book_appointment` refuses with `closed_day`, no row is written, and `assert.equal(appts.length, 1, 'the committed booking stands')` fails. Reproduced at `95d0f5f` with a clean tree, so it is not D3's. It passed in D3's own Phase 0 baseline the previous day (today+2 was a Saturday) and has failed every run since — which is exactly the signature. Fix is one of: seed the fixture's hours explicitly, or advance the date to the next open day. Not a D3 task; D3's only permitted test edit was the `shell.js` label assertion.
 
 ---
 
