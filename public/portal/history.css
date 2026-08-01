@@ -33,7 +33,8 @@
   flex: none;
   width: 42px;
   font: 700 13px/1 var(--mono);
-  color: var(--teal-press);
+  font-variant-numeric: tabular-nums;
+  color: var(--teal-700);
 }
 .hist-row__main { flex: 1; min-width: 0; }
 .hist-row__top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
@@ -88,8 +89,8 @@
   display: inline-flex;
   font-size: 12px;
   font-weight: 600;
-  color: var(--teal-press);
-  background: var(--teal-050);
+  color: var(--teal-700);
+  background: var(--teal-50);
   border: 1px solid var(--teal-100);
   border-radius: 999px;
   padding: 3px 10px;
@@ -105,11 +106,11 @@
 .hist-current-note {
   margin: 0 0 var(--s-3);
   padding: 9px 12px;
-  background: var(--teal-050);
+  background: var(--teal-50);
   border: 1px solid var(--teal-100);
   border-radius: var(--radius-sm);
   font-size: 12.5px;
-  color: var(--teal-press);
+  color: var(--teal-700);
   font-weight: 600;
 }
 

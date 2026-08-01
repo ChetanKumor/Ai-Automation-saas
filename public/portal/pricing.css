@@ -190,9 +190,9 @@
 }
 .pay-toggle__check svg { width: 11px; height: 11px; }
 .pay-toggle[aria-pressed="true"] {
-  background: var(--teal-050);
+  background: var(--teal-50);
   border-color: var(--teal-100);
-  color: var(--teal-press);
+  color: var(--teal-700);
 }
 .pay-toggle[aria-pressed="true"] .pay-toggle__check {
   background: var(--teal);

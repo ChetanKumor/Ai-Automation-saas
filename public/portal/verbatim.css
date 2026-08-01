@@ -250,6 +250,25 @@
 .vp__why { font: 400 11.5px/1.35 var(--sans); color: #6E7784; flex: 1; }
 .vp__f .vp__btn--end { margin-left: auto; }
 
+/* The reason beneath the language selector when it goes inert (one language
+ * enabled). Same rule as `Hear it` above: adjacent and visible, never a title
+ * attribute — a tooltip is invisible on touch and to a keyboard user, which is
+ * most of the people who need to read it. */
+.vp__note {
+  margin: 0;
+  padding: 9px 16px;
+  flex: none;
+  font: 400 11.5px/1.4 var(--sans);
+  color: var(--field-muted);
+  border-bottom: 1px solid var(--field-line);
+}
+
+/* F-V004 (W6). On a clinic running a hand-written script the panel is showing
+ * SAVED state that the receptionist is not reading, so the header drops the
+ * word "Live" and the live dot with it. This class is the hook for anything
+ * that must stop claiming liveness with it. */
+.vp--saved-only .vp__dot { display: none; }
+
 /* Focus. Ink ground gets the 2px --teal-500 ring plus a 2px --field inner ring
  * so it reads against both the panel and any bubble behind it (spec §2.11). */
 .vp :focus-visible,

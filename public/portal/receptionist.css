@@ -16,31 +16,44 @@
  * ========================================================================== */
 
 
-/* ── Segmented control (Tone, Response length) ── */
+/* ── Segmented control (Tone, Response length) — spec §2.9 / foundations sheet
+ *
+ * The selected segment is a RAISED CARD on a recessed track: --card fill,
+ * --ink text, --shadow-sm. It is deliberately NOT teal. Spec §2.1 rations the
+ * accent to the primary action, the current nav position, links, focus and the
+ * live indicator — a chosen tone is none of those, and every page carrying one
+ * of these had two or three teal blocks competing with its actual Save button.
+ * The selection still reads without colour: it is the segment that sits above
+ * the track. W1 site 14 of 17 resolved here rather than by token swap. */
 .segmented {
   display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: var(--radius-xs);
-  overflow: hidden;
+  border-radius: var(--r-sm);
 }
 .segmented__btn {
-  padding: 8px 18px;
-  font: 600 13px/1 var(--sans);
+  height: 28px;
+  padding: 0 13px;
+  font: 500 13px/1 var(--sans);
   border: none;
-  border-right: 1px solid var(--line);
-  background: var(--card);
-  color: var(--ink-2);
+  border-radius: var(--r-xs);
+  background: none;
+  color: var(--muted);
   cursor: pointer;
-  transition: background .12s, color .12s;
+  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
 }
-.segmented__btn:last-child { border-right: none; }
-.segmented__btn:hover { background: var(--bg); color: var(--ink); }
+.segmented__btn:hover { color: var(--ink); }
 .segmented__btn--active,
 .segmented__btn--active:hover {
-  background: var(--teal-050);
-  color: var(--teal-press);
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
 }
-.segmented__btn:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+/* The portal-wide ring in tokens.css applies; the track is only 3px wider than
+ * the segment, so the ring is pulled inside rather than clipped by the track. */
+.segmented__btn:focus-visible { outline-offset: -1px; }
 
 /* ── Greeting, one block per enabled language ── */
 .greet-field { margin-top: var(--s-4); }
@@ -59,8 +72,8 @@
   font-weight: 700;
   letter-spacing: .03em;
   text-transform: uppercase;
-  color: var(--teal-press);
-  background: var(--teal-050);
+  color: var(--teal-700);
+  background: var(--teal-50);
   border: 1px solid var(--teal-100);
   border-radius: 999px;
   padding: 2px 7px;

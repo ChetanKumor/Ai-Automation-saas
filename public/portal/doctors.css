@@ -19,7 +19,9 @@
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
+  /* W2: cards do not cast (spec §2.5). D1 deleted the declaration from .card;
+   * .doc and .faq are cards by every other measure and were missed, so
+   * "cards have no shadow" was not true portal-wide until this line went. */
   padding: var(--s-5);
 }
 .doc + .doc, #doctors > .doc:first-child { margin-top: var(--s-4); }
@@ -68,9 +70,9 @@
 }
 .day-toggle:hover { background: var(--bg); }
 .day-toggle[aria-pressed="true"] {
-  background: var(--teal-050);
+  background: var(--teal-50);
   border-color: var(--teal-100);
-  color: var(--teal-press);
+  color: var(--teal-700);
 }
 
 /* ── Working hours pair ── */
@@ -95,12 +97,12 @@
 }
 .lang-toggle:hover { background: var(--bg); }
 .lang-toggle[aria-pressed="true"] {
-  background: var(--teal-050);
+  background: var(--teal-50);
   border-color: var(--teal-100);
-  color: var(--teal-press);
+  color: var(--teal-700);
 }
 .lang-toggle__native { font-weight: 500; color: var(--faint); }
-.lang-toggle[aria-pressed="true"] .lang-toggle__native { color: var(--teal-press); opacity: .8; }
+.lang-toggle[aria-pressed="true"] .lang-toggle__native { color: var(--teal-700); opacity: .8; }
 
 /* ── Warnings: quiet, never blocking (booking offers the intersection) ── */
 .doc__warn {

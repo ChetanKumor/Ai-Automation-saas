@@ -165,6 +165,8 @@
     $('wizSaveNote').textContent = '';
     $('wizSaveNote').classList.remove('wiz__save-note--error');
     $('wizBack').disabled = state.step === 0;
+    // Spec §2.9: no disabled control without a visible reason beside it.
+    $('wizBackWhy').hidden = state.step !== 0;
     setContinueBusy(false);
 
     stopHeightWatch();

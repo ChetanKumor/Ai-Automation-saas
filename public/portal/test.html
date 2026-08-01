@@ -73,6 +73,13 @@
               placeholder="Type a question, as a patient would ask it…" autocomplete="off"></textarea>
             <button class="btn btn--primary" id="sendBtn" type="submit">Send</button>
           </form>
+          <!-- The reason the composer above goes inert once the daily cap is
+               reached. The remaining-count badge lives in the card HEAD, four
+               hundred pixels away from the input it explains; on reload there
+               was nothing beside the dead control at all. Shown by test.js. -->
+          <p class="btn-why chat-why" id="chatWhy" hidden>
+            You’ve used all 20 test messages for today. The counter resets tomorrow — your receptionist is unaffected.
+          </p>
         </section>
       </main>
     </div>

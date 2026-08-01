@@ -25,8 +25,7 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
-  const WARN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>';
+  const WARN ='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>';
 
   // Day tokens EXACTLY as the backend stores and booking matches them
   // ('Mon'..'Sun'); the label is display-only.
@@ -49,15 +48,10 @@
   let seq = 0;                        // client-side ids for unsaved cards
 
   // ── Toast ──────────────────────────────────────────────────────────────────
-  function toast(message, ok) {
-    const el = document.createElement('div');
-    el.className = 'toast';
-    el.innerHTML = (ok ? CHECK : '') + `<span>${esc(message)}</span>`;
-    el.style.transition = 'opacity .3s ease, transform .3s ease';
-    $('toastHost').appendChild(el);
-    setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(6px)'; }, 2600);
-    setTimeout(() => el.remove(), 2950);
-  }
+  // One shared implementation in shell.js (§2.9): success clears itself, an
+  // error persists with a Dismiss. This page's copy used to fade errors out
+  // after 2.6s along with everything else's.
+  const toast = (message, ok) => window.Portal.toast(message, ok);
 
   function updateHeader(readiness) {
     if (readiness && window.Portal && window.Portal.renderLifecycle) {

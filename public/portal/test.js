@@ -105,18 +105,18 @@
       input.disabled = true;
       sendBtn.disabled = true;
       Array.from(document.querySelectorAll('.starter')).forEach((b) => { b.disabled = true; });
+      // Spec §2.9: a disabled control carries its reason beside it. The badge in
+      // the card head says "0 test messages left today", but it is nowhere near
+      // the composer and on a reload the dead input had nothing next to it.
+      const why = $('chatWhy');
+      if (why) why.hidden = false;
     }
   }
 
-  function toast(message) {
-    const host = $('toastHost');
-    const el = document.createElement('div');
-    el.className = 'toast';
-    el.innerHTML = `<span>${esc(message)}</span>`;
-    host.appendChild(el);
-    setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(6px)'; }, 2600);
-    setTimeout(() => el.remove(), 2950);
-  }
+  // One shared implementation in shell.js (§2.9). This page only ever raises
+  // FAILURES here, so they all take the persistent role="alert" form — which is
+  // the change that matters: a failed test turn used to erase its own report.
+  const toast = (message) => window.Portal.toast(message, false);
 
   async function sendQuestion(question) {
     if (sending) return;

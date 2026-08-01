@@ -62,16 +62,21 @@
 .lang-toggle--hi .lang-toggle__native { font-family: var(--hi); }
 
 .lang-toggle[aria-pressed="true"] {
-  background: var(--teal-050);
+  background: var(--teal-50);
   border-color: var(--teal-100);
-  color: var(--teal-press);
+  color: var(--teal-700);
 }
 .lang-toggle[aria-pressed="true"] .lang-toggle__check {
   background: var(--teal);
   border-color: var(--teal);
   color: #fff;
 }
-.lang-toggle[aria-pressed="true"] .lang-toggle__native { color: var(--teal-hover); }
+/* The native-script sub-label sits one step back from the label it belongs to.
+ * D1 parked it on --teal-hover (the old --teal-600) purely because that is what
+ * it happened to hold; doctors.css carries the identical selector and expressed
+ * the same de-emphasis with opacity instead. Both now read --teal-700 at .8, so
+ * two copies of one component stop disagreeing. */
+.lang-toggle[aria-pressed="true"] .lang-toggle__native { color: var(--teal-700); opacity: .8; }
 
 @media (max-width: 480px) {
   .phone-row__remove { width: 40px; }

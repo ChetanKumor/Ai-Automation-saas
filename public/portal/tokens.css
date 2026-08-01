@@ -35,16 +35,19 @@
   --field-muted: #94a3b8;
 
   /* ── Accent (teal) — the one and only ───────────────────────────────────────
-   * Two names changed meaning here (spec §2.1, plan §0.1). The old ramp used
+   * Two names changed meaning in D1 (spec §2.1, plan §0.1). The old ramp used
    * --teal-600 / --teal-700 as darker steps BELOW the base --teal; the v2 ramp
    * is the standard 50–900 convention in which --teal-700 IS the base. Same two
-   * names, two incompatible conventions — so the old values live on under
-   * intent names and every consumer was migrated onto them in the same commit.
-   * Nothing repaints: this step is plumbing, not a recolour.
+   * names, two incompatible conventions — so D1 parked the old values under the
+   * intent names --teal-hover / --teal-press and migrated all 17 consumers onto
+   * them mechanically, which kept that commit byte-identical in what it painted.
+   *
+   * D5a retired both names. The migration was per-site, never blanket: only ONE
+   * of the 17 was a button-fill hover, three were text-colour hovers, and the
+   * remaining thirteen were resting or SELECTED-state text colours that the
+   * word "press" described only by accident. Those resolve to --teal-700, the
+   * accent on the light ground — not to --teal-900, which is a pressed button.
    * ────────────────────────────────────────────────────────────────────────── */
-  --teal-hover: #0d6b63;   /* transitional: was --teal-600. Removed in D5. */
-  --teal-press: #0f5f59;   /* transitional: was --teal-700. Removed in D5. */
-
   --teal-50:  #f0fdfa;   /* active nav fill, selected row, subtle info fill */
   --teal-100: #ccfbf1;   /* badge fill on light ground */
   --teal-200: #99f6e4;   /* chart series fill, hover on tinted surfaces */
@@ -61,27 +64,40 @@
   --accent: var(--teal-700);           /* the alias components use on light ground */
   --accent-on-field: var(--teal-500);  /* the alias components use on the ink ground */
 
-  /* ── Semantic (states only — never used decoratively) ── */
+  /* ── Semantic (states only — never used decoratively) ────────────────────────
+   * Spec §2.1 names these steps --green-50 / --amber-50 / --red-50. The portal
+   * shipped them as --green-050 / --amber-050 / --red-050 before the v2 ramp
+   * existed, so this file disagreed with itself: --teal-50 was canonical with
+   * --teal-050 aliased to it, while the three semantic ramps did the opposite.
+   * D5a makes all four agree — the unpadded name is canonical, the zero-padded
+   * one is a deprecated alias, and no consumer had to move.
+   * ────────────────────────────────────────────────────────────────────────── */
   --green: #16a34a;
-  --green-050: #f0fdf4;
+  --green-50:  #f0fdf4;
   --green-100: #dcfce7;
   --green-200: #bbf7d0;
   --green-500: #22c55e;
   --green-700: #15803d;
 
   --amber: #b45309;
-  --amber-050: #fffbeb;
+  --amber-50:  #fffbeb;
   --amber-100: #fef3c7;
   --amber-200: #fde68a;
   --amber-500: #f59e0b;
   --amber-700: var(--amber);
 
   --red: #b91c1c;
-  --red-050: #fef2f2;
+  --red-50:  #fef2f2;
   --red-100: #fee2e2;
   --red-200: #fecaca;
   --red-500: #dc2626;
   --red-700: var(--red);
+
+  /* Deprecated zero-padded aliases — kept so no existing rule breaks. New rules
+   * use the canonical names above. Same convention as --teal-050. */
+  --green-050: var(--green-50);
+  --amber-050: var(--amber-50);
+  --red-050:   var(--red-50);
 
   /* ── Radius (spec §2.4) — smaller elements take smaller radii ── */
   --r-xs: 4px;      /* badges, tags, checkboxes */
@@ -174,7 +190,47 @@ body {
 }
 
 svg { display: block; }
-a { color: var(--teal); }
+a { color: var(--teal-700); }
+
+/* ============================================================================
+ * Focus ring (spec §2.11, §2.13) — ONE ring, everywhere, on every surface.
+ *
+ * There was no portal-wide focus rule before this. `.input`, the command
+ * palette head, the segmented control and one of the two copies of the toggle
+ * each carried their own; every button, link, nav item, truth-strip action and
+ * modal close fell through to whatever the browser drew — which on a white card
+ * in Chrome is a thin dark outline that is easy to lose, and which changes
+ * between browsers so the portal had no answer to "where am I".
+ *
+ * Light ground: 2px --teal-700 at 2px offset, drawn as a two-layer box-shadow
+ * so it follows --r-sm/--r-full corners instead of boxing a pill. Ink ground
+ * (the Verbatim panel): 2px --teal-500 plus a 2px --field inner ring, so it
+ * reads against both the panel and any bubble behind it — that rule lives in
+ * verbatim.css beside the surface it belongs to.
+ *
+ * :focus-visible, so a mouse user never sees it. NEVER colour-only: the ring is
+ * a shape change, which is what survives greyscale and low vision. F-F009 was
+ * filed against exactly this on web/; nothing here may repeat it.
+ * ========================================================================== */
+:focus-visible {
+  outline: 2px solid var(--teal-700);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+/* Elements whose own box already carries a radius keep it under the ring. */
+.btn:focus-visible,
+.input:focus-visible,
+.nav__item:focus-visible,
+.ts__a:focus-visible,
+.kbd:focus-visible,
+.cmdk__esc:focus-visible { border-radius: var(--r-sm); }
+.badge:focus-visible,
+.modal__close:focus-visible { border-radius: var(--r-xs); }
+.av:focus-visible,
+.dot:focus-visible { border-radius: var(--r-full); }
+/* .input paints its ring as a box-shadow (it sits inside a flex row where an
+ * outline would overlap the neighbour); suppress the duplicate outline. */
+.input:focus-visible { outline: none; }
 
 /* ============================================================================
  * App shell — fixed sidebar + scrolling content (spec §4 nav order)
@@ -536,25 +592,33 @@ a { color: var(--teal); }
 .card__sub { color: var(--muted); font-size: 13px; margin-top: 3px; }
 
 /* ============================================================================
- * Badge / pill
+ * Badge / pill (spec §2.9)
+ *
+ * 22px tall, --r-xs, --t-micro. ICON PLUS WORD, ALWAYS — a badge that carries
+ * only colour says nothing in greyscale and nothing to a screen reader, and
+ * "status is never colour-only" is an accessibility requirement (§2.11), not a
+ * preference. The dot counts as the icon on the live badge, where the motion
+ * IS the signal and the word beside it is "Live".
  * ========================================================================== */
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1;
-  padding: 5px 10px;
-  border-radius: 999px;
+  gap: var(--s-1);
+  height: 22px;
+  font: var(--t-micro);
+  letter-spacing: .03em;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-xs);
   border: 1px solid transparent;
   white-space: nowrap;
 }
-.badge svg { width: 13px; height: 13px; flex: none; }
-.badge--ok    { color: var(--green-700); background: var(--green-050); border-color: var(--green-100); }
-.badge--warn  { color: var(--amber);     background: var(--amber-050); border-color: var(--amber-200); }
-.badge--muted { color: var(--muted);     background: var(--bg);        border-color: var(--line); }
-.badge--teal  { color: var(--teal-press);  background: var(--teal-050);  border-color: var(--teal-100); }
+.badge svg { width: 12px; height: 12px; flex: none; }
+.badge--ok    { color: var(--green-700); background: var(--green-50); border-color: var(--green-200); }
+.badge--warn  { color: var(--amber-700); background: var(--amber-50); border-color: var(--amber-200); }
+.badge--err   { color: var(--red-700);   background: var(--red-50);   border-color: var(--red-200); }
+.badge--muted { color: var(--muted);     background: var(--line-2);   border-color: var(--line); }
+/* W1 site 19 of 17+2: a resting status pill, never a press state. --teal-700. */
+.badge--teal  { color: var(--teal-700);  background: var(--teal-50);  border-color: var(--teal-100); }
 
 /* Live-status dot (pulsing) — reused from the demo's live pill */
 .badge__dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
@@ -566,41 +630,110 @@ a { color: var(--teal); }
 }
 
 /* ============================================================================
- * Button
+ * Button (spec §2.9) — five variants × six states
+ *
+ * Bare `.btn` IS the secondary variant. That is how the portal has always used
+ * it and renaming it would have touched every page for no owner-visible gain.
+ *
+ * Geometry: 36px default, 32px small, 44px on mobile and for any page's primary
+ * action. --r-sm, --t-body-sm at 500, 16px icon at --s-2 gap.
  * ========================================================================== */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  font: 600 13.5px/1 var(--sans);
-  padding: 9px 15px;
-  border-radius: var(--radius-xs);
+  gap: var(--s-2);
+  height: 36px;
+  font: 500 13.5px/1 var(--sans);
+  padding: 0 var(--s-4);
+  border-radius: var(--r-sm);
   border: 1px solid var(--line);
   background: var(--card);
   color: var(--ink-2);
   cursor: pointer;
+  white-space: nowrap;
   text-decoration: none;
-  transition: background .12s, border-color .12s;
+  transition: background var(--dur-1) var(--ease-out),
+              border-color var(--dur-1) var(--ease-out),
+              color var(--dur-1) var(--ease-out);
 }
-.btn svg { width: 15px; height: 15px; }
-.btn:hover { background: var(--bg); color: var(--ink); }
-.btn--primary { background: var(--teal); border-color: var(--teal); color: #fff; }
-.btn--primary:hover { background: var(--teal-press); border-color: var(--teal-press); color: #fff; }
+.btn svg { width: 16px; height: 16px; flex: none; }
+
+/* Secondary — the bare class. Border darkens on hover; fill deepens on press. */
+.btn:hover { background: var(--bg); border-color: var(--line-3); color: var(--ink); }
+.btn:active { background: var(--line-2); }
+
+.btn--primary { background: var(--teal-700); border-color: var(--teal-700); color: #fff; }
+/* W1 site 1 of 17 — the ONE genuine button-fill hover in the whole sweep. */
+.btn--primary:hover  { background: var(--teal-800); border-color: var(--teal-800); color: #fff; }
+.btn--primary:active { background: var(--teal-900); border-color: var(--teal-900); }
+
+.btn--ghost { border-color: transparent; background: none; color: var(--ink-2); }
+.btn--ghost:hover  { background: var(--line-2); border-color: transparent; color: var(--ink); }
+.btn--ghost:active { background: var(--line); }
+
+/* Danger is NEVER a solid red fill (spec §2.9). A filled red button is the most
+ * visually attractive thing on the screen at the exact moment the owner is
+ * about to do something they cannot undo — it invites the misclick it should be
+ * discouraging. Red text on a red hairline reads as a warning, not a target. */
+.btn--danger { background: var(--card); border-color: var(--red-200); color: var(--red-700); }
+.btn--danger:hover  { background: var(--red-50); border-color: var(--red-200); color: var(--red-700); }
+.btn--danger:active { background: var(--red-100); }
+
+/* Link — no chrome, for use inline in prose. Underlines on hover only. */
+.btn--link {
+  height: auto;
+  padding: 0;
+  border-color: transparent;
+  background: none;
+  color: var(--teal-700);
+}
+.btn--link:hover { background: none; border-color: transparent; color: var(--teal-800); text-decoration: underline; }
+
+.btn--sm { height: 32px; padding: 0 var(--s-3); font-size: 12.5px; }
+.btn--sm svg { width: 14px; height: 14px; }
 .btn--block { width: 100%; }
+
+/* Disabled. Every disabled control in this portal carries a VISIBLE adjacent
+ * reason — see .btn-why below. A disabled button with no reason is a dead end:
+ * it tells the owner they may not proceed and refuses to say why, which is the
+ * one thing they need in order to stop being stuck. */
 .btn:disabled, .btn[aria-disabled="true"] {
-  cursor: default;
+  cursor: not-allowed;
   opacity: 1;
-  background: var(--bg);
-  border-color: var(--line);
+  background: var(--line-2);
+  border-color: transparent;
   color: var(--faint);
 }
-.btn--ghost { border-color: transparent; background: none; color: var(--muted); }
-.btn--ghost:hover { background: var(--bg); color: var(--ink); }
-/* Confirm action for a change that takes something AWAY (pausing a live
- * receptionist). Used only inside a confirm modal, never as a page control. */
-.btn--danger { background: var(--red); border-color: var(--red); color: #fff; }
-.btn--danger:hover { background: #991b1b; border-color: #991b1b; color: #fff; }
+.btn:disabled svg, .btn[aria-disabled="true"] svg { color: var(--faint); }
+
+/* Busy. The label takes the present participle and a spinner fills the icon
+ * slot. `aria-busy` rather than a second visual language: the button is
+ * announced as busy, and the width is held by the inline min-width its own
+ * script pins before the swap, so the card does not reflow mid-save.
+ *
+ * DEVIATION FROM SPEC, RECORDED: §2.9 says busy is "non-interactive but not
+ * disabled, so it keeps focus". The portal's save buttons also use `disabled`
+ * as their ONLY double-submit guard — there is no re-entry flag on the save
+ * path — and this session's hard constraint is that the save discipline behaves
+ * identically. Dropping `disabled` here would trade a real duplicate-POST for a
+ * focus nicety. `aria-busy` is added; `disabled` stays until a save-path guard
+ * exists to replace it. Filed rather than silently done either way. */
+.btn[aria-busy="true"] { cursor: progress; }
+.btn[aria-busy="true"] .btn__spin {
+  width: 14px; height: 14px; flex: none;
+  animation: btn-spin 700ms var(--ease-linear) infinite;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+
+/* The reason that must sit beside a disabled control (spec §2.9). Inline, in
+ * --muted, never a tooltip: a tooltip is invisible on touch and to a keyboard
+ * user, which is most of the people who need it. */
+.btn-why {
+  font: var(--t-help);
+  color: var(--muted);
+  line-height: 1.45;
+}
 
 /* ── Header lifecycle control (PORTAL-P1-S3; real in S18; restyled in v2 D2) ──
  * Go live / Pause / Resume — the only lifecycle action an owner can take, and
@@ -611,7 +744,7 @@ a { color: var(--teal); }
  * itself is the information, and only the states with an available action carry
  * one. The ineligible state links to Home, where the blocking items are. */
 .golive { display: inline-flex; align-items: center; gap: var(--s-2); }
-.golive .btn { padding: 7px 13px; font-size: 12.5px; }
+.golive .btn { height: 32px; padding: 0 var(--s-3); font-size: 12.5px; }
 
 .lc {
   display: inline-flex;
@@ -709,54 +842,161 @@ a.lc--draft:hover { border-color: var(--line-3); color: var(--ink-2); }
 .field__opt { font-weight: 500; color: var(--faint); margin-left: 6px; }
 .field__help { font-size: 12.5px; color: var(--muted); margin: 0 0 8px; line-height: 1.5; }
 
+/* Inputs (spec §2.9) — six states: rest, hover, focus, error, read-only,
+ * disabled. 40px tall (44px mobile, below), --r-sm.
+ *
+ * Focus takes the border to --teal-700 PLUS the shared ring. No fill change and
+ * no glow: the old 3px --teal-050 halo was a soft tint doing the ring's job
+ * badly, and it is the one focus treatment in the portal that a low-vision user
+ * on a cheap screen could miss entirely. */
 .input {
   width: 100%;
+  height: 40px;
   font: 400 14px/1.5 var(--sans);
   color: var(--ink);
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: var(--radius-xs);
-  padding: 9px 12px;
-  transition: border-color .12s, box-shadow .12s;
+  border-radius: var(--r-sm);
+  padding: 0 var(--s-3);
+  transition: border-color var(--dur-1) var(--ease-out),
+              box-shadow var(--dur-1) var(--ease-out);
 }
 .input::placeholder { color: var(--faint); }
+.input:hover { border-color: var(--line-3); }
 .input:focus {
   outline: none;
-  border-color: var(--teal);
-  box-shadow: 0 0 0 3px var(--teal-050);
+  border-color: var(--teal-700);
+  box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--teal-700);
 }
-textarea.input { resize: vertical; min-height: 74px; }
+.input:disabled {
+  background: var(--bg);
+  border-color: var(--line-2);
+  color: var(--faint);
+  cursor: not-allowed;
+}
+/* Read-only is NOT disabled, and must not look like it. Read-only means BY
+ * DESIGN — this value is a constant of the product (timezone: India only for
+ * now) — while disabled means NOT YET, something you could change once
+ * something else is true. Painting them the same tells the owner a permanent
+ * fact is a temporary block, and they go looking for the switch. Read-only
+ * keeps readable --ink-2 text and drops the border; disabled keeps the border
+ * and goes to --faint. */
+.input[readonly] {
+  background: var(--bg);
+  border-color: transparent;
+  color: var(--ink-2);
+}
+.input[readonly]:hover { border-color: transparent; }
+.input[readonly]:focus { border-color: transparent; }
+
+textarea.input { height: auto; resize: vertical; min-height: 74px; padding: 9px var(--s-3); }
+select.input { padding-right: var(--s-2); }
 
 /* Invalid state — border + a named message beneath. Errors name the fix (§4). */
 .input--invalid, .input--invalid:focus {
-  border-color: var(--red);
-  box-shadow: 0 0 0 3px var(--red-050);
+  border-color: var(--red-500);
+  box-shadow: none;
+}
+.input--invalid:focus {
+  box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--red-500);
 }
 .field__error {
   display: none;
-  font-size: 12.5px;
+  align-items: flex-start;
+  gap: 6px;
+  font: var(--t-help);
   font-weight: 500;
-  color: var(--red);
+  color: var(--red-700);
   margin-top: 6px;
   line-height: 1.45;
 }
-.field.is-invalid .field__error { display: block; }
+.field__error svg { width: 14px; height: 14px; flex: none; margin-top: 1px; }
+.field.is-invalid .field__error { display: flex; }
+
+/* Prefix segment — the fixed +91 on a phone field, the ₹ on a fee. Sits INSIDE
+ * the field's box on --bg behind a hairline, so the owner reads one control
+ * rather than a label and a control that happen to touch. */
+.in-wrap {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 40px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  transition: border-color var(--dur-1) var(--ease-out),
+              box-shadow var(--dur-1) var(--ease-out);
+}
+.in-wrap:hover { border-color: var(--line-3); }
+.in-wrap:focus-within {
+  border-color: var(--teal-700);
+  box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--teal-700);
+}
+.in-wrap.is-invalid { border-color: var(--red-500); }
+.in-wrap .pre {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 11px;
+  flex: none;
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+  border-radius: 5px 0 0 5px;
+  font: 500 14px/1 var(--sans);
+  color: var(--muted);
+}
+.in-wrap .input {
+  height: 38px;
+  border: none;
+  border-radius: 0 5px 5px 0;
+  background: none;
+}
+.in-wrap .input:hover,
+.in-wrap .input:focus { border: none; box-shadow: none; }
+/* Fees and versions are compared down a column, so their figures are tabular. */
+.tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 
 /* Read-only, non-editable value (e.g. timezone — a v1 constant) */
+/* Read-only value, borderless — same treatment as .input[readonly] above, and
+ * for the same reason: this is a constant of the product, not a control the
+ * owner has failed to unlock. */
 .field__static {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--s-2);
+  height: 40px;
   font-size: 14px;
   color: var(--ink-2);
   background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-xs);
-  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  padding: 0 var(--s-3);
 }
-.field__note { font-size: 12px; color: var(--faint); margin-top: 6px; }
+.field__static svg { width: 14px; height: 14px; flex: none; color: var(--muted); }
+.field__note { font: var(--t-help); color: var(--muted); margin-top: 6px; }
+/* The reason a read-only field is read-only, in the label row. */
+.field__lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: var(--s-2);
+  font: var(--t-help);
+  font-weight: 400;
+  color: var(--muted);
+}
+.field__lock svg { width: 12px; height: 12px; flex: none; }
 
-/* Card footer: Save on the right, a quiet saved/version note on the left. */
+/* ── Card footer, four states (spec §2.9) ───────────────────────────────────
+ * Save action left of the state, state right-aligned:
+ *   clean  → no message
+ *   dirty  → "Unsaved changes" in --amber-700
+ *   saving → the button takes "Saving…", the note is untouched
+ *   saved  → "Saved · v{N}", the version in --mono because it is a real handle
+ *            the owner can quote back to support
+ * RESTYLE ONLY. The four states already ride on class + textContent changes
+ * across these two elements, so no markup moved and the save discipline —
+ * including fill(data.section) refilling the SERVER's returned value into the
+ * form — is untouched. */
 .card__foot {
   display: flex;
   align-items: center;
@@ -766,9 +1006,23 @@ textarea.input { resize: vertical; min-height: 74px; }
   border-top: 1px solid var(--line-2);
 }
 .card__foot .btn { margin-left: auto; }
-.save-note { font-size: 12.5px; color: var(--muted); }
-.save-note--saved { color: var(--green-700); font-weight: 600; }
-.save-note--dirty { color: var(--amber); font-weight: 600; }
+.save-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: var(--t-help);
+  color: var(--muted);
+}
+.save-note svg { width: 14px; height: 14px; flex: none; }
+.save-note--saved { color: var(--muted); font-weight: 500; }
+.save-note--dirty { color: var(--amber-700); font-weight: 600; }
+/* Spec §2.9 sets the `v{N}` in --mono. The message is written with textContent
+ * by ten page scripts through Portal.savedMessage, as one string — putting a
+ * span round the numeral means those scripts switching to innerHTML, and the
+ * save path is the one thing this session must not alter. Tabular figures on
+ * the whole note get the column alignment the mono was for; the face itself
+ * waits for a session that is allowed to touch the save call. */
+.save-note { font-variant-numeric: tabular-nums; }
 
 /* ============================================================================
  * Shadow notice (F-F001) — "your receptionist is following a custom script"
@@ -923,31 +1177,75 @@ textarea.input { resize: vertical; min-height: 74px; }
 .sk-rows { display: grid; gap: var(--s-2); }
 
 /* ============================================================================
- * Toast (bottom-right, auto-dismiss) — shared with future save flows
+ * Toast (spec §2.9)
+ *
+ * Bottom-right on desktop; TOP-CENTRE on mobile, because bottom-right on a
+ * phone is under the thumb that just pressed Save — the owner covers the
+ * confirmation with the hand that asked for it.
+ *
+ * Success auto-dismisses after 4s and is role="status". An error PERSISTS with
+ * a Dismiss action and is role="alert": an error that removes itself after 2.6
+ * seconds is an error the owner can miss entirely, and the thing they missed is
+ * that their change did not save.
+ *
+ * Toasts never carry validation errors — those are inline on the field that
+ * caused them (see .field__error). A toast saying "please fix the errors below"
+ * is an interface admitting it does not know where the error is.
  * ========================================================================== */
 .toast-host {
   position: fixed;
-  right: 20px; bottom: 20px;
+  right: var(--s-5); bottom: var(--s-5);
   z-index: 90;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--s-2);
 }
 .toast {
   display: flex;
-  align-items: center;
-  gap: 9px;
-  background: var(--ink);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 500;
-  padding: 11px 15px;
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow);
-  animation: toast-in .18s ease-out;
+  align-items: flex-start;
+  gap: 10px;
+  width: 340px;
+  max-width: calc(100vw - 2 * var(--s-4));
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+  color: var(--ink);
+  font: var(--t-body-sm);
+  padding: 13px 14px;
+  animation: toast-in var(--dur-2) var(--ease-out);
 }
-.toast svg { width: 16px; height: 16px; flex: none; color: #4ade80; }
-@keyframes toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.toast svg { width: 17px; height: 17px; flex: none; margin-top: 1px; }
+.toast__body { flex: 1; min-width: 0; }
+.toast--ok  { border-color: var(--line); }
+.toast--ok  > svg { color: var(--green-700); }
+.toast--err { border-color: var(--red-200); }
+.toast--err > svg { color: var(--red-700); }
+/* Dismiss — only an error carries one; a success removes itself. */
+.toast__x {
+  flex: none;
+  width: 24px; height: 24px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: none;
+  border-radius: var(--r-xs);
+  color: var(--muted);
+  cursor: pointer;
+}
+.toast__x:hover { background: var(--bg); color: var(--ink); }
+.toast__x svg { width: 14px; height: 14px; margin-top: 0; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 640px) {
+  .toast-host {
+    right: var(--s-4); left: var(--s-4); bottom: auto;
+    top: calc(var(--s-3) + env(safe-area-inset-top, 0px));
+    align-items: center;
+  }
+  .toast { width: 100%; }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+}
 
 /* ============================================================================
  * Modal (confirm dialogs, PORTAL-P6-S17 — first user) — shared component, spec
@@ -977,9 +1275,12 @@ textarea.input { resize: vertical; min-height: 74px; }
   display: flex;
   flex-direction: column;
   background: var(--card);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  animation: modal-in .16s ease-out;
+  border-radius: var(--r-lg);
+  /* Spec §2.5: exactly four things cast, and a modal floats furthest of them.
+   * It was on --shadow (= --shadow-md, the toast/save-bar step), so it sat at
+   * the same apparent height as a toast while covering the whole page. */
+  box-shadow: var(--shadow-lg);
+  animation: modal-in var(--dur-3) var(--ease-out);
 }
 .modal--wide { max-width: 640px; }
 @keyframes modal-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
@@ -1023,7 +1324,7 @@ textarea.input { resize: vertical; min-height: 74px; }
 
 @media (max-width: 480px) {
   .modal-host { padding: var(--s-2); align-items: flex-end; }
-  .modal { max-height: 84vh; border-radius: var(--radius) var(--radius) 0 0; }
+  .modal { max-height: 84vh; border-radius: var(--r-lg) var(--r-lg) 0 0; }
 }
 
 /* ============================================================================
@@ -1211,6 +1512,17 @@ textarea.input { resize: vertical; min-height: 74px; }
    * than the reminder is worth. The description has already been read by the
    * time the page scrolls. */
   .app:not(.is-embedded) .page-head.is-stuck .page-head__sub { display: none; }
+}
+
+/* Touch targets. Spec §2.9/§2.11: controls are 44px on mobile, which is also
+ * the 2.2 AA touch-target floor. Applied at the drawer breakpoint rather than
+ * at 480px because a tablet in portrait is a touch device too. */
+@media (max-width: 860px) {
+  .btn { height: 44px; }
+  .btn--sm { height: 36px; }
+  .input, .in-wrap, .field__static { height: 44px; }
+  .in-wrap .pre, .in-wrap .input { height: 42px; }
+  textarea.input { height: auto; }
 }
 
 @media (max-width: 480px) {

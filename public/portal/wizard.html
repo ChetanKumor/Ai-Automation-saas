@@ -87,6 +87,10 @@
 
           <div class="wiz__nav">
             <button class="btn" id="wizBack" type="button">Back</button>
+            <!-- Why Back is inert on the first step. Self-evident to whoever
+                 built the wizard; not to an owner who has just been handed a
+                 phone and a login. Shown by wizard.js. -->
+            <span class="btn-why" id="wizBackWhy" hidden>This is the first step.</span>
             <span class="wiz__nav-spacer"></span>
             <span class="wiz__save-note" id="wizSaveNote"></span>
             <button class="btn btn--ghost" id="wizSkip" type="button" hidden>Skip for now</button>

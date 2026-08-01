@@ -472,8 +472,7 @@
   // Every call site re-renders from the RESPONSE's readiness, never from an
   // optimistic guess — a refused go-live must not leave the header claiming Live.
   async function runLifecycle(action, btn) {
-    const label = btn ? btn.textContent : '';
-    if (btn) { btn.disabled = true; btn.textContent = action === 'pause' ? 'Pausing…' : 'Checking…'; }
+    setBusy(btn, true, action === 'pause' ? 'Pausing…' : 'Checking…');
     let res, data;
     try {
       res = await fetch(`/portal/api/lifecycle/${action}`, {
@@ -483,7 +482,7 @@
       });
       data = await res.json().catch(() => null);
     } catch (_) {
-      if (btn) { btn.disabled = false; btn.textContent = label; }
+      setBusy(btn, false);
       await dialog({
         title: 'Couldn’t reach Prantivo',
         sub: 'Check your connection and try again — nothing changed.',
@@ -494,7 +493,7 @@
     if (res.status === 401) { window.location.replace('login.html'); return null; }
 
     if (!res.ok) {
-      if (btn) { btn.disabled = false; btn.textContent = label; }
+      setBusy(btn, false);
       // A refusal still carries fresh readiness — re-render so the control shows
       // the real current state rather than the one we optimistically left it in.
       if (data && data.readiness) applyLifecycle(data.readiness);
@@ -826,6 +825,78 @@
     return SN.savedMessage(version, readiness && readiness.run, activeId);
   }
 
+  // ── Toast (spec §2.9) ──────────────────────────────────────────────────────
+  //
+  // ONE implementation, shared. Ten page scripts each carried their own copy of
+  // this function and all ten did the same wrong thing: an error toast faded
+  // itself out after 2.6 seconds. That is a message the owner can miss entirely,
+  // and the thing they missed is that their change did not save — the failure
+  // A-008 is about, in a different costume.
+  //
+  // Success: role="status", clears itself after 4s. Error: role="alert" and it
+  // STAYS until dismissed. A toast never carries a validation error; those are
+  // inline on the field that caused them (see .field__error).
+  const T_OK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+  const T_ERR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>';
+
+  // ── Busy button (spec §2.9) ────────────────────────────────────────────────
+  //
+  // `Save changes` → `Saving…` with a spinner in the icon slot. The WIDTH IS
+  // HELD: the two labels are ~40px apart, so without pinning it the button
+  // shrinks mid-save and the card footer twitches at the exact moment the owner
+  // is watching to see whether their edit took.
+  //
+  // DEVIATION FROM SPEC, DELIBERATE. §2.9 says a busy button is "non-interactive
+  // but not disabled, so it keeps focus". Every save path in this portal uses
+  // `disabled` as its ONLY double-submit guard — there is no re-entry flag — so
+  // dropping it here would trade a real duplicate POST for a focus nicety.
+  // `aria-busy` is added and `disabled` stays until a guard exists to replace
+  // it. Recorded rather than silently resolved in either direction.
+  const SPIN = '<svg class="btn__spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 2a10 10 0 0 1 10 10" opacity=".95"/><circle cx="12" cy="12" r="10" opacity=".28"/></svg>';
+
+  function setBusy(btn, on, busyLabel) {
+    if (!btn) return;
+    if (on) {
+      if (btn.dataset.restLabel === undefined) btn.dataset.restLabel = btn.textContent;
+      btn.style.minWidth = btn.getBoundingClientRect().width + 'px';
+      btn.setAttribute('aria-busy', 'true');
+      btn.disabled = true;
+      btn.innerHTML = SPIN + esc(busyLabel || 'Saving…');
+      return;
+    }
+    btn.removeAttribute('aria-busy');
+    btn.disabled = false;
+    if (btn.dataset.restLabel !== undefined) {
+      btn.textContent = btn.dataset.restLabel;
+      delete btn.dataset.restLabel;
+    }
+    btn.style.minWidth = '';
+  }
+
+  function toast(message, ok) {
+    const host = $('#toastHost');
+    if (!host) return;
+    const el = document.createElement('div');
+    el.className = 'toast toast--' + (ok ? 'ok' : 'err');
+    el.setAttribute('role', ok ? 'status' : 'alert');
+    el.innerHTML = (ok ? T_OK : T_ERR) +
+      `<div class="toast__body">${esc(message)}</div>` +
+      (ok ? '' : `<button class="toast__x" type="button" aria-label="Dismiss">${X_ICON}</button>`);
+    el.style.transition = 'opacity var(--dur-2) var(--ease-in-out), transform var(--dur-2) var(--ease-in-out)';
+    host.appendChild(el);
+
+    // Max 3 stacked; a fourth replaces the oldest, so a burst of failures cannot
+    // grow a column that covers the form the owner is trying to fix.
+    while (host.children.length > 3) host.removeChild(host.firstElementChild);
+
+    if (!ok) {
+      el.querySelector('.toast__x').addEventListener('click', () => el.remove());
+      return;
+    }
+    setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(6px)'; }, 4000);
+    setTimeout(() => el.remove(), 4350);
+  }
+
   window.Portal = {
     icons: I,
     me: bootstrap(),
@@ -837,6 +908,8 @@
     readinessOnce,     // the one shared readiness promise (non-Home pages)
     pageError,         // error ladder layer 3, shared by every page's loader
     savedMessage,
+    toast,             // the one toast — errors persist, successes clear (§2.9)
+    setBusy,           // busy button: spinner, aria-busy, width held (§2.9)
     embedded,
     activeId,
     // The command palette navigates the SAME list the sidebar renders, from the

@@ -280,15 +280,24 @@
     // still answers nothing until someone presses Go live — telling that owner
     // nothing would be the strip lying by omission on the one screen where the
     // remaining action is theirs.
-    if (status === 'draft' || status === 'validated') {
+    //
+    // EXCEPT on Home (D5a/W5). Home already answers this question twice, better
+    // and more specifically: the readiness ring shows how much is left as a
+    // proportion, and the grouped checks name each remaining item with the page
+    // that fixes it. A strip above them saying "isn't answering calls yet" adds
+    // no information and takes the top 40px of the one screen whose whole job is
+    // to say that — and its action, "See what's left", pointed at the page the
+    // owner was already standing on.
+    //
+    // The other two conditions still fire on Home. Neither is derivable from the
+    // ring: a paused receptionist and a shadowed one both pass their checks.
+    if ((status === 'draft' || status === 'validated') && pageId !== 'home') {
       return {
         key: 'notlive',
         tone: 'info',
         icon: ICON_INFO,
         text: 'Your receptionist isn’t answering calls yet. Changes are saved and will apply when you go live.',
-        // On Home the checks list IS "what's left" and it is already on screen;
-        // a link to the page you are standing on is a dead affordance.
-        action: pageId === 'home' ? null : { label: 'See what’s left', href: 'index.html' },
+        action: { label: 'See what’s left', href: 'index.html' },
       };
     }
 

@@ -21,8 +21,7 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
-  const XMARK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+  const XMARK ='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
   const SHIELD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>';
 
   const form = $('safetyForm');
@@ -162,25 +161,15 @@
   }
 
   // ── Toast ────────────────────────────────────────────────────────────────────
-  function toast(message, ok) {
-    const host = $('toastHost');
-    const el = document.createElement('div');
-    el.className = 'toast';
-    el.innerHTML = (ok ? CHECK : '') + `<span>${esc(message)}</span>`;
-    el.style.transition = 'opacity .3s ease, transform .3s ease';
-    host.appendChild(el);
-    setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(6px)'; }, 2600);
-    setTimeout(() => el.remove(), 2950);
-  }
+  // One shared implementation in shell.js (§2.9) — see the note in doctors.js.
+  const toast = (message, ok) => window.Portal.toast(message, ok);
 
   // ── Save ─────────────────────────────────────────────────────────────────────
   async function save(e) {
     e.preventDefault();
     clearErrors();
     const payload = collect();
-    saveBtn.disabled = true;
-    const label = saveBtn.textContent;
-    saveBtn.textContent = 'Saving…';
+    window.Portal.setBusy(saveBtn, true);
     try {
       const res = await fetch('/portal/api/config/safety', {
         method: 'POST',
@@ -207,8 +196,7 @@
     } catch (_) {
       toast('Couldn’t save — check your connection and try again.', false);
     } finally {
-      saveBtn.disabled = false;
-      saveBtn.textContent = label;
+      window.Portal.setBusy(saveBtn, false);
     }
   }
 

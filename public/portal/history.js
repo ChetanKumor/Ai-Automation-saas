@@ -226,17 +226,8 @@
   $('confirmRestoreBtn').addEventListener('click', doRestore);
 
   // ── Toast ────────────────────────────────────────────────────────────────────
-  const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
-  function toast(message, ok) {
-    const host = $('toastHost');
-    const el = document.createElement('div');
-    el.className = 'toast';
-    el.innerHTML = (ok ? CHECK : '') + `<span>${esc(message)}</span>`;
-    el.style.transition = 'opacity .3s ease, transform .3s ease';
-    host.appendChild(el);
-    setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(6px)'; }, 2600);
-    setTimeout(() => el.remove(), 2950);
-  }
+  // One shared implementation in shell.js (§2.9) — see the note in doctors.js.
+  const toast = (message, ok) => window.Portal.toast(message, ok);
 
   // ── Load ─────────────────────────────────────────────────────────────────────
   async function load() {

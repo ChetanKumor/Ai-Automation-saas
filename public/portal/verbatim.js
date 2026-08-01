@@ -471,10 +471,11 @@
       <span class="vp__rail-t">Preview</span>
     </button>
     <header class="vp__h">
-      <span class="vp__lb"><span class="vp__dot" aria-hidden="true"></span>Live preview</span>
+      <span class="vp__lb" id="vpLabel"><span class="vp__dot" aria-hidden="true"></span>Live preview</span>
       <select class="vp__sel" id="vpLang" aria-label="Preview language"></select>
       <button class="vp__x" id="vpClose" type="button" aria-label="Collapse preview">${ICON.close}</button>
     </header>
+    <p class="vp__note" id="vpLangWhy" hidden>Only one language is switched on. Add another on Clinic profile to preview it here.</p>
     <div class="vp__b" id="vpBody">
       <div id="vpLive" aria-live="polite"></div>
     </div>
@@ -544,7 +545,13 @@
     }
     langEl.innerHTML = langs.map((c) =>
       `<option value="${esc(c)}"${c === lang ? ' selected' : ''}>${esc(LANG_LABEL[c] || c)}</option>`).join('');
+    // A disabled control with no reason is a dead end (spec §2.9). The selector
+    // goes inert when the clinic has one language, and until now said nothing
+    // about why — leaving an owner clicking a switch that had no second setting
+    // to reach. The reason sits directly beneath it and names where to fix it.
     langEl.disabled = langs.length < 2;
+    const why = $('#vpLangWhy', panel);
+    if (why) why.hidden = !langEl.disabled;
   }
 
   function render() {
@@ -639,9 +646,49 @@
     render();
   }
 
+  // ── F-V004: what this panel is allowed to call itself ────────────────────
+  //
+  // The panel showed "Live preview" beside a pulsing teal dot. On a clinic
+  // running a hand-written script that was a direct contradiction of the truth
+  // strip 40px above it, which was at that moment saying these settings are not
+  // reaching the receptionist. Two components, one screen, opposite claims —
+  // and the confident one was the one that was wrong.
+  //
+  // So when the legacy condition holds, the header says what the panel is
+  // actually showing: SAVED SETTINGS. The live dot goes with it, because the dot
+  // is the live indicator (spec §2.1(e)) and nothing here is live.
+  //
+  // The verdict comes from the SAME field shadow-notice.js reads — the
+  // `tenant.legacy_prompt` check's severity, via SN.isShadowed — through the
+  // SAME shared readiness promise the strip and the header control already
+  // await. No new fetch, no second source of truth: if the two ever disagreed
+  // it would be this component that had gone stale, which is the failure being
+  // fixed. An unknown verdict changes nothing, exactly as everywhere else — we
+  // only ever warn from evidence.
+  async function applyLegacyHeader() {
+    const SN = window.ShadowNotice;
+    const P = window.Portal;
+    if (!SN || !P || typeof P.readinessOnce !== 'function') return;
+    const data = await P.readinessOnce();
+    if (SN.isShadowed(data && data.run) !== true) return;
+
+    const LABEL = 'Saved settings';
+    const labelEl = $('#vpLabel', panel);
+    if (labelEl) labelEl.textContent = LABEL;      // drops the dot with the markup
+    panel.setAttribute('aria-label', LABEL);
+    const railT = $('.vp__rail-t', panel);
+    if (railT) railT.textContent = 'Saved';
+    const railDot = $('.vp__rail .vp__dot', panel);
+    if (railDot) railDot.remove();
+    const gripLabel = $('#vpGripLabel', panel);
+    if (gripLabel) gripLabel.textContent = LABEL;
+    panel.classList.add('vp--saved-only');
+  }
+
   async function main() {
     try { await window.Portal.me; } catch (_) { return; } // shell redirected to login
     panel.classList.add('is-busy');
+    applyLegacyHeader();   // independent of the summary; must not gate the preview
     try {
       const data = await fetchSummary();
       if (!data) return;
