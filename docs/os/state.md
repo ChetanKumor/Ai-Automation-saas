@@ -66,9 +66,10 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Test suite: **874 tests / 152 suites / 0 fail** (`npm test`, raw: `# tests 874 / # pass 874 / # fail 0`)
-  Moved by **F1** (below): +5 tests, +1 suite. Every other line in this section
-  that quotes 869/151 is describing the commit it names and is left as written.
+- Test suite: **878 tests / 153 suites / 0 fail** (`npm test`, raw: `# tests 878 / # pass 878 / # fail 0`)
+  Moved by **F1** (+5 tests, +1 suite) then **F2** (+4 tests, +1 suite), both
+  below. Every other line in this section that quotes 869/151 or 874/152 is
+  describing the commit it names and is left as written.
   **TEST-FLAKE-03 is CLOSED** (`3765cdb`). It was a calendar-dependent failure in
   `tests/voice/voiceCancellation.integration.test.js:270`, red on every day when today+2
   landed on a Sunday and green the other six: the fixture seeded Dr. Rao for all seven days
@@ -77,6 +78,46 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   own seven-day hours. `clinicDefaults` is unchanged; closing Sunday by default is correct
   product behaviour and the test was wrong to depend on it not being. No test was added:
   869/151 is unmoved across D3 and this fix.
+- **F2 — the Test page's composer locked after one message. FIXED** (this commit).
+  Reported from the same acceptance attempt as F1: the first test message sends
+  and replies, the counter reads 19 left, and the composer and Send are dead
+  from then on. It blocked step (f) of portal-v1 §11, which needs a second
+  message to confirm an edited price is quoted.
+  **The cause was one line, and it was never the quota.** `sendQuestion`
+  disables the composer on entry as the page's only double-submit guard
+  (`test.js:130`); its `finally` then re-enabled only `if (!input.disabled)` —
+  false on every path, because that same function had just set the flag true.
+  One flag was carrying two meanings, "busy" and "out of messages", and the
+  release point asked it the wrong question. It now clears against `exhausted`,
+  set only where the cap is actually detected (`updateRemaining`'s `n <= 0`
+  branch). Display and disable were always reading the same field; there was no
+  off-by-one.
+  ⚠️ **Present since the page's first commit** (`8b7c093`, 2026-07-21) — a
+  behavioural bisect at `bde2aee~1` reproduces it identically, so D5a did not
+  cause it despite touching this file. **The Test page has never sent a second
+  message.** `git log -L` confirms neither block was edited after birth.
+  ⚠️ **Why six weeks of harnesses missed it.** `sending` *does* clear in that
+  same `finally`, so any driver calling `form.requestSubmit()` submits straight
+  through the disabled controls and reports a working page. The bug is only
+  visible to a probe that respects `disabled` the way a person does. The repro
+  driver was wrong in exactly this way on its first run and reported a pass.
+  Verified against a real portal and a real brain over CDP: 20 consecutive sends
+  with the composer usable after each; the cap guard still firing at 0 with its
+  reason visible and refusing sends 21–22 client-side; a rapid double-click
+  issuing one request, not two; a forced 400 leaving the composer usable.
+  ⚠️ **`Portal.setBusy` is NOT involved** — Test hand-rolls its busy state and
+  uses only `Portal.toast` and `Portal.me`, so the seven pages that do use
+  `setBusy` are unaffected and were not touched. The starter buttons are also
+  disabled without a re-enable, and that stays: they live inside `#chatEmpty`,
+  which is hidden from the first message onward, so they are unreachable rather
+  than dead. Adding a second release path would have masked this bug rather than
+  fixed it; a test now asserts there is exactly one.
+  ⚠️ Tests are **source-shape** assertions, not DOM behaviour: `test.js` is a
+  browser IIFE with no exports and the repo has no DOM library in its dependency
+  tree. The behavioural proof is the CDP run, which lives in the session record
+  and not in the suite. `tests/portal/portalTestComposer.unit.test.js`, 4 tests
+  / 1 suite; two of the four fail against the pre-fix file (checked by stashing
+  it), the other two are the constraint guards.
 - **F1 — readiness did not reflect the FAQ count. FIXED** (`007f697`). Reported
   from the portal-v1 §11 acceptance attempt: six FAQs on file, Home reporting
   9/10 and *"Add at least 5 FAQs or upload one document"*, and **no Go-live

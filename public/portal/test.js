@@ -35,6 +35,11 @@
   };
 
   let sending = false;
+  // The daily cap, as a fact of its own. sendQuestion disables the composer on
+  // entry as its double-submit guard, so `input.disabled` cannot tell "busy"
+  // apart from "out of messages" — and the re-enable below used to ask exactly
+  // that question, of exactly that flag, which it had itself just set true.
+  let exhausted = false;
 
   function autosize() {
     input.style.height = 'auto';
@@ -102,6 +107,7 @@
     remainingBadge.classList.toggle('badge--warn', n <= 3);
     remainingBadge.classList.toggle('badge--teal', n > 3);
     if (n <= 0) {
+      exhausted = true;
       input.disabled = true;
       sendBtn.disabled = true;
       Array.from(document.querySelectorAll('.starter')).forEach((b) => { b.disabled = true; });
@@ -159,7 +165,14 @@
       resolveAsSystemNotice(pending, 'Couldn’t reach the server — check your connection and try again.');
     } finally {
       sending = false;
-      if (!input.disabled) { input.disabled = false; sendBtn.disabled = false; }
+      // Release the double-submit guard unless the cap is genuinely reached.
+      // This read `!input.disabled` from the page's first commit: always false,
+      // because sendQuestion sets that flag true on entry, every send. The
+      // composer locked after one message with 19 still available, and no
+      // harness caught it — `sending` DOES clear here, so a driver calling
+      // form.requestSubmit() sails straight through the disabled controls a
+      // person cannot get past.
+      if (!exhausted) { input.disabled = false; sendBtn.disabled = false; }
       // Starters stay hidden after the first message (emptyState is gone) —
       // re-enabling them is moot once the empty state itself is hidden.
       input.focus();
