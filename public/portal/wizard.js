@@ -274,6 +274,15 @@
       return;
     }
 
+    renderReview(data);
+  }
+
+  // Split out of loadReview so the F1 "Check again" button works here too. That
+  // button is rendered by PortalHome.renderReadiness, which this step mounts into
+  // its OWN containers — home.js therefore cannot re-render it directly and hands
+  // the fresh payload over on `portal:rechecked` instead. Same payload shape as
+  // the GET above, so this is one render path, not two.
+  function renderReview(data) {
     // The Go-live control, in its real (display-only — S18 owns the action)
     // state — the exact same rendering the header uses everywhere else.
     window.Portal.renderLifecycle(data.status, window.Portal.deriveGoLive(data.run), $('wizGolive'));
@@ -281,6 +290,10 @@
     if (!data.run) { window.PortalHome.renderEmpty({ cardEl: $('wizReadinessCard') }); return; }
     window.PortalHome.renderReadiness(data.run, { cardEl: $('wizReadinessCard'), checksEl: $('wizChecks'), stepFor });
   }
+
+  document.addEventListener('portal:rechecked', (e) => {
+    if (e.detail && state.step === LAST) renderReview(e.detail);
+  });
 
   // ── Boot ─────────────────────────────────────────────────────────────────────
   async function main() {

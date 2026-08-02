@@ -365,6 +365,24 @@
 
     const st = opts || {};
     if (st.eligible) {
+      // A STALE run is eligible — deliberately, so an owner whose settings moved
+      // is never trapped behind a dead button — but it is NOT the same state as a
+      // passing one, and until F1 the two rendered identically. deriveGoLive has
+      // returned `stale: true` since PORTAL-P6-S18 and nothing had ever read it.
+      // An owner pressed a button that looked like "you're ready" and got a full
+      // re-check whose outcome nobody had promised them. The button still does
+      // exactly what it did; the label now says which of the two things it is
+      // about to do, and the pill beside it states the condition rather than
+      // leaving the control silently asserting readiness it cannot vouch for.
+      if (st.stale) {
+        host.innerHTML =
+          `<div class="golive golive--stale">
+            <span class="lc lc--stale"><span class="dot"></span>Setup changed</span>
+            <button class="btn btn--primary" type="button" data-lifecycle="activate"
+              title="Re-runs your setup checks, then goes live if they pass">Check &amp; go live</button>
+          </div>`;
+        return;
+      }
       host.innerHTML =
         `<div class="golive"><button class="btn btn--primary" type="button"
           data-lifecycle="activate" title="Start answering calls and messages">Go live</button></div>`;
@@ -609,12 +627,24 @@
     },
   };
 
+  // Going live from a STALE run is a two-step action (re-check, then activate if
+  // it passes), and the confirmation has to say so — "your receptionist will
+  // start answering" is a promise the server has not made yet on settings nobody
+  // has checked. The wrapper class is the source, so this cannot disagree with
+  // the label renderLifecycle chose from the same flag.
+  const STALE_ACTIVATE = {
+    title: 'Check your setup, then go live?',
+    sub: 'Your settings changed since the last check. We’ll run the checks again — if they all pass, your receptionist goes live.',
+    confirmLabel: 'Check & go live',
+  };
+
   document.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-lifecycle]');
     if (!btn || btn.disabled) return;
     e.preventDefault();
     const action = btn.getAttribute('data-lifecycle');
-    const copy = CONFIRM[action];
+    const stale = action === 'activate' && !!btn.closest('.golive--stale');
+    const copy = stale ? STALE_ACTIVATE : CONFIRM[action];
     if (!copy) return;
     if (await dialog(copy)) await runLifecycle(action, btn);
   });

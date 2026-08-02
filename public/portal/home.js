@@ -61,6 +61,22 @@
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}, ${h}:${min} ${ap}`;
   }
 
+  // How old the run is, in the words an owner would use. Only rendered beside a
+  // STALE run: age is not interesting on a current one, and printing "6 days ago"
+  // under a green ring would invent a worry the check does not support.
+  // Deliberately coarse — the point is "before your changes", not a stopwatch.
+  function fmtAge(iso) {
+    const then = new Date(iso);
+    if (isNaN(then)) return '';
+    const mins = Math.floor((Date.now() - then.getTime()) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days} day${days === 1 ? '' : 's'} ago`;
+  }
+
   // ── Renderers ──────────────────────────────────────────────────────────────
 
   // `opts.bannerEl` lets a caller render into a different element (the
@@ -184,13 +200,39 @@
         : 'The remaining items are handled by Prantivo before go-live.';
     }
 
+    // ── Stale (F1) ────────────────────────────────────────────────────────────
+    // The payload has carried `run.stale` since PORTAL-P6-S18 and NO surface has
+    // ever rendered it: a run whose verdict had expired was drawn exactly like a
+    // current one, ring, score, check rows and all. That is the same defect class
+    // as F-F001 — a screen asserting something it cannot vouch for — and here it
+    // was load-bearing, because the score the owner is being shown is the reason
+    // they can or cannot go live.
+    //
+    // So: state the condition, do not deny it, and do not quietly repair it
+    // either. The ring keeps the number the RUN produced rather than a guess at
+    // what a new one would say — inventing a score is worse than an old one — and
+    // the block below says which changes it predates and offers the re-check that
+    // settles it. No auto-refresh on load: a page that silently re-ran the checks
+    // would hide the mechanism and spend a Meta ping plus a model turn on every
+    // visit to Home.
+    const ran = run.stale
+      ? `<div class="readiness__expired">
+          <div class="readiness__expired-t">
+            <span class="readiness__expired-dot"></span>These results are out of date
+          </div>
+          <p class="readiness__expired-d">Your settings changed after this check ran, so the score above
+            doesn’t include them yet. Last checked ${esc(fmtDate(run.created_at))} · ${esc(fmtAge(run.created_at))}.</p>
+          <button class="btn btn--primary" type="button" data-recheck>Check again</button>
+        </div>`
+      : `<div class="readiness__ran">Last checked ${esc(fmtDate(run.created_at))}</div>`;
+
     card.innerHTML =
       `<div class="readiness">
         ${ringSvg(passed, total)}
         <div class="readiness__summary">
           <div class="readiness__headline">${esc(headline)}</div>
           <div class="readiness__note">${esc(note)}</div>
-          <div class="readiness__ran">Last checked ${esc(fmtDate(run.created_at))}</div>
+          ${ran}
         </div>
       </div>`;
 
@@ -198,6 +240,58 @@
     checksEl.innerHTML = renderChecks(run, opts);
     animateRing(card);
   }
+
+  // ── Check again (F1) ───────────────────────────────────────────────────────
+  // Re-runs the setup checks WITHOUT going live, via the owner-scoped
+  // POST /portal/api/readiness/check. The response is the same shape
+  // GET /api/readiness returns, so it goes straight back through render() — the
+  // one render path, shared with page load and with every lifecycle action.
+  //
+  // Delegated from the document because the card is re-rendered on every one of
+  // those, so a per-render binding would leak listeners and miss re-renders. It
+  // also means the wizard's Review step, which mounts renderReadiness into its
+  // own card, gets the button working for free.
+  async function recheck(btn) {
+    window.Portal.setBusy(btn, true, 'Checking…');
+    let res, data;
+    try {
+      res = await fetch('/portal/api/readiness/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: '{}',
+      });
+      data = await res.json().catch(() => null);
+    } catch (_) {
+      window.Portal.setBusy(btn, false);
+      window.Portal.toast('Couldn’t reach Prantivo. Nothing changed.', false);
+      return;
+    }
+    if (res.status === 401) { window.location.replace('login.html'); return; }
+    if (!res.ok) {
+      window.Portal.setBusy(btn, false);
+      window.Portal.toast((data && data.error) || 'Couldn’t check your setup. Try again.', false);
+      return;
+    }
+    // No setBusy(false): the re-render below replaces the card, button and all.
+    //
+    // renderReadiness is mounted on TWO surfaces — this page and the wizard's
+    // Review step, which passes its own cardEl/checksEl (PORTAL-P6-S16). Calling
+    // render() unconditionally would reach for #banner/#readinessCard, which the
+    // wizard does not have, and a button that throws is worse than one that isn't
+    // there. Home renders itself; anywhere else re-renders from the event, which
+    // is how the wizard's Review step gets a working control without this file
+    // knowing anything about the wizard's DOM.
+    if (document.body.getAttribute('data-page') === 'home') render(data);
+    else document.dispatchEvent(new CustomEvent('portal:rechecked', { detail: data }));
+    window.Portal.toast('Setup checked');
+  }
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-recheck]');
+    if (!btn || btn.disabled) return;
+    e.preventDefault();
+    recheck(btn);
+  });
 
   // Row state → { cls, icon, badge, badgeCls }
   function rowState(c, m) {

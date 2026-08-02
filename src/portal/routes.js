@@ -210,20 +210,32 @@ router.get('/api/readiness', requirePortalAuth, async (req, res) => {
 // operator `detail` crosses the wire). Returns null when the tenant is gone.
 //
 // `run.stale` (PORTAL-P6-S18) is the same freshness invariant lifecycleService
-// enforces at activate (STALE_VALIDATION): a run only speaks for the config it
-// ran against, so once `tenant_configs.updated_at` moves past it, its verdict
-// has expired. Surfaced because this route never re-runs validation — without
-// it, an owner who fixes their LAST blocker would keep seeing the old failed
-// run and a permanently disabled Go-live button, with no way to re-check. Stale
-// ⇒ the control invites a re-check instead of asserting a stale refusal.
+// enforces at activate (STALE_VALIDATION): a run only speaks for the settings it
+// ran against, so once any of them moves past it, its verdict has expired.
+// Surfaced because this route never re-runs validation — without it, an owner who
+// fixes their LAST blocker would keep seeing the old failed run and a permanently
+// disabled Go-live button, with no way to re-check. Stale ⇒ the control invites a
+// re-check instead of asserting a stale refusal.
+//
+// F1: "any of them" is load-bearing and used to be false. This read called a
+// local configUpdatedAt() that looked at `tenant_configs.updated_at` alone — a
+// copy of lifecycleService's, free to drift from it and, as it turned out, wrong
+// in both places. FAQs live in `knowledge_chunks` and doctors in
+// `tenant_entities`, so adding a FAQ moved the thing kb.populated counts without
+// moving the measurement: six FAQs on file, a run that had counted four, and
+// `stale: false` asserting that verdict was current. The owner got no Go-live
+// control at all (deriveGoLive: not passed, not stale ⇒ ineligible) and no way to
+// re-check. Both call sites now read ONE exported helper —
+// lifecycleService.validationInputsChangedAt — which is where the union, its
+// cost, and its inserts-only residual are documented.
 async function readinessSnapshot(tenantId) {
   const { rows } = await db.query('SELECT status FROM tenants WHERE id = $1', [tenantId]);
   const tenant = rows[0];
   if (!tenant) return null;
 
-  const [latest, cfgAt] = await Promise.all([
+  const [latest, inputs] = await Promise.all([
     validationService.getLatestValidation(tenantId),
-    configUpdatedAt(tenantId),
+    lifecycleService.validationInputsChangedAt(tenantId),
   ]);
   let run = null;
   if (latest) {
@@ -231,7 +243,7 @@ async function readinessSnapshot(tenantId) {
     run = {
       passed: latest.passed,
       created_at: latest.created_at,
-      stale: !!(cfgAt && new Date(latest.created_at) <= new Date(cfgAt)),
+      stale: !!(inputs.inputsAt && new Date(latest.created_at) <= new Date(inputs.inputsAt)),
       checks: (result.checks || []).map((c) => ({ name: c.name, severity: c.severity })),
       skipped: (result.skipped || []).map((s) => ({ name: s.name })),
     };
@@ -239,14 +251,47 @@ async function readinessSnapshot(tenantId) {
   return { status: tenant.status, run };
 }
 
-// "Config last moved" — read-only, and deliberately the SAME source
-// lifecycleService.configUpdatedAt reads (`tenant_configs.updated_at`, bumped by
-// every configService write) so the portal's staleness signal and the service's
-// activation guard can never disagree. Null ⇒ no config row yet.
-async function configUpdatedAt(tenantId) {
-  const { rows } = await db.query('SELECT updated_at FROM tenant_configs WHERE tenant_id = $1', [tenantId]);
-  return rows[0] ? rows[0].updated_at : null;
-}
+// ── POST /portal/api/readiness/check (F1) ────────────────────────────────────
+// Re-run the setup checks WITHOUT going live. The portal had no such path: the
+// only way to refresh a run was `runGoLiveChain`, which fuses validate → activate,
+// so an owner whose run had expired could either activate or nothing. This is the
+// validate half, on the owner's surface.
+//
+// It calls `validationService.validateTenant` DIRECTLY rather than
+// `lifecycleService.transition(id, 'validate')`, and that is the whole point:
+// `doValidate` writes `status = 'validated'` on a pass and refuses outright on a
+// live tenant. `validateTenant` persists the run into `validation_runs` and
+// touches nothing else — no status, no `active`, no cache eviction. This route
+// can therefore never change what state the receptionist is in, which is what
+// makes it safe to expose to an owner beside a Pause button.
+//
+// INV-1: the tenant comes from the session. INV-3: NO options argument is passed,
+// so — exactly as in runGoLiveChain — there is no argument position an
+// owner-supplied `skip` could occupy, whatever the request body contains.
+//
+// Returns the same shape GET /api/readiness returns, so Home re-renders through
+// its one existing render path rather than a second one written for this route.
+const recheckLimiter = createRateLimiter({
+  max: 10, windowMs: 60 * 60 * 1000,
+  message: 'Too many setup checks. Wait an hour and try again.',
+});
+
+router.post('/api/readiness/check', requirePortalAuth, recheckLimiter, express.json(), async (req, res) => {
+  const tenantId = req.portalUser.tenantId;
+  try {
+    // A re-check spends the same Meta ping and the same live model turn a
+    // go-live does, which is why it carries its own hourly budget. Its own, not
+    // a shared one: re-checking is how an owner unblocks themselves, and it must
+    // not be able to exhaust the budget for the action it is unblocking.
+    const run = await validationService.validateTenant(tenantId);
+    logger.info({ scope: 'portal.readiness', tenantId, userId: req.portalUser.id, passed: run.passed },
+      'owner re-ran setup checks');
+    res.json(await readinessSnapshot(tenantId));
+  } catch (err) {
+    logger.error({ err: err.message, tenantId }, 'portal readiness re-check failed');
+    res.status(500).json({ error: 'Couldn’t check your setup just now. Try again.' });
+  }
+});
 
 // ── Go live / Pause / Resume (PORTAL-P6-S18, spec §5.13) ─────────────────────
 // The ONLY lifecycle action an owner can take, and the only place the portal

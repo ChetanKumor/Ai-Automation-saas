@@ -208,12 +208,20 @@ describe('portal lifecycle — go live / pause / resume (route-level)', { skip: 
       [tenantId])).rows[0];
 
   // ── Auth ───────────────────────────────────────────────────────────────────
-  it('unauthenticated → 401 on all three lifecycle routes', async () => {
+  // Covers the re-check route too (F1). Extended rather than duplicated: it is
+  // one assertion about one middleware, and a second copy of it would drift.
+  it('unauthenticated → 401 on every lifecycle route and on the re-check', async () => {
     const server = await start();
     try {
-      for (const action of ['activate', 'pause', 'resume']) {
-        const res = await req(server, { method: 'POST', path: `/portal/api/lifecycle/${action}`, body: { confirm: true } });
-        assert.equal(res.status, 401, `${action} must require a session`);
+      const paths = [
+        '/portal/api/lifecycle/activate',
+        '/portal/api/lifecycle/pause',
+        '/portal/api/lifecycle/resume',
+        '/portal/api/readiness/check',
+      ];
+      for (const path of paths) {
+        const res = await req(server, { method: 'POST', path, body: { confirm: true } });
+        assert.equal(res.status, 401, `${path} must require a session`);
       }
     } finally { server.close(); }
   });
@@ -555,6 +563,182 @@ describe('portal lifecycle — go live / pause / resume (route-level)', { skip: 
 
         r = await req(server, { method: 'GET', path: '/portal/api/readiness', cookie });
         assert.equal(r.body.run.stale, true, 'config moved → the run no longer speaks for it');
+      } finally { server.close(); }
+    });
+
+    // ── F1 ───────────────────────────────────────────────────────────────────
+    // Staleness used to be computed from `tenant_configs.updated_at` ALONE, and
+    // the catalog does not measure only config. These two tests pin the other
+    // two storage homes it measures, one per write path, through the REAL portal
+    // routes an owner uses — not by touching the tables directly, which would
+    // prove the SQL and nothing about whether the product reaches it.
+    //
+    // The reported failure: six FAQs on file, a run that had counted four, and a
+    // payload claiming that verdict was current. `deriveGoLive` then found a run
+    // that had neither passed nor expired and rendered no Go-live control at all,
+    // so go-live was unreachable with nothing on screen explaining why.
+    it('a FAQ write expires the run — knowledge_chunks is what kb.populated counts', async () => {
+      const o = await seedOwner({ ready: true });
+      const server = await start();
+      try {
+        const cookie = await authedCookie(server, o.email, o.password);
+        await req(server, { method: 'POST', path: '/portal/api/lifecycle/activate', cookie, body: {} });
+
+        let r = await req(server, { method: 'GET', path: '/portal/api/readiness', cookie });
+        assert.equal(r.body.run.stale, false, 'a run taken after the last write is fresh');
+
+        const added = await req(server, {
+          method: 'POST', path: '/portal/api/faqs', cookie,
+          body: { question: 'Where can I park?', answer: 'Free parking is available in the basement.' },
+        });
+        assert.equal(added.status, 200, 'the FAQ was actually written');
+
+        // The write's OWN response carries readiness, and it is the payload the
+        // FAQ page re-renders its header from — so it has to say it too.
+        assert.equal(added.body.readiness.run.stale, true,
+          'the write response must not hand back a run it has just invalidated');
+
+        r = await req(server, { method: 'GET', path: '/portal/api/readiness', cookie });
+        assert.equal(r.body.run.stale, true, 'a FAQ write expires the run');
+      } finally { server.close(); }
+    });
+
+    it('a doctor write expires the run — tenant_entities is what doctor.schedule reads', async () => {
+      const o = await seedOwner({ ready: true });
+      const server = await start();
+      try {
+        const cookie = await authedCookie(server, o.email, o.password);
+        await req(server, { method: 'POST', path: '/portal/api/lifecycle/activate', cookie, body: {} });
+
+        let r = await req(server, { method: 'GET', path: '/portal/api/readiness', cookie });
+        assert.equal(r.body.run.stale, false);
+
+        const added = await req(server, {
+          method: 'POST', path: '/portal/api/doctors', cookie,
+          body: {
+            name: 'Dr. Anitha Rao', specialization: 'Endodontist',
+            languages: ['te', 'en'], days: ['Mon', 'Tue', 'Wed'], start: '10:00', end: '17:00',
+          },
+        });
+        assert.equal(added.status, 200, 'the doctor was actually written');
+        assert.equal(added.body.readiness.run.stale, true);
+
+        r = await req(server, { method: 'GET', path: '/portal/api/readiness', cookie });
+        assert.equal(r.body.run.stale, true, 'a doctor write expires the run');
+        // Note: PASS_CONFIG has tools.booking false, so doctor.schedule is GATED
+        // OFF for this tenant and did not run. Staleness is deliberately
+        // table-level, not check-level — making it config-aware would mean
+        // loading the config on every readiness read to save an occasional
+        // re-check offer. Conservative in the safe direction.
+      } finally { server.close(); }
+    });
+  });
+
+  // ── POST /portal/api/readiness/check (F1) ──────────────────────────────────
+  // The validate half of the go-live chain, on the owner's surface. Before this
+  // route the portal could only re-run the catalog by ALSO trying to go live
+  // (runGoLiveChain fuses validate → activate), so an owner whose run had expired
+  // had no way to refresh it.
+  describe('re-check without going live', () => {
+    it('persists a run and leaves the lifecycle status untouched', async () => {
+      const o = await seedOwner({ ready: true });
+      const server = await start();
+      try {
+        const cookie = await authedCookie(server, o.email, o.password);
+        const before = await statusOf(o.tenantId);
+        assert.equal(before.status, 'draft');
+
+        const res = await req(server, { method: 'POST', path: '/portal/api/readiness/check', cookie, body: {} });
+        assert.equal(res.status, 200);
+
+        const { rows } = await db.query(
+          'SELECT count(*)::int n FROM validation_runs WHERE tenant_id = $1', [o.tenantId]);
+        assert.equal(rows[0].n, 1, 'the run was persisted');
+        assert.equal((await latestRun(o.tenantId)).passed, true, 'and it is the run this route just made');
+
+        // The distinction from lifecycleService.transition(id, 'validate'), which
+        // writes status='validated' on a pass. This route calls validateTenant
+        // directly for exactly this reason: it can never move a receptionist
+        // between states, which is what makes it safe beside a Pause button.
+        const after = await statusOf(o.tenantId);
+        assert.equal(after.status, 'draft', 'a passing re-check must NOT promote the tenant');
+        assert.equal(after.active, false, 'and must not flip the runtime gate');
+        assert.equal(res.body.status, 'draft', 'the response reports the real status');
+        assert.equal(res.body.run.passed, true);
+        assert.equal(res.body.run.stale, false, 'the run it just made is, by construction, fresh');
+      } finally { server.close(); }
+    });
+
+    // THE F1 REGRESSION. The whole reported journey, end to end, with no manual
+    // intervention: a run taken below the knowledge threshold, FAQs added past
+    // it, and the owner's own re-check turning a dead end into an eligible
+    // go-live. This is the test that fails on the old formula.
+    it('the F1 journey: a run that predates the FAQs is stale, and Check again clears it', async () => {
+      const o = await seedOwner();
+      await configService.writeTenantConfig(o.tenantId, PASS_CONFIG, 'cli');
+      const server = await start();
+      try {
+        const cookie = await authedCookie(server, o.email, o.password);
+        const faq = (n) => req(server, {
+          method: 'POST', path: '/portal/api/faqs', cookie,
+          body: { question: `Question number ${n}?`, answer: `Answer number ${n} for this clinic.` },
+        });
+
+        for (let i = 0; i < 4; i += 1) assert.equal((await faq(i)).status, 200);
+
+        // Go live is refused, and the refusal is what puts a run on record.
+        const blocked = await req(server, { method: 'POST', path: '/portal/api/lifecycle/activate', cookie, body: {} });
+        assert.equal(blocked.status, 409);
+        assert.deepEqual(blocked.body.blocking.map((b) => b.name), ['kb.populated'],
+          'four chunks is one short of kbMin, and that is the only blocker');
+
+        // The owner reads "Add at least 5 FAQs" and adds two more.
+        assert.equal((await faq(4)).status, 200);
+        assert.equal((await faq(5)).status, 200);
+
+        let r = await req(server, { method: 'GET', path: '/portal/api/readiness', cookie });
+        assert.equal(r.body.run.passed, false, 'the OLD run still says what it said');
+        assert.equal(r.body.run.stale, true, 'but the portal now says it has expired');
+        assert.equal(r.body.run.checks.find((c) => c.name === 'kb.populated').severity, 'fail');
+
+        // Check again — the one action this session added.
+        const rechecked = await req(server, { method: 'POST', path: '/portal/api/readiness/check', cookie, body: {} });
+        assert.equal(rechecked.status, 200);
+        assert.equal(rechecked.body.run.passed, true, 'six FAQs clears kb.populated');
+        assert.equal(rechecked.body.run.stale, false);
+        assert.equal(rechecked.body.run.checks.find((c) => c.name === 'kb.populated').severity, 'pass');
+        assert.equal((await statusOf(o.tenantId)).status, 'draft', 'still not live — the owner has not asked to be');
+
+        // And go-live is now actually reachable.
+        const live = await req(server, { method: 'POST', path: '/portal/api/lifecycle/activate', cookie, body: {} });
+        assert.equal(live.status, 200);
+        assert.equal(live.body.status, 'live');
+      } finally { server.close(); }
+    });
+
+    // INV-1, mandatory. The route takes its tenant from the SESSION and there is
+    // no argument position a caller could occupy — asserted the way the go-live
+    // no-skip test asserts INV-3, by firing the crafted request and proving it
+    // landed nowhere.
+    it('tenant scope (INV-1): a crafted tenantId in body and query cannot validate another tenant', async () => {
+      const attacker = await seedOwner({ ready: true });
+      const victim = await seedOwner({ ready: true });
+      const server = await start();
+      try {
+        const cookie = await authedCookie(server, attacker.email, attacker.password);
+        const res = await req(server, {
+          method: 'POST',
+          path: `/portal/api/readiness/check?tenantId=${victim.tenantId}&tenant_id=${victim.tenantId}`,
+          cookie,
+          body: { tenantId: victim.tenantId, tenant_id: victim.tenantId, id: victim.tenantId },
+        });
+        assert.equal(res.status, 200);
+
+        const mine = await db.query('SELECT count(*)::int n FROM validation_runs WHERE tenant_id = $1', [attacker.tenantId]);
+        const theirs = await db.query('SELECT count(*)::int n FROM validation_runs WHERE tenant_id = $1', [victim.tenantId]);
+        assert.equal(mine.rows[0].n, 1, 'the run landed on the SESSION tenant');
+        assert.equal(theirs.rows[0].n, 0, 'and nothing at all ran against the named one');
+        assert.equal((await statusOf(victim.tenantId)).status, 'draft', 'the other tenant is untouched');
       } finally { server.close(); }
     });
   });

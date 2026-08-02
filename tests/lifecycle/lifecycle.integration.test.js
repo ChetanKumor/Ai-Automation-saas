@@ -241,7 +241,7 @@ describe('tenant lifecycle + turn.scripted (integration)', { skip: ADMIN ? false
 
     const err = await refusal(go(id, 'activate'));
     assert.equal(err.code, 'STALE_VALIDATION');
-    assert.match(err.message, /config changed since validation/);
+    assert.match(err.message, /settings changed since validation/); // F1: FAQs and doctors expire it too
     // Status is NOT mutated by a config edit — it simply blocks activation.
     assert.deepEqual(await statusOf(id), { status: 'validated', active: false });
 

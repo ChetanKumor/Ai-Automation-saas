@@ -66,7 +66,9 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Test suite: **869 tests / 151 suites / 0 fail** (`npm test`, raw: `# tests 869 / # pass 869 / # fail 0`)
+- Test suite: **874 tests / 152 suites / 0 fail** (`npm test`, raw: `# tests 874 / # pass 874 / # fail 0`)
+  Moved by **F1** (below): +5 tests, +1 suite. Every other line in this section
+  that quotes 869/151 is describing the commit it names and is left as written.
   **TEST-FLAKE-03 is CLOSED** (`3765cdb`). It was a calendar-dependent failure in
   `tests/voice/voiceCancellation.integration.test.js:270`, red on every day when today+2
   landed on a Sunday and green the other six: the fixture seeded Dr. Rao for all seven days
@@ -75,6 +77,53 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   own seven-day hours. `clinicDefaults` is unchanged; closing Sunday by default is correct
   product behaviour and the test was wrong to depend on it not being. No test was added:
   869/151 is unmoved across D3 and this fix.
+- **F1 — readiness did not reflect the FAQ count. FIXED** (this commit). Reported
+  from the portal-v1 §11 acceptance attempt: six FAQs on file, Home reporting
+  9/10 and *"Add at least 5 FAQs or upload one document"*, and **no Go-live
+  control rendered at all** — so the acceptance run could not complete.
+  **It was never a counting bug.** `checkKbPopulated`
+  (`validationService.js:210-216`) counted correctly at every point and its
+  boundary is exact (4 fails, 5 passes, re-proved this session). The run simply
+  **predated the FAQ writes** — 906 ms, in the reproduction — and the portal
+  reported that expired run as CURRENT, because staleness was computed from
+  `tenant_configs.updated_at` alone while FAQs live in `knowledge_chunks`. A FAQ
+  write moved the thing `kb.populated` counts without moving the measurement.
+  With `run.passed` false and `run.stale` false, `deriveGoLive` (`shell.js:304`)
+  returns ineligible and `renderLifecycle` emits a status object rather than a
+  button: **go-live was unreachable and nothing on screen said why.**
+  ⚠️ **The formula was WRONG IN TWO PLACES, not one.** `lifecycleService`'s
+  `STALE_VALIDATION` activation guard carried its own copy of it, while
+  `routes.js` claimed in terms that the two "can never disagree". Both now read
+  one exported helper, `lifecycleService.validationInputsChangedAt`, whose union
+  covers every storage home a persisted check measures:
+  `tenant_configs.updated_at`, `max(knowledge_chunks.created_at)` (kb.populated /
+  kb.retrieval), `max(tenant_entities.created_at)` (doctor.schedule /
+  turn.scripted). One query, three tenant-scoped lookups, replacing the single
+  query it grew out of — the readiness read is still three queries.
+  ⚠️ **`tenants.updated_at` is deliberately EXCLUDED** even though
+  `whatsapp.config`/`live` and `tenant.legacy_prompt` read that row: `writeStatus`
+  UPDATEs `tenants` and the table has a `BEFORE UPDATE` trigger, so including it
+  would bump the timestamp past the very run that just succeeded and mark every
+  validated tenant permanently stale. Those columns are operator-written anyway.
+  New **`POST /portal/api/readiness/check`** — the validate half of the go-live
+  chain, on the owner's surface. It calls `validationService.validateTenant`
+  directly rather than `transition(id, 'validate')`, because `doValidate` writes
+  `status='validated'` on a pass; `validateTenant` persists the run and touches
+  nothing else, so this route **cannot move a receptionist between states**
+  (asserted). Session-scoped (INV-1), no options argument at all (INV-3), its own
+  10/hour budget so re-checking cannot exhaust the go-live budget.
+  **`run.stale` had been in the payload since S18 and NOTHING rendered it.** Home
+  now states the condition and offers *Check again*; the header control becomes
+  *Setup changed* + *Check & go live* rather than a bare *Go live* identical to a
+  passing run. No auto-refresh on load, deliberately — it would hide the
+  mechanism and spend a Meta ping plus a model turn on every visit to Home.
+  **Decision recorded: validation is NOT re-triggered on FAQ/doctor write.** A run
+  costs a Meta API ping and a live model turn (`turn.scripted`); firing that on
+  every CRUD write is worse than the bug. The portal re-validates at every go-live
+  press regardless, so the dangerous direction is already caught server-side.
+  Evidence: `scripts/portal/f1.js` (scratch DB → genesis → real routers → CDP;
+  the re-check is a real click on the rendered button) and
+  `scripts/portal/shots/f1-{before,after,before-mobile}.png`.
 - Audit findings closed: **F-001** (`2d5da98`), **F-003** (`d22dfc5`), **F-003b** (`7a505a6`),
   **F-004** (`e071f69`), **F-005** (`e15bbae`), **F-006** (`58aa1d5`), **F-007** (`d914649`),
   **F-010** (`ba45acc`). Open: F-002, F-008, F-009, F-011 – F-017.
@@ -110,6 +159,12 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
     **Batch 1 is COMPLETE but not ACCEPTED until it passes.** If it comes back slower,
     §5 reopens D5 and names the sticky save bar and the table→card conversions as the
     suspects.
+    ⚠️ **An attempt at it produced F1** (above), and F1 was a hard stop: with six
+    FAQs on file the owner reached a screen with no Go-live control and no
+    explanation, so the criterion could not be run to completion at all. That is
+    now fixed and the path is proven end to end in `scripts/portal/f1.js`. **The
+    §11 run itself is still UNATTEMPTED** — a machine replay is not the criterion,
+    which is a human, on a phone, unaided, timed.
   - **Telugu on a real Android device.** D4's DoD asks for it in terms ("verified on a
     real Android device, not an emulator"); D4 had no device and verified headless
     Chrome on Windows only, at 19/34 and 34/58. Conjuncts, matras and inline Latin
@@ -594,6 +649,21 @@ all branches fast-forward onto main · one issue per session · runtime evidence
   F-F001 portal notice is what warns their owner. ⚠️ **Zero such tenants are known to
   exist** — there is no production deploy, so this is a hazard retained for a population
   that is currently empty.
+- **F1-R1 (open, new) — staleness detects INSERTS only on `knowledge_chunks` and
+  `tenant_entities`.** Both tables carry `created_at` and no `updated_at`, and no
+  `set_updated_at` trigger (`schema.sql:278`, `:297`; unchanged since migrations
+  `002`/`003`). So `max(created_at)` cannot rise on an in-place EDIT
+  (`UPDATE knowledge_chunks SET content…`, `UPDATE tenant_entities SET data…`)
+  and can only fall on a DELETE. **Editing or deleting a FAQ or a doctor
+  therefore does not expire the run.** Not a design choice — a schema one, and
+  schema was out of F1's scope. The fix is one migration adding `updated_at` +
+  the existing trigger to both tables.
+  Blast radius is bounded and worth stating precisely: the portal's Go live
+  always runs `validate` before `activate` (`runGoLiveChain`), so a deletion that
+  drops a clinic below `kbMin` is still refused at the press. What is exposed is
+  (a) the ring reading one check too high until the next run, and (b) the
+  **admin** panel's separate `activate`, which can act on a passing run that a
+  deletion has since invalidated.
 - **The test suite makes live third-party API calls, so `# fail 0` is not purely a
   function of the code.** The Item 4 session saw `npm test` return `862 / fail 1` on a
   live Gemini embedding 503, then pass unchanged on re-run. This weakens every green

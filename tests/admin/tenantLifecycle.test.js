@@ -283,7 +283,10 @@ describe('tenant lifecycle admin API (route-level)', { skip: ADMIN ? false : 'DA
     const res = await doActivate(id);
     assert.equal(res.status, 409);
     assert.equal(res.body.code, 'STALE_VALIDATION');
-    assert.match(res.body.error, /config changed since validation — re-validate/);
+    // "settings", not "config" (F1): the guard now expires on a knowledge_chunks
+    // or tenant_entities write too, and this message is rendered verbatim to the
+    // operator — "config changed" would send them to the wrong page.
+    assert.match(res.body.error, /settings changed since validation — re-validate/);
     assert.ok(res.body.validated_at && res.body.config_updated_at);
   });
 

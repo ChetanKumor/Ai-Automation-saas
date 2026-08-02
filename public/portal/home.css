@@ -94,6 +94,44 @@
 .readiness__note { color: var(--muted); font-size: 13.5px; margin-top: 6px; line-height: 1.55; }
 .readiness__ran { color: var(--faint); font-size: 12px; margin-top: 10px; }
 
+/* ── The run has expired (F1) ──────────────────────────────────────────────
+ * Replaces .readiness__ran when run.stale. Amber, not red: nothing is broken —
+ * the score above is simply older than the settings it describes, and the fix
+ * is one button. Same amber the truth strip uses, for the same reason: this is
+ * the strip's vocabulary applied to the readiness card.
+ *
+ * It is a BLOCK, not another muted line under the note, because it carries the
+ * only action on this card and a 12px --faint line is where the eye stops
+ * reading. Left-aligned even in the 520px centred layout below — a paragraph
+ * plus a button reads as a form, and a centred form has no edge to follow. */
+.readiness__expired {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--amber-200);
+  border-radius: var(--r-md);
+  background: var(--amber-50);
+  text-align: left;
+}
+.readiness__expired-t {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--amber-700);
+}
+.readiness__expired-dot {
+  width: 7px; height: 7px; flex: none;
+  border-radius: var(--r-full);
+  background: var(--amber);
+}
+.readiness__expired-d {
+  color: var(--ink-2);
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin: 5px 0 10px;
+}
+
 /* ── Check list ── */
 .checks { margin-top: var(--s-5); }
 .checks__group-label {

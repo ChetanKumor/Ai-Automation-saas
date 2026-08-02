@@ -789,7 +789,27 @@ a { color: var(--teal-700); }
 .lc--live  { background: var(--green-050); color: var(--green-700); border-color: var(--green-200); }
 .lc--draft { background: var(--line-2);    color: var(--muted);     border-color: var(--line); }
 .lc--paused{ background: var(--amber-050); color: var(--amber);     border-color: var(--amber-200); }
+/* F1 — the run has expired. Amber like `paused` because both are "true, and you
+ * should know": nothing is broken, but the control beside it is about to do more
+ * than its usual job. Without this pill a stale run rendered a bare `Go live`
+ * identical to a passing one. */
+.lc--stale { background: var(--amber-050); color: var(--amber);     border-color: var(--amber-200); }
 a.lc--draft:hover { border-color: var(--line-3); color: var(--ink-2); }
+/* Pill + button is the only state of this control with two objects in it, and
+ * that is one object too many for a phone. Measured, not assumed: at 380px the
+ * header has ~255px between the burger and the avatar, and pill + button want
+ * ~258. Letting it wrap was the first attempt and it was worse — `.top` is a
+ * fixed 56px and `.pg-head` sticks to exactly that offset, so a two-row control
+ * hangs out of the bar and desyncs the page header below it.
+ *
+ * So below 640 the PILL goes and the BUTTON stays, because the button is the
+ * half that carries the condition: "Check & go live" is already distinguishable
+ * from "Go live" and already says a check is about to run. Nothing is hidden
+ * that is not still stated — the condition is spelled out in full on Home, in
+ * the block this same run renders, at every width. */
+@media (max-width: 640px) {
+  .golive--stale .lc--stale { display: none; }
+}
 /* The count is subordinate to the state: same pill, quieter weight, divided by
  * a hairline so "Not live" and "2 left" read as one object, not two badges. */
 .lc__ct {
