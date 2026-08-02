@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 221c1fb48fbae2f113defdabe5c6594138cf1283
-Verified-on: 2026-08-01
+Verified-at: 007f697c87795a577af745664a7656e04f767797
+Verified-on: 2026-08-02
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -16,7 +16,7 @@ what shipped, what stays open and why, and what was deliberately not scheduled, 
 *Frontend modernisation program (D-005)* below. Eight of the audit's nine findings closed;
 **F-F003 is the only one open**, blocked on external clock C-1. **Issue 34 is now closed**
 — F-F001 shipped the owner-facing warning at `6ceb8f0`, and option (a) removed the hazard
-at the commit this file is stamped to. The precedence in `aiService.js` is deliberate and
+at `69ceb7f`. The precedence in `aiService.js` is deliberate and
 remains untouched.
 
 ---
@@ -77,7 +77,7 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   own seven-day hours. `clinicDefaults` is unchanged; closing Sunday by default is correct
   product behaviour and the test was wrong to depend on it not being. No test was added:
   869/151 is unmoved across D3 and this fix.
-- **F1 — readiness did not reflect the FAQ count. FIXED** (this commit). Reported
+- **F1 — readiness did not reflect the FAQ count. FIXED** (`007f697`). Reported
   from the portal-v1 §11 acceptance attempt: six FAQs on file, Home reporting
   9/10 and *"Add at least 5 FAQs or upload one document"*, and **no Go-live
   control rendered at all** — so the acceptance run could not complete.
@@ -488,7 +488,7 @@ Additions since the original 1–28, all in the plan's Phase 8:
   `tests/voice/voiceLifecycle.integration.test.js:181`.
 - **34** — admin-created tenants silently ignore all portal-written prompt copy. **DONE**
   in two halves: the owner-facing warning (F-F001, `6ceb8f0`) and option (a), the removal
-  of the hazard (this commit). This is A-007/A-008 promoted to the queue. Full finding at
+  of the hazard (`69ceb7f`). This is A-007/A-008 promoted to the queue. Full finding at
   `docs/specs/issue-34-legacy-prompt-shadows-portal-config.md`.
   The prompt field is gone from `public/admin/tenant-new.html` and
   `POST /admin/api/tenants` now refuses a non-empty `ai_prompt`
@@ -501,7 +501,7 @@ Additions since the original 1–28, all in the plan's Phase 8:
 ## Frontend modernisation program (D-005) — COMPLETE
 
 Authorised by `D-005` (`56e7f46`), specified by `docs/audit/2026-07-frontend.md`
-(`90d1da3`). Closed at the commit this file is stamped to. The audit is the historical
+(`90d1da3`). Closed at `e50d7ba`. The audit is the historical
 record of what was found and is not edited; this section is the ledger of what was done
 about it.
 
@@ -513,10 +513,10 @@ about it.
 | F-F002 | S-A | `web/lib/siteConfig.ts` resolves from environment; production build refuses placeholders (**unblocked portion only** — see Open) | `9b5486a` |
 | F-F004 | S-A | `web/` recorded as a first-class surface under *Stack (frozen)*; gate 2 names the gap in Issue 20's scope (**partial** — see Open) | `9b5486a` |
 | F-F005 | S-A | Hero plays a Telugu conversation; `Noto_Sans_Telugu` with `subsets: ["telugu"]`; first two lines verbatim from `public/demo/fixture.json` | `634b7aa` |
-| F-F006 | S-A | Mobile nav drawer closes on link tap and on Escape; focus returns to the toggle | *this commit* |
-| F-F007 | S-A | Collapsed FAQ answers carry `inert` + `visibility: hidden` — out of the a11y tree, out of Ctrl+F, out of the tab order | *this commit* |
-| F-F008 | S-A/S-B | `web/` adopts the portal's teal brand accent. The site moved, not the portal | *this commit* |
-| F-F009 | S-A | Four colour-only focus indicators gained the existing 2px/4px ring | *this commit* |
+| F-F006 | S-A | Mobile nav drawer closes on link tap and on Escape; focus returns to the toggle | `e50d7ba` |
+| F-F007 | S-A | Collapsed FAQ answers carry `inert` + `visibility: hidden` — out of the a11y tree, out of Ctrl+F, out of the tab order | `e50d7ba` |
+| F-F008 | S-A/S-B | `web/` adopts the portal's teal brand accent. The site moved, not the portal | `e50d7ba` |
+| F-F009 | S-A | Four colour-only focus indicators gained the existing 2px/4px ring | `e50d7ba` |
 
 **Open, and why**
 
@@ -541,7 +541,7 @@ about it.
 **Spend against the cap**
 
 Five sessions of D-005's ten-session hard cap: the Stage 1 audit (`90d1da3`), then
-Stage 2 items 1 (`9b5486a`), 2 (`634b7aa`), 3 (`6ceb8f0`) and 4 (this commit). The
+Stage 2 items 1 (`9b5486a`), 2 (`634b7aa`), 3 (`6ceb8f0`) and 4 (`e50d7ba`). The
 audit's own effort lines budget **17h** for the eight findings that shipped, of a 20h
 total; the 3h remainder is F-F003. ⚠️ Actual hours are not recorded anywhere in the
 repository — no session log exists — so the 17h is the estimate, not a measurement.
