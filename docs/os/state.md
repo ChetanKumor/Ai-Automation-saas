@@ -66,10 +66,11 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Test suite: **878 tests / 153 suites / 0 fail** (`npm test`, raw: `# tests 878 / # pass 878 / # fail 0`)
-  Moved by **F1** (+5 tests, +1 suite) then **F2** (+4 tests, +1 suite), both
-  below. Every other line in this section that quotes 869/151 or 874/152 is
-  describing the commit it names and is left as written.
+- Test suite: **887 tests / 154 suites / 0 fail** (`npm test`, raw: `# tests 887 / # pass 887 / # fail 0`)
+  Moved by **F1** (+5 tests, +1 suite), **F2** (+4 tests, +1 suite) then **F3**
+  (+9 tests, +1 suite — `tests/portal/portalWizardExit.unit.test.js`), all
+  below. Every other line in this section that quotes 869/151, 874/152 or
+  878/153 is describing the commit it names and is left as written.
   **TEST-FLAKE-03 is CLOSED** (`3765cdb`). It was a calendar-dependent failure in
   `tests/voice/voiceCancellation.integration.test.js:270`, red on every day when today+2
   landed on a Sunday and green the other six: the fixture seeded Dr. Rao for all seven days
@@ -78,7 +79,68 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   own seven-day hours. `clinicDefaults` is unchanged; closing Sunday by default is correct
   product behaviour and the test was wrong to depend on it not being. No test was added:
   869/151 is unmoved across D3 and this fix.
-- **F2 — the Test page's composer locked after one message. FIXED** (this commit).
+- **F3 — the onboarding wizard had no way out, and the login page's reset
+  promise named no channel. BOTH FIXED** (this commit). Two small issues from
+  the portal-v1 §11 acceptance run, which otherwise **PASSED**: under 45 minutes
+  on a phone, unaided, faster than pre-redesign.
+  **A — "Save and finish later" (spec §3.8).** Progress was ALREADY persisted
+  and always had been: `persistStep` writes `meta.onboarding_step` from `goTo`
+  on every transition, and `main()` resumes from it on boot. Close the tab at
+  step 5, sign back in, land on step 5. What was missing was only the control,
+  so this is a button rather than a mechanism. It sits on the step-label row —
+  the wizard's own top right, above the card, in the first viewport at 380px
+  (measured: bottom at 269px of an 820px viewport, 165×44) — and NOT in the
+  `.top` bar, which at 380px already carries burger + lifecycle + avatar and
+  hides `.kbd` for want of room. Three cases: not-a-form or clean card leaves
+  with no request at all; a dirty card saves through the step's OWN
+  `form.requestSubmit()`, the same call Continue makes; a rejected save keeps
+  the owner on the step with the page's inline field errors and everything
+  typed intact. Dirty is read from `save-note--dirty`, the class the embedded
+  page already writes and `shell.js`'s sticky save bar already observes — no new
+  contract, and `wizard.js` still calls exactly two routes.
+  ⚠️ **A pre-existing defect in `watchIframeSave` had to be fixed for any of
+  this to work, and it was shared with Continue.** The watcher polled
+  `saveBtn.disabled` every 120ms; a validation 400 is refused before the query
+  runs and opens and closes that window in single-digit milliseconds, so
+  `sawBusy` stayed false, the watcher sat out its full 20-second timeout and
+  reported a REJECTED save as a HUNG one — a "taking a while" toast instead of
+  the field error, twenty seconds late. Nondeterministic by construction: the
+  same rejection on the same page reported correctly or not depending on where
+  the sampling grid fell, and both outcomes were observed in consecutive runs.
+  **Present since S16.** Proven not to be this session's by driving Continue
+  through the identical rejection (`scripts/portal/f3.js` keeps that control
+  run). Now a `MutationObserver`, which cannot miss a transition — a finer poll
+  would have narrowed the window and kept the bug. `sawBusy` seeds from live
+  state because `requestSubmit()` dispatches synchronously, so the busy flag is
+  already set by the time the observer attaches.
+  **B — login copy, one line.** `public/portal/login.html` read *"Forgot your
+  password? Message Prantivo on WhatsApp to reset it."* — accurate and a dead
+  end, naming a channel with no way to reach it. It now carries a `wa.me` link
+  with a prefilled message, on the founder's number (`918309177158`, the same
+  one `web/lib/siteConfig.ts:72` publishes for every marketing CTA; inlined
+  because login.html is served statically and cannot read an env var). The
+  surrounding block also moved off `--faint`, whose own token comment says
+  "non-text only (2.8:1)" — a reset line an owner cannot read is not a channel.
+  ⚠️ **No self-serve reset was built and none should be**: 0.3 confirmed zero
+  email transport anywhere in the repo (no `nodemailer`/`sendgrid`/`smtp`/`ses`
+  in `src/`, `scripts/` or the nine runtime dependencies), so a token flow would
+  mean a transport, issue-and-expiry and a reset route — several sessions,
+  before a single paying customer.
+  ⚠️ **F3-R1 filed (open): the copy promises a reset no operator surface can
+  perform.** `POST /admin/api/tenants/:id/owner` (`adminRoutes.js:791`) CREATES
+  an owner account and **rejects with 409 when one already exists** (`:813-815`,
+  with the `23505` backstop at `:829`). There is no `UPDATE users SET
+  password_hash` anywhere, no delete/deactivate-user route, and no
+  password-change route on either surface — the only other writes to `users` are
+  `last_login_at` and the session lookup. The route's own header says it: *"a
+  reset today is a deliberate operator action against a removed account, not
+  this route"*, and removing the account means hand-editing in `psql`. Not fixed
+  here (out of scope); the cheapest honest fix is an operator "reset password"
+  action reusing `generateTempPassword` + `hashPassword` on the existing row.
+  Evidence: `scripts/portal/f3.js` (scratch DB → genesis → real routers → CDP at
+  380×820; the walk to step 5 and every exit are real clicks) and
+  `scripts/portal/shots/f3-{wizard-step5-mobile,wizard-invalid-exit-mobile,wizard-invalid-exit-field,login-mobile}.png`.
+- **F2 — the Test page's composer locked after one message. FIXED** (`9f17517`).
   Reported from the same acceptance attempt as F1: the first test message sends
   and replies, the counter reads 19 left, and the composer and Send are dead
   from then on. It blocked step (f) of portal-v1 §11, which needs a second
@@ -200,12 +262,23 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
     **Batch 1 is COMPLETE but not ACCEPTED until it passes.** If it comes back slower,
     §5 reopens D5 and names the sticky save bar and the table→card conversions as the
     suspects.
-    ⚠️ **An attempt at it produced F1** (above), and F1 was a hard stop: with six
-    FAQs on file the owner reached a screen with no Go-live control and no
-    explanation, so the criterion could not be run to completion at all. That is
-    now fixed and the path is proven end to end in `scripts/portal/f1.js`. **The
-    §11 run itself is still UNATTEMPTED** — a machine replay is not the criterion,
-    which is a human, on a phone, unaided, timed.
+    ⚠️ **The run has now been ATTEMPTED AND PASSED — founder-reported, 2026-08-03.**
+    Under 45 minutes on a phone, unaided, and **faster than pre-redesign**, which is
+    the comparison §5 makes the redesign's success conditional on. So D5 does not
+    reopen and the sticky save bar and table→card conversions are cleared.
+    ⚠️ **This is founder-supplied, not repo-derivable** — the criterion is a human,
+    on a phone, unaided, timed, and no timing artefact exists in the repository.
+    No wall-clock figure was reported beyond "under 45 minutes".
+    **Three earlier attempts produced defects that had to be fixed first**, each a
+    hard stop in its own way: **F1** (six FAQs on file, no Go-live control, no
+    explanation — the criterion could not be run to completion), **F2** (the Test
+    page's composer died after one message, blocking step (f), which needs a second
+    message to confirm an edited price is quoted) and **F3** (no way out of the
+    wizard; a dead-end reset promise). All three are fixed and above.
+    **Issues 3, 4 and 5 from the acceptance report are NOT yet filed here** — the
+    §11 run raised five and only F1–F3 have been worked. ⚠️ Their content is not in
+    the repository; whoever picks them up should get them from the founder before
+    scoping.
   - **Telugu on a real Android device.** D4's DoD asks for it in terms ("verified on a
     real Android device, not an emulator"); D4 had no device and verified headless
     Chrome on Windows only, at 19/34 and 34/58. Conjuncts, matras and inline Latin

@@ -31,7 +31,18 @@
       color: var(--red); background: var(--red-050); border: 1px solid var(--red-100);
       border-radius: var(--radius-xs); padding: 9px 12px; line-height: 1.45;
     }
-    .login__foot { text-align: center; color: var(--faint); font-size: 12px; margin-top: 16px; }
+    /* `--faint` is 2.8:1 and its own token comment says "non-text only"; this
+       block is body text, and the whole point of the reset line is that an owner
+       who has just been locked out can READ it. `--muted` is 4.6:1 on --bg. */
+    .login__foot { text-align: center; color: var(--muted); font-size: 12.5px; line-height: 1.5; margin-top: 16px; }
+    /* The one reachable channel on this page. Underlined, not colour-only
+       (spec §2.11), and padded so the tap target clears the 12.5px line box. */
+    .login__foot a {
+      color: var(--teal-700); font-weight: 600;
+      text-decoration: underline; text-underline-offset: 2px;
+      display: inline-block; padding: 6px 0;
+    }
+    .login__foot a:hover { color: var(--teal-900); }
   </style>
 </head>
 <body>
@@ -63,12 +74,18 @@
       </form>
     </div>
 
-    <!-- Operator-assisted v1: no self-serve reset (spec §9). login.html is served
-         statically, so it can't read an env-configured support number; there is no
-         support-WhatsApp number env in v1, so this is the plain-text branch of the
-         "wa.me link if the number exists, else text" rule. -->
+    <!-- Operator-assisted v1: no self-serve reset (spec §9), and no email
+         transport anywhere in the repo to build one on. The previous copy named
+         WhatsApp as the channel and gave no way to reach it — accurate and still
+         a dead end. The number is the founder's, the same one web/lib/siteConfig.ts
+         already publishes as the contact for every marketing CTA; it is inlined
+         because login.html is served statically and cannot read an env var.
+         `wa.me` opens the app on a phone and web.whatsapp.com on a desktop, so
+         one link covers both without a second control. -->
     <div class="login__foot">
-      <div>Forgot your password? Message Prantivo on WhatsApp to reset it.</div>
+      <div>Forgot your password?
+        <a href="https://wa.me/918309177158?text=Hi%2C%20I%20need%20to%20reset%20my%20Prantivo%20portal%20password."
+           target="_blank" rel="noopener">Message Prantivo on WhatsApp</a> and we’ll reset it for you.</div>
       <div style="margin-top:4px;">Need access? Prantivo sets up your account.</div>
     </div>
   </div>

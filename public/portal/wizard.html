@@ -54,7 +54,18 @@
 
         <div class="wiz" id="wiz" hidden>
           <div class="wiz__progress">
-            <div class="wiz__step-label" id="wizStepLabel">Step 1 of 7</div>
+            <!-- Spec §3.8: "Exit is always available and always safe. An owner
+                 who cannot leave a wizard abandons the product rather than the
+                 wizard." The control sits on the step-label row — the wizard's
+                 OWN top right, above the card on every step and inside the
+                 first viewport at 380px — rather than in the `.top` bar, which
+                 at 380px already carries burger + lifecycle + avatar and has
+                 `.kbd` set to display:none precisely because it has no room
+                 left (tokens.css:1738). -->
+            <div class="wiz__progress-top">
+              <div class="wiz__step-label" id="wizStepLabel">Step 1 of 7</div>
+              <button class="btn wiz__exit" id="wizExit" type="button">Save and finish later</button>
+            </div>
             <div class="wiz__bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="wizBar">
               <div class="wiz__bar-fill" id="wizBarFill"></div>
             </div>

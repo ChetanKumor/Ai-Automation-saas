@@ -95,36 +95,70 @@
   // Every form-kind page (clinic-profile.js/hours.js/pricing.js/receptionist.js)
   // shares one save() shape: saveBtn.disabled goes true→false around the fetch,
   // and saveNote gains class `save-note--saved` ONLY on a real 200 (see each
-  // page's save()). Polling that public, already-stable DOM contract lets the
+  // page's save()). Reading that public, already-stable DOM contract lets the
   // wizard know success/failure without a single line changed in those files.
+  // Both classes are written BEFORE the `finally` clears disabled, in every one
+  // of the four pages, so the state is settled by the time we read it.
   // onDone(true|false|null) — null means "never finished" (a hung request).
+  //
+  // ⚠️ THIS WAS A setInterval(…, 120) POLL AND IT DROPPED SAVES. The busy window
+  // is one fetch wide; a validation 400 is refused before the query runs and
+  // round-trips in single-digit milliseconds, so `disabled` went true and back to
+  // false BETWEEN two samples, `sawBusy` stayed false, and the watcher sat out
+  // its full 20-second timeout and reported "never finished" — a "taking a while"
+  // toast instead of the field error, twenty seconds after the owner pressed the
+  // button. Nondeterministic by construction: the same rejected save on the same
+  // page reported correctly or not depending on where the 120ms sampling grid
+  // happened to fall. Pre-existing since S16 and shared with Continue (proven by
+  // running Continue through the same rejection in scripts/portal/f3.js).
+  // A MutationObserver cannot miss a transition, so the sampling grid is gone
+  // rather than made finer — a 20ms poll would have narrowed the window and kept
+  // the bug.
   function watchIframeSave(iframe, onDone) {
-    let sawBusy = false;
-    let elapsed = 0;
-    const iv = setInterval(() => {
-      elapsed += 120;
-      let doc;
-      try { doc = iframe.contentDocument; } catch (_) { doc = null; }
-      const btn = doc && doc.getElementById('saveBtn');
-      const note = doc && doc.getElementById('saveNote');
-      if (!btn || !note) {
-        if (elapsed > 20000) { clearInterval(iv); onDone(null); }
-        return;
-      }
+    let win, doc;
+    try { win = iframe.contentWindow; doc = iframe.contentDocument; } catch (_) { doc = null; }
+    const btn = doc && doc.getElementById('saveBtn');
+    const note = doc && doc.getElementById('saveNote');
+    if (!btn || !note) { onDone(null); return; }
+
+    // Seeded from the LIVE state, not false. requestSubmit() dispatches its
+    // submit event synchronously, so the page's save() has already run as far
+    // as its first await — setBusy(saveBtn, true) included — by the time this
+    // function is reached. An observer attached after that point never sees the
+    // true transition, only the false one, and would wait out the timeout on
+    // every save. (Seeding also makes the watcher correct if a caller ever
+    // attaches it BEFORE submitting: it starts false and takes the transition.)
+    let sawBusy = btn.disabled;
+    let done = false;
+    let obs = null;
+    let timer = null;
+    const finish = (result) => {
+      if (done) return;
+      done = true;
+      if (obs) obs.disconnect();
+      clearTimeout(timer);
+      onDone(result);
+    };
+    // Only `disabled` is observed. setBusy also rewrites aria-busy, style and
+    // innerHTML; filtering keeps one attribute driving one decision.
+    obs = new win.MutationObserver(() => {
       if (btn.disabled) { sawBusy = true; return; }
-      if (!sawBusy) {
-        if (elapsed > 20000) { clearInterval(iv); onDone(null); }
-        return;
-      }
-      clearInterval(iv);
-      onDone(note.classList.contains('save-note--saved'));
-    }, 120);
+      if (sawBusy) finish(note.classList.contains('save-note--saved'));
+    });
+    obs.observe(btn, { attributes: true, attributeFilter: ['disabled'] });
+    // The page can also be gone (iframe navigated) or the request genuinely hung.
+    timer = setTimeout(() => finish(null), 20000);
   }
 
   // ── Progress persistence ─────────────────────────────────────────────────────
   // Best-effort: a failed write here never blocks navigation (the owner is
   // already looking at the next step) — worst case, resuming later lands one
   // step behind where they actually got to.
+  //
+  // Resolves false ONLY when the session has expired and we have already sent
+  // the owner to login — the exit path reads that so it doesn't immediately
+  // navigate on top of the redirect. Every other outcome, success or failure,
+  // resolves true: the caller is free to leave.
   async function persistStep(index) {
     try {
       const res = await fetch('/portal/api/onboarding', {
@@ -132,22 +166,32 @@
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ step: index }),
       });
-      if (res.status === 401) { window.location.replace('login.html'); }
+      if (res.status === 401) { window.location.replace('login.html'); return false; }
     } catch (_) { /* best-effort — see above */ }
+    return true;
   }
 
   // ── Step chrome ──────────────────────────────────────────────────────────────
+  const EXIT_LABEL = 'Save and finish later';
+
   function restingLabel(kind) {
     if (kind === 'review') return 'Done';
     if (kind === 'multi') return 'Continue';
     return 'Save & continue';
   }
 
-  function setContinueBusy(busy) {
-    const btn = $('wizContinue');
-    btn.disabled = busy;
-    if (busy) { btn.textContent = 'Saving…'; return; }
-    btn.textContent = restingLabel(STEPS[state.step].kind);
+  // ONE busy state for the whole nav. Continue and the exit control drive the
+  // SAME save path (the embedded page's own form.requestSubmit), so leaving
+  // either live while the other is in flight would fire two submits at one form.
+  // Whichever was pressed shows "Saving…"; the other simply goes inactive for
+  // the length of the request. `pressed` is 'continue' | 'exit' | null.
+  function setNavBusy(pressed) {
+    const cont = $('wizContinue');
+    const exit = $('wizExit');
+    cont.disabled = !!pressed;
+    exit.disabled = !!pressed;
+    cont.textContent = pressed === 'continue' ? 'Saving…' : restingLabel(STEPS[state.step].kind);
+    exit.textContent = pressed === 'exit' ? 'Saving…' : EXIT_LABEL;
   }
 
   function renderStep() {
@@ -167,7 +211,7 @@
     $('wizBack').disabled = state.step === 0;
     // Spec §2.9: no disabled control without a visible reason beside it.
     $('wizBackWhy').hidden = state.step !== 0;
-    setContinueBusy(false);
+    setNavBusy(null);
 
     stopHeightWatch();
 
@@ -211,37 +255,110 @@
     goTo(state.step + 1);
   }
 
+  // The embedded step's own <form>, or null when the page isn't ready to take a
+  // submit yet. Every embedded form page hides its shared #loadCard placeholder
+  // AFTER wiring its own submit listener (see e.g. clinic-profile.js's main()) —
+  // a universal, page-agnostic "ready for requestSubmit()" signal. Without this
+  // guard a click that lands mid-load would requestSubmit() a form with no
+  // listener yet, and the browser's default submit would navigate the iframe
+  // away from whatever the owner had just typed.
+  function readyForm(step) {
+    let doc, form, loadCard;
+    try {
+      doc = $('wizFrame').contentDocument;
+      form = doc && doc.getElementById(step.formId);
+      loadCard = doc && doc.getElementById('loadCard');
+    } catch (_) { return null; }
+    if (!form || !loadCard || !loadCard.hidden) return null;
+    return form;
+  }
+
+  // Does the embedded step have unsaved edits? Read from the class the page
+  // ALREADY writes on its own #saveNote — the same `save-note--dirty` signal
+  // shell.js's sticky save bar observes (shell.js:850). No new contract, and
+  // nothing new asserted about those six page files.
+  //
+  // Multi-kind steps (Doctors, FAQs) have no page-level #saveNote at all: each
+  // card carries its own note and its own save button, which is exactly why
+  // Continue doesn't save them either. They answer false and exit immediately.
+  function stepIsDirty() {
+    let note;
+    try {
+      const doc = $('wizFrame').contentDocument;
+      note = doc && doc.getElementById('saveNote');
+    } catch (_) { return false; }
+    return !!(note && note.classList.contains('save-note--dirty'));
+  }
+
   function onContinueClick() {
     const step = STEPS[state.step];
     if (step.kind === 'review') { window.location.href = 'index.html'; return; }
     if (step.kind === 'multi') { goTo(state.step + 1); return; }
 
-    const iframe = $('wizFrame');
-    let doc, form, loadCard;
-    try {
-      doc = iframe.contentDocument;
-      form = doc && doc.getElementById(step.formId);
-      loadCard = doc && doc.getElementById('loadCard');
-    } catch (_) { form = null; }
-    // Every embedded form page hides its shared #loadCard placeholder AFTER
-    // wiring its own submit listener (see e.g. clinic-profile.js's main()) —
-    // a universal, page-agnostic "ready for requestSubmit()" signal. Without
-    // this guard a Continue click that lands mid-load would requestSubmit() a
-    // form with no listener yet, and the browser's default submit would
-    // navigate the iframe away from whatever the owner had just typed.
-    if (!form || !loadCard || !loadCard.hidden) { toast('Still loading — try again in a moment.', false); return; }
+    const form = readyForm(step);
+    if (!form) { toast('Still loading — try again in a moment.', false); return; }
 
-    setContinueBusy(true);
+    setNavBusy('continue');
     form.requestSubmit();
-    watchIframeSave(iframe, (success) => {
+    watchIframeSave($('wizFrame'), (success) => {
       // The step may have changed while we were waiting (owner clicked Back) —
       // only act on the result if we're still looking at the step we saved.
       if (STEPS[state.step] !== step) return;
-      setContinueBusy(false);
+      setNavBusy(null);
       if (success === true) {
         goTo(state.step + 1);
       } else if (success === false) {
         $('wizSaveNote').textContent = 'Fix the highlighted fields to continue, or skip for now.';
+        $('wizSaveNote').classList.add('wiz__save-note--error');
+      } else {
+        toast('That’s taking a while — check your connection and try again.', false);
+      }
+    });
+  }
+
+  // ── Exit: "Save and finish later" (spec §3.8) ────────────────────────────────
+  // "Exit is always available and always safe. An owner who cannot leave a
+  // wizard abandons the product rather than the wizard."
+  //
+  // Three cases, and only the third writes anything:
+  //   • not a form step (Review, or the per-card Doctors/FAQs) — nothing is
+  //     pending, so leave straight away;
+  //   • form step, card CLEAN — nothing to save, so no request is made at all;
+  //   • form step, card DIRTY — save through the step's OWN save path: the same
+  //     form.requestSubmit() + watchIframeSave() pair Continue uses, four lines
+  //     above. There is NO second save path here, no second endpoint and no
+  //     second success/failure inference.
+  //
+  // On a rejected save the embedded page has already painted its own inline
+  // field errors, so this stays on the step and says so. Nothing typed is
+  // discarded and nothing navigates — silently dropping an owner's work on the
+  // way out is the failure mode this control would otherwise introduce.
+  function exitToHome() {
+    // Persist the resume point before leaving rather than relying on goTo having
+    // done it on the way in. goTo covers every step the owner NAVIGATED to, but
+    // step 0 is rendered by main() without one, so a first-session owner who
+    // exits from Profile would otherwise have nothing recorded. Awaited because
+    // navigating cancels an in-flight fetch; a failure is swallowed inside
+    // persistStep and we leave anyway — exit is never blocked by bookkeeping.
+    persistStep(state.step).then((ok) => { if (ok) window.location.href = 'index.html'; });
+  }
+
+  function onExitClick() {
+    const step = STEPS[state.step];
+    if (step.kind !== 'form' || !stepIsDirty()) { exitToHome(); return; }
+
+    const form = readyForm(step);
+    if (!form) { toast('Still loading — try again in a moment.', false); return; }
+
+    setNavBusy('exit');
+    form.requestSubmit();
+    watchIframeSave($('wizFrame'), (success) => {
+      if (STEPS[state.step] !== step) return;
+      setNavBusy(null);
+      if (success === true) {
+        exitToHome();
+      } else if (success === false) {
+        $('wizSaveNote').textContent = 'Fix the highlighted fields, then finish later.';
         $('wizSaveNote').classList.add('wiz__save-note--error');
       } else {
         toast('That’s taking a while — check your connection and try again.', false);
@@ -311,6 +428,7 @@
     $('wizBack').addEventListener('click', onBackClick);
     $('wizSkip').addEventListener('click', onSkipClick);
     $('wizContinue').addEventListener('click', onContinueClick);
+    $('wizExit').addEventListener('click', onExitClick);
     $('wizChecks').addEventListener('click', onChecksClick);
 
     $('wizLoadCard').hidden = true;

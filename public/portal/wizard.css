@@ -22,13 +22,35 @@
 
 /* ── Progress ── */
 .wiz__progress { margin-bottom: var(--s-4); }
+
+/* The step label and the exit control share one row: label left, exit right.
+ * `.wiz__step-label` keeps no bottom margin of its own — the row owns the gap
+ * to the bar now, or the two would sit at different baselines. */
+.wiz__progress-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: 8px;
+}
 .wiz__step-label {
   font-size: 12px;
   font-weight: 700;
   letter-spacing: .02em;
   color: var(--muted);
-  margin-bottom: 8px;
 }
+
+/* ── Exit: "Save and finish later" (spec §3.8) ──
+ * A plain `.btn`, not `.btn--ghost`: a borderless control against a `--muted`
+ * label is nearly invisible, and an escape hatch nobody can find is the thing
+ * §3.8 exists to prevent. It stays quiet enough not to compete with the primary
+ * Continue in the footer.
+ *
+ * Touch target: `.btn` is already 44px tall at ≤860px (tokens.css:1694) — the
+ * D5b rule — so this needs no height of its own. `flex: none` keeps it at its
+ * label width and lets the step label be the thing that wraps at 320px, which
+ * is what keeps the row off a horizontal scrollbar. Measured, not argued. */
+.wiz__exit { flex: none; }
 .wiz__bar {
   height: 6px;
   border-radius: 999px;
