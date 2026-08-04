@@ -32,11 +32,17 @@
 //   CRM extraction listens on MESSAGE_RECEIVED for the same reason. So we create
 //   the synthetic identity with direct INSERTs and persist messages by hand: no
 //   bus, no automations, no CRM, no timeline.
-// • owner_notify_phone is forced null on the tenant copy handed to the brain, so
-//   a synthetic booking can never send a real WhatsApp to a real owner. The
-//   booking still INSERTs a `notifications` row (that write precedes the phone
-//   check inside notificationService) — and `notifications` is tenant-scoped with
-//   no customer FK, so it does NOT cascade. We delete it explicitly.
+// • Owner alerts are suppressed on the tenant copy handed to the brain, so a
+//   synthetic booking can never send a real WhatsApp to a real owner. This used
+//   to be `owner_notify_phone: null` and that is NO LONGER SUFFICIENT: B1 moved
+//   the recipient to `config.notifications.owner_numbers`, which
+//   notificationService reads from the database by tenant id and which a tenant
+//   copy therefore cannot neutralise. The guard is now notificationService's own
+//   exported SUPPRESS_OWNER_ALERTS flag, checked before the config is even read;
+//   the null column rides along for the paths that still consult it. The booking
+//   still INSERTs a `notifications` row (that write precedes every check inside
+//   notificationService) — and `notifications` is tenant-scoped with no customer
+//   FK, so it does NOT cascade. We delete it explicitly.
 //
 // ── Why the probe cannot race real traffic ───────────────────────────────────
 // Validation only ever runs on a NON-SERVING tenant: lifecycleService refuses to
@@ -58,6 +64,7 @@ const db = require('../../db/db');
 const appointmentService = require('../appointment/appointmentService');
 const aiService = require('../ai/aiService');
 const conversationService = require('../conversation/conversationService');
+const { SUPPRESS_OWNER_ALERTS } = require('../notification/notificationService');
 const { assembleConversationContext } = require('../conversation/contextAssembler');
 const traces = require('../traces/collector');
 
@@ -297,8 +304,11 @@ async function runScriptedTurn(ctx) {
       'aborting rather than adopting a real customer thread');
   }
 
-  // The brain must never page a real owner about a fake patient.
-  const tenantForBrain = { ...tenant, owner_notify_phone: null };
+  // The brain must never page a real owner about a fake patient. Suppression is
+  // the load-bearing half — since B1 the recipient comes from the config
+  // document, which is read by tenant id and cannot be blanked by copying the
+  // tenant. Nulling the column stays for the paths that still read it.
+  const tenantForBrain = { ...tenant, owner_notify_phone: null, [SUPPRESS_OWNER_ALERTS]: true };
 
   const script = [
     `Hello, I would like to book an appointment with ${slot.doctor} on ${slot.date} at ${slot.time}. My name is ${SYNTHETIC_NAME}.`,

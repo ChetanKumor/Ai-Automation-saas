@@ -22,6 +22,7 @@ const logger = require('../../infra/logging/logger');
 const aiService = require('./aiService');
 const knowledgeService = require('../knowledge/knowledgeService');
 const traces = require('../traces/collector');
+const { SUPPRESS_OWNER_ALERTS } = require('../notification/notificationService');
 
 const DAILY_LIMIT = 20;
 const RAG_TOP_K = 3;
@@ -59,9 +60,11 @@ function isQuotaError(err) {
 // receptionist BEFORE go-live (draft/validated/paused are all active=false,
 // and tenantService's cached lookups filter on active=true — see
 // scriptedTurnCheck's header comment for the same gotcha on the voice route).
-// owner_notify_phone is forced null defensively, mirroring scriptedTurnCheck
-// and capture_turn.js — belt and suspenders alongside the book_appointment
-// gate in aiService, since a test turn must never page a real owner.
+// Owner alerts are suppressed defensively, mirroring scriptedTurnCheck and
+// capture_turn.js — belt and suspenders alongside the book_appointment gate in
+// aiService, since a test turn must never page a real owner. The null column
+// alone stopped covering that after B1 moved the recipient into the config
+// document, so the copy carries notificationService's suppression flag too.
 async function fetchTenantForBrain(tenantId) {
   const { rows } = await db.query(
     'SELECT id, ai_prompt, owner_notify_phone FROM tenants WHERE id = $1',
@@ -69,7 +72,7 @@ async function fetchTenantForBrain(tenantId) {
   );
   const tenant = rows[0];
   if (!tenant) return null;
-  return { ...tenant, owner_notify_phone: null };
+  return { ...tenant, owner_notify_phone: null, [SUPPRESS_OWNER_ALERTS]: true };
 }
 
 /**

@@ -94,7 +94,13 @@ const throwIfAborted = (signal) => {
   }
 };
 
-async function executeTool(name, args, tenant, customerId, channel = 'whatsapp') {
+// `customer` is the hydrated customers row, not just its id: the owner booking
+// alert needs the patient's phone, and this object already carries it (every
+// identityService path returns the whole row). Threading it here keeps the phone
+// out of the tool RESULT, which is serialised back into the model's context —
+// widening bookAppointment's return to carry it would let the model read the
+// caller their own number, which is a data-exposure change, not a formatting one.
+async function executeTool(name, args, tenant, customer, channel = 'whatsapp') {
   switch (name) {
     case 'check_availability':
       return await appointmentService.checkAvailability(tenant.id, args.date);
@@ -111,10 +117,10 @@ async function executeTool(name, args, tenant, customerId, channel = 'whatsapp')
         };
       }
       const result = await appointmentService.bookAppointment(
-        tenant.id, customerId, args.doctor_name, args.appointment_time, args.patient_name
+        tenant.id, customer.id, args.doctor_name, args.appointment_time, args.patient_name
       );
       if (result.success) {
-        notificationService.notifyOwnerOfBooking(tenant, result).catch(err =>
+        notificationService.notifyOwnerOfBooking(tenant, result, customer).catch(err =>
           logger.error({ err: err.message }, 'notification unexpected error')
         );
       }
@@ -228,7 +234,7 @@ const generateReply = async (tenant, customer, conversation, userMessage, histor
       if (!committed) throwIfAborted(signal);
       logger.info({ tool: call.name, args: call.args }, 'tool call');
       const t0 = process.hrtime.bigint();
-      const output = await executeTool(call.name, call.args, tenant, customer.id, channel);
+      const output = await executeTool(call.name, call.args, tenant, customer, channel);
       if (metrics) metrics.recordToolExec(call.name, Number(process.hrtime.bigint() - t0) / 1e6, toolOutcome(output));
       logger.info({ tool: call.name, output: JSON.stringify(output).substring(0, 200) }, 'tool result');
       if (!committed && isMutatingTool(call.name)) {
@@ -367,7 +373,7 @@ const generateReplyStream = async (tenant, customer, conversation, userMessage, 
         throwIfAborted(signal);
         logger.info({ tool: call.name, args: call.args }, 'tool call');
         const t1 = process.hrtime.bigint();
-        const output = await executeTool(call.name, call.args, tenant, customer.id);
+        const output = await executeTool(call.name, call.args, tenant, customer);
         if (metrics) metrics.recordToolExec(call.name, Number(process.hrtime.bigint() - t1) / 1e6, toolOutcome(output));
         logger.info({ tool: call.name, output: JSON.stringify(output).substring(0, 200) }, 'tool result');
         responses.push({ functionResponse: { name: call.name, response: output } });

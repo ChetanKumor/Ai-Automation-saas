@@ -339,11 +339,23 @@ async function bookAppointment(tenantId, customerId, doctorName, appointmentTime
     const confirmTime = new Date(appt.appointment_time)
       .toLocaleString('en-IN', { timeZone: IST, dateStyle: 'full', timeStyle: 'short' });
 
+    // `appointment_time` and `status` come straight off the INSERT's own
+    // RETURNING — both were already fetched and dropped, so surfacing them costs
+    // no extra read. The owner alert needs the raw instant to render date and
+    // time as separate fields, and needs `status` to be the COLUMN rather than a
+    // literal (B2 adds 'rescheduled' to it).
+    //
+    // This object is serialised into the model's tool-response, so what it may
+    // carry is a real constraint: a timestamp and a status say nothing the model
+    // could not already say from `time`, which has always been here. The patient's
+    // phone is deliberately NOT added — see notificationService's header.
     return {
       success: true,
       appointment_id: appt.id,
       doctor: appt.doctor_name,
       time: confirmTime,
+      appointment_time: appt.appointment_time,
+      status: appt.status,
       patient_name: patientName
     };
   } catch (err) {

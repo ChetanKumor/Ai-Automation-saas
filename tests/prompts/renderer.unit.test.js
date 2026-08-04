@@ -91,6 +91,34 @@ describe('renderSystemPrompt — clinic facts & behavior gates', () => {
     assert.ok(out.includes('offer a callback from clinic staff'), 'escalation renders as behavior');
   });
 
+  // B1 extends the guarantee above to the PATIENT's phone. The renderer cannot
+  // leak one because it never receives one: its only data input is the config
+  // document, and no config field holds a customer's number. Both halves are
+  // asserted — the structural one (arity) is what fails if somebody later widens
+  // the signature to take a customer, which is the change that would make a leak
+  // possible in the first place.
+  //
+  // Honest boundary: this is a guarantee about the RENDERER, not about the whole
+  // system prompt. aiService.buildSystemPrompt has emitted a `Customer phone:`
+  // identity line since long before B1 (aiService.js:516) — deliberately, since
+  // GUARD-01's identity guardrail is written against it. B1 neither adds to nor
+  // removes from that; what B1 guarantees is that the patient's phone reaches
+  // notifyOwnerOfBooking and no NEW surface: not the tool response, not the trace.
+  it('no phone of any kind renders — owner, escalation, or patient', () => {
+    assert.equal(renderSystemPrompt.length, 1,
+      'the renderer takes the config document and nothing else — no customer/patient argument');
+
+    for (const channel of ['whatsapp', 'voice']) {
+      const out = renderSystemPrompt(cfg({
+        escalation: { enabled: true, phone_numbers: ['+919876543210'], emergency_number: null },
+        notifications: { owner_numbers: ['+918765432109'], on_booking: true, on_escalation: true },
+      }), { channel });
+
+      assert.equal(out.match(/\d{8,}/g), null,
+        `${channel}: no phone-length digit run may appear anywhere in the rendered prompt`);
+    }
+  });
+
   it('escalation.enabled=false drops the callback line', () => {
     const out = renderSystemPrompt(
       cfg({ escalation: { enabled: false, phone_numbers: [] } }), { channel: 'whatsapp' });

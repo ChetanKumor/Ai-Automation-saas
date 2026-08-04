@@ -353,6 +353,53 @@ describe('tenant lifecycle + turn.scripted (integration)', { skip: ADMIN ? false
     });
   });
 
+  // ── B1: the probe must never page a real clinic owner ───────────────────────
+  // Validation runs immediately before go-live on every clinic, so a leaked
+  // owner alert here announces an appointment for "Zyon Validation Probe" to a
+  // real owner at the worst possible moment. Before B1 the defence was
+  // `owner_notify_phone: null` on the tenant copy; B1 moved the recipient into
+  // the config document, which is read by tenant id and CANNOT be blanked by
+  // copying the tenant — so the guard moved with it.
+  //
+  // Spied at the sender, not asserted against the config: the only thing that
+  // matters is that no send is ATTEMPTED. The unsuppressed control in the same
+  // test is what makes the zero meaningful — without it, this would also pass on
+  // a system that can no longer send at all. Delete the flag from
+  // scriptedTurnCheck and the first assertion fails; delete the check from
+  // notificationService and it fails too.
+  it('turn.scripted — no owner WhatsApp is attempted, though the same tenant WOULD alert unsuppressed', async () => {
+    const sender = require('../../src/modules/channels/whatsapp/sender');
+    const notifications = require('../../src/modules/notification/notificationService');
+
+    const id = await makeTenant(); // PASS_OVERRIDES ⇒ owner_numbers ['+919000000001'], on_booking true
+    aiService._setModelProvider(scriptedBookingModel());
+
+    const sends = [];
+    const spy = mock.method(sender, 'sendMessage', async (_tenant, to, text) => {
+      sends.push({ to, text });
+      return 'wamid.spy';
+    });
+
+    try {
+      const r = await runTurn(id);
+      assert.equal(byName(r)['turn.scripted'].severity, 'pass', byName(r)['turn.scripted'].detail);
+      assert.deepEqual(sends, [], 'a scripted validation turn must attempt NO owner WhatsApp');
+
+      // Control: the same tenant, the same recipient, without the suppression
+      // flag — proving the zero above is the guard and not a dead send path.
+      const { rows: [tenantRow] } = await db.query('SELECT * FROM tenants WHERE id=$1', [id]);
+      await notifications.notifyOwnerOfBooking(
+        tenantRow,
+        { doctor: 'Dr. Rao', appointment_time: new Date(), status: 'booked', patient_name: 'A Real Patient' },
+        { name: 'A Real Patient', phone: '+919812345678' });
+      assert.equal(sends.length, 1, 'the unsuppressed path does send');
+      assert.equal(sends[0].to, '+919000000001', 'and it goes to notifications.owner_numbers[0]');
+    } finally {
+      spy.mock.restore();
+      await db.query("DELETE FROM notifications WHERE tenant_id=$1", [id]);
+    }
+  });
+
   it('turn.scripted — a throwing turn fails the check, the run still completes and still cleans up', async () => {
     const id = await makeTenant();
     const r = await runTurn(id, {

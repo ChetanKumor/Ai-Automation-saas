@@ -66,11 +66,14 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Test suite: **887 tests / 154 suites / 0 fail** (`npm test`, raw: `# tests 887 / # pass 887 / # fail 0`)
-  Moved by **F1** (+5 tests, +1 suite), **F2** (+4 tests, +1 suite) then **F3**
-  (+9 tests, +1 suite — `tests/portal/portalWizardExit.unit.test.js`), all
-  below. Every other line in this section that quotes 869/151, 874/152 or
-  878/153 is describing the commit it names and is left as written.
+- Test suite: **901 tests / 155 suites / 0 fail** (`npm test`, raw: `# tests 901 / # pass 901 / # fail 0`)
+  Moved by **F1** (+5 tests, +1 suite), **F2** (+4 tests, +1 suite), **F3**
+  (+9 tests, +1 suite — `tests/portal/portalWizardExit.unit.test.js`) then **B1**
+  (+14 tests, +1 suite — `tests/notification/ownerBookingAlert.integration.test.js`,
+  plus one test each in `tests/lifecycle/lifecycle.integration.test.js` and
+  `tests/prompts/renderer.unit.test.js`), all below. Every other line in this
+  section that quotes 869/151, 874/152, 878/153 or 887/154 is describing the
+  commit it names and is left as written.
   **TEST-FLAKE-03 is CLOSED** (`3765cdb`). It was a calendar-dependent failure in
   `tests/voice/voiceCancellation.integration.test.js:270`, red on every day when today+2
   landed on a Sunday and green the other six: the fixture seeded Dr. Rao for all seven days
@@ -79,6 +82,79 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   own seven-day hours. `clinicDefaults` is unchanged; closing Sunday by default is correct
   product behaviour and the test was wrong to depend on it not being. No test was added:
   869/151 is unmoved across D3 and this fix.
+- **B1 — the owner booking alert was half a message sent to nobody. FIXED**
+  (this commit). Two defects in one path, and the second one meant the first was
+  academic.
+  **A — the payload.** `New appointment: {name} with {doctor} at {time}` carried
+  three fields. It now carries five, labelled, one per line, with the doctor on
+  the title row: patient name, patient **phone**, appointment **date**,
+  appointment **time** (IST), booking **status**. The IST rendering is
+  `reminderCron.js:147`'s convention split in two (`'en-IN'` + `Asia/Kolkata`,
+  `dateStyle:'full'` / `timeStyle:'short'`) — recombining the two fields yields
+  that file's exact string, asserted, so there is one convention and not two.
+  `status` reads the `appointments.status` COLUMN, never a literal: today it is
+  only ever `'booked'`, and B2 adds `'rescheduled'` to the same column.
+  ⚠️ **`bookAppointment` was already fetching what was missing and dropping it.**
+  `RETURNING id, doctor_name, appointment_time, status` (`appointmentService.js:335`)
+  then returned neither `appointment_time` nor `status` — so date/time splitting
+  and the real status cost **zero extra reads**. The patient's phone did need
+  threading: it is on the hydrated `customers` row the turn already holds, so
+  `executeTool` now takes `customer` rather than `customer.id`.
+  ⚠️ **The phone was deliberately NOT added to `bookAppointment`'s return.** That
+  object is serialised into the model's tool-response, so a phone there enters
+  Gemini's context and can be read back to the caller — a data-exposure change
+  wearing a formatting change's clothes. Proven at runtime: across a real booking
+  the model received 3 payloads, none containing the number, and the `turn_traces`
+  row does not contain it either.
+  **B — the recipient, and why nobody was ever alerted.** The send read
+  `tenants.owner_notify_phone`, a column **no production path has ever written**:
+  the only writers in the repo are `scripts/seed-schedules.js` (dev, and it writes
+  a `phone_number_id`, which is not a phone) and a workflow test fixture. Both
+  real create paths — the Issue 15 provisioning CLI and the portal's Safety &
+  handoff page (`portal/routes.js:1395`) — write `config.notifications.owner_numbers`.
+  **So on the first real tenant every booking alert would have taken the
+  `no_phone` branch and no owner would ever have been notified.**
+  `notifications.owner_numbers[0]` is now the single source of truth. The column
+  is a **deprecated fallback**, read only when the array is empty and logged as
+  such when it fires — kept because a dev or legacy tenant carrying only the
+  column would otherwise go silent on the switch. It is **untouched elsewhere** and
+  stays live for owner-command *authentication* (`whatsapp/routes.js:97`), the
+  human-handoff forward (`:163,168`) and the `notify_owner` workflow action
+  (`core/coreActions.js`) — none of them notification recipients. Retiring it
+  entirely means moving an auth predicate, which is its own issue.
+  **`notifications.on_booking` is honoured.** Declared since Issue 8, defaulted
+  true, and read by nothing anywhere until now. `false` ⇒ no send and a
+  `sent_status` of `skipped_disabled`, so the skip is visible in data on the
+  `no_phone` pattern. No migration: `notifications.sent_status` is free `TEXT`
+  with no CHECK (`schema.sql:349`).
+  ⚠️ **THE PROBE GUARD — the load-bearing part of this session.**
+  `scriptedTurnCheck` stopped a synthetic booking paging a real owner by nulling
+  `owner_notify_phone` on the tenant copy handed to the brain. Moving the
+  recipient into the config document **defeats that**: the config is read from the
+  database by tenant id and a tenant copy cannot blank it. Since every clinic runs
+  validation immediately before go-live, the un-guarded switch would have
+  WhatsApp'd real owners an appointment for "Zyon Validation Probe" at the worst
+  possible moment. The guard moved with the recipient:
+  `notificationService.SUPPRESS_OWNER_ALERTS`, imported by the probe rather than
+  spelled out there so a rename cannot silently unhook it, and checked **before
+  the config is even read** so no recipient is ever resolved. `testTurnService`
+  carries it too (its booking path was already hard-gated; this keeps the mirror
+  true). The row is still INSERTed, with `sent_status = 'suppressed'`, so the
+  probe's id-diff cleanup is unchanged.
+  ⚠️ The validation probe's cleanup was **never** at risk from the content
+  change: it matches by **id diff**, not by `content` text, and says so at
+  `scriptedTurnCheck.js:160-166`.
+  ⚠️ **The `Customer phone:` line in `aiService.buildSystemPrompt` (`:516`) is
+  pre-existing and unchanged** — GUARD-01's identity guardrail is written against
+  it. B1 adds the patient's phone to no NEW surface; the renderer's own guarantee
+  (config in, no phone out) is now pinned by a test that also fails if anyone
+  widens `renderSystemPrompt` to take a customer.
+  **FILED, NOT BUILT:** `owner_numbers` is an array and only `[0]` is notified.
+  Fan-out when a clinic asks for it. Two docs now describe the old behaviour and
+  were left as written, being historical records:
+  `docs/per-tenant-read-inventory.md:36` (Issue 9) and
+  `docs/deploy/audit/2026-07-production-readiness.md:262-265`, which lists
+  `notifications.on_booking` under *Inert config knobs*.
 - **F3 — the onboarding wizard had no way out, and the login page's reset
   promise named no channel. BOTH FIXED** (this commit). Two small issues from
   the portal-v1 §11 acceptance run, which otherwise **PASSED**: under 45 minutes
