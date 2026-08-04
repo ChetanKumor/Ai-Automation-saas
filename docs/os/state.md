@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 3b4cab84e3bf377805d810e257294a40bdfba4cd
-Verified-on: 2026-08-03
+Verified-at: 29f95d66e6d38ddf3751cdbe2d18f008de0906d3
+Verified-on: 2026-08-04
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
