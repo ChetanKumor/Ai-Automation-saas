@@ -66,14 +66,21 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Test suite: **901 tests / 155 suites / 0 fail** (`npm test`, raw: `# tests 901 / # pass 901 / # fail 0`)
+- Test suite: **924 tests / 156 suites / 0 fail** (`npm test`, raw: `# tests 924 / # pass 924 / # fail 0`)
   Moved by **F1** (+5 tests, +1 suite), **F2** (+4 tests, +1 suite), **F3**
-  (+9 tests, +1 suite — `tests/portal/portalWizardExit.unit.test.js`) then **B1**
+  (+9 tests, +1 suite — `tests/portal/portalWizardExit.unit.test.js`), **B1**
   (+14 tests, +1 suite — `tests/notification/ownerBookingAlert.integration.test.js`,
   plus one test each in `tests/lifecycle/lifecycle.integration.test.js` and
-  `tests/prompts/renderer.unit.test.js`), all below. Every other line in this
-  section that quotes 869/151, 874/152, 878/153 or 887/154 is describing the
-  commit it names and is left as written.
+  `tests/prompts/renderer.unit.test.js`), then **B2** (+23 tests, +1 suite —
+  `tests/appointment/reschedule.integration.test.js` at 15, plus 6 in
+  `ownerBookingAlert.integration.test.js` and 2 in
+  `tests/voice/voiceCancellation.integration.test.js`), all below. Every other
+  line in this section that quotes 869/151, 874/152, 878/153, 887/154 or 901/155
+  is describing the commit it names and is left as written.
+  ⚠️ **B2 added no test to `tests/appointment/slotGrid.unit.test.js` or
+  `bookingRules.unit.test.js` and edited neither.** That is the deliberate proof
+  that extracting `validateSlot` out of `bookAppointment` was behaviour-preserving:
+  had any assertion needed to move, the extraction would have changed behaviour.
   **TEST-FLAKE-03 is CLOSED** (`3765cdb`). It was a calendar-dependent failure in
   `tests/voice/voiceCancellation.integration.test.js:270`, red on every day when today+2
   landed on a Sunday and green the other six: the fixture seeded Dr. Rao for all seven days
@@ -82,6 +89,119 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   own seven-day hours. `clinicDefaults` is unchanged; closing Sunday by default is correct
   product behaviour and the test was wrong to depend on it not being. No test was added:
   869/151 is unmoved across D3 and this fix.
+- **B2 — a patient could book but not move. FIXED** (this commit). The portal has
+  recited a reschedule policy since `PORTAL-P3-S9` that the receptionist could not
+  act on — a settings page describing behaviour that did not exist, which is the
+  F-006 class.
+  **THE UNIQUENESS DECISION (option C, founder-ruled).** `uniq_doctor_slot` is a
+  partial unique index `ON appointments(tenant_id, doctor_name, appointment_time)
+  WHERE status = 'booked'`, so the old row's post-move status is what decides
+  whether its slot frees. A move now writes a **NEW row with `status = 'booked'`**
+  and flips the **OLD row to `'rescheduled'`**. The old row leaves the index the
+  moment it flips; the slot is bookable again with **no index change at all**.
+  ⚠️ **Every existing reader of this column filters POSITIVELY on `= 'booked'`**
+  — `checkAvailability` (`appointmentService.js:237`), `reminderCron`'s claim
+  query (`:98`), `scriptedTurnCheck.bookedAppointment` (`:159`) — so a superseded
+  row is correctly excluded from all three with **zero changes to any of them**.
+  `adminRoutes.js:288` selects `a.status` unfiltered and `public/admin/
+  appointments.html` never renders it (its badge map is `reminder_status`), so no
+  UI shows an unmapped value. `doctorService.hasAppointments` was already
+  status-agnostic.
+  ⚠️ **`reminderCron.js:98` was the one query that would have misbehaved
+  SILENTLY** — had the row the patient actually holds carried anything other
+  than `'booked'`, they would never be reminded, with no error, no log line and
+  no failed status. It agrees with the index rather than fighting it, and it is
+  why the NEW row is the `'booked'` one. The rejected alternative (UPDATE in
+  place) was rejected on this axis: it needs **all five** reminder columns reset
+  by hand and **four of the five fail silently if forgotten**, whereas a new row
+  takes the column DEFAULTS, which *are* the correct reset. Correctness that
+  cannot be bought back outranks atomicity that can.
+  **Schema: one CHECK widening** (`025_appointment_rescheduled_status.sql`),
+  `007`'s DROP/ADD pattern, plus `schema.sql` in lockstep. No column added, no
+  index touched. The constraint is declared inline and unnamed in `003` and in
+  `schema.sql`, so both the migrate path and a fresh genesis converge on
+  `appointments_status_check`.
+  **THE PRICE, paid: one explicit transaction.** `db.getClient()` +
+  `BEGIN`/`COMMIT`/`ROLLBACK` on ONE connection, **INSERT the new row FIRST**.
+  Two pooled `db.query` calls would be two independent transactions on two
+  connections, and the failure mode is not theoretical: release the old slot,
+  lose the race on the new one, and the patient holds **no appointment at all**.
+  Inserting first means a 23505 rolls back with the original intact. This is
+  load-bearing for Issue 29: `aiService.js:240-243` flips the point of no return
+  only **after `executeTool` returns**, so "threw" must mean "committed nothing"
+  — a guarantee that held until now only because booking was a single INSERT.
+  Asserted with a **forced interleaving**, not a sleep: a rival booking is
+  INSERTed uncommitted, the move blocks on the index, then the rival commits.
+  **ONE validation path, and this was the session's most important structural
+  change.** Gates 1–10 of `bookAppointment` — parse, past, `resolveBookingRules`,
+  `evaluateDay` (past date / same-day / advance window / holiday / closed day),
+  clinic hours, `buffer_minutes`, doctor match, doctor day off, doctor hours,
+  **slot grid** — are extracted into `validateSlot`, which both write entry
+  points call. `bookAppointment` = validate + INSERT; `rescheduleAppointment` =
+  validate + (INSERT new, supersede old) in the transaction. Gate 11's
+  patient-name backfill stays booking-only (it is not a validation); gate 12's
+  23505 recovery is preserved **verbatim on both paths** — it is the only thing
+  between two concurrent writers and a double-book. The extraction is
+  **behaviour-preserving and the proof is that every pre-existing booking test
+  passes untouched**: `slotGrid.unit.test.js` and `bookingRules.unit.test.js`
+  were not edited, and no assertion moved.
+  **The lookup is the ERROR, by design.** `reschedule_appointment(current_time,
+  new_time, doctor_name?)` resolves the appointment server-side from
+  `(tenant_id, customer_id, appointment_time)`. There is **no second tool and no
+  appointment UUID in Gemini's context** — same discipline that kept the
+  patient's phone out of B1's tool response: an identifier the model can read
+  back to a caller eventually will be. `appointment_id` is deliberately **absent
+  from the reschedule return** (asserted), while `bookAppointment`'s pre-existing
+  one is untouched. An ambiguous reference returns `appointment_not_found`
+  carrying the caller's **real upcoming appointments**, soonest first, so the
+  refusal performs the lookup. **No fallback guesses the nearest appointment** —
+  never invent a slot, same discipline as never inventing a price. A
+  `same_slot` refusal catches "move it to the time it already has", which
+  `uniq_doctor_slot` would otherwise report as `slot_taken` — true, and actively
+  misleading, since the someone-else who took it is them.
+  ⚠️ **THE OWNER ALERT — B1's recorded expectation was WRONG and is corrected
+  below.** Under option C, `'rescheduled'` lands on the **superseded** row, which
+  nobody is alerted about; the alert describes the **new** row, whose status is
+  `'booked'`. So a move would have rendered **identically to a fresh booking**.
+  That is worse than cosmetic: the receptionist would not know a slot had just
+  freed, and could reasonably conclude the patient had booked twice.
+  `formatOwnerBookingAlert` now carries **two shapes in one function** —
+  `Appointment moved — {doctor}` with `Was:`/`Now:` replacing `Date:`/`Time:`.
+  `Was:` leads because the freed slot is the actionable fact. Both instants use
+  the same IST convention **recombined into one call** (`reminderCron.js:147`'s
+  exact string) rather than split, because a move is read by comparing two
+  instants and two four-line blocks would mean diffing eight fields. `Status:`
+  still reads the COLUMN on both shapes. The move is **DECLARED** by a
+  `rescheduled` flag, never inferred from the presence of a previous timestamp —
+  a malformed field must not silently downgrade a move back into the shape this
+  branch exists to prevent (asserted).
+  ⚠️ **`type` stays `'appointment_booked'` on a move, and this is load-bearing,
+  not laziness.** `scriptedTurnCheck` identifies the probe's own notifications by
+  an **id diff scoped to exactly that type** (`:174-181`) and re-counts residue
+  with the same predicate (`:227`). A second type would be invisible to both, so
+  the probe would leave a row behind **and report a clean zero** — a leak its own
+  leak-detector could not see. One function, one type; `turn.scripted`'s contract
+  and cleanup topology are otherwise unchanged (a new tool declaration is not a
+  new check, and `RESIDUE_TABLES` counts appointments with no status filter, so a
+  superseded row would be caught if it ever leaked).
+  ⚠️ **Two PRE-EXISTING voice-path exposures, filed not fixed — they are not
+  this session's.** (a) `generateReplyStream` (`aiService.js:363-384`) has **no
+  point of no return at all**: abort is checked before every tool
+  unconditionally, by explicit decision ("unify when SSE goes live"). It is dark
+  (`VOICE_STREAM_TURNS=false`). (b) `aiService.js:376` calls `executeTool` with
+  **four arguments**, so `channel` defaults to `'whatsapp'` and the
+  `channel === 'test'` gate does not apply on that path. Both have applied to
+  `book_appointment` since PR9C; `reschedule_appointment` inherits exactly the
+  same shape and adds no new exposure class. It carries the same `test` gate on
+  the JSON path.
+  **Cancellation as a patient-facing tool is still absent and is filed, not
+  built.** `status = 'cancelled'` has existed since `003` and no tool, route or
+  portal control writes it. Separate issue.
+  ⚠️ **An existing dev or test database needs `npm run db:migrate`.** The shared
+  test database was one migration behind and failed with
+  `appointments_status_check` until it was applied; scratch-DB suites were green
+  throughout because genesis reads the updated `schema.sql`. Normal migration
+  contract, recorded because it is the first schema change in some weeks.
 - **B1 — the owner booking alert was half a message sent to nobody. FIXED**
   (this commit). Two defects in one path, and the second one meant the first was
   academic.
@@ -94,6 +214,15 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   that file's exact string, asserted, so there is one convention and not two.
   `status` reads the `appointments.status` COLUMN, never a literal: today it is
   only ever `'booked'`, and B2 adds `'rescheduled'` to the same column.
+  ⚠️ **CORRECTED at B2 — the second half of that sentence was wrong in a way that
+  mattered.** B2 does add `'rescheduled'` to the column, but it lands on the
+  **superseded** row, and no alert is ever sent about that row. Reading the
+  column on a move therefore yields `'booked'`, so a move would have rendered
+  byte-identically to a fresh booking — leaving the receptionist unaware a slot
+  had freed and free to conclude the patient had booked twice. The pass-through
+  property this line records is real and still holds; what was wrong was the
+  implication that a move would read differently **because of it**. It reads
+  differently because B2 gave the function a second shape. See the B2 entry.
   ⚠️ **`bookAppointment` was already fetching what was missing and dropping it.**
   `RETURNING id, doctor_name, appointment_time, status` (`appointmentService.js:335`)
   then returned neither `appointment_time` nor `status` — so date/time splitting
@@ -854,6 +983,13 @@ all branches fast-forward onto main · one issue per session · runtime evidence
   (a) the ring reading one check too high until the next run, and (b) the
   **admin** panel's separate `activate`, which can act on a passing run that a
   deletion has since invalidated.
+- **B2-R1 (open, new) — there is no patient-facing way to CANCEL.**
+  `appointments.status` has carried `'cancelled'` since migration `003` and
+  **nothing writes it**: no tool, no route, no portal control, no script. A
+  patient can now book and move; to cancel, someone edits the row by hand. Filed
+  deliberately out of B2's scope. The shape is smaller than a reschedule — one
+  status flip, no new slot to validate — and it reuses B2's server-side lookup and
+  its `appointment_not_found` refusal wholesale.
 - **The test suite makes live third-party API calls, so `# fail 0` is not purely a
   function of the code.** The Item 4 session saw `npm test` return `862 / fail 1` on a
   live Gemini embedding 503, then pass unchanged on re-run. This weakens every green

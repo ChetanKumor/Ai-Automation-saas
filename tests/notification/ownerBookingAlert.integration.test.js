@@ -162,7 +162,7 @@ describe('owner booking alert (integration)', { skip: ADMIN ? false : 'DATABASE_
     assert.equal(`${date} at ${time}`, fused, 'same locale, same zone, same styles as reminderCron.js:147');
   });
 
-  it('status renders from the appointments column, not a literal (B2 adds \'rescheduled\')', () => {
+  it('status renders from the appointments column, never a literal', () => {
     const out = notifications.formatOwnerBookingAlert({ ...BOOKING, status: 'rescheduled' }, CUSTOMER);
     assert.match(out, /\nStatus: rescheduled$/);
   });
@@ -175,6 +175,90 @@ describe('owner booking alert (integration)', { skip: ADMIN ? false : 'DATABASE_
     // a plausible different one (F-003b) — and never dropped.
     const bad = notifications.formatOwnerBookingAlert(BOOKING, { ...CUSTOMER, phone: '9876543210' });
     assert.match(bad, /\nPhone: 9876543210\n/);
+  });
+
+  // ── A2. The MOVED shape (B2) ────────────────────────────────────────────────
+  // A reschedule writes a NEW row whose status is 'booked', so without a distinct
+  // shape a move would arrive looking exactly like a fresh booking: the
+  // receptionist would not know a slot had just freed, and could reasonably
+  // conclude the patient had booked twice.
+
+  const MOVED = {
+    success: true,
+    rescheduled: true,
+    doctor: 'Dr. Rao',
+    time: 'Monday, 10 August 2026 at 11:00 am',
+    appointment_time: new Date('2026-08-10T11:00:00+05:30'),
+    previous_time: 'Friday, 7 August 2026 at 3:30 pm',
+    previous_appointment_time: new Date('2026-08-07T15:30:00+05:30'),
+    status: 'booked',
+  };
+
+  it('a move renders "Appointment moved" with Was/Now, not "New appointment" with Date/Time', () => {
+    const out = notifications.formatOwnerBookingAlert(MOVED, CUSTOMER);
+    assert.equal(out, [
+      'Appointment moved — Dr. Rao',
+      'Patient: Priya S',
+      'Phone: +919812345678',
+      'Was: Friday, 7 August 2026 at 3:30 pm',
+      'Now: Monday, 10 August 2026 at 11:00 am',
+      'Status: booked',
+    ].join('\n'));
+
+    assert.ok(!out.includes('New appointment'), 'a move must not read as a fresh booking');
+    assert.ok(!/\nDate:|\nTime:/.test(out), 'Was/Now replace Date/Time — the freed slot is the point');
+  });
+
+  it('Was/Now use the same IST convention as the booking alert, recombined', () => {
+    const IST = 'Asia/Kolkata';
+    const out = notifications.formatOwnerBookingAlert(MOVED, CUSTOMER);
+    assert.equal(out.match(/\nWas: (.+)\n/)[1],
+      MOVED.previous_appointment_time.toLocaleString('en-IN', { timeZone: IST, dateStyle: 'full', timeStyle: 'short' }));
+    assert.equal(out.match(/\nNow: (.+)\n/)[1],
+      MOVED.appointment_time.toLocaleString('en-IN', { timeZone: IST, dateStyle: 'full', timeStyle: 'short' }));
+  });
+
+  it('Status: on a move still reads the COLUMN — the new row, which is booked', () => {
+    assert.match(notifications.formatOwnerBookingAlert(MOVED, CUSTOMER), /\nStatus: booked$/);
+    // Not hardcoded: whatever the column says is what renders.
+    assert.match(notifications.formatOwnerBookingAlert({ ...MOVED, status: 'cancelled' }, CUSTOMER),
+      /\nStatus: cancelled$/);
+  });
+
+  it('the move shape is DECLARED by `rescheduled`, never inferred from a timestamp', () => {
+    // A previous timestamp without the flag is still a booking — the flag is the
+    // only switch, so a malformed field cannot silently downgrade a move.
+    const out = notifications.formatOwnerBookingAlert(
+      { ...MOVED, rescheduled: false }, CUSTOMER);
+    assert.match(out, /^New appointment with Dr\. Rao\n/);
+
+    // And a move with an unparseable previous instant stays a MOVE, falling back
+    // to the pre-rendered string rather than reverting to the booking shape.
+    const broken = notifications.formatOwnerBookingAlert(
+      { ...MOVED, previous_appointment_time: 'not-a-date' }, CUSTOMER);
+    assert.match(broken, /^Appointment moved — Dr\. Rao\n/);
+    assert.match(broken, /\nWas: Friday, 7 August 2026 at 3:30 pm\n/);
+  });
+
+  it('a move goes out on the SAME notification type as a booking, through the same function', async () => {
+    const tenant = await makeTenant();
+    await notifications.notifyOwnerOfBooking(tenant, MOVED, CUSTOMER);
+
+    // `appointment_booked` is load-bearing: scriptedTurnCheck's id-diff cleanup
+    // and its residue count both scope to exactly this type.
+    const rows = await alertRow(tenant.id);
+    assert.equal(rows.length, 1, 'one row, on the booking type');
+    assert.equal(rows[0].sent_status, 'sent');
+    assert.equal(sends.length, 1);
+    assert.equal(sends[0].text, rows[0].content);
+    assert.match(rows[0].content, /^Appointment moved — Dr\. Rao\n/);
+  });
+
+  it('on_booking:false suppresses a MOVE too, and records it', async () => {
+    const tenant = await makeTenant({ ownerNumbers: ['+919000000001'], onBooking: false });
+    await notifications.notifyOwnerOfBooking(tenant, MOVED, CUSTOMER);
+    assert.deepEqual(sends, []);
+    assert.equal((await alertRow(tenant.id))[0].sent_status, 'skipped_disabled');
   });
 
   // ── B. The recipient ────────────────────────────────────────────────────────

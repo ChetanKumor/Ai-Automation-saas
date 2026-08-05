@@ -413,4 +413,109 @@ describe('voice turn cancellation + deadlines (Issue 29)', () => {
     const trace = await traceOf(session.id);
     assert.equal(trace.error, null, 'clean success traces with error null');
   });
+
+  it('(6) reschedule_appointment is mutating too: a committed MOVE survives a mid-turn hang-up', async () => {
+    const { cust, session, conv } = await seedCall('+919000000036');
+    const date = istDateString(2);
+    const OLD = `${date}T10:00:00+05:30`;
+    const NEW = `${date}T16:00:00+05:30`;
+
+    // The appointment they already hold. Inserted directly: this test is about
+    // the abort path, not about how the row got there.
+    await db.query(
+      `INSERT INTO appointments (tenant_id, customer_id, doctor_name, appointment_time, status)
+       VALUES ($1, $2, 'Dr. Rao', $3, 'booked')`,
+      [TENANT_ID, cust.id, OLD]);
+
+    const clientController = new AbortController();
+    const scripted = scriptedModel([
+      { parts: [{ functionCall: { name: 'reschedule_appointment', args: {
+          current_time: OLD, new_time: NEW } } }] },
+      {
+        // The move committed one round earlier: the client hangs up NOW. B2's
+        // transaction is what makes this safe to assert — "threw" means
+        // "committed nothing", so a crossed point of no return means a whole
+        // move landed, never half of one.
+        parts: [{ text: 'Moved to four o’clock.' }],
+        beforeReturn: async ({ signal }) => {
+          assert.equal(signal, undefined, 'post-commit Gemini calls must NOT carry the abort signal');
+          clientController.abort();
+          await new Promise((r) => setTimeout(r, 200));
+        },
+      },
+    ]);
+    aiService._setModelProvider(scripted.provider);
+
+    await assert.rejects(
+      postTurn({
+        call_session_id: session.id, channel: 'voice', language: 'en-IN',
+        transcript: 'move my ten o’clock to four please',
+      }, { signal: clientController.signal }),
+      /abort/i
+    );
+
+    const line = await waitFor(async () => emitted.find((l) => l.call_session_id === session.id));
+    assert.ok(line);
+    assert.deepEqual(line.tools.map((t) => t.name), ['reschedule_appointment']);
+
+    const { rows: appts } = await db.query(
+      'SELECT appointment_time, status FROM appointments WHERE tenant_id = $1 ORDER BY status',
+      [TENANT_ID]);
+    assert.equal(appts.length, 2, 'the committed move stands: superseded row + new row');
+    assert.equal(appts[0].status, 'booked');
+    assert.equal(new Date(appts[0].appointment_time).getTime(), new Date(NEW).getTime());
+    assert.equal(appts[1].status, 'rescheduled');
+    assert.equal(new Date(appts[1].appointment_time).getTime(), new Date(OLD).getTime());
+
+    const outbound = await messagesOf(conv.id, 'outbound');
+    assert.equal(outbound.length, 1, 'confirmation text persisted unconditionally');
+
+    const trace = await traceOf(session.id);
+    assert.equal(trace.error.outcome, 'aborted');
+    assert.equal(trace.error.aborted_after_commit, true, 'a move crosses the point of no return, like a booking');
+  });
+
+  it('(7) abort BEFORE the reschedule tool executes: nothing moves', async () => {
+    const { cust, session, conv } = await seedCall('+919000000037');
+    const date = istDateString(3);
+    const OLD = `${date}T10:00:00+05:30`;
+
+    await db.query(
+      `INSERT INTO appointments (tenant_id, customer_id, doctor_name, appointment_time, status)
+       VALUES ($1, $2, 'Dr. Rao', $3, 'booked')`,
+      [TENANT_ID, cust.id, OLD]);
+
+    const clientController = new AbortController();
+    const scripted = scriptedModel([
+      {
+        parts: [{ functionCall: { name: 'reschedule_appointment', args: {
+          current_time: OLD, new_time: `${date}T16:00:00+05:30` } } }],
+        beforeReturn: async ({ signal }) => {
+          assert.ok(signal, 'still pre-commit: signal present');
+          clientController.abort();
+          await waitFor(async () => signal.aborted, { timeoutMs: 3000 });
+        },
+      },
+    ]);
+    aiService._setModelProvider(scripted.provider);
+    const moveSpy = mock.method(appointmentService, 'rescheduleAppointment');
+
+    await assert.rejects(
+      postTurn({
+        call_session_id: session.id, channel: 'voice', language: 'en-IN',
+        transcript: 'move my ten o’clock',
+      }, { signal: clientController.signal }),
+      /abort/i
+    );
+
+    await waitFor(async () => emitted.find((l) => l.call_session_id === session.id));
+    moveSpy.mock.restore();
+    assert.equal(moveSpy.mock.callCount(), 0, 'the pre-tool checkpoint stopped the move');
+
+    const { rows: appts } = await db.query(
+      'SELECT status FROM appointments WHERE tenant_id = $1', [TENANT_ID]);
+    assert.equal(appts.length, 1, 'no new row');
+    assert.equal(appts[0].status, 'booked', 'and the original was never superseded');
+    assert.equal((await messagesOf(conv.id, 'outbound')).length, 0);
+  });
 });

@@ -73,27 +73,66 @@ function ownerRecipient(tenant, config) {
   return { phone: null, source: 'none' };
 }
 
-// The message. Read on a phone by a receptionist mid-shift, so: five labelled
+// One instant, three renderings, all on the shared IST convention above. The
+// booking alert SPLITS date and time onto their own labelled lines; a move does
+// NOT, because a move is read by comparing two instants and two four-line blocks
+// would make the receptionist diff eight fields to see what changed. `istFull`
+// is the two halves recombined in one call — reminderCron.js:147's exact string.
+const istDate = (d) => d.toLocaleDateString(LOCALE, { timeZone: IST, dateStyle: 'full' });
+const istTime = (d) => d.toLocaleTimeString(LOCALE, { timeZone: IST, timeStyle: 'short' });
+const istFull = (d) => d.toLocaleString(LOCALE, { timeZone: IST, dateStyle: 'full', timeStyle: 'short' });
+
+const instant = (raw) => {
+  if (!raw) return null;
+  const d = new Date(raw);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+// The message. Read on a phone by a receptionist mid-shift, so: six labelled
 // lines, one fact each, in the order they are acted on — who, how to reach them,
 // when, and what state the booking is in. The doctor rides the title line, which
-// keeps the five required fields contiguous and scannable.
+// keeps the required fields contiguous and scannable.
 //
-// `status` renders from the appointments column, never a literal: today it is
-// only ever 'booked', and B2 adds 'rescheduled' to the same column.
+// TWO SHAPES, ONE FUNCTION (B2). A booking says "New appointment"; a MOVE says
+// "Appointment moved" and replaces Date/Time with Was/Now. That distinction is
+// not cosmetic: a reschedule renders a new row whose status is 'booked', so
+// without it a move would arrive looking exactly like a fresh booking — the
+// receptionist would not know a slot had just freed, and could reasonably
+// conclude the patient had booked twice. `Was:` is the field that carries the
+// freed slot, which is why it leads.
+//
+// `status` renders from the appointments column, never a literal, on BOTH
+// shapes. On a move it reads 'booked' — correctly, because the row it describes
+// is the new one. The superseded row is what carries 'rescheduled', and nobody
+// is alerted about that row.
 function formatOwnerBookingAlert(bookingResult, customer = null) {
   const name = bookingResult.patient_name || customer?.name || 'Patient';
   const phone = displayPhone(customer?.phone) || 'not on file';
   const doctor = bookingResult.doctor || 'the clinic';
+  const status = bookingResult.status || 'booked';
 
-  const raw = bookingResult.appointment_time ? new Date(bookingResult.appointment_time) : null;
-  const valid = raw && !isNaN(raw.getTime());
-  const date = valid ? raw.toLocaleDateString(LOCALE, { timeZone: IST, dateStyle: 'full' }) : null;
-  const time = valid ? raw.toLocaleTimeString(LOCALE, { timeZone: IST, timeStyle: 'short' }) : null;
+  const now = instant(bookingResult.appointment_time);
+
+  // A move is DECLARED, never inferred from the presence of a previous
+  // timestamp: a malformed `previous_appointment_time` must not silently
+  // downgrade a move into a "New appointment" alert, which is the exact
+  // confusion this branch exists to prevent.
+  if (bookingResult.rescheduled) {
+    const was = instant(bookingResult.previous_appointment_time);
+    return [
+      `Appointment moved — ${doctor}`,
+      `Patient: ${name}`,
+      `Phone: ${phone}`,
+      `Was: ${was ? istFull(was) : (bookingResult.previous_time || 'unknown')}`,
+      `Now: ${now ? istFull(now) : (bookingResult.time || 'unknown')}`,
+      `Status: ${status}`,
+    ].join('\n');
+  }
 
   // `time` (the pre-rendered 'en-IN' full+short string) is the fallback when the
   // raw timestamp is absent — the same instant, unsplit, rather than a blank.
-  const dateLine = date || bookingResult.time || 'unknown';
-  const timeLine = time || bookingResult.time || 'unknown';
+  const dateLine = now ? istDate(now) : (bookingResult.time || 'unknown');
+  const timeLine = now ? istTime(now) : (bookingResult.time || 'unknown');
 
   return [
     `New appointment with ${doctor}`,
@@ -101,11 +140,17 @@ function formatOwnerBookingAlert(bookingResult, customer = null) {
     `Phone: ${phone}`,
     `Date: ${dateLine}`,
     `Time: ${timeLine} IST`,
-    `Status: ${bookingResult.status || 'booked'}`,
+    `Status: ${status}`,
   ].join('\n');
 }
 
-// Alert the clinic owner that a booking just landed.
+// Alert the clinic owner that a booking just landed — or that one just moved.
+// ONE function and ONE notification type for both. `type` stays
+// 'appointment_booked' on a move, deliberately: scriptedTurnCheck identifies the
+// probe's own notifications by an ID DIFF scoped to exactly that type, and
+// re-counts residue with the same predicate. A second type would be invisible to
+// both, so the probe would leave a row behind AND report a clean zero — a leak
+// its own leak-detector could not see.
 //
 // `customer` is the hydrated customers row the turn already holds (identityService
 // returns `RETURNING *` / `SELECT *` on every path), threaded in so the patient's

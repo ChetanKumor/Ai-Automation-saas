@@ -27,8 +27,9 @@ function _setModelProvider(fn) {
 // unconditionally. Read-only tools never cross the line. Every declaration in
 // TOOLS must have an entry here.
 const TOOL_META = {
-  check_availability: { mutating: false },
-  book_appointment:   { mutating: true },
+  check_availability:     { mutating: false },
+  book_appointment:       { mutating: true },
+  reschedule_appointment: { mutating: true },
 };
 const isMutatingTool = (name) => TOOL_META[name]?.mutating === true;
 
@@ -59,6 +60,19 @@ const TOOLS = [{
           patient_name:     { type: 'string', description: 'Patient name as stated by the customer' }
         },
         required: ['doctor_name', 'appointment_time', 'patient_name']
+      }
+    },
+    {
+      name: 'reschedule_appointment',
+      description: 'Move an appointment the customer ALREADY has to a new time. Use this — never book_appointment — when they want to change an existing booking, otherwise they end up holding two. Check availability for the new date first, and only call this after they have confirmed both which appointment they mean and the new time.',
+      parameters: {
+        type: 'object',
+        properties: {
+          current_time:     { type: 'string', description: 'ISO 8601 datetime with IST offset of the appointment being moved, e.g. 2026-08-07T15:30:00+05:30. Must match an appointment this customer already holds — if it does not, the tool returns their real appointments so you can ask which one they mean.' },
+          new_time:         { type: 'string', description: 'ISO 8601 datetime with IST offset for the new slot, e.g. 2026-08-10T11:00:00+05:30' },
+          doctor_name:      { type: 'string', description: 'Only if the customer is also changing doctor. Omit to keep the doctor the appointment already has.' }
+        },
+        required: ['current_time', 'new_time']
       }
     }
   ]
@@ -100,25 +114,39 @@ const throwIfAborted = (signal) => {
 // out of the tool RESULT, which is serialised back into the model's context —
 // widening bookAppointment's return to carry it would let the model read the
 // caller their own number, which is a data-exposure change, not a formatting one.
+// PORTAL-P5-S14 isolation guarantee: a test turn has no real customer row
+// (customerId is null), so a real write would hit a FK violation. Every mutating
+// tool is gated here rather than relying on that error, so the model gets an
+// honest, structured result to relay instead of the turn crashing.
+const testModeRefusal = (what) => ({
+  success: false,
+  reason: 'test_mode',
+  error: `This is a test conversation, not a real one — ${what} can’t be completed here. Tell the owner to confirm on a real WhatsApp message or phone call.`,
+});
+
 async function executeTool(name, args, tenant, customer, channel = 'whatsapp') {
   switch (name) {
     case 'check_availability':
       return await appointmentService.checkAvailability(tenant.id, args.date);
     case 'book_appointment': {
-      // PORTAL-P5-S14 isolation guarantee: a test turn has no real customer row
-      // (customerId is null), so a real INSERT would hit a FK violation. Gated
-      // here rather than relying on that error, so the model gets an honest,
-      // structured result to relay instead of the turn crashing.
-      if (channel === 'test') {
-        return {
-          success: false,
-          reason: 'test_mode',
-          error: 'This is a test conversation, not a real one — bookings can’t be completed here. Tell the owner to confirm on a real WhatsApp message or phone call.',
-        };
-      }
+      if (channel === 'test') return testModeRefusal('bookings');
       const result = await appointmentService.bookAppointment(
         tenant.id, customer.id, args.doctor_name, args.appointment_time, args.patient_name
       );
+      if (result.success) {
+        notificationService.notifyOwnerOfBooking(tenant, result, customer).catch(err =>
+          logger.error({ err: err.message }, 'notification unexpected error')
+        );
+      }
+      return result;
+    }
+    case 'reschedule_appointment': {
+      if (channel === 'test') return testModeRefusal('appointment changes');
+      const result = await appointmentService.rescheduleAppointment(
+        tenant.id, customer.id, args.current_time, args.new_time, args.doctor_name
+      );
+      // Same function, same notification type as a booking — the alert itself
+      // renders the "Appointment moved" shape off `rescheduled`.
       if (result.success) {
         notificationService.notifyOwnerOfBooking(tenant, result, customer).catch(err =>
           logger.error({ err: err.message }, 'notification unexpected error')
@@ -537,6 +565,8 @@ Appointment booking rules:
 - After getting availability results, present the free slots and ask the customer to pick one
 - ALWAYS echo back the exact doctor + date + time and get an explicit "yes"/"haan"/"avunu" BEFORE calling book_appointment
 - Never call book_appointment on first mention — confirm first, book second
+- To MOVE an appointment the customer already has, call reschedule_appointment — NEVER book_appointment, which would leave them holding two
+- If reschedule_appointment returns appointment_not_found, read back the appointments it lists and ask which one they mean — never guess which to move
 - All times are IST. If a day is closed or fully booked, say so and suggest the nearest open day
 - Politely decline past dates or past times today
 ${voiceStyle}

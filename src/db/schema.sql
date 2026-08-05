@@ -314,8 +314,12 @@ CREATE TABLE appointments (
   customer_id      UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
   doctor_name      TEXT NOT NULL,
   appointment_time TIMESTAMPTZ NOT NULL,
+  -- 'rescheduled' (migration 025) marks a row SUPERSEDED by a move, not
+  -- cancelled: the move writes a new 'booked' row and flips this one. It leaves
+  -- uniq_doctor_slot below (partial on 'booked') the moment it flips, which is
+  -- what frees the old slot.
   status           TEXT NOT NULL DEFAULT 'booked'
-                     CHECK (status IN ('booked', 'cancelled')),
+                     CHECK (status IN ('booked', 'cancelled', 'rescheduled')),
   reminder_sent    BOOLEAN NOT NULL DEFAULT FALSE,
   reminder_sent_at TIMESTAMPTZ,
   reminder_status  TEXT NOT NULL DEFAULT 'pending'
