@@ -161,3 +161,6 @@ backups/
 
 # Portal screenshot evidence (regenerate via scripts/portal/shoot.js)
 scripts/portal/shots/
+
+# Last `npm run os:check` suite output (regenerated on every run)
+.os-check-last.log
