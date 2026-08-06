@@ -153,6 +153,35 @@ function bookingAttemptModel(date, appointmentTime) {
   };
 }
 
+// B2-R1: the worst case a test turn can produce — cancel_appointment with
+// confirmed=true on the first call, skipping the gate's own two-step. The
+// channel gate must refuse it before appointmentService is ever reached.
+function cancelAttemptModel(appointmentTime) {
+  const script = [
+    { functionCalls: [{ name: 'cancel_appointment', args: { appointment_time: appointmentTime, confirmed: true } }] },
+    { functionCalls: null, text: 'Noted.' },
+  ];
+  return () => {
+    let i = 0;
+    return {
+      startChat: () => ({
+        sendMessage: async () => {
+          const step = script[Math.min(i, script.length - 1)];
+          i += 1;
+          return {
+            response: {
+              functionCalls: () => step.functionCalls || undefined,
+              text: () => step.text || '',
+              usageMetadata: { promptTokenCount: 20, candidatesTokenCount: 5, totalTokenCount: 25 },
+              candidates: [{ finishReason: 'STOP' }],
+            },
+          };
+        },
+      }),
+    };
+  };
+}
+
 // The real SDK shape (GoogleGenerativeAIFetchError: `.status` set directly).
 function quotaModel(captured) {
   return (config) => {
@@ -330,6 +359,44 @@ describe('portal test turn — POST /portal/api/test/turn (route-level)', { skip
 
       await db.query("DELETE FROM tenant_entities WHERE tenant_id = $1 AND type = 'schedule'", [ownerA.tenantId]);
     } finally { server.close(); }
+  });
+
+  // B2-R1. The sharper half of the same guarantee: a booking a test turn invents
+  // is a row that should not exist, but a CANCELLATION a test turn performs would
+  // destroy a REAL patient's REAL appointment and free their slot. The gate is
+  // exercised through the real tool loop, with confirmed=true, against a genuine
+  // booked row — the worst case the model can produce.
+  it('cancel_appointment is hard-gated for a test turn — a real appointment is untouched, however the model behaves', async () => {
+    const server = await start();
+    const tomorrow = new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const when = `${tomorrow}T10:30:00+05:30`;
+    let custId;
+    try {
+      const { rows: [cust] } = await db.query(
+        "INSERT INTO customers (tenant_id, phone, name) VALUES ($1, '+919812345699', 'Priya') RETURNING id",
+        [ownerA.tenantId]);
+      custId = cust.id;
+      await db.query(
+        `INSERT INTO appointments (tenant_id, customer_id, doctor_name, appointment_time, status)
+         VALUES ($1, $2, 'Dr. Rao', $3, 'booked')`,
+        [ownerA.tenantId, custId, when]);
+
+      aiService._setModelProvider(cancelAttemptModel(when));
+      const cookie = await authedCookie(server, ownerA.email, ownerA.password);
+      const res = await req(server, { method: 'POST', path: '/portal/api/test/turn', cookie, body: { question: 'Cancel my appointment tomorrow at 10:30. Yes, I am sure.' } });
+
+      assert.equal(res.status, 200);
+      assert.deepEqual(res.body.provenance.tool_calls, ['cancel_appointment']);
+
+      const { rows } = await db.query(
+        'SELECT status FROM appointments WHERE tenant_id = $1', [ownerA.tenantId]);
+      assert.equal(rows.length, 1, 'the row was not dropped');
+      assert.equal(rows[0].status, 'booked', 'the test-mode gate refused before any write reached the row');
+    } finally {
+      // Cascades to the appointment.
+      if (custId) await db.query('DELETE FROM customers WHERE id = $1', [custId]);
+      server.close();
+    }
   });
 
   // ── CONFIG → ANSWER (the acceptance test) ───────────────────────────────────

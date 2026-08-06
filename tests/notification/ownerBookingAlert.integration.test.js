@@ -261,6 +261,81 @@ describe('owner booking alert (integration)', { skip: ADMIN ? false : 'DATABASE_
     assert.equal((await alertRow(tenant.id))[0].sent_status, 'skipped_disabled');
   });
 
+  // ── A3. The CANCELLED shape (B2-R1) ─────────────────────────────────────────
+  // The receptionist's actionable fact on a cancellation is not that one
+  // happened — it is WHICH SLOT JUST OPENED, so they can re-fill it. That is why
+  // this shape carries `Freed:` rather than a bare Date/Time pair.
+
+  const CANCELLED = {
+    success: true,
+    cancelled: true,
+    doctor: 'Dr. Rao',
+    time: 'Friday, 7 August 2026 at 3:30 pm',
+    appointment_time: new Date('2026-08-07T15:30:00+05:30'),
+    status: 'cancelled',
+  };
+
+  it('a cancellation renders "Appointment cancelled" with the FREED slot on it', () => {
+    const out = notifications.formatOwnerBookingAlert(CANCELLED, CUSTOMER);
+    assert.equal(out, [
+      'Appointment cancelled — Dr. Rao',
+      'Patient: Priya S',
+      'Phone: +919812345678',
+      'Freed: Friday, 7 August 2026 at 3:30 pm',
+      'Status: cancelled',
+    ].join('\n'));
+
+    assert.ok(!out.includes('New appointment'), 'a cancellation must not read as a fresh booking');
+    assert.ok(!out.includes('Appointment moved'), 'nor as a move — the slot is not being re-taken');
+    assert.ok(!/\nDate:|\nTime:|\nWas:|\nNow:/.test(out), 'Freed replaces them all');
+  });
+
+  it('Freed: uses the same recombined IST convention as Was/Now', () => {
+    const IST = 'Asia/Kolkata';
+    const out = notifications.formatOwnerBookingAlert(CANCELLED, CUSTOMER);
+    assert.equal(out.match(/\nFreed: (.+)\n/)[1],
+      CANCELLED.appointment_time.toLocaleString('en-IN', { timeZone: IST, dateStyle: 'full', timeStyle: 'short' }));
+  });
+
+  it('Status: on a cancellation reads the COLUMN, which is why it needed no new code', () => {
+    assert.match(notifications.formatOwnerBookingAlert(CANCELLED, CUSTOMER), /\nStatus: cancelled$/);
+    assert.match(notifications.formatOwnerBookingAlert({ ...CANCELLED, status: 'booked' }, CUSTOMER),
+      /\nStatus: booked$/);
+  });
+
+  it('the cancel shape is DECLARED by `cancelled`, never inferred from status', () => {
+    // A row whose status says cancelled but which carries no flag is NOT a
+    // cancellation alert — B2's rule, applied to the destructive case: a
+    // malformed field must not silently promote a booking into a cancellation,
+    // or demote a cancellation into a booking.
+    const noFlag = notifications.formatOwnerBookingAlert(
+      { ...CANCELLED, cancelled: false }, CUSTOMER);
+    assert.match(noFlag, /^New appointment with Dr\. Rao\n/);
+    assert.match(noFlag, /\nStatus: cancelled$/, 'the column still renders honestly');
+
+    // And a cancellation with an unparseable instant stays a CANCELLATION,
+    // falling back to the pre-rendered string rather than changing shape.
+    const broken = notifications.formatOwnerBookingAlert(
+      { ...CANCELLED, appointment_time: 'not-a-date' }, CUSTOMER);
+    assert.match(broken, /^Appointment cancelled — Dr\. Rao\n/);
+    assert.match(broken, /\nFreed: Friday, 7 August 2026 at 3:30 pm\n/);
+  });
+
+  it('a cancellation goes out on the SAME notification type as a booking', async () => {
+    const tenant = await makeTenant();
+    await notifications.notifyOwnerOfBooking(tenant, CANCELLED, CUSTOMER);
+
+    // `appointment_booked` on a cancellation too: scriptedTurnCheck's id-diff
+    // cleanup and its residue count both scope to exactly this type, so a third
+    // type would leak a row AND report a clean zero.
+    const rows = await alertRow(tenant.id);
+    assert.equal(rows.length, 1, 'one row, on the booking type');
+    assert.equal(rows[0].sent_status, 'sent');
+    assert.equal(sends.length, 1);
+    assert.equal(sends[0].text, rows[0].content);
+    assert.match(rows[0].content, /^Appointment cancelled — Dr\. Rao\n/);
+  });
+
   // ── B. The recipient ────────────────────────────────────────────────────────
 
   it('the recipient is config.notifications.owner_numbers[0], not the legacy column', async () => {

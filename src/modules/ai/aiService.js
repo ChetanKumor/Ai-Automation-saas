@@ -26,10 +26,22 @@ function _setModelProvider(fn) {
 // side effects), abort checks stop and the turn completes persistence
 // unconditionally. Read-only tools never cross the line. Every declaration in
 // TOOLS must have an entry here.
+//
+// ⚠️ B2-R1 — `cancel_appointment` is mutating: true, and it is true on BOTH of
+// its phases even though the unconfirmed phase writes nothing. TOOL_META is
+// keyed by DECLARATION NAME and the two-phase gate deliberately shares one name,
+// so one flag has to cover both. The asymmetry decides it: marking it false
+// would leave `committed` unset on a call that really did destroy a booking, so
+// an abort between the cancel committing and the reply being spoken would tear
+// exactly the write Issue 29 exists to protect — the appointment gone, the
+// patient never told. Marking it true costs an abort opportunity on a turn that
+// wrote nothing. Over-declaring is the safe direction, which is what this
+// registry's "regardless of its reported outcome" rule already says.
 const TOOL_META = {
   check_availability:     { mutating: false },
   book_appointment:       { mutating: true },
   reschedule_appointment: { mutating: true },
+  cancel_appointment:     { mutating: true },
 };
 const isMutatingTool = (name) => TOOL_META[name]?.mutating === true;
 
@@ -73,6 +85,18 @@ const TOOLS = [{
           doctor_name:      { type: 'string', description: 'Only if the customer is also changing doctor. Omit to keep the doctor the appointment already has.' }
         },
         required: ['current_time', 'new_time']
+      }
+    },
+    {
+      name: 'cancel_appointment',
+      description: 'Cancel an appointment the customer ALREADY has. TWO CALLS ARE REQUIRED and there is no way around it. Call it FIRST with confirmed=false: that cancels nothing and returns the appointment for you to read back to the customer. Only after they have heard those details and explicitly agreed do you call it again with confirmed=true. Cancelling frees the slot immediately and CANNOT be undone — if they only want to change the time, use reschedule_appointment instead.',
+      parameters: {
+        type: 'object',
+        properties: {
+          appointment_time: { type: 'string', description: 'ISO 8601 datetime with IST offset of the appointment to cancel, e.g. 2026-08-07T15:30:00+05:30. Must match an appointment this customer already holds — if it does not, the tool returns their real appointments so you can ask which one they mean.' },
+          confirmed:        { type: 'boolean', description: 'false on the FIRST call — looks the appointment up, cancels nothing, and returns the details for you to read back. true ONLY after the customer has heard those exact details and said yes. Never send true on your first call, and never send true on the strength of the customer\'s first mention alone.' }
+        },
+        required: ['appointment_time', 'confirmed']
       }
     }
   ]
@@ -147,6 +171,26 @@ async function executeTool(name, args, tenant, customer, channel = 'whatsapp') {
       );
       // Same function, same notification type as a booking — the alert itself
       // renders the "Appointment moved" shape off `rescheduled`.
+      if (result.success) {
+        notificationService.notifyOwnerOfBooking(tenant, result, customer).catch(err =>
+          logger.error({ err: err.message }, 'notification unexpected error')
+        );
+      }
+      return result;
+    }
+    case 'cancel_appointment': {
+      if (channel === 'test') return testModeRefusal('cancellations');
+      // `confirmed` is passed through UNTOUCHED — the gate is server-side and
+      // compares it with strict `=== true`, so an omitted or malformed value
+      // fails closed onto the read-only phase. Nothing is normalised here; a
+      // coercion in this layer is exactly how a gate stops being one.
+      const result = await appointmentService.cancelAppointment(
+        tenant.id, customer.id, args.appointment_time, args.confirmed
+      );
+      // Same function, same notification type as a booking — the alert renders
+      // the "Appointment cancelled" shape off `cancelled`. The unconfirmed phase
+      // returns success:false, so it can never reach this and never pages an
+      // owner about a cancellation that has not happened.
       if (result.success) {
         notificationService.notifyOwnerOfBooking(tenant, result, customer).catch(err =>
           logger.error({ err: err.message }, 'notification unexpected error')
@@ -567,6 +611,9 @@ Appointment booking rules:
 - Never call book_appointment on first mention — confirm first, book second
 - To MOVE an appointment the customer already has, call reschedule_appointment — NEVER book_appointment, which would leave them holding two
 - If reschedule_appointment returns appointment_not_found, read back the appointments it lists and ask which one they mean — never guess which to move
+- To CANCEL an appointment, call cancel_appointment TWICE: first with confirmed=false, which cancels nothing and returns the appointment; read those details back and get an explicit "yes"; only then call it again with confirmed=true
+- Never send confirmed=true on your first call to cancel_appointment — a cancellation frees the slot immediately and cannot be undone, so an unsure or hesitant customer gets a question, not a cancellation
+- If they want a different time rather than no appointment at all, that is reschedule_appointment, not a cancellation
 - All times are IST. If a day is closed or fully booked, say so and suggest the nearest open day
 - Politely decline past dates or past times today
 ${voiceStyle}

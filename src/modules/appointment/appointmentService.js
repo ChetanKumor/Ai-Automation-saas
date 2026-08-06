@@ -417,14 +417,46 @@ async function upcomingAppointments(tenantId, customerId) {
 // "the nearest appointment": an ambiguous reference is answered with the caller's
 // real bookings so the receptionist can ask which one they mean. Inventing the
 // answer here is the same failure class as inventing a price.
-function appointmentNotFound(upcoming) {
+//
+// B2-R1: the verb is a PARAMETER, not a second function. This was the one piece
+// of B2 that could not be reused verbatim — its text said "to move" and "before
+// moving anything", which on a cancellation would instruct the receptionist to
+// confirm before the wrong action. Defaulting to 'move' keeps the reschedule
+// path byte-identical (asserted).
+const NOT_FOUND_VERBS = {
+  move:   { infinitive: 'move',   gerund: 'moving' },
+  cancel: { infinitive: 'cancel', gerund: 'cancelling' },
+};
+
+function appointmentNotFound(upcoming, verb = 'move') {
+  const v = NOT_FOUND_VERBS[verb] || NOT_FOUND_VERBS.move;
   const list = upcoming.map((a) => ({ doctor: a.doctor_name, time: confirmString(a.appointment_time) }));
   const error = list.length
     ? `No appointment of theirs matches that time. They currently have: ` +
       `${list.map((a) => `${a.doctor} on ${a.time}`).join('; ')}. ` +
-      `Ask which one they mean and confirm it before moving anything — never guess.`
-    : 'This caller has no upcoming appointments to move.';
+      `Ask which one they mean and confirm it before ${v.gerund} anything — never guess.`
+    : `This caller has no upcoming appointments to ${v.infinitive}.`;
   return { success: false, reason: 'appointment_not_found', appointments: list, error };
+}
+
+// Resolve WHICH appointment the caller means, server-side, from
+// (tenant_id, customer_id, appointment_time). Shared by the move and the cancel
+// so the two cannot drift — and shared by BOTH PHASES of the cancel, which is
+// what makes the dry run honest: a confirmation payload resolved differently
+// from the write it authorises would be worse than no confirmation at all.
+//
+// Returns { upcoming, existing }; `existing` is null when nothing matches, and
+// the caller turns that into appointmentNotFound(upcoming, verb).
+async function resolveOwnAppointment(tenantId, customerId, appointmentTime) {
+  const raw = String(appointmentTime || '');
+  const iso = raw.includes('+') ? raw : raw + '+05:30';
+  const when = new Date(iso);
+
+  const upcoming = await upcomingAppointments(tenantId, customerId);
+  const existing = isNaN(when.getTime())
+    ? null
+    : upcoming.find((a) => new Date(a.appointment_time).getTime() === when.getTime()) || null;
+  return { upcoming, existing };
 }
 
 /**
@@ -443,15 +475,11 @@ function appointmentNotFound(upcoming) {
  * clears. There is no back door.
  */
 async function rescheduleAppointment(tenantId, customerId, currentTime, newTime, doctorName) {
-  const currentRaw = String(currentTime || '');
-  const currentIST = currentRaw.includes('+') ? currentRaw : currentRaw + '+05:30';
-  const currentDate = new Date(currentIST);
-
-  const upcoming = await upcomingAppointments(tenantId, customerId);
-  const existing = isNaN(currentDate.getTime())
-    ? null
-    : upcoming.find((a) => new Date(a.appointment_time).getTime() === currentDate.getTime());
-  if (!existing) return appointmentNotFound(upcoming);
+  // B2-R1: the resolution moved into resolveOwnAppointment VERBATIM so the move
+  // and the cancel share one lookup. Behaviour is unchanged — `.find()` returning
+  // undefined and the helper returning null are the same to `!existing`.
+  const { upcoming, existing } = await resolveOwnAppointment(tenantId, customerId, currentTime);
+  if (!existing) return appointmentNotFound(upcoming, 'move');
 
   const slot = await validateSlot(tenantId, doctorName || existing.doctor_name, newTime);
   if (slot.reject) return { success: false, ...slot.reject };
@@ -536,8 +564,131 @@ async function rescheduleAppointment(tenantId, customerId, currentTime, newTime,
   }
 }
 
+// ── B2-R1: cancelling an appointment ─────────────────────────────────────────
+//
+// THE GATE, and why it is structural rather than prompt text.
+//
+// Booking's "confirm first, book second" is really an INFORMATION DEPENDENCY
+// WITH A BOUNCE: the model cannot name a slot without check_availability, and if
+// it invents one, validateSlot refuses it (off-grid, closed day, holiday, past,
+// inside the buffer). A mis-parsed booking usually hits a wall.
+//
+// EVERY ONE OF THOSE WALLS PASSES A MIS-PARSED CANCEL. The time is real, it is
+// valid precisely because it is an existing booking, and it is already sitting
+// in the conversation — the patient said it, or the model booked it a turn ago.
+// Nothing bounces. And a cancellation frees the slot the instant it commits
+// (uniq_doctor_slot is partial on status = 'booked'), with no patient-side undo:
+// once it is gone another patient can take it. Prompt text is advisory, and
+// advisory is enough for an action with a wall behind it. It is not enough for
+// the only irreversible action in the product.
+//
+// So the wall is built here, server-side, and the model cannot route around it:
+//
+//   confirmed !== true  → NO WRITE. Resolve the appointment and hand it back as
+//                         a confirmation payload for the model to read to the
+//                         patient.
+//   confirmed === true  → perform the cancel.
+//
+// The FIRST call cannot write, whatever the model intends. Two calls means a
+// turn happens in between, and in that turn the patient either says yes or does
+// not. That is the availability step booking gets for free, made explicit
+// because cancel cannot earn it.
+//
+// ⚠️ ONE TOOL NAME, TWO PHASES — and that is what makes it a gate. Splitting
+// this into a read-only lookup tool plus a destructive tool would let the model
+// call the destructive one directly, which puts us straight back to advisory.
+// One door, whose first turn cannot write.
+//
+// `confirmed` is a REQUIRED parameter in the declaration and is compared with
+// STRICT `=== true`. Anything else — omitted, null, 0, the string 'true' — is
+// false. Fail-closed: the cost of reading a truthy non-true as false is one
+// wasted round trip, and the cost of the reverse is a destroyed booking.
+//
+// No transaction, deliberately. B2 bought one because a move is two writes that
+// must both land or neither. A cancel is a SINGLE guarded UPDATE — atomic on its
+// own, with rowCount reporting the outcome — so Issue 29's "threw means
+// committed nothing" holds trivially and a transaction would be ceremony.
+//
+// No appointment UUID crosses in either direction, on either phase.
+async function cancelAppointment(tenantId, customerId, appointmentTime, confirmed) {
+  // The SAME resolution the confirmed call uses. A dry run that resolves
+  // differently from the write it authorises is worse than no dry run.
+  const { upcoming, existing } = await resolveOwnAppointment(tenantId, customerId, appointmentTime);
+  if (!existing) return appointmentNotFound(upcoming, 'cancel');
+
+  // ── Phase 1: read-only. This branch touches no row. ───────────────────────
+  if (confirmed !== true) {
+    // The patient's name lives on `customers`, not on the appointment. Read it
+    // tenant- AND customer-scoped. It is already in the model's context (the
+    // system prompt carries `Customer name:`) and bookAppointment already returns
+    // it, so this is not a new exposure — unlike the PHONE, which is deliberately
+    // absent here for exactly the reason it is absent from bookAppointment's
+    // return: this object is serialised into Gemini's context.
+    const { rows: [cust] } = await db.query(
+      'SELECT name FROM customers WHERE id = $1 AND tenant_id = $2',
+      [customerId, tenantId]);
+    const when = new Date(existing.appointment_time);
+
+    return {
+      success: false,                 // fail-closed: nothing was cancelled, and
+      reason: 'confirmation_required', // executeTool's owner alert is gated on
+      confirmation_required: true,     // `success`, so phase 1 can never page.
+      doctor: existing.doctor_name,
+      date: when.toLocaleDateString('en-IN', { timeZone: IST, dateStyle: 'full' }),
+      time: when.toLocaleTimeString('en-IN', { timeZone: IST, timeStyle: 'short' }),
+      patient_name: cust?.name || null,
+      // The raw instant, echoed back so the confirming call can repeat it
+      // EXACTLY rather than re-deriving it from a formatted date. It is the same
+      // value the caller supplied — not an identifier.
+      appointment_time: existing.appointment_time,
+      error:
+        'Nothing has been cancelled yet. Read these details back to the customer, ' +
+        'get an explicit "yes", then call cancel_appointment again with confirmed=true. ' +
+        'Cancelling frees the slot immediately and cannot be undone.',
+    };
+  }
+
+  // ── Phase 2: the write. ───────────────────────────────────────────────────
+  // Guarded on `status = 'booked'` — the same predicate that guards B2's
+  // supersede, and the analogue of its `same_slot` refusal (a cancel has no
+  // destination, so there is nothing else to be same as). No row means someone
+  // got there first: a double-cancel, or a cancel of a row a concurrent move has
+  // already superseded. Either way the caller no longer holds it, and we say so
+  // rather than reporting a success that did nothing. It TRANSITIONS a row; it
+  // can never drop one.
+  const { rows: [row] } = await db.query(
+    `UPDATE appointments SET status = 'cancelled'
+     WHERE id = $1 AND tenant_id = $2 AND customer_id = $3 AND status = 'booked'
+     RETURNING doctor_name, appointment_time, status`,
+    [existing.id, tenantId, customerId]);
+
+  if (!row) {
+    return {
+      success: false, reason: 'appointment_changed',
+      error: 'That appointment was just changed by someone else — it is no longer booked. ' +
+             'Check what the caller currently has before cancelling anything.',
+    };
+  }
+
+  // `reminder_status` is deliberately NOT touched. reminderCron's claim query
+  // (reminderCron.js:97-98) already filters `a.status = 'booked'`, so a cancelled
+  // row can never be claimed; and the column's CHECK carries no cancelled value,
+  // so the only reachable writes here would be 'sent' or 'failed' — both lies.
+  //
+  // No appointment_id, same discipline as the move. `status` is the COLUMN, so
+  // the owner alert renders 'cancelled' with no new code.
+  return {
+    success: true,
+    cancelled: true,
+    doctor: row.doctor_name,
+    time: confirmString(row.appointment_time),
+    appointment_time: row.appointment_time,
+    status: row.status,
+  };
+}
+
 module.exports = {
-  checkAvailability, bookAppointment, rescheduleAppointment, getSchedules,
+  checkAvailability, bookAppointment, rescheduleAppointment, cancelAppointment, getSchedules,
   // exported for tests / grid-parity coverage (V-008). The F-006 rules are
   // covered through checkAvailability/bookAppointment themselves — testing the
   // public surface is what proves both sides actually agree.
@@ -545,4 +696,7 @@ module.exports = {
   // B2: the single validation path, exported so a test can prove there is only
   // one and that both write entry points reach it.
   validateSlot, upcomingAppointments,
+  // B2-R1: the shared server-side lookup, exported so a test can prove both
+  // phases of the cancel resolve through it.
+  resolveOwnAppointment,
 };

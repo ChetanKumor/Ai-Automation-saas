@@ -93,18 +93,20 @@ const instant = (raw) => {
 // when, and what state the booking is in. The doctor rides the title line, which
 // keeps the required fields contiguous and scannable.
 //
-// TWO SHAPES, ONE FUNCTION (B2). A booking says "New appointment"; a MOVE says
-// "Appointment moved" and replaces Date/Time with Was/Now. That distinction is
-// not cosmetic: a reschedule renders a new row whose status is 'booked', so
-// without it a move would arrive looking exactly like a fresh booking — the
-// receptionist would not know a slot had just freed, and could reasonably
-// conclude the patient had booked twice. `Was:` is the field that carries the
-// freed slot, which is why it leads.
+// THREE SHAPES, ONE FUNCTION (B2, then B2-R1). A booking says "New appointment";
+// a MOVE says "Appointment moved" and replaces Date/Time with Was/Now; a CANCEL
+// says "Appointment cancelled" and carries a single `Freed:` line. That
+// distinction is not cosmetic: a reschedule renders a new row whose status is
+// 'booked', so without it a move would arrive looking exactly like a fresh
+// booking — the receptionist would not know a slot had just freed, and could
+// reasonably conclude the patient had booked twice. `Was:` is the field that
+// carries the freed slot, which is why it leads.
 //
-// `status` renders from the appointments column, never a literal, on BOTH
+// `status` renders from the appointments column, never a literal, on ALL THREE
 // shapes. On a move it reads 'booked' — correctly, because the row it describes
 // is the new one. The superseded row is what carries 'rescheduled', and nobody
-// is alerted about that row.
+// is alerted about that row. On a cancel it reads 'cancelled' straight off the
+// UPDATE's own RETURNING, which is why that shape needed no new status handling.
 function formatOwnerBookingAlert(bookingResult, customer = null) {
   const name = bookingResult.patient_name || customer?.name || 'Patient';
   const phone = displayPhone(customer?.phone) || 'not on file';
@@ -112,6 +114,24 @@ function formatOwnerBookingAlert(bookingResult, customer = null) {
   const status = bookingResult.status || 'booked';
 
   const now = instant(bookingResult.appointment_time);
+
+  // B2-R1. A cancellation is DECLARED by its own flag, on B2's rule — never
+  // inferred from `status`, because a malformed or missing field must not
+  // silently downgrade a cancellation into a booking confirmation. It leads the
+  // dispatch because it is the destructive one.
+  //
+  // `Freed:` is the whole point of this shape. The receptionist's actionable
+  // fact is not that a cancellation happened — it is WHICH SLOT JUST OPENED, so
+  // they can re-fill it. Same recombined IST instant the move's Was:/Now: uses.
+  if (bookingResult.cancelled) {
+    return [
+      `Appointment cancelled — ${doctor}`,
+      `Patient: ${name}`,
+      `Phone: ${phone}`,
+      `Freed: ${now ? istFull(now) : (bookingResult.time || 'unknown')}`,
+      `Status: ${status}`,
+    ].join('\n');
+  }
 
   // A move is DECLARED, never inferred from the presence of a previous
   // timestamp: a malformed `previous_appointment_time` must not silently
@@ -144,13 +164,13 @@ function formatOwnerBookingAlert(bookingResult, customer = null) {
   ].join('\n');
 }
 
-// Alert the clinic owner that a booking just landed — or that one just moved.
-// ONE function and ONE notification type for both. `type` stays
-// 'appointment_booked' on a move, deliberately: scriptedTurnCheck identifies the
-// probe's own notifications by an ID DIFF scoped to exactly that type, and
-// re-counts residue with the same predicate. A second type would be invisible to
-// both, so the probe would leave a row behind AND report a clean zero — a leak
-// its own leak-detector could not see.
+// Alert the clinic owner that a booking just landed — or that one just moved, or
+// that one was just cancelled. ONE function and ONE notification type for all
+// three. `type` stays 'appointment_booked' on a move and on a cancel,
+// deliberately: scriptedTurnCheck identifies the probe's own notifications by an
+// ID DIFF scoped to exactly that type, and re-counts residue with the same
+// predicate. A second type would be invisible to both, so the probe would leave a
+// row behind AND report a clean zero — a leak its own leak-detector could not see.
 //
 // `customer` is the hydrated customers row the turn already holds (identityService
 // returns `RETURNING *` / `SELECT *` on every path), threaded in so the patient's
