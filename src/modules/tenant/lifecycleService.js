@@ -114,15 +114,31 @@ async function loadTenant(tenantId) {
 // measurement, so a run reported itself CURRENT while its knowledge verdict was
 // already out of date. That is F1.
 //
-// ⚠️ INSERTS ONLY, and this is a schema limitation, not a choice.
-// `knowledge_chunks` and `tenant_entities` carry `created_at` and no `updated_at`
-// (schema.sql: no `set_updated_at` trigger on either). So a FAQ or doctor EDIT
-// (`UPDATE ... SET data/content`) and a DELETE are invisible here — max(created_at)
-// cannot rise on an edit and can only fall on a delete. The fix is one migration
-// adding `updated_at` + the existing trigger to both tables; until then the
-// residual is bounded by the portal always re-validating before it activates
-// (see routes.js runGoLiveChain), so a deletion below a threshold is still
-// refused at the press. Recorded as F1-R1 in docs/os/state.md.
+// ⚠️ WRITES, NOT JUST INSERTS — and it took a second session to become true.
+// F1 shipped this union reading `max(created_at)` on both tables, because
+// neither carried an `updated_at` or a trigger. A timestamp only ever set at
+// INSERT can only rise at INSERT, so three real edits were invisible here: a
+// FAQ edited in place (`knowledgeService.updateChunk` is an UPDATE, never a
+// delete-and-reinsert), a doctor's schedule edited in place, and — the sharpest
+// of the three — a doctor ARCHIVED, since `doctorService.setArchived` flips
+// `type` with an UPDATE. Archiving the last bookable doctor left doctor.schedule
+// reporting the verdict it had reached while that doctor was still bookable.
+// F1-R1 (migration 026) gave both tables `updated_at` + the EXISTING
+// `set_updated_at` trigger, so both columns below now move on every write.
+//
+// ⚠️ Two mechanisms, not one, and the query does not show which is which.
+// `tenant_configs.updated_at` has NO trigger — configService writes it
+// explicitly on each versioned write. The other two are trigger-maintained.
+//
+// ⚠️ STILL OPEN: DELETE. Removing a FAQ LOWERS max(updated_at), so deleting the
+// 5th FAQ takes a clinic below kbMin while this returns an OLDER timestamp and
+// the run reads fresh — the ring then reports kb.populated one check HIGHER than
+// the truth. No timestamp column fixes a max() that falls; it needs a different
+// signal (a tenant-level touch on delete, or a row count carried here beside the
+// timestamp). Bounded meanwhile by the portal re-validating at every go-live
+// press (routes.js runGoLiveChain), so a clinic that has actually fallen below
+// the minimum is still refused. Exposed surfaces are the readiness ring and the
+// admin panel's separate activate path.
 //
 // ⚠️ `tenants.updated_at` is deliberately NOT in this union even though
 // whatsapp.config/live and tenant.legacy_prompt read that row. `writeStatus`
@@ -148,8 +164,8 @@ async function validationInputsChangedAt(tenantId) {
        (SELECT updated_at FROM tenant_configs WHERE tenant_id = $1) AS config_at,
        GREATEST(
          (SELECT updated_at      FROM tenant_configs   WHERE tenant_id = $1),
-         (SELECT max(created_at) FROM knowledge_chunks WHERE tenant_id = $1),
-         (SELECT max(created_at) FROM tenant_entities  WHERE tenant_id = $1)
+         (SELECT max(updated_at) FROM knowledge_chunks WHERE tenant_id = $1),
+         (SELECT max(updated_at) FROM tenant_entities  WHERE tenant_id = $1)
        ) AS inputs_at`,
     [tenantId]);
   const r = rows[0] || {};

@@ -281,8 +281,16 @@ CREATE TABLE knowledge_chunks (
   content     TEXT NOT NULL,
   embedding   vector(768),         -- Google text-embedding-004 output dimension
   source      TEXT,                -- filename or label for traceability
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- F1-R1 (migration 026). Read by lifecycleService.validationInputsChangedAt,
+  -- which is what decides whether a validation run has expired. A FAQ edit is an
+  -- UPDATE (knowledgeService.updateChunk), so on created_at alone an in-place
+  -- edit moved what kb.populated counts without moving the measurement.
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TRIGGER trg_knowledge_chunks_updated BEFORE UPDATE ON knowledge_chunks
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 CREATE INDEX idx_knowledge_chunks_tenant ON knowledge_chunks(tenant_id);
 
@@ -299,8 +307,17 @@ CREATE TABLE tenant_entities (
   tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   type        TEXT NOT NULL,            -- 'schedule', 'service', etc.
   data        JSONB NOT NULL,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- F1-R1 (migration 026). Same role as knowledge_chunks.updated_at above. Both
+  -- doctor writes are in-place UPDATEs — a schedule edit (doctorService.
+  -- updateDoctor) and an ARCHIVE (doctorService.setArchived flips `type`) — so on
+  -- created_at alone neither moved the staleness measurement, and archiving the
+  -- last bookable doctor left doctor.schedule reporting its old verdict.
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TRIGGER trg_tenant_entities_updated BEFORE UPDATE ON tenant_entities
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 CREATE INDEX idx_tenant_entities_tenant_type ON tenant_entities(tenant_id, type);
 

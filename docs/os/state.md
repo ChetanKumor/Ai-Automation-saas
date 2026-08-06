@@ -66,7 +66,7 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Test suite: **924 tests / 156 suites / 0 fail** (`npm test`, raw: `# tests 924 / # pass 924 / # fail 0`)
+- Test suite: **928 tests / 156 suites / 0 fail** (`npm test`, raw: `# tests 928 / # pass 928 / # fail 0`)
   Moved by **F1** (+5 tests, +1 suite), **F2** (+4 tests, +1 suite), **F3**
   (+9 tests, +1 suite — `tests/portal/portalWizardExit.unit.test.js`), **B1**
   (+14 tests, +1 suite — `tests/notification/ownerBookingAlert.integration.test.js`,
@@ -74,9 +74,11 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   `tests/prompts/renderer.unit.test.js`), then **B2** (+23 tests, +1 suite —
   `tests/appointment/reschedule.integration.test.js` at 15, plus 6 in
   `ownerBookingAlert.integration.test.js` and 2 in
-  `tests/voice/voiceCancellation.integration.test.js`), all below. Every other
-  line in this section that quotes 869/151, 874/152, 878/153, 887/154 or 901/155
-  is describing the commit it names and is left as written.
+  `tests/voice/voiceCancellation.integration.test.js`), then **F1-R1** (+4 tests,
+  **no new suite** — all four in `tests/portal/portalLifecycle.integration.test.js`,
+  beside the two F1 already put there), all below. Every other line in this
+  section that quotes 869/151, 874/152, 878/153, 887/154, 901/155 or 924/156 is
+  describing the commit it names and is left as written.
   ⚠️ **B2 added no test to `tests/appointment/slotGrid.unit.test.js` or
   `bookingRules.unit.test.js` and edited neither.** That is the deliberate proof
   that extracting `validateSlot` out of `bookAppointment` was behaviour-preserving:
@@ -89,7 +91,71 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   own seven-day hours. `clinicDefaults` is unchanged; closing Sunday by default is correct
   product behaviour and the test was wrong to depend on it not being. No test was added:
   869/151 is unmoved across D3 and this fix.
-- **B2 — a patient could book but not move. FIXED** (this commit). The portal has
+- **F1-R1 — F1's staleness fix only half worked. FIXED** (this commit). F1 made
+  the readiness formula read every storage home a persisted check measures. Two
+  of that union's three legs read `max(created_at)` on tables that carry no
+  `updated_at` and no trigger, so **a timestamp that can only be set at INSERT
+  can only rise at INSERT.**
+  **Three real writes were invisible, and all three are in-place UPDATEs.**
+  Editing a FAQ (`knowledgeService.updateChunk` — 0.7 checked this specifically,
+  it is an `UPDATE`, **not** delete-and-reinsert, so `created_at` genuinely could
+  not move), editing a doctor's schedule (`doctorService.updateDoctor`), and
+  **ARCHIVING a doctor** (`doctorService.setArchived` flips `type` with an
+  UPDATE; reached from the portal's `DELETE /api/doctors/:id` on the
+  has-appointments branch).
+  ⚠️ **The archive is the sharp one and it was found in Phase 0, not planned.**
+  It is how an owner takes a doctor OUT of booking: the register shrank while
+  `doctor.schedule` kept reporting the verdict it reached when that doctor was
+  still bookable — the ring reading one check **higher** than the truth. This is
+  F1 inverted. F1 was "you did the work and the portal says you didn't"; this is
+  "you undid the work and the portal says you're fine", on the surface that
+  decides go-live.
+  **Migration `026_knowledge_entity_updated_at.sql`** adds `updated_at
+  TIMESTAMPTZ NOT NULL DEFAULT NOW()` to `knowledge_chunks` and
+  `tenant_entities` and attaches the **EXISTING** `set_updated_at` — no new
+  function; that one is defined once in `schema.sql`'s SETUP block and seven
+  tables already use it. Guarded `DO $$ … IF NOT EXISTS (SELECT 1 FROM
+  pg_trigger …)` form and `trg_<table>_updated` naming both follow `012`/`013`,
+  the two migrations that attach this same function. `schema.sql` in lockstep,
+  inline. `validationInputsChangedAt` reads `max(updated_at)` on both.
+  ⚠️ **THE BACKFILL EXPIRES EVERY OUTSTANDING RUN, ONCE, AND THAT IS CORRECT.**
+  `NOT NULL DEFAULT NOW()` stamps every pre-existing row with the migration
+  instant, so any tenant holding a FAQ or a doctor row has its latest validation
+  run go stale on the deploy. After the migration `max(updated_at)` is the honest
+  answer to "when did this input last move", and for rows written before the
+  column existed that answer is genuinely unknowable. A stale run costs a
+  re-check, never a wrong verdict. Zero production tenants at this commit, so the
+  real blast radius is the shared dev database.
+  ⚠️ **STILL OPEN — the DELETE half, filed and deliberately not built.** Removing
+  a FAQ **lowers** `max(updated_at)`, so deleting the 5th FAQ takes a clinic below
+  `kbMin` while the run still reads fresh and the ring still reports the old,
+  higher verdict. **No timestamp column fixes a max() that falls.** Two candidate
+  signals for whoever picks it up: a tenant-level touch on delete, or a row count
+  carried in the union beside the timestamp. Bounded meanwhile — `runGoLiveChain`
+  re-validates at the press, so a clinic that has actually fallen below the
+  minimum is still refused; what is exposed is the ring and the admin panel's
+  separate activate path. Documented at the fix site, not only here.
+  ⚠️ **The union's three legs are maintained by TWO mechanisms and the query does
+  not show which is which** — `tenant_configs.updated_at` has no trigger,
+  `configService` writes it explicitly; the two new columns are trigger-
+  maintained. Recorded in both the migration and the helper, because the next
+  reader will assume all three work the same way.
+  **Four `created_at` readers were found and deliberately LEFT ALONE**:
+  `knowledgeService.listChunks` (`ORDER BY created_at` — the FAQ list order),
+  `doctorService.listDoctors` (`created_at` as the third-level tiebreaker under a
+  name sort), and `created_at` on the FAQ API payload. Moving any of them to
+  `updated_at` would reshuffle a register every time a row was edited.
+  **Lockstep proven by construction, not by reading**: a genesis DB (new
+  `schema.sql`) and a migrated DB (HEAD's `schema.sql` + the real `026` executed
+  by the runner, every other file stamped) agree byte-for-byte on the columns,
+  triggers and indexes of both tables, and both triggers resolve to
+  `set_updated_at()`. Genesis records `026` as **stamped**; the migrate path
+  records it as **run**. Re-applying `026` to a database that already has the
+  column and both triggers is a clean no-op, so the file is re-runnable.
+  ⚠️ Editing this migration's comment **after** applying it tripped `db:status`'s
+  checksum-mismatch warning, exactly as designed. Cleared by unrecording the row
+  and re-running, which is also where the idempotency above was proved.
+- **B2 — a patient could book but not move. FIXED** (`c1e671f`). The portal has
   recited a reschedule policy since `PORTAL-P3-S9` that the receptionist could not
   act on — a settings page describing behaviour that did not exist, which is the
   F-006 class.
@@ -203,7 +269,7 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   throughout because genesis reads the updated `schema.sql`. Normal migration
   contract, recorded because it is the first schema change in some weeks.
 - **B1 — the owner booking alert was half a message sent to nobody. FIXED**
-  (this commit). Two defects in one path, and the second one meant the first was
+  (`29f95d6`). Two defects in one path, and the second one meant the first was
   academic.
   **A — the payload.** `New appointment: {name} with {doctor} at {time}` carried
   three fields. It now carries five, labelled, one per line, with the doctor on
@@ -285,7 +351,7 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   `docs/deploy/audit/2026-07-production-readiness.md:262-265`, which lists
   `notifications.on_booking` under *Inert config knobs*.
 - **F3 — the onboarding wizard had no way out, and the login page's reset
-  promise named no channel. BOTH FIXED** (this commit). Two small issues from
+  promise named no channel. BOTH FIXED** (`3b4cab8`). Two small issues from
   the portal-v1 §11 acceptance run, which otherwise **PASSED**: under 45 minutes
   on a phone, unaided, faster than pre-redesign.
   **A — "Save and finish later" (spec §3.8).** Progress was ALREADY persisted
@@ -408,6 +474,11 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   kb.retrieval), `max(tenant_entities.created_at)` (doctor.schedule /
   turn.scripted). One query, three tenant-scoped lookups, replacing the single
   query it grew out of — the readiness read is still three queries.
+  ⚠️ **SUPERSEDED at F1-R1: the last two legs now read `max(updated_at)`, not
+  `max(created_at)`.** The union's *shape* — three lookups, one query — is
+  unchanged and the two column names above describe the commit this entry names.
+  Neither table had an `updated_at` when F1 shipped, which is why it read
+  `created_at`; that was the half of F1 that did not work. See the F1-R1 entry.
   ⚠️ **`tenants.updated_at` is deliberately EXCLUDED** even though
   `whatsapp.config`/`live` and `tenant.legacy_prompt` read that row: `writeStatus`
   UPDATEs `tenants` and the table has a `BEFORE UPDATE` trigger, so including it
@@ -968,19 +1039,33 @@ all branches fast-forward onto main · one issue per session · runtime evidence
   F-F001 portal notice is what warns their owner. ⚠️ **Zero such tenants are known to
   exist** — there is no production deploy, so this is a hazard retained for a population
   that is currently empty.
-- **F1-R1 (open, new) — staleness detects INSERTS only on `knowledge_chunks` and
-  `tenant_entities`.** Both tables carry `created_at` and no `updated_at`, and no
-  `set_updated_at` trigger (`schema.sql:278`, `:297`; unchanged since migrations
-  `002`/`003`). So `max(created_at)` cannot rise on an in-place EDIT
-  (`UPDATE knowledge_chunks SET content…`, `UPDATE tenant_entities SET data…`)
-  and can only fall on a DELETE. **Editing or deleting a FAQ or a doctor
-  therefore does not expire the run.** Not a design choice — a schema one, and
-  schema was out of F1's scope. The fix is one migration adding `updated_at` +
-  the existing trigger to both tables.
-  Blast radius is bounded and worth stating precisely: the portal's Go live
+- **F1-R1 — the EDIT half is CLOSED (this commit); the DELETE half remains open
+  below.** Both tables carried `created_at` and no `updated_at` and no
+  `set_updated_at` trigger, so `max(created_at)` could not rise on an in-place
+  edit. Migration `026` added `updated_at` + the existing trigger to both, and
+  `validationInputsChangedAt` now reads it — so an in-place FAQ edit, an in-place
+  schedule edit and a doctor **archive** all expire the run. The archive was not
+  in the original filing and is the case that mattered most; full entry under
+  *F1-R1* in Engineering above.
+- **F1-R2 (open, new) — a DELETE still cannot expire a validation run.** The
+  residue of F1-R1, and the half no timestamp column can close: removing a row
+  **lowers** `max(updated_at)` rather than raising it, so deleting the 5th FAQ
+  takes a clinic below `kbMin` while the run still reads fresh and the ring still
+  reports the old, **higher** verdict. ⚠️ *This identifier is minted here for
+  bookkeeping — the founder filed the condition, not the name.*
+  **Start from the analysis, not from rediscovery.** Two candidate signals, both
+  named at the fix site (`lifecycleService.validationInputsChangedAt`):
+  (a) a tenant-level touch on delete — cheap, but it puts a write on a read path
+  and needs a home that `writeStatus` does not already bump (see the
+  `tenants.updated_at` exclusion, which is why the obvious column is unavailable);
+  (b) carry a **row count** in the union beside the timestamp and compare it to
+  the count the run recorded — strictly more correct, since it catches any
+  cardinality change in either direction, at the cost of the run having to persist
+  what it counted.
+  Blast radius unchanged and worth restating precisely: the portal's Go live
   always runs `validate` before `activate` (`runGoLiveChain`), so a deletion that
-  drops a clinic below `kbMin` is still refused at the press. What is exposed is
-  (a) the ring reading one check too high until the next run, and (b) the
+  drops a clinic below `kbMin` is still refused **at the press**. What is exposed
+  is (a) the ring reading one check too high until the next run, and (b) the
   **admin** panel's separate `activate`, which can act on a passing run that a
   deletion has since invalidated.
 - **B2-R1 (open, new) — there is no patient-facing way to CANCEL.**

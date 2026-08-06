@@ -202,6 +202,16 @@ describe('portal lifecycle — go live / pause / resume (route-level)', { skip: 
   const statusOf = async (tenantId) =>
     (await db.query('SELECT status, active FROM tenants WHERE id = $1', [tenantId])).rows[0];
 
+  // F1-R1: an in-place edit must not change either count. A delete-and-reinsert
+  // would raise max(created_at) on its own and prove nothing about the fix.
+  const chunkCount = async (tenantId) =>
+    (await db.query('SELECT count(*)::int AS n FROM knowledge_chunks WHERE tenant_id = $1',
+      [tenantId])).rows[0].n;
+
+  const entityCount = async (tenantId) =>
+    (await db.query('SELECT count(*)::int AS n FROM tenant_entities WHERE tenant_id = $1',
+      [tenantId])).rows[0].n;
+
   const latestRun = async (tenantId) =>
     (await db.query(
       'SELECT passed, result FROM validation_runs WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 1',
@@ -631,6 +641,185 @@ describe('portal lifecycle — go live / pause / resume (route-level)', { skip: 
         // loading the config on every readiness read to save an occasional
         // re-check offer. Conservative in the safe direction.
       } finally { server.close(); }
+    });
+
+    // ── F1-R1 ────────────────────────────────────────────────────────────────
+    // F1's union read `max(created_at)` on both tables, and neither carried an
+    // `updated_at` or a trigger. A timestamp only ever set at INSERT can only
+    // rise at INSERT — so the three tests below were all GREEN-on-the-wrong-
+    // answer before migration 026: every one of these writes is an in-place
+    // UPDATE that left the measurement exactly where it was, and the run kept
+    // reporting a verdict that had expired.
+    //
+    // This is F1 inverted. F1 was "you did the work and the portal says you
+    // didn't". This is "you undid the work and the portal says you're fine", on
+    // the surface that decides go-live.
+    //
+    // Each asserts the write really was an UPDATE — the row's id survives and
+    // the row count does not move — because a delete-and-reinsert would raise
+    // max(created_at) too and would prove nothing about this fix.
+    it('an in-place FAQ EDIT expires the run — no create, no delete', async () => {
+      const o = await seedOwner({ ready: true });
+      const server = await start();
+      try {
+        const cookie = await authedCookie(server, o.email, o.password);
+        await req(server, { method: 'POST', path: '/portal/api/lifecycle/activate', cookie, body: {} });
+
+        const list = await req(server, { method: 'GET', path: '/portal/api/faqs', cookie });
+        assert.equal(list.status, 200);
+        assert.ok(list.body.faqs.length >= 1, 'the ready tenant has FAQs to edit');
+        const id = list.body.faqs[0].id;
+        assert.equal(list.body.readiness.run.stale, false, 'a run taken after the last write is fresh');
+
+        const before = await chunkCount(o.tenantId);
+        const edited = await req(server, {
+          method: 'PATCH', path: `/portal/api/faqs/${id}`, cookie,
+          body: { question: 'Do you take card payments?', answer: 'Yes — card, UPI and cash.' },
+        });
+        assert.equal(edited.status, 200, 'the FAQ was actually saved');
+
+        // The write was an UPDATE: same row, same count.
+        assert.equal(await chunkCount(o.tenantId), before, 'an edit must not add or remove a row');
+        const stillThere = await db.query('SELECT content FROM knowledge_chunks WHERE id = $1', [id]);
+        assert.match(stillThere.rows[0].content, /card, UPI and cash/, 'the SAME row now holds the new text');
+
+        assert.equal(edited.body.readiness.run.stale, true,
+          'the write response must not hand back a run it has just invalidated');
+        const r = await req(server, { method: 'GET', path: '/portal/api/readiness', cookie });
+        assert.equal(r.body.run.stale, true, 'an in-place FAQ edit expires the run');
+      } finally { server.close(); }
+    });
+
+    it('an in-place doctor SCHEDULE EDIT expires the run — no create, no delete', async () => {
+      const o = await seedOwner({ ready: true });
+      const server = await start();
+      try {
+        const cookie = await authedCookie(server, o.email, o.password);
+        const created = await req(server, {
+          method: 'POST', path: '/portal/api/doctors', cookie,
+          body: {
+            name: 'Dr. Meera Iyer', specialization: 'Orthodontist',
+            languages: ['te', 'en'], days: ['Mon', 'Tue'], start: '10:00', end: '17:00',
+          },
+        });
+        assert.equal(created.status, 200);
+        const id = created.body.doctor.id;
+
+        // Validate AFTER the doctor exists, so the run is newer than the insert
+        // and staleness can only come from the edit below.
+        await req(server, { method: 'POST', path: '/portal/api/lifecycle/activate', cookie, body: {} });
+        let r = await req(server, { method: 'GET', path: '/portal/api/readiness', cookie });
+        assert.equal(r.body.run.stale, false, 'a run taken after the doctor was added is fresh');
+
+        const before = await entityCount(o.tenantId);
+        const edited = await req(server, {
+          method: 'PATCH', path: `/portal/api/doctors/${id}`, cookie,
+          body: {
+            name: 'Dr. Meera Iyer', specialization: 'Orthodontist',
+            languages: ['te', 'en'], days: ['Mon', 'Tue', 'Wed', 'Thu'], start: '09:00', end: '18:30',
+          },
+        });
+        assert.equal(edited.status, 200, 'the schedule was actually saved');
+
+        assert.equal(await entityCount(o.tenantId), before, 'an edit must not add or remove a row');
+        const row = await db.query("SELECT data->>'end' AS end_at FROM tenant_entities WHERE id = $1", [id]);
+        assert.equal(row.rows[0].end_at, '18:30', 'the SAME row now holds the new hours');
+
+        assert.equal(edited.body.readiness.run.stale, true);
+        r = await req(server, { method: 'GET', path: '/portal/api/readiness', cookie });
+        assert.equal(r.body.run.stale, true, 'an in-place schedule edit expires the run');
+      } finally { server.close(); }
+    });
+
+    // The sharpest of the three, and the reason it gets its own test rather than
+    // hiding inside "an edit": archiving is how an owner takes a doctor OUT of
+    // booking. `doctorService.setArchived` flips `type` with an UPDATE, so on
+    // created_at alone the register shrank while doctor.schedule kept reporting
+    // the verdict it reached when that doctor was still bookable — the ring
+    // reading one check HIGHER than the truth.
+    //
+    // DELETE /api/doctors resolves to archive-or-delete by what the data allows,
+    // so the doctor is given an appointment first. That is deliberate: it is the
+    // branch that UPDATEs. (The delete branch lowers max(updated_at) and is the
+    // half F1-R1 leaves open — see lifecycleService.validationInputsChangedAt.)
+    it('ARCHIVING a doctor expires the run — the archive is an UPDATE, not a delete', async () => {
+      const o = await seedOwner({ ready: true });
+      const server = await start();
+      try {
+        const cookie = await authedCookie(server, o.email, o.password);
+        const created = await req(server, {
+          method: 'POST', path: '/portal/api/doctors', cookie,
+          body: {
+            name: 'Dr. Vikram Shah', specialization: 'Periodontist',
+            languages: ['en'], days: ['Mon', 'Tue'], start: '10:00', end: '17:00',
+          },
+        });
+        assert.equal(created.status, 200);
+        const id = created.body.doctor.id;
+
+        const cust = await db.query(
+          'INSERT INTO customers (tenant_id, phone, name) VALUES ($1,$2,$3) RETURNING id',
+          [o.tenantId, '+91900000' + String(1000 + seq), 'Booked Patient']);
+        await db.query(
+          `INSERT INTO appointments (tenant_id, customer_id, doctor_name, appointment_time)
+           VALUES ($1, $2, 'Dr. Vikram Shah', NOW() + interval '2 days')`,
+          [o.tenantId, cust.rows[0].id]);
+
+        await req(server, { method: 'POST', path: '/portal/api/lifecycle/activate', cookie, body: {} });
+        let r = await req(server, { method: 'GET', path: '/portal/api/readiness', cookie });
+        assert.equal(r.body.run.stale, false, 'a run taken after the doctor was added is fresh');
+
+        const before = await entityCount(o.tenantId);
+        const removed = await req(server, { method: 'DELETE', path: `/portal/api/doctors/${id}`, cookie });
+        assert.equal(removed.status, 200);
+        assert.equal(removed.body.outcome, 'archived',
+          'the doctor has an appointment, so this is the ARCHIVE branch — an UPDATE, not a DELETE');
+
+        // Proof it was an UPDATE: the row is still there, carrying the flipped type.
+        assert.equal(await entityCount(o.tenantId), before, 'an archive must not remove the row');
+        const row = await db.query('SELECT type FROM tenant_entities WHERE id = $1', [id]);
+        assert.equal(row.rows[0].type, 'schedule_archived');
+
+        assert.equal(removed.body.readiness.run.stale, true);
+        r = await req(server, { method: 'GET', path: '/portal/api/readiness', cookie });
+        assert.equal(r.body.run.stale, true, 'archiving a doctor expires the run');
+      } finally { server.close(); }
+    });
+
+    // The mechanism the three above ride on, asserted directly rather than
+    // inferred: migration 026 attaches the EXISTING set_updated_at trigger, so
+    // an UPDATE must move `updated_at` and must leave `created_at` alone. If
+    // created_at ever moved, every ORDER BY created_at in the product (the FAQ
+    // list, the doctor register's tiebreaker) would reshuffle on each edit.
+    it('the trigger moves updated_at and leaves created_at alone, on both tables', async () => {
+      const o = await seedOwner();
+
+      const chunk = await db.query(
+        `INSERT INTO knowledge_chunks (tenant_id, content, source) VALUES ($1, $2, 'faq')
+         RETURNING id, created_at, updated_at`,
+        [o.tenantId, 'Q: Are you open Sunday?\nA: No.']);
+      const c0 = chunk.rows[0];
+      assert.equal(+c0.created_at, +c0.updated_at, 'at INSERT both take the same NOW()');
+
+      await db.query('UPDATE knowledge_chunks SET content = $2 WHERE id = $1',
+        [c0.id, 'Q: Are you open Sunday?\nA: Yes, 10am–2pm.']);
+      const c1 = (await db.query(
+        'SELECT created_at, updated_at FROM knowledge_chunks WHERE id = $1', [c0.id])).rows[0];
+      assert.equal(+c1.created_at, +c0.created_at, 'knowledge_chunks.created_at must not move on an UPDATE');
+      assert.ok(+c1.updated_at > +c0.updated_at, 'knowledge_chunks.updated_at must move on an UPDATE');
+
+      const ent = await db.query(
+        `INSERT INTO tenant_entities (tenant_id, type, data) VALUES ($1, 'schedule', $2)
+         RETURNING id, created_at, updated_at`,
+        [o.tenantId, JSON.stringify({ doctor: 'Dr. Trigger', days: ['Mon'], start: '10:00', end: '17:00' })]);
+      const e0 = ent.rows[0];
+      assert.equal(+e0.created_at, +e0.updated_at, 'at INSERT both take the same NOW()');
+
+      await db.query("UPDATE tenant_entities SET type = 'schedule_archived' WHERE id = $1", [e0.id]);
+      const e1 = (await db.query(
+        'SELECT created_at, updated_at FROM tenant_entities WHERE id = $1', [e0.id])).rows[0];
+      assert.equal(+e1.created_at, +e0.created_at, 'tenant_entities.created_at must not move on an UPDATE');
+      assert.ok(+e1.updated_at > +e0.updated_at, 'tenant_entities.updated_at must move on an UPDATE');
     });
   });
 

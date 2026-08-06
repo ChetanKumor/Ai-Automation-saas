@@ -227,7 +227,13 @@ router.get('/api/readiness', requirePortalAuth, async (req, res) => {
 // control at all (deriveGoLive: not passed, not stale ⇒ ineligible) and no way to
 // re-check. Both call sites now read ONE exported helper —
 // lifecycleService.validationInputsChangedAt — which is where the union, its
-// cost, and its inserts-only residual are documented.
+// cost, and its remaining residual are documented.
+//
+// F1-R1: that union read `max(created_at)` on both tables until migration 026
+// gave them an `updated_at` + the existing trigger, so an in-place FAQ edit, an
+// in-place schedule edit and a doctor ARCHIVE all left `stale` false. What
+// remains open is DELETE, which lowers the max rather than raising it — see the
+// helper.
 async function readinessSnapshot(tenantId) {
   const { rows } = await db.query('SELECT status FROM tenants WHERE id = $1', [tenantId]);
   const tenant = rows[0];
