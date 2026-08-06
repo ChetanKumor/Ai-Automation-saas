@@ -66,7 +66,7 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Test suite: **960 tests / 158 suites / 0 fail** (`npm test`, raw: `# tests 960 / # pass 960 / # fail 0`)
+- Test suite: **978 tests / 159 suites / 0 fail** (`npm test`, raw: `# tests 978 / # pass 978 / # fail 0`)
   Moved by **F1** (+5 tests, +1 suite), **F2** (+4 tests, +1 suite), **F3**
   (+9 tests, +1 suite — `tests/portal/portalWizardExit.unit.test.js`), **B1**
   (+14 tests, +1 suite — `tests/notification/ownerBookingAlert.integration.test.js`,
@@ -81,9 +81,34 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   `tests/appointment/cancelTool.unit.test.js` at 7, plus 5 in
   `ownerBookingAlert.integration.test.js`, 2 in
   `tests/voice/voiceCancellation.integration.test.js` and 1 in
-  `tests/portal/portalTestTurn.integration.test.js`), all below. Every other line
-  in this section that quotes 869/151, 874/152, 878/153, 887/154, 901/155,
-  924/156 or 928/156 is describing the commit it names and is left as written.
+  `tests/portal/portalTestTurn.integration.test.js`), then **F3-R1** (+18 tests,
+  +1 suite — `tests/admin/resetOwnerPassword.test.js`), all below. Every other
+  line in this section that quotes 869/151, 874/152, 878/153, 887/154, 901/155,
+  924/156, 928/156 or 960/158 is describing the commit it names and is left as
+  written.
+  ⚠️ **THE SUITE HAD A DATABASE-DESTROYING RACE BETWEEN TEST FILES, AND F3-R1
+  FOUND IT BY PERTURBING THE SCHEDULE.** `tests/admin/tenantDetail.test.js` and
+  `tests/config/configService.integration.test.js` both **created**
+  `zyon_test_<hex>` and both **swept `zyon_test_%`** — which is a literal PREFIX
+  of six other suites' scratch databases (`zyon_test_conv_`, `_cp_`, `_mig_`,
+  `_prov_`, `_tr_`, `_val_`) and of each other. The sweep does
+  `pg_terminate_backend` + `DROP DATABASE`, so under `node --test`'s parallel
+  file scheduling either suite could destroy another's database **mid-genesis**.
+  Adding one file to `tests/admin/` shifted the schedule and made
+  `tests/admin/conversations.test.js` land inside that window: 2 collisions in 2
+  runs with the new file, 0 in 2 runs at HEAD, with two different symptoms from
+  the one cause — `57P01 terminating connection due to administrator command`
+  raised inside `runner.genesis` (`migrate.js:122`), and `3D000 database ... does
+  not exist`. The failure names a file that is not at fault and does not name the
+  file that is.
+  ⚠️ **Escaping the underscores would NOT have fixed it** — `zyon\_test\_%` still
+  matches `zyon_test_conv_abc`, because `%` matches everything after the literal
+  prefix. The prefix itself had to become disjoint: `zyon_tdet_` and
+  `zyon_cfgs_`. **28 of the suite's 30 sweeps were already escaped and disjoint**;
+  these two were the only exceptions, and `createOwner.test.js`'s header had been
+  routing around them by name since PORTAL-P1-S3 rather than fixing them. No
+  assertion changed and no test changed status; three consecutive full runs at
+  978/159/0 after the fix.
   ⚠️ **B2 added no test to `tests/appointment/slotGrid.unit.test.js` or
   `bookingRules.unit.test.js` and edited neither.** That is the deliberate proof
   that extracting `validateSlot` out of `bookAppointment` was behaviour-preserving:
@@ -113,7 +138,104 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
-- **B2-R1 — a patient could book and move, but not cancel. FIXED** (this commit).
+- **F3-R1 — the login page promised a password reset the system could not
+  perform. FIXED** (this commit). `public/portal/login.html` has told owners
+  since F3 to message Prantivo on WhatsApp for a reset;
+  `POST /admin/api/tenants/:id/owner` **creates** an account and 409s when one
+  exists (`adminRoutes.js:813-815`, `23505` backstop at `:829`), and the only
+  `UPDATE users` in `src/` or `scripts/` was `last_login_at`. A reset meant
+  hand-editing in `psql`.
+  ⚠️ **PHASE 0 CHANGED THE SHAPE OF THE FIX, and this is the session's substance.
+  A reset built as originally scoped would have been WORSE THAN NOTHING in the
+  one case that matters.** `requirePortalAuth` re-read the user row on every
+  request but selected only `id, tenant_id, role, active` — **`password_hash` is
+  never consulted after login** — and the session payload was `{ userId }` and
+  nothing else. So rotating the password left every live `portal.sid`
+  authenticated for the rest of its 12h window. The owner who asks for a reset is
+  frequently the owner who suspects compromise, so that reset would have handed
+  back a false assurance while the intruder stayed signed in. Founder ruling:
+  session invalidation is **mandatory, not preferred**.
+  **Migration `027_password_changed_at.sql`** adds `password_changed_at
+  TIMESTAMPTZ NOT NULL DEFAULT NOW()` to `users`; `schema.sql` in lockstep,
+  inline. Login stamps it into the session (`pwAt`); `requirePortalAuth` compares
+  the session's copy to the live row on every request and 401s on mismatch, so a
+  reset evicts every session issued before it. `passwordEpoch` +
+  `sessionEpochMatches` are **exported from `auth.js`** so the two call sites can
+  never drift into two conventions — the discipline that keeps `hashPassword` the
+  single hashing path.
+  ⚠️ **NO TRIGGER on this column, deliberately, and it is the same reason
+  `updated_at` could not have served.** `users` already has `updated_at` and
+  `trg_users_updated`, but the login path itself UPDATEs this row
+  (`last_login_at`) and fires that trigger — so `updated_at` **provably cannot
+  distinguish a reset from a sign-in**, and a trigger on the new column would
+  make every login invalidate every other session of the same user.
+  `password_changed_at` is written at exactly two sites: the `DEFAULT` on INSERT,
+  and the reset UPDATE. It moves for one reason and therefore means one thing.
+  **THE COMPARISON IS STRICT, AND THE DEPLOY COST IS PAID KNOWINGLY.** Sessions
+  minted before this migration carry no `pwAt`, and a session with no epoch is
+  **rejected, never admitted** — so every owner signed in at deploy is signed out
+  once and signs back in normally. The rejected alternative was a null-tolerant
+  comparison, which reads as a migration accommodation and functions as a
+  **permanent bypass**: it would admit forever exactly the pre-reset sessions the
+  column exists to evict. `NOT NULL` is load-bearing for the same reason — it
+  makes "no epoch on the row" unrepresentable. A stringified epoch, a stale
+  epoch, `null` and a missing key are all asserted to fail.
+  **AUDIT: the column IS the durable record; no `admin_audit` table was built.**
+  Founder ruling — a table with exactly one writer is infrastructure looking for
+  a second caller; build it when a second admin action needs auditing. Beside the
+  column, a structured line follows `adminRoutes.js:824`'s shape:
+  `{ scope, tenantId, userId, actor: 'admin_session' }` + the `adm_` correlation
+  id the pino mixin attaches. ⚠️ **`actor` is `'admin_session'` and NOT a person,
+  and that is honesty rather than laziness**: admin auth is one shared
+  `ADMIN_PASSWORD` and `requireAuth` checks a boolean (`adminRoutes.js:48-51`),
+  so there is no operator identity to record. **A fictional actor would be worse
+  than an honest session.** A named operator requires operator accounts, which do
+  not exist. The email is deliberately absent from the line (the `userId`
+  identifies the row and carries less PII); the password never reaches it.
+  ⚠️ **THE VERIFICATION ROUTE IS A PREREQUISITE, NOT A CONVENIENCE.** Before it,
+  the owner's email was displayed **nowhere** in the admin panel — the create card
+  renders it only in its one-time success message — so an operator performing a
+  reset could not see which account they were resetting without opening `psql`.
+  Acting blind on an auth action is a security defect in the feature itself. New
+  read-only `GET /admin/api/tenants/:id/owner` returns exactly four fields:
+  `owner_count`, `email`, `verify_number` and `verify_number_source`. The number
+  is `config.notifications.owner_numbers[0]` — B1 established that is the real
+  owner recipient, since `tenants.owner_notify_phone` has no production writer —
+  surfaced as a **labelled** field, because "dig it out of the config JSON editor"
+  is not a verification procedure. No `password_hash`, no other user columns.
+  **`POST /api/tenants/:id/owner/reset`** carries the identical middleware chain
+  to the create route (`requireAuth, apiLimiter, requireAdminHeader,
+  requireTenantId`) and **reads no body at all** — there is no `express.json()`,
+  so nothing a caller sends can influence the target. The tenant comes from the
+  path; the user from that tenant's single owner row. The UPDATE repeats
+  `tenant_id` in its own predicate rather than trusting the lookup, and
+  `rowCount` reports the outcome.
+  **The operator does NOT choose the password** — the server generates it
+  (`generateTempPassword`, unchanged), returns it once, and the operator reads it
+  out. An operator-typed password is an operator-known password. Hashing is
+  `hashPassword` from `src/portal/auth.js`, the same single path account creation
+  uses; asserted by **comparing the stored `scrypt$N$r$p$…` prefixes** of a
+  created and a reset hash rather than assuming.
+  **Ambiguity fails CLOSED.** `users` is `UNIQUE (tenant_id, email)`, so a tenant
+  can legally hold two owner rows; the reset refuses with a 409 naming the count
+  rather than resetting whichever sorted first, mirroring portal login's
+  `rows.length === 1` rule. Handing a working password to the wrong person is the
+  failure mode being bought out of.
+  **UI follows the Pause pattern** (founder ruling — consistency in an admin panel
+  is itself a safety property): same chain, client-side `window.confirm`, red
+  button, no server-side two-step. The text names **both** consequences — the
+  current password stops working, **and** anyone signed in is signed out — because
+  the second is the whole point of the mechanism and is otherwise invisible. The
+  one-time reveal panel is **shared** with create so the shown-once behaviour
+  cannot drift between the two actions.
+  ⚠️ **FILED, NOT BUILT:** an `admin_audit` table (above); operator accounts,
+  without which no audit record can name a human; fan-out beyond
+  `owner_numbers[0]`; and self-serve reset, which stays correctly out of scope —
+  F3's Phase 0 confirmed zero email transport anywhere in the repo, so a token
+  flow means a transport, an issue-and-expiry table and a reset route before a
+  single paying customer. `login.html`'s copy is unchanged and still names
+  WhatsApp.
+- **B2-R1 — a patient could book and move, but not cancel. FIXED** (`8fc184c`).
   `status = 'cancelled'` had existed since migration `003` and **nothing in the
   system had ever written it** — verified, not assumed: `git grep` over `src/`,
   `tests/`, `scripts/` and `public/` returned ten hits and every one was a CHECK
@@ -534,6 +656,13 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   this route"*, and removing the account means hand-editing in `psql`. Not fixed
   here (out of scope); the cheapest honest fix is an operator "reset password"
   action reusing `generateTempPassword` + `hashPassword` on the existing row.
+  ✅ **CLOSED at F3-R1** (this commit) — see the F3-R1 entry at the top of this
+  section. The predicted fix was right about the mechanism and **incomplete about
+  the danger**: reusing `generateTempPassword` + `hashPassword` on the existing
+  row is exactly what shipped, but on its own it would have left every live
+  session authenticated, because `requirePortalAuth` never re-reads
+  `password_hash`. Migration `027`'s session epoch is the half this line did not
+  foresee.
   Evidence: `scripts/portal/f3.js` (scratch DB → genesis → real routers → CDP at
   380×820; the walk to step 5 and every exit are real clicks) and
   `scripts/portal/shots/f3-{wizard-step5-mobile,wizard-invalid-exit-mobile,wizard-invalid-exit-field,login-mobile}.png`.

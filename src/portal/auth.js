@@ -77,23 +77,69 @@ function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(actual, expected);
 }
 
+// ── Session epoch (F3-R1) ────────────────────────────────────────────────────
+// passwordEpoch reduces a users row's password_changed_at to a JSON-safe number
+// of milliseconds. Login stamps the result into the session; requirePortalAuth
+// recomputes it from a fresh read and compares. Exported so the two sites can
+// never drift into two conventions — the same discipline that keeps hashPassword
+// the single hashing path.
+//
+// Both call sites take the value through node-pg's identical TIMESTAMPTZ → Date
+// parse, so the millisecond truncation of a microsecond-precision column applies
+// equally to both sides and can never make a matching pair compare unequal. A
+// number (not a Date) is stored because the session is serialised to JSON, where
+// a Date would come back as a string and invite a `===` that silently never
+// matches — which would fail CLOSED, but by accident rather than by design.
+function passwordEpoch(row) {
+  if (!row || row.password_changed_at == null) return null;
+  const t = new Date(row.password_changed_at).getTime();
+  return Number.isFinite(t) ? t : null;
+}
+
+// STRICT: the session's epoch must be a number and must equal the row's.
+//
+// A session carrying NO epoch is REJECTED, never admitted. That is the whole
+// point and it is not negotiable: sessions issued before migration 027 carry no
+// epoch, and they are exactly the sessions a reset must be able to evict. A
+// null-tolerant comparison would read as a migration accommodation and function
+// as a permanent bypass — it would admit forever the pre-reset sessions this
+// mechanism exists to kill, and hand a skeleton key to anyone able to strip a
+// field from a session payload. The cost is one forced re-login at deploy for
+// whoever is signed in; see migration 027's header.
+function sessionEpochMatches(portalSession, row) {
+  const claimed = portalSession && portalSession.pwAt;
+  if (typeof claimed !== 'number') return false;
+  const actual = passwordEpoch(row);
+  return actual !== null && claimed === actual;
+}
+
 // requirePortalAuth — loads the session's user row and attaches req.portalUser.
 // tenantId comes ONLY from this row (INV-1). The route handlers downstream must
 // never read a tenant identifier from the request; this middleware is the sole
 // entry point for tenant scope.
 async function requirePortalAuth(req, res, next) {
   const db = require('../db/db');
-  const userId = req.session && req.session.portal && req.session.portal.userId;
+  const portal = req.session && req.session.portal;
+  const userId = portal && portal.userId;
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
     const { rows } = await db.query(
-      'SELECT id, tenant_id, role, active FROM users WHERE id = $1',
+      'SELECT id, tenant_id, role, active, password_changed_at FROM users WHERE id = $1',
       [userId]
     );
     const user = rows[0];
     // A deleted or deactivated account invalidates a still-live session cookie.
     if (!user || user.active !== true) return res.status(401).json({ error: 'Unauthorized' });
+
+    // An operator password reset moves password_changed_at, so every session
+    // issued before it stops authenticating here, on its very next request.
+    // Same generic 401 as every other failure — a distinct status or message
+    // would tell a holder of a stale cookie that the account is real and that
+    // its password was just rotated.
+    if (!sessionEpochMatches(portal, user)) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
 
     req.portalUser = { id: user.id, tenantId: user.tenant_id, role: user.role };
     next();
@@ -103,4 +149,6 @@ async function requirePortalAuth(req, res, next) {
   }
 }
 
-module.exports = { hashPassword, verifyPassword, requirePortalAuth };
+module.exports = {
+  hashPassword, verifyPassword, requirePortalAuth, passwordEpoch, sessionEpochMatches,
+};

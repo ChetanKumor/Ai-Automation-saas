@@ -106,6 +106,17 @@ CREATE TABLE users (
   -- password_hash (above) holds a scrypt-encoded string for portal accounts.
   last_login_at  TIMESTAMPTZ,
 
+  -- Portal session epoch (migration 027, F3-R1). Login copies this into the
+  -- session; requirePortalAuth compares the two on every request and 401s on
+  -- mismatch, so an operator password reset evicts every session issued before
+  -- it. Written EXPLICITLY at two sites only — this DEFAULT on INSERT, and the
+  -- reset UPDATE. Deliberately has NO trigger: set_updated_at on this column
+  -- would move it on the last_login_at write and every login would invalidate
+  -- every other session of the same user. It is also the durable audit record of
+  -- a reset, which updated_at below cannot be — login UPDATEs this row, so
+  -- updated_at cannot distinguish a reset from a sign-in.
+  password_changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 

@@ -7,9 +7,11 @@
 // the real /portal with the returned temp password. Also covers the route's
 // auth/CSRF/validation guards and the portal security-header regression.
 //
-// Disjoint DB-name prefix (zyon_own_) — NOT zyon_test_ (swept by tenantDetail /
-// configService), NOT zyon_pauth_ / zyon_prdy_ (the other portal suites). Our own
-// sweep escapes the underscores so it only ever targets our prefix.
+// Disjoint DB-name prefix (zyon_own_) — NOT zyon_pauth_ / zyon_prdy_ (the other
+// portal suites). Our own sweep escapes the underscores so it only ever targets
+// our prefix. (Until F3-R1, tenantDetail and configService both swept the bare
+// 'zyon_test_%', which is a literal prefix of six other suites' databases; they
+// now use zyon_tdet_ / zyon_cfgs_. That is why every suite here owns a prefix.)
 
 process.env.LOG_LEVEL = 'silent';
 require('dotenv').config();

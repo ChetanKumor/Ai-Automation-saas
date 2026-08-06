@@ -27,7 +27,11 @@ async function sweep() {
   const c = admin();
   await c.connect();
   try {
-    const { rows } = await c.query("SELECT datname FROM pg_database WHERE datname LIKE 'zyon_test_%'");
+    // Disjoint, escaped prefix (F3-R1). See tenantDetail.test.js for the full
+    // account: this and that suite both created 'zyon_test_<hex>' and both swept
+    // 'zyon_test_%', so they destroyed each other's databases AND those of the
+    // six suites whose names start with the same literal prefix.
+    const { rows } = await c.query("SELECT datname FROM pg_database WHERE datname LIKE 'zyon\\_cfgs\\_%'");
     for (const r of rows) {
       await c.query('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname=$1 AND pid<>pg_backend_pid()', [r.datname]);
       await c.query('DROP DATABASE IF EXISTS ' + r.datname);
@@ -40,7 +44,7 @@ describe('configService writer (integration)', { skip: ADMIN ? false : 'DATABASE
 
   before(async () => {
     await sweep();
-    scratchName = 'zyon_test_' + crypto.randomBytes(6).toString('hex');
+    scratchName = 'zyon_cfgs_' + crypto.randomBytes(6).toString('hex');
     const c = admin();
     await c.connect();
     await c.query('CREATE DATABASE ' + scratchName);

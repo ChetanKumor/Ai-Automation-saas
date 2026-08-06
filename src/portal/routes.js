@@ -19,7 +19,7 @@ const crypto = require('crypto');
 const db = require('../db/db');
 const logger = require('../infra/logging/logger');
 const { securityHeaders, createRateLimiter } = require('../admin/security');
-const { verifyPassword, requirePortalAuth, hashPassword } = require('./auth');
+const { verifyPassword, requirePortalAuth, hashPassword, passwordEpoch } = require('./auth');
 const validationService = require('../modules/validation/validationService');
 const lifecycleService = require('../modules/tenant/lifecycleService');
 const configService = require('../modules/config/configService');
@@ -112,7 +112,7 @@ router.post('/api/login', loginLimiter, express.json(), async (req, res) => {
     // only per-tenant, so a cross-tenant collision yields >1 row — we fail closed
     // rather than guess a tenant (INV-1). Only active accounts can authenticate.
     const { rows } = await db.query(
-      'SELECT id, password_hash, active FROM users WHERE lower(email) = $1 AND active = true',
+      'SELECT id, password_hash, active, password_changed_at FROM users WHERE lower(email) = $1 AND active = true',
       [email]
     );
     if (rows.length === 1) user = rows[0];
@@ -133,7 +133,12 @@ router.post('/api/login', loginLimiter, express.json(), async (req, res) => {
       logger.error({ err: err.message }, 'portal session regenerate failed');
       return res.status(500).json({ error: 'Login failed' });
     }
-    req.session.portal = { userId: user.id };
+    // pwAt is the session epoch (F3-R1). requirePortalAuth compares it to the
+    // live row on every request, so an operator password reset evicts every
+    // session issued before it. Read from the row we just authenticated against
+    // — NOT from a second query, which could straddle a concurrent reset and
+    // mint a session already stamped with the new epoch.
+    req.session.portal = { userId: user.id, pwAt: passwordEpoch(user) };
     // Best-effort stamp; never block or fail login on it.
     db.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id])
       .catch((e) => logger.error({ err: e.message }, 'last_login_at update failed'));

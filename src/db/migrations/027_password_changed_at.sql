@@ -1,0 +1,68 @@
+-- F3-R1: users gains password_changed_at — the portal session epoch.
+--
+-- public/portal/login.html tells an owner who has forgotten their password to
+-- message Prantivo on WhatsApp and it will be reset for them. Nothing in the
+-- system could honour that: POST /admin/api/tenants/:id/owner CREATES an account
+-- and 409s when one exists, and `git grep "UPDATE users"` over src/ and scripts/
+-- returned exactly one hit — last_login_at. A reset meant hand-editing in psql.
+--
+-- ── Why a column, and not just a new hash ────────────────────────────────────
+-- Phase 0 established that changing password_hash alone would have been WORSE
+-- THAN NOTHING in the exact case that motivates a reset. requirePortalAuth
+-- (src/portal/auth.js) re-reads the user row on every request but selects only
+-- `id, tenant_id, role, active` — password_hash is never consulted after login,
+-- and the session payload is `{ userId }` and nothing else. So a live portal.sid
+-- survived a password change for the remainder of its 12h window.
+--
+-- The owner who asks for a reset is very often the owner who suspects they have
+-- been compromised. A reset that rotates the credential while leaving the
+-- intruder's session authenticated is not a reset; it is a false assurance
+-- delivered at the worst possible moment.
+--
+-- This column is the session epoch. Login stamps its value into the session;
+-- requirePortalAuth compares the session's copy to the row on every request and
+-- 401s on mismatch. Rotating the password moves the column, so every session
+-- issued before the reset stops authenticating on its next request.
+--
+-- ⚠️ It is ALSO the durable audit record, and this is the second reason it is a
+-- column rather than an in-memory scheme. `users` already has updated_at and a
+-- BEFORE UPDATE trigger, but updated_at PROVABLY cannot record a reset: the
+-- login path itself UPDATEs this row (last_login_at) and fires the same trigger,
+-- so every sign-in bumps it. It cannot distinguish "an operator reset this
+-- password" from "the owner logged in". password_changed_at moves for exactly
+-- one reason and therefore means exactly one thing. No admin_audit table was
+-- built — see the filed item; a table with a single writer is infrastructure
+-- looking for a second caller.
+--
+-- ── No trigger, deliberately ─────────────────────────────────────────────────
+-- Unlike 012/013/026 this column gets NO trigger. A BEFORE UPDATE trigger would
+-- move it on the last_login_at write, which is precisely the defect that rules
+-- updated_at out above — every login would invalidate every other session of the
+-- same user, including its own. It is written explicitly, at exactly two sites:
+-- the DEFAULT on INSERT (account creation) and the reset UPDATE. This is the
+-- same "written explicitly, not by trigger" mechanism tenant_configs.updated_at
+-- uses, and 026's comment warns that these two mechanisms coexist in this
+-- schema. They still do. This is the explicit one.
+--
+-- ── Backfill: EVERY EXISTING PORTAL SESSION IS INVALIDATED ONCE, ON DEPLOY ────
+-- NOT NULL DEFAULT NOW() stamps every pre-existing row with the migration
+-- instant. Sessions issued before the deploy carry no epoch in their payload at
+-- all, and the comparison in requirePortalAuth is STRICT — a session with no
+-- epoch value is rejected, never admitted. So every owner signed in at the
+-- moment of deploy is signed out once and signs back in normally.
+--
+-- That is the deliberate choice, taken over a null-tolerant comparison. A
+-- comparison that admitted a session with a missing epoch would be a permanent
+-- bypass, not a migration accommodation: it would admit forever exactly the
+-- pre-reset sessions this column exists to evict, and an attacker who could
+-- strip a field from a session payload would hold a skeleton key. The cost is
+-- one forced re-login for anyone signed in at deploy; the alternative is that
+-- the feature does not work. There are zero production tenants at this commit,
+-- so the real blast radius is the shared dev database and any open portal tab.
+--
+-- NOT NULL is load-bearing for the same reason: it makes "no epoch on the row"
+-- unrepresentable, so the strict comparison can never be reached with a null on
+-- the database side and be tempted into tolerating it.
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW();

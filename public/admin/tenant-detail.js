@@ -334,6 +334,15 @@
     el.style.color = isErr ? '#b00020' : '#2e7d32';
   }
 
+  // One reveal path for both create and reset — the panel is shared so the
+  // shown-exactly-once behaviour cannot drift between the two actions.
+  function revealPassword(verb, email, password) {
+    $('ownerResultVerb').textContent = verb;
+    $('ownerResultEmail').textContent = email;
+    $('ownerPassword').textContent = password;
+    $('ownerResult').style.display = 'block';
+  }
+
   $('ownerCreateBtn').addEventListener('click', async () => {
     const email = $('ownerEmail').value.trim();
     ownerMsg('');
@@ -349,11 +358,10 @@
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 201) {
-        $('ownerResultEmail').textContent = data.email;
-        $('ownerPassword').textContent = data.password;
-        $('ownerResult').style.display = 'block';
+        revealPassword('Account created', data.email, data.password);
         ownerMsg('Account created — copy the temporary password now.', false);
         $('ownerEmail').value = '';
+        loadOwner();   // the account now exists; show the verification + reset block
         return;
       }
       // 400 (bad email), 409 (duplicate), 404 (absent tenant), 5xx — show the
@@ -361,6 +369,65 @@
       ownerMsg(data.error || ('Create failed (' + res.status + ')'), true);
     } finally {
       $('ownerCreateBtn').disabled = false;
+    }
+  });
+
+  // ── Existing owner account + password reset (F3-R1) ────────────────────────
+  // Read-only load of the operator's verification card. A tenant with no owner
+  // account (or an ambiguous one) simply keeps the block hidden — create is the
+  // action in that case, and the reset route refuses both anyway.
+  async function loadOwner() {
+    try {
+      const res = await adminFetch(`/admin/api/tenants/${encodeURIComponent(TID)}/owner`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.owner_count !== 1) { $('ownerExisting').style.display = 'none'; return; }
+
+      $('ownerExistingEmail').textContent = data.email;
+      // A configless tenant has no number on file. Say so rather than render an
+      // empty field the operator might read as "verified".
+      $('ownerVerifyNumber').textContent = data.verify_number || 'none on file';
+      $('ownerVerifySource').textContent = data.verify_number
+        ? data.verify_number_source
+        : 'no number in ' + data.verify_number_source + ' — verify by another means';
+      $('ownerExisting').style.display = 'block';
+    } catch (_) {
+      // A failed read leaves the block hidden; the operator can reload.
+    }
+  }
+
+  // Follows the Pause pattern (client-side window.confirm naming the consequence
+  // in the operator's terms, no server-side two-step). Consistency across the
+  // panel is itself a safety property: an operator who meets the same confirm
+  // shape on every consequential button learns more from it than one who meets a
+  // novel flow on each. The text names BOTH consequences, because the second one
+  // is the whole point of the mechanism and is invisible otherwise.
+  $('ownerResetBtn').addEventListener('click', async () => {
+    const email = $('ownerExistingEmail').textContent;
+    if (!window.confirm(
+      `Reset the portal password for ${email}?\n\n` +
+      '• Their current password stops working immediately.\n' +
+      '• Anyone currently signed in as this owner is signed out.\n\n' +
+      'A new password is shown once — read it to the owner. Verify who you are ' +
+      'speaking to first.')) return;
+
+    ownerMsg('');
+    $('ownerResult').style.display = 'none';
+    $('ownerResetBtn').disabled = true;
+    try {
+      const res = await adminFetch(`/admin/api/tenants/${encodeURIComponent(TID)}/owner/reset`, {
+        method: 'POST',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        revealPassword('Password reset', data.email, data.password);
+        ownerMsg('Password reset — copy it now and read it to the owner.', false);
+        return;
+      }
+      // 404 (no account), 409 (several owners), 5xx — the server's words name the fix.
+      ownerMsg(data.error || ('Reset failed (' + res.status + ')'), true);
+    } finally {
+      $('ownerResetBtn').disabled = false;
     }
   });
 
@@ -385,6 +452,6 @@
   (async function init() {
     if (!TID) { $('notFound').style.display = 'block'; return; }
     const ok = await loadConfig();
-    if (ok) { loadRevisions(); loadValidationRuns(); }
+    if (ok) { loadRevisions(); loadValidationRuns(); loadOwner(); }
   })();
 })();

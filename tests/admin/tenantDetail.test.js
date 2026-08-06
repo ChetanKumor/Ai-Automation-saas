@@ -27,7 +27,15 @@ async function sweep() {
   const c = admin();
   await c.connect();
   try {
-    const { rows } = await c.query("SELECT datname FROM pg_database WHERE datname LIKE 'zyon_test_%'");
+    // Disjoint, escaped prefix (F3-R1). This swept 'zyon_test_%' — which is a
+    // literal PREFIX of six other suites' scratch databases (zyon_test_conv_,
+    // _cp_, _mig_, _prov_, _tr_, _val_) and of configService's, which used the
+    // same bare name. Under node --test's parallel file scheduling this suite
+    // could pg_terminate_backend + DROP another suite's database mid-genesis,
+    // failing it with 57P01 or 3D000 from a file it never mentions. Escaping the
+    // underscores would NOT have fixed it: `%` still matches everything after
+    // the prefix. The prefix itself had to become disjoint.
+    const { rows } = await c.query("SELECT datname FROM pg_database WHERE datname LIKE 'zyon\\_tdet\\_%'");
     for (const r of rows) {
       await c.query('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname=$1 AND pid<>pg_backend_pid()', [r.datname]);
       await c.query('DROP DATABASE IF EXISTS ' + r.datname);
@@ -76,7 +84,7 @@ describe('tenant detail admin API (route-level)', { skip: ADMIN ? false : 'DATAB
 
   before(async () => {
     await sweep();
-    scratchName = 'zyon_test_' + crypto.randomBytes(6).toString('hex');
+    scratchName = 'zyon_tdet_' + crypto.randomBytes(6).toString('hex');
     const c = admin();
     await c.connect();
     await c.query('CREATE DATABASE ' + scratchName);

@@ -89,9 +89,37 @@
         </div>
         <div id="ownerMsg" class="muted-sm" style="margin-top:10px;"></div>
 
-        <!-- Password-shown-once panel. Green note = success; hidden until created. -->
+        <!-- Existing account + reset (F3-R1). The verification block is a
+             PREREQUISITE for the reset, not decoration: before it the owner's
+             email appeared nowhere in the panel, so an operator could not see
+             which account they were resetting. Hidden until the read-only
+             GET .../owner reports an account exists. -->
+        <div id="ownerExisting" style="display:none; margin-top:16px; padding-top:16px; border-top:1px solid #e5e5e5;">
+          <h4 style="margin:0 0 4px; font-size:14px;">Existing account</h4>
+          <span class="muted-sm">Verify the caller against BOTH fields before resetting.
+            The reset is for an owner who has phoned or messaged asking for one.</span>
+
+          <div style="display:flex; flex-wrap:wrap; gap:24px; margin:12px 0;">
+            <div>
+              <div class="muted-sm">Owner email</div>
+              <strong id="ownerExistingEmail" style="font-size:14px;">—</strong>
+            </div>
+            <div>
+              <div class="muted-sm">Verification number — match this against the
+                number the caller is contacting you from</div>
+              <strong id="ownerVerifyNumber" style="font-size:14px;">—</strong>
+              <div class="muted-sm" id="ownerVerifySource"></div>
+            </div>
+          </div>
+
+          <button id="ownerResetBtn" class="btn" style="background:#b00020; color:#fff;">Reset password</button>
+        </div>
+
+        <!-- Password-shown-once panel. Green note = success; hidden until created.
+             Shared by create AND reset — one panel, one copy button, so the
+             one-time-reveal behaviour cannot drift between the two actions. -->
         <div id="ownerResult" class="note" style="display:none; background:#e8f5e9; border-color:#a5d6a7; margin-top:12px;">
-          <div style="margin-bottom:8px;">Account created for <strong id="ownerResultEmail"></strong>. Temporary password:</div>
+          <div style="margin-bottom:8px;"><span id="ownerResultVerb">Account created</span> for <strong id="ownerResultEmail"></strong>. Temporary password:</div>
           <div class="flex-between" style="gap:10px;">
             <code id="ownerPassword" style="font-size:15px; font-weight:700; letter-spacing:.02em; word-break:break-all;"></code>
             <button id="ownerCopyBtn" class="btn btn-sm" style="background:#fff; color:#333; border:1px solid #a5d6a7;">Copy</button>

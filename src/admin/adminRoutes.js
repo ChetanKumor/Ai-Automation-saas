@@ -834,6 +834,153 @@ router.post('/api/tenants/:id/owner',
     }
   });
 
+// ── Owner password reset (F3-R1) ─────────────────────────────────────────────
+// public/portal/login.html tells an owner who has forgotten their password to
+// message Prantivo on WhatsApp and it will be reset for them. These two routes
+// are how that promise is kept. Reset is OPERATOR-ASSISTED by design: there is no
+// email transport anywhere in the repo, so a self-serve token flow would mean a
+// transport, an issue-and-expiry table and a reset route before a single paying
+// customer. The operator does it, here, for an owner who has phoned or messaged.
+//
+// Both routes are tenant-scoped from the PATH parameter only — never from a body.
+// The reset takes no body at all.
+
+// Resolve the single owner account for a tenant. Fails CLOSED on ambiguity rather
+// than guessing, mirroring portal login's `rows.length === 1` rule: `users` is
+// UNIQUE (tenant_id, email), so nothing stops a tenant having two owner rows under
+// two addresses, and silently resetting whichever sorted first is how an operator
+// hands a working password to the wrong person. Returns a count so the caller can
+// say which of "none" and "several" it is.
+async function findTenantOwner(tenantId) {
+  const { rows } = await db.query(
+    `SELECT id, email FROM users
+     WHERE tenant_id = $1 AND role = 'owner' AND active = true
+     ORDER BY created_at`,
+    [tenantId]
+  );
+  return { count: rows.length, owner: rows.length === 1 ? rows[0] : null };
+}
+
+// GET the operator's verification card for ONE tenant. Read-only.
+//
+// This route is a PREREQUISITE for the reset, not a convenience: before it, the
+// owner's email was displayed nowhere in the panel — the create card renders it
+// only in its one-time success message — so an operator resetting a password
+// could not see which account they were about to reset without opening psql.
+// Acting blind on an auth action is itself the defect.
+//
+// `verify_number` is config.notifications.owner_numbers[0], which B1 established
+// is the real owner alert recipient (tenants.owner_notify_phone has no production
+// writer and is empty for every real tenant). It is the number the operator should
+// match the incoming call or message against, and it is surfaced as a LABELLED
+// field because "dig it out of the config JSON editor" is not a verification
+// procedure.
+//
+// Deliberately narrow: NO password_hash, and no user fields beyond the email. The
+// counts and flags below are this route's own status, not user data.
+router.get('/api/tenants/:id/owner',
+  requireAuth, apiLimiter, requireTenantId,
+  async (req, res) => {
+    try {
+      const t = await db.query('SELECT id FROM tenants WHERE id = $1', [req.params.id]);
+      if (!t.rows[0]) return res.status(404).json({ error: 'Tenant not found' });
+
+      const { count, owner } = await findTenantOwner(req.params.id);
+
+      // A configless tenant is normal (the config is written at provisioning or
+      // by the portal), so a missing number is null, never an error.
+      let verifyNumber = null;
+      try {
+        const config = await configService.getTenantConfig(req.params.id);
+        const numbers = config && config.notifications && config.notifications.owner_numbers;
+        if (Array.isArray(numbers) && numbers.length > 0) verifyNumber = numbers[0];
+      } catch (_) {
+        verifyNumber = null;
+      }
+
+      res.json({
+        owner_count: count,
+        email: owner ? owner.email : null,
+        verify_number: verifyNumber,
+        verify_number_source: 'config.notifications.owner_numbers[0]',
+      });
+    } catch (err) {
+      logger.error({ err: err.message }, 'owner verification lookup error');
+      res.status(500).json({ error: 'Failed to load owner account' });
+    }
+  });
+
+// POST a password reset for a tenant's owner. The operator does NOT choose the
+// password — the server generates one, returns it exactly once, and the operator
+// reads it to the owner. An operator-typed password is an operator-KNOWN password.
+//
+// Same middleware chain as every other mutating admin route, including the create
+// route directly above. No body is read, so there is no express.json() and no way
+// for a caller to influence the target: the tenant comes from the path, and the
+// user from that tenant's single owner row.
+//
+// ⚠️ The UPDATE also moves password_changed_at, and that is the load-bearing half.
+// Phase 0 established that rotating password_hash alone leaves every live
+// portal.sid authenticated for the rest of its 12h window, because
+// requirePortalAuth never re-reads the hash. The owner asking for a reset is
+// frequently the owner who suspects compromise, so a reset that leaves the
+// intruder signed in is a false assurance delivered at the worst possible moment.
+// See migration 027 and src/portal/auth.js:sessionEpochMatches.
+router.post('/api/tenants/:id/owner/reset',
+  requireAuth, apiLimiter, requireAdminHeader, requireTenantId,
+  async (req, res) => {
+    try {
+      const t = await db.query('SELECT id FROM tenants WHERE id = $1', [req.params.id]);
+      if (!t.rows[0]) return res.status(404).json({ error: 'Tenant not found' });
+
+      const { count, owner } = await findTenantOwner(req.params.id);
+      if (count === 0) {
+        return res.status(404).json({ error: 'This clinic has no owner account yet. Create one instead.' });
+      }
+      if (!owner) {
+        return res.status(409).json({
+          error: `This clinic has ${count} active owner accounts. Reset is refused rather than guess which one — resolve the duplicate first.`,
+        });
+      }
+
+      const password = generateTempPassword();
+
+      // Single guarded UPDATE. tenant_id is in the predicate as well as the id, so
+      // the row can only be one this tenant owns even if findTenantOwner were ever
+      // widened — the route parameter scopes the write itself, not just the lookup.
+      // rowCount reports the outcome, so a row that vanished between the lookup and
+      // the write is a clean 404 rather than a silent success.
+      const { rowCount } = await db.query(
+        `UPDATE users SET password_hash = $1, password_changed_at = NOW()
+         WHERE id = $2 AND tenant_id = $3 AND role = 'owner' AND active = true`,
+        [hashPassword(password), owner.id, req.params.id]
+      );
+      if (rowCount === 0) {
+        return res.status(404).json({ error: 'This clinic has no owner account yet. Create one instead.' });
+      }
+
+      // The audit line. Follows the create route's shape above; correlation_id is
+      // attached automatically by the pino mixin (Issue 21) from the adm_ context
+      // this router installs. actor is 'admin_session' and NOT a person: admin auth
+      // is one shared ADMIN_PASSWORD with no operator identity (requireAuth checks
+      // a boolean), so naming a human here would be fiction. A named operator needs
+      // operator accounts, which do not exist.
+      //
+      // The password is NOT logged, and neither is the email — the userId
+      // identifies the row and carries less PII.
+      logger.info(
+        { scope: 'owner_auth', tenantId: req.params.id, userId: owner.id, actor: 'admin_session' },
+        'owner portal password reset');
+
+      // The new password crosses the wire exactly here, once. It is never stored
+      // in plaintext (only its scrypt hash is written above) and never logged.
+      res.json({ ok: true, email: owner.email, user_id: owner.id, password });
+    } catch (err) {
+      logger.error({ err: err.message }, 'reset owner password error');
+      res.status(500).json({ error: 'Failed to reset owner password' });
+    }
+  });
+
 // ── API: Turn traces (Issue 22) — thin read-only queries ─────────────────────
 // The queryable twin of the correlation-id log chains. Issue 27's viewer page
 // consumes exactly these two endpoints; no UI here.
