@@ -1,5 +1,6 @@
 const db = require('../../db/db');
 const { decrypt } = require('../../utils/encryption');
+const { normalizePhone } = require('../../utils/phone');
 const logger = require('../../infra/logging/logger');
 
 // In-memory tenant credential/config cache — avoids a DB hit (and a wa_token
@@ -84,6 +85,100 @@ const getById = async (tenantId) => {
   return row;
 };
 
+// ── Voice: dialled number (DID) → tenant (Issue 11) ──────────────────────────
+//
+// Redact for logs. V-014 is open on patient PII in operational logs; a DID is a
+// business line rather than a patient's number, but the same discipline applies
+// on a path that will eventually sit beside caller numbers. Enough digits to
+// tell two of a clinic's numbers apart when debugging an unresolved call, never
+// the whole thing.
+function redactDid(raw) {
+  const digits = String(raw ?? '').replace(/\D/g, '');
+  return digits.length >= 4 ? `***${digits.slice(-4)}` : '***';
+}
+
+/**
+ * Resolve the tenant that owns an inbound dialled number (DID).
+ *
+ * The DID lives at `config.voice.did` in the tenant's config document
+ * (`tenant_configs.config`, JSONB) — there is no column for it, and no index:
+ * one row per tenant at current scale, read once per call rather than per turn.
+ *
+ * Fails closed in every ambiguous or unrecognised case, always by returning
+ * null and never by throwing — an unknown inbound number is an expected
+ * condition on this boundary, not an exception:
+ *
+ *   • input that is not valid E.164 → null. `normalizePhone` throws by
+ *     contract, but every stored DID is validated on write by `configSchema`'s
+ *     `E164`, which imports the SAME `E164_RE` from `utils/phone` — so a string
+ *     that fails normalisation provably matches no tenant. Returning null is
+ *     equivalent to "no match", not a swallowed error.
+ *   • no active tenant claims it → null.
+ *   • MORE THAN ONE active tenant claims it → null, never the first row.
+ *     A DID in a JSONB document has no uniqueness constraint behind it (unlike
+ *     `tenants.phone_number_id`, which is UNIQUE, which is why
+ *     getByPhoneNumberId can carry LIMIT 1 and this cannot). Answering a
+ *     contested number with an arbitrary tenant is a cross-tenant leak.
+ *
+ * NOT a voice gate. A tenant with a DID set and `voice.enabled` false WILL
+ * resolve here: this function answers "whose number is this", not "may this
+ * clinic take calls". Gating on `voice.enabled` (and on lifecycle status) is
+ * the caller's responsibility — deliberately deferred, see Issue 14.
+ *
+ * @param {string} dialledNumber  The number that was dialled, any format.
+ * @returns {Promise<object|null>} The hydrated tenant row, or null.
+ */
+const getByDid = async (dialledNumber) => {
+  let did;
+  try {
+    did = normalizePhone(dialledNumber);
+  } catch (_) {
+    logger.warn({ scope: 'voice', did: redactDid(dialledNumber) },
+      'DID resolution: dialled number is not valid E.164');
+    return null;
+  }
+
+  // `t.active = true` here is load-bearing, NOT redundant with getById's copy.
+  // Without it an INACTIVE tenant sharing a DID with an active one would return
+  // a second row, trip the ambiguity guard below, and resolve a legitimate
+  // active tenant to null. Filtering only on hydration would produce that bug.
+  const { rows } = await db.query(
+    `SELECT t.id
+       FROM tenants t
+       JOIN tenant_configs tc ON tc.tenant_id = t.id
+      WHERE tc.config->'voice'->>'did' = $1
+        AND t.active = true`,
+    [did]
+  );
+
+  if (rows.length === 0) {
+    logger.info({ scope: 'voice', did: redactDid(did) },
+      'DID resolution: no active tenant owns this number');
+    return null;
+  }
+
+  if (rows.length > 1) {
+    logger.warn({ scope: 'voice', did: redactDid(did), matches: rows.length },
+      'DID resolution: ambiguous — multiple active tenants claim this number, refusing to guess');
+    return null;
+  }
+
+  // Hydration delegates to getById so there is ONE tenant-row shape, one lazy
+  // wa_token decrypt and one cache in this module — no DID-keyed cache, which
+  // would need its own invalidation on config writes that nothing provides.
+  // Null here means the tenant was deactivated between the two queries: benign,
+  // and it fails closed like every other path.
+  const tenant = await getById(rows[0].id);
+  if (!tenant) {
+    logger.info({ scope: 'voice', did: redactDid(did) },
+      'DID resolution: tenant went inactive during resolution');
+    return null;
+  }
+
+  logger.info({ scope: 'voice', tenantId: tenant.id }, 'DID resolved to tenant');
+  return tenant;
+};
+
 // Evict a single key's cache entry and its expiry timer. Safe if absent.
 function evictKey(phoneNumberId) {
   const handle = timers.get(phoneNumberId);
@@ -163,4 +258,4 @@ async function insertTenant(runner, fields = {}) {
   return rows[0];
 }
 
-module.exports = { getByPhoneNumberId, getById, invalidateTenantCache, stop, insertTenant };
+module.exports = { getByPhoneNumberId, getById, getByDid, invalidateTenantCache, stop, insertTenant };

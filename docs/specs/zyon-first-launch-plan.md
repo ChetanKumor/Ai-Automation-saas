@@ -90,9 +90,26 @@ DoD: rendered prompt snapshot tests per language.
 
 ## Phase 3 — Plivo / voice go-live (critical build path)
 
-**Issue 11 — feat: DID→tenant resolution.**
-`getTenantByChannel('voice', did)` reading `voice.did` from config; unknown-DID
-rejection path. DoD: unit tests incl. tenant isolation.
+**Issue 11 — feat: DID→tenant resolution.** **DONE.**
+`tenantService.getByDid(dialledNumber)` reading `voice.did` from the tenant
+config document (`tenant_configs.config`, JSONB — no column, no migration, no
+index); unknown-DID rejection path. DoD: integration tests incl. tenant
+isolation.
+
+⚠️ **Named `getByDid`, NOT the `getTenantByChannel('voice', did)` this line
+carried until the issue shipped** — and `docs/ZYON_V2_SPEC.md:118` still lists
+the old name, deliberately left as the historical spec it is. A two-argument
+dispatcher whose first argument has exactly one legal value is a seam for
+Issues 12/13, which Issue 11's scope forbids building; the codebase's actual
+convention is one named resolver per channel identifier
+(`getByPhoneNumberId`), not a dispatcher. Renamed here in the shipping commit
+so that a future session re-running the audit's
+`VERIFIED grep: no getTenantByChannel`
+(`docs/deploy/audit/2026-07-production-readiness.md:77`) does not read zero
+hits as "unstarted".
+
+⚠️ **Unwired.** The resolver has no production caller — Issue 12 supplies the
+dialled number. Its only evidence is its tests.
 
 **Issue 12 — feat: LiveKit SIP inbound wiring.**
 Inbound trunk + dispatch rule; worker extracts SIP metadata (caller/called
@@ -243,6 +260,32 @@ The precedence chain in `aiService` is untouched, as the finding requires. Setti
 legacy prompt remains possible **on purpose** via `scripts/update-prompt.js`; the issue
 removed the accident, not the capability. Covered by `tests/admin/tenantCreate.test.js`
 (form + route, 5 tests).
+
+**Issue 35 — feat: migrate the voice worker to Sarvam realtime STT + telephony tuning.**
+Allocated; prompt at `docs/prompts/issue-35-sarvam-realtime-stt.md`. Not started.
+
+**Issue 36 — chore: no operator surface writes `voice.did`.**
+Filed by the Issue 11 session, **not built, and NOT a launch blocker.** Verified by
+grep across `src/`, `scripts/` and `tests/`: `voice.did` is declared
+(`src/modules/config/schema.js:257`, `defaults.js:109`), read by validation
+(`src/modules/validation/validationService.js:259-264`) and now by
+`tenantService.getByDid`, and **written by nothing that has a UI or a CLI flag**.
+The Issue 15 provisioning CLI does not set it; the portal deliberately does not
+(`src/portal/routes.js:1433,1606` say so, and preserve it across saves); no script
+touches it.
+
+**Severity is ergonomics, not correctness.** The path is not broken — an operator can
+set a DID today through the admin JSON config editor, which goes through
+`configService.writeTenantConfig` and validates it against `E164` like any other
+field. What is missing is a labelled field, so setting a clinic's phone number means
+hand-editing a JSON document.
+
+Recorded because this is structurally the same shape as **B1's
+`tenants.owner_notify_phone`** — a field the runtime keys on that no product surface
+populates — and that one was expensive precisely because it was found late. This one
+is found before it has a caller. Do it when Issue 12 or 13 makes a DID something an
+operator actually needs to enter; there is nothing to configure until then, and
+external clock C-2 (Plivo DID) is still unfiled.
 
 ---
 
