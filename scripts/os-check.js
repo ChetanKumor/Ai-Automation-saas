@@ -4,8 +4,9 @@
 //
 // A commit cannot record its own sha, so `Verified-at` always names an ancestor.
 // The rule that makes that sound: a verification stays valid while nothing
-// OUTSIDE docs/os/ has changed since. Any src/, tests/ or package.json commit
-// invalidates it immediately, which is the drift this exists to catch.
+// OUTSIDE the exempt paths below has changed since. Any src/, tests/ or
+// package.json commit invalidates it immediately, which is the drift this exists
+// to catch.
 
 const { execSync, spawnSync } = require('child_process');
 const { readFileSync, writeFileSync } = require('fs');
@@ -22,15 +23,25 @@ const fail = [];
 const verifiedAt = (state.match(/^Verified-at:\s*([0-9a-f]{40})\s*$/m) || [])[1];
 const head = git('rev-parse HEAD');
 
+// Paths whose contents cannot invalidate a verification.
+//   docs/os/      — IS the record being verified.
+//   docs/prompts/ — an issue prompt is an input to a FUTURE session, not a
+//                   description of current state, so it cannot move a test count
+//                   or falsify a line in state.md. Committing one turned this
+//                   script red on a file that asserts nothing (a797d144).
+// Deliberately NOT all of docs/: an audit or architecture doc DOES describe
+// current state and must keep invalidating. See D-008 in docs/os/decisions.md.
+const EXEMPT = ['docs/os/', 'docs/prompts/'];
+
 if (!verifiedAt) {
   fail.push('state.md has no `Verified-at: <40-char sha>` line');
 } else if (verifiedAt !== head) {
   const changed = git(`diff --name-only ${verifiedAt}..${head}`)
-    .split('\n').filter((f) => f && !f.startsWith('docs/os/'));
+    .split('\n').filter((f) => f && !EXEMPT.some((p) => f.startsWith(p)));
   if (changed.length) {
     fail.push(
       `state.md verified at ${verifiedAt.slice(0, 8)}, HEAD is ${head.slice(0, 8)}; ` +
-      `${changed.length} file(s) changed outside docs/os/:\n    ` +
+      `${changed.length} file(s) changed outside ${EXEMPT.join(', ')}:\n    ` +
       changed.slice(0, 10).join('\n    ')
     );
   }

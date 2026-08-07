@@ -90,3 +90,28 @@ Note: **Batch 2 is not scheduled.** G-PROOF remains false — no production depl
   the next batch, and this entry must not be read as authorising one: per D-005's own
   terms, Batch 2 needs its own entry before a session may open it.
 Outcome: pending
+
+## D-008 — `os:check` exempts `docs/prompts/**` from the provenance diff
+Date: 2026-08-07
+Overrides: none — narrows the provenance rule in `scripts/os-check.js`, which is a
+  mechanism rather than a gate or a prior decision entry.
+Reason: `os:check` asserts two things — that the recorded state was verified at a commit,
+  and that nothing since could have invalidated it — and a markdown prompt file is an input
+  to a *future* session rather than a description of current state, so it cannot move a test
+  count or falsify a line in `state.md`; `docs/os/` has carried this exemption from the
+  start for exactly the same reason.
+Trigger: `a797d144` added `docs/prompts/issue-35-sarvam-realtime-stt.md` and turned
+  `os:check` red on a file that asserts nothing. It stopped the Issue 35 session at its
+  first Phase 0 gate, and would have recurred for **every** future issue prompt, so the
+  one-line `Verified-at` stamp was a symptom fix and was rejected as one.
+Scope of the carve-out: `docs/os/` and `docs/prompts/` only. Deliberately **not** all of
+  `docs/` — an audit, runbook, spec or architecture document *does* describe current state,
+  and must keep invalidating a verification. Widening this to `docs/` would silently retire
+  the check for `docs/architecture/ARCHITECTURE.md`, which is precisely the drift it exists
+  to catch.
+Prediction: the next issue prompt committed ahead of its session does not turn `os:check`
+  red, and no red `os:check` between now and the review date is traceable to a file under
+  `docs/prompts/`. Falsifier: if a `docs/prompts/` file is ever found to have invalidated a
+  line in `state.md`, this carve-out is wrong and must be **reverted, not widened**.
+Review: 2026-10-01
+Outcome: pending
