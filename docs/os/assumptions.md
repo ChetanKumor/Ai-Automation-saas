@@ -90,6 +90,11 @@ voice seed script set a legacy prompt. ⚠️ **Superseded by Issue 34 (2026-07-
 admin form is no longer one of them — the field and the route's acceptance of the
 parameter are both gone. Two surfaces remain, both deliberate.
 
+## A-009 — `voice.did` has no dedicated write surface
+Depends on it: Issues 11–14 being demonstrable end-to-end; anyone assuming a provisioned clinic arrives with its phone number set
+Cheapest test: already run (Issue 11 session, `9be2382`) — grep `src/`, `scripts/`, `tests/`. `config.voice.did` is declared (`config/schema.js:257`, `defaults.js:109`), read by `validation/validationService.js:259-264` and `tenantService.getByDid`, and written by nothing with a UI or a CLI flag: not the Issue 15 provisioning CLI, not the portal (`portal/routes.js:1433,1606` say so and preserve it across saves), no script.
+Status: **confirmed true.** Same class as `tenants.owner_notify_phone`, which B1 found had no production writer *after* it had shipped a silent no-op. **Not a blocker** — the admin JSON config editor sets a DID today through `configService.writeTenantConfig`, validated like any other field; what is missing is a labelled input. Filed as **Issue 36**, deliberately not built: nothing needs configuring until Issue 12 or 13 has a caller, and C-2 is unfiled. Recorded here so the next session that assumes a DID is set has to notice it isn't.
+
 ## A-008 — An owner editing a shadowed field is told their edit took effect
 Depends on it: whether A-007 is a latent trap or an active one
 Cheapest test: read the portal's save path for a legacy-prompt tenant and check for a warning surface.

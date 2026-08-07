@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: f055ed439dc3c3de6f7514a8c2573c75d3b78677
+Verified-at: 9be2382cc30bd5406343e6cd4361b7ab77e57c33
 Verified-on: 2026-08-07
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -58,7 +58,7 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 |---|---|---|---|---|
 | 1 | Genesis bootstrap works | PASS | **PASS** | `src/db/migrate.js`; `db:genesis`/`db:migrate`/`db:status` in `package.json`. Unchanged since the audit's live throwaway-DB run. |
 | 2 | Live WhatsApp round-trip on prod | PENDING | **PENDING** | No production deploy; no prod evidence log in the repo. Blocked on Issue 20. **Issue 20's scope is incomplete:** as scoped today it deploys the Express app and `public/**` and says nothing about `web/`, leaving the surface a prospect sees *first* un-deployed by any reviewable process. Issue 20 is not closeable until it carries a `web/` deploy line item — see F-F004 and the `web/` bullet under *Stack (frozen)*. |
-| 3 | Issue 14 voice gate | PENDING-DID | **PENDING-DID** | Issues 11–13 still absent. External clock C-2 unfiled. |
+| 3 | Issue 14 voice gate | PENDING-DID | **PENDING-DID** | **Issue 11 is now done** (`9be2382`) but is **unwired** — the resolver has no caller. Issues 12–13 still absent. External clock C-2 unfiled. |
 | 4 | Tenant isolation audit clean | PASS | **PASS** | Unchanged. The two F-016 letter-violations (`appointmentService.js:171`; dead `identityService.getTimeline`) remain open with zero tenant-facing exposure. |
 | 5 | Issue 18 closed | PASS | **PASS** | Plus `3584240`, which closed the audit's noted `SESSION_SECRET` → `ADMIN_PASSWORD` fallback residual. |
 | 6 | Backups exist with a tested restore | **FAIL** | **PASS** (repo side) | Closed by `e071f69`: `scripts/db/backup.sh`, `scripts/db/restore.sh`, `docs/runbooks/backup-restore.md`, live restore drill. ⚠️ Residue: enabling backups on the *production* provider is unverifiable until Issue 20. |
@@ -66,8 +66,10 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Test suite: **978 tests / 159 suites / 0 fail** (`npm test`, raw: `# tests 978 / # pass 978 / # fail 0`)
-  Moved by **F1** (+5 tests, +1 suite), **F2** (+4 tests, +1 suite), **F3**
+- Test suite: **989 tests / 160 suites / 0 fail** (`npm test`, raw: `# tests 989 / # pass 989 / # fail 0`)
+  Last moved by **Issue 11** (+11 tests, +1 suite —
+  `tests/voice/didResolution.integration.test.js`), before that by
+  **F1** (+5 tests, +1 suite), **F2** (+4 tests, +1 suite), **F3**
   (+9 tests, +1 suite — `tests/portal/portalWizardExit.unit.test.js`), **B1**
   (+14 tests, +1 suite — `tests/notification/ownerBookingAlert.integration.test.js`,
   plus one test each in `tests/lifecycle/lifecycle.integration.test.js` and
@@ -84,8 +86,8 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   `tests/portal/portalTestTurn.integration.test.js`), then **F3-R1** (+18 tests,
   +1 suite — `tests/admin/resetOwnerPassword.test.js`), all below. Every other
   line in this section that quotes 869/151, 874/152, 878/153, 887/154, 901/155,
-  924/156, 928/156 or 960/158 is describing the commit it names and is left as
-  written.
+  924/156, 928/156, 960/158 or 978/159 is describing the commit it names and is
+  left as written.
   ⚠️ **THE SUITE HAD A DATABASE-DESTROYING RACE BETWEEN TEST FILES, AND F3-R1
   FOUND IT BY PERTURBING THE SCHEDULE.** `tests/admin/tenantDetail.test.js` and
   `tests/config/configService.integration.test.js` both **created**
@@ -138,8 +140,87 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **Issue 11 — DID→tenant resolution. DONE** (`9be2382`), and **UNWIRED**.
+  `tenantService.getByDid(dialledNumber)` returns the tenant that owns an
+  inbound dialled number, or null.
+  ⚠️ **THE HONEST CLAIM IS NARROW AND THE COMMIT SAYS SO. This does NOT mean
+  voice can route calls.** The resolver has **no production caller** — Issue 12
+  supplies the dialled number — so passing tests are the only evidence available,
+  which is weaker than this repository's usual runtime-evidence bar. Nothing was
+  wired to it, deliberately: `src/routes/internalVoice.js` and the
+  `/internal/voice/*` contract are untouched.
+  **Placed in `src/modules/tenant/tenantService.js`**, beside `getByPhoneNumberId`
+  and `getById` — CLAUDE.md assigns tenant lookup to that module, and this is the
+  same operation keyed on a different channel identifier. `src/modules/voice/`
+  holds call-session lifecycle and the provider seam; a tenant lookup there would
+  split tenant resolution across two modules by channel.
+  **NO MIGRATION AND NO INDEX.** The DID lives at `config.voice.did` in
+  `tenant_configs.config` (JSONB), reached by
+  `JOIN tenant_configs tc ON tc.tenant_id = t.id` — the same shape
+  `retentionCron.js:24-35` already uses on that column. A column would duplicate a
+  value the config document already owns *and* validates through `configSchema`,
+  giving one fact two sources of truth with nothing syncing them, and would cost a
+  schema change on a pre-genesis repo. No index at ≤10 tenants: one row per tenant,
+  read once per call rather than per turn, and an expression index on a JSONB path
+  is itself a migration whose write cost is paid on every config save.
+  ⚠️ **THE AMBIGUITY GUARD IS THE POINT, AND IT COULD NOT BE COPIED FROM THE
+  WHATSAPP RESOLVER.** `tenants.phone_number_id` is `UNIQUE` (`schema.sql:55`), so
+  `getByPhoneNumberId` can carry `LIMIT 1` and never meets a second row. A DID in a
+  JSONB document has **no uniqueness constraint behind it at all**, so the
+  contested case is real here and `LIMIT 1` was deliberately not carried across —
+  it would silently convert ambiguity into a first-row match, which is a
+  cross-tenant leak. Two or more active tenants matching ⇒ **null plus a warning**,
+  never a guess.
+  ⚠️ **`t.active = true` IS ON BOTH QUERIES AND THE FIRST ONE IS LOAD-BEARING —
+  measured, not argued.** Removing that single clause from the DID query (hydration
+  still filters, since `getById` carries its own) turns test **(9)** red while test
+  **(8)** stays **green**: an inactive tenant sharing a DID with an active one
+  returns a second row, trips the ambiguity guard, and answers null for a clinic
+  that is legitimately the only active owner of its number. So filtering only on
+  hydration would have shipped the bug **with the obvious test still passing**. The
+  matching red-check on the guard itself fails test (10) and nothing else.
+  **Fails closed everywhere else too:** input that is not valid E.164 → null (not a
+  throw — `normalizePhone` throws by contract, but every stored DID is validated on
+  write by `configSchema`'s `E164`, which imports **the same** `E164_RE`, so a
+  string that fails normalisation provably matches no tenant; null is *equivalent
+  to* no-match, not a swallowed error), no match → null, tenant deactivated
+  mid-resolution → null.
+  ⚠️ **NOT a voice gate, and this is in the JSDoc rather than only in the commit
+  message**, because Issue 12's author will read the function. A tenant with a DID
+  set and `voice.enabled` **false WILL resolve** — the function answers "whose
+  number is this", not "may this clinic take calls". Gating on `voice.enabled` and
+  on lifecycle status is Issue 14's, and building a seam for it here was refused.
+  **Hydration delegates to the existing `getById`** — one tenant-row shape, one
+  lazy `wa_token` decrypt, one cache. No DID-keyed cache: it would need its own
+  invalidation on *config* writes, which nothing provides.
+  **PII:** tenant id on success; the dialled number never appears in full at any
+  level, only a last-4 redaction, per open finding **V-014**. The correlation id
+  rides the pino mixin and is not spelled at the call sites.
+  ⚠️ **NAMED `getByDid`, NOT the plan's `getTenantByChannel('voice', did)`, and the
+  plan was corrected in the SAME commit.** A two-argument dispatcher whose first
+  argument has exactly one legal value is a seam for Issues 12/13; the codebase's
+  real convention is one named resolver per channel identifier. The rename would
+  otherwise have broken the evidence trail: the audit established this issue as
+  MISSING via `VERIFIED grep: no getTenantByChannel`
+  (`docs/deploy/audit/2026-07-production-readiness.md:77`), so a future session
+  re-running that grep would read zero hits as *unstarted*.
+  `docs/specs/zyon-first-launch-plan.md` now names `getByDid`;
+  `docs/ZYON_V2_SPEC.md:118` is left alone as the historical spec it is.
+  ⚠️ **FILED, NOT BUILT — Issue 36: no operator surface writes `voice.did`.**
+  Verified by grep across `src/`, `scripts/` and `tests/`: the key is declared
+  (`config/schema.js:257`, `defaults.js:109`), read by validation
+  (`validation/validationService.js:259-264`) and now by `getByDid`, and written by
+  **nothing with a UI or a CLI flag** — not the Issue 15 provisioning CLI, not the
+  portal (`portal/routes.js:1433,1606` say so and preserve it across saves), not
+  any script. Structurally the same shape as **B1's `tenants.owner_notify_phone`**,
+  which was expensive precisely because it was found late. **NOT a launch blocker,
+  and must not be read as one:** the admin JSON config editor can set a DID today
+  through `configService.writeTenantConfig`, validated like any other field. What
+  is missing is a labelled input, so setting a clinic's number means hand-editing
+  JSON. Nothing to configure until Issue 12 or 13 needs it, and C-2 is still
+  unfiled.
 - **F3-R1 — the login page promised a password reset the system could not
-  perform. FIXED** (this commit). `public/portal/login.html` has told owners
+  perform. FIXED** (`740c1c7`). `public/portal/login.html` has told owners
   since F3 to message Prantivo on WhatsApp for a reset;
   `POST /admin/api/tenants/:id/owner` **creates** an account and 409s when one
   exists (`adminRoutes.js:813-815`, `23505` backstop at `:829`), and the only
@@ -1077,12 +1158,20 @@ By issue number, from `docs/specs/zyon-first-launch-plan.md`.
 GitHub issue tracker in use and nothing in the repo references one, so the launch plan is
 the numbering authority — allocate the next free number there. (Whether issues exist on
 github.com is not repo-derivable; what is verified is that nothing in this repo cites
-them.) The sequence runs to **34**, not 28: the original plan defined 1–28 and later work
+them.) The sequence runs to **36**, not 28: the original plan defined 1–28 and later work
 kept counting.
 
-- **Done:** 3, 4, 5, 6, 7, 8, 9, 10, 15, 16, 17, 18, 19, 21, 22, 29, 30, 31, 32, 33, 34
-- **Not done:** 1 (ops), 2 (ops), 11, 12, 13, 14, 20, 23, 24, 27, 28
+- **Done:** 3, 4, 5, 6, 7, 8, 9, 10, **11**, 15, 16, 17, 18, 19, 21, 22, 29, 30, 31, 32, 33, 34
+- **Not done:** 1 (ops), 2 (ops), 12, 13, 14, 20, 23, 24, 27, 28, **35**, **36**
 - **Residue-only** (built and tested; awaiting Issue 20 for a prod render): 25, 26
+
+⚠️ **11 is done but UNWIRED** — `getByDid` has no caller until Issue 12. Counting it
+as done is correct and counting it as progress toward a live call is not; see the
+Issue 11 entry above. **The sequence now runs to 36, not 34.** 35 (Sarvam realtime
+STT) was allocated by `a797d14`'s prompt file and never written into the plan's
+Phase 8; 36 (no operator surface writes `voice.did`) was filed by the Issue 11
+session. Both are now recorded in `docs/specs/zyon-first-launch-plan.md` §Phase 8.
+**Next free number is 37.**
 
 **Issues 31–33 — verified complete (2026-07-28), was "allocated, unverified."** The
 Issue-NN ↔ V-number mapping is still recollection, not a repo-written fact — no
