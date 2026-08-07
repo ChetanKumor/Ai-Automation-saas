@@ -36,6 +36,42 @@ npm run db:migrate   # apply pending migrations in order (an existing untracked 
 npm run db:status    # list applied (stamped vs run) + pending; exits nonzero if anything is pending
 ```
 
+## Signing into the portal locally
+
+There is no self-serve password reset and no email transport. To get into
+`/portal` on a dev machine, seed an owner with a password you choose:
+
+```bash
+npm run db:status                       # MUST be clean — see the warning below
+PORTAL_SEED_PASSWORD='pick-one' node scripts/seed-portal-owner.js \
+  --email you@example.com               # defaults to the Smile Dental (Voice Dev) tenant
+npm run dev                             # then http://localhost:3000/portal/login.html
+```
+
+Flags: `--tenant <uuid>` to target another tenant, `--allow-remote-host` when
+`DATABASE_URL` is not localhost, `--allow-second-owner` to add an owner to a
+tenant that already has a different one. The script refuses outright under
+`NODE_ENV=production`, and never has a default password.
+
+Re-running with the same email updates the password in place. That moves
+`users.password_changed_at`, which is the migration-027 session epoch, so **every
+existing portal session for that user is signed out**.
+
+⚠️ **Run `npm run db:status` first, and believe it.** The portal login query reads
+`users.password_changed_at` (`src/portal/routes.js:115`). Against a database
+missing that column the query raises `42703`, `routes.js:119-122` turns it into a
+**500**, and `public/portal/login.html:132-136` renders every non-429 failure as
+*"That email and password don't match"* — so a schema problem is indistinguishable
+from a wrong password at the UI. **The test suite cannot catch this**: suites needing
+the column mint a genesis scratch DB from `schema.sql`, so the suite stays green
+while the dev database is broken. `seed-portal-owner.js` refuses to run with
+pending migrations for exactly this reason; nothing else on the login path does.
+
+Operator-facing reset (for a real owner, password generated server-side so no
+operator ever knows it) is the admin panel's
+`POST /admin/api/tenants/:id/owner/reset`. It refuses with a 409 when a tenant has
+more than one active owner.
+
 ## Architecture
 
 **Runtime:** Node.js + Express 5, PostgreSQL (via `pg` Pool), no ORM.
