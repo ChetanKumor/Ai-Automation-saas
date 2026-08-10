@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 5a2be35b035562a7862898667b16ca0c8695f188
+Verified-at: 091aa199a410d996f530bac7290386b8c6659798
 Verified-on: 2026-08-10
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -66,14 +66,21 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Test suite: **1019 tests / 168 suites / 0 fail** (`npm test`, raw: `# tests 1019 /
-  # pass 1019 / # fail 0 / # cancelled 0 / # skipped 0`)
+- Test suite: **1028 tests / 171 suites / 0 fail** (`npm test`, raw: `# tests 1028 /
+  # pass 1028 / # fail 0 / # cancelled 0 / # skipped 0`)
   ⚠️ **GREEN NOW MEANS THREE COUNTERS, NOT ONE.** `npm run os:check` refuses on
   `# fail`, `# cancelled` **and** `# skipped`, and on any of them being unparseable.
   Quoting `# fail 0` alone no longer establishes that a run was clean — see the
   RAG Session 3 note below. Three consecutive full runs at this commit:
-  1019/168/0/0/0, and three at `776b63d` before the change at 1000/164/0/0/0.
-  Last moved by **RAG Session 3 — per-caller embedding deadlines** (+19 tests,
+  1028/171/0/0/0, and three at `6c36259` before the change at 1019/168/0/0/0.
+  Neither recorded intermittent fired in any of the six
+  (`portalFaqs.integration.test.js:465` did not resurface, and
+  `portalKnowledgeSummary` produced no cancellations).
+  Last moved by **RAG Session 4A — the provisioning CLI reports the tenant**
+  (+9 tests, +3 suites — `tests/provisioning/provisionCli.integration.test.js`
+  at 7 across two suites and `tests/provisioning/kbTenantBinding.integration.test.js`
+  at 2; see D-012 and the note below), before that by
+  **RAG Session 3 — per-caller embedding deadlines** (+19 tests,
   +4 suites — `tests/knowledge/embedBudgets.unit.test.js` at 5,
   `tests/knowledge/embedWarmup.unit.test.js` at 6,
   `tests/infra/osCheckGate.unit.test.js` at 6 and
@@ -229,11 +236,62 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   allowlist, so a suite that stops stubbing comes back under the guard on its own.
   A second test fails on any in-scope declaration the scan cannot resolve
   statically, so the scan's blind spot is loud rather than silent.
-  ⚠️ **§F.4's OTHER FOUR TESTS ARE NOT IMPLEMENTED.** T-3 (provisioning `--kb-dir`
-  dedup, **P5-1**), T-4 (the three out-of-module readers, **P5-9**), T-5 (`getTrace`
-  reachability, **P5-2**) and T-6 (foreign-vs-fabricated FAQ id equality) defend
-  different hops and remain open. P5-1 in particular is untouched: on the `--kb-dir`
-  path the tenant boundary is still an operator typing a filename (§A.6).
+  ⚠️ **§F.4's OTHER THREE TESTS ARE NOT IMPLEMENTED.** T-4 (the three out-of-module
+  readers, **P5-9**), T-5 (`getTrace` reachability, **P5-2**) and T-6
+  (foreign-vs-fabricated FAQ id equality) defend different hops and remain open.
+  **T-3 is now implemented** — see the next entry.
+  **THE PROVISIONING CLI NOW REPORTS THE TENANT, NOT THE ARGUMENT — what RAG
+  Session 4A's +9 buys, and what it deliberately did not buy** (**D-012**).
+  P5-1 was the audit's second structural finding: on the `--kb-dir` path the tenant
+  boundary is an operator typing a filename (§A.6). It was **measured, not argued**,
+  against a seeded scratch database at `6c36259` — one missing hyphen in the slug
+  (`smile-dental` → `smiledental`) with the same `--kb-dir` created a **second
+  tenant**, ingested the clinic's whole knowledge base into it, and printed
+  `✓ provisioned` plus *"Knowledge base ingested"* at **exit 0**. The operator's only
+  signal was the filenames they had just typed.
+  The CLI now resolves the target through `provisioningService.describeTarget` — the
+  same `definitionSchema` the write uses, so the displayed slug is provably the
+  written slug — and prints `business_name`, slug, tenant id, status/active, config
+  version and chunk counts **by source prefix** from the ROWS, before the first write,
+  then asks for confirmation (`--yes` skips it; **a missing terminal is a refusal, not
+  a default-yes**). `--dry-run` performs the same resolution and display and then
+  exits, where before it returned at `provisioningService.js:189-207`, **ahead of the
+  slug lookup at `:210`**, and could only echo the operator's own input. After the run
+  the tenant is read again and rows **actually present** are reported per source file
+  beside the label the run assigned, with disagreements marked `⚠ DISCREPANCY`.
+  ⚠️ **ONE behaviour is refused, and the scope is the decision**: `--kb-dir` against a
+  slug that names no tenant. Not every unresolved slug — that would disable tenant
+  creation, which is the CLI's purpose. `--kb-dir` is **step 3** of the runbook this
+  CLI itself prints, so on the documented path the tenant already exists and a slug
+  that misses there is a typo. It is **the one guard `--yes` cannot skip**, which is
+  exactly where a confirmation prompt is worth nothing.
+  ⚠️ **WRITE SEMANTICS ARE UNCHANGED AND THAT IS EVIDENCED, NOT ASSERTED.**
+  `ingestKnowledge` (1,240 B), `provisionTenant` (4,659 B) and `writeConfigV1` (414 B)
+  are **byte-identical** to `6c36259` — extracted from both revisions and compared —
+  and the `provisioningService.js` diff is two hunks, both pure insertions
+  (`@@ -156,0 +157,108 @@`, `@@ -299,0 +408,5 @@`), with **zero removed lines**. The
+  `source` dedup, the skip semantics and the write order are what they were.
+  ⚠️ **THE READ-BACK REVEALS SOMETHING IT CANNOT ANSWER, AND THAT IS THE HANDOFF.**
+  `hours.md attempted skipped observed 4 row(s)` prints identically whether the
+  document is complete or was truncated by a failure at chunk 5 of 26: **the schema
+  records no expected chunk count and no completion flag** (`schema.sql:289-301`), so
+  "fully ingested" and "partially ingested and skipped" are the same observation.
+  That is D2-01 / Q2-4, now **visible** rather than invisible, which is as far as a
+  reporting change reaches. Per-chunk dedup, resume-after-partial-failure, that
+  distinction as a POLICY, the opposite retry semantics of
+  `scripts/ingest-knowledge.js` (no dedup — a re-run duplicates rows 1..N−1), and a
+  transaction around `storeChunks` are all deliberately **not** built.
+  **T-3 (§F.4) is what pins the tenant half of the ingest dedup key.**
+  `tests/provisioning/kbTenantBinding.integration.test.js` ingests one `--kb-dir` into
+  tenant A and then tenant B and asserts both hold full copies with A's rows
+  untouched. The write path is **not** stubbed — `ingestKnowledge → chunkText →
+  storeChunks →` the real INSERT all execute; only the SDK transport is replaced, per
+  Session 1's idiom, so no Gemini quota is spent. Red-checked by execution: dropping
+  `tenant_id = $1` from `provisioningService.js:137` turns exactly that test red
+  naming the key, and the sibling re-run test stays green. The CLI suite is
+  red-checked the same way — removing the pre-write display reds tests 1 and 3,
+  removing the read-back reds 3 and 5, removing the refusal reds 6, and neutering the
+  confirmation reds 4, each **and nothing else**.
   ⚠️ **THE SUITE HAD A DATABASE-DESTROYING RACE BETWEEN TEST FILES, AND F3-R1
   FOUND IT BY PERTURBING THE SCHEDULE.** `tests/admin/tenantDetail.test.js` and
   `tests/config/configService.integration.test.js` both **created**

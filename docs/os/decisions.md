@@ -375,3 +375,119 @@ on any of those counters being unparseable. Before this, `# fail 0` was the whol
 `# fail` counts one of the three ways a test can end without passing — Session 2 hit
 `# cancelled 4, # fail 0` for real and the gate called it green. Any past entry quoting a
 clean run is quoting a weaker claim than an entry written after this commit.
+
+## D-012 — The provisioning CLI reports the tenant, not the argument; write semantics deliberately unchanged
+Date: 2026-08-10
+Overrides: nothing. Amends no prior entry. It acts on **P5-1**
+  (`docs/os/audits/rag/05-isolation.md` §A.6) and implements **T-3** from §F.4, and it
+  leaves **D2-01** / **Q2-4** (`02-ingestion.md` §D.2) open on purpose — see the split
+  below.
+Decision: on the `--kb-dir` provisioning path, what the operator SEES changes and what the
+  CLI WRITES does not. Three changes, all in `scripts/provision-tenant.js` plus four
+  read-only functions in `src/modules/provisioning/provisioningService.js`:
+
+  1. **The target is resolved and displayed before the first row is written.**
+     `describeTarget(definition)` parses the definition through the same
+     `definitionSchema` the write uses — so the slug displayed is provably the slug written
+     to — then READS `tenants`, `tenant_configs` and a `GROUP BY` over
+     `knowledge_chunks.source`. `business_name`, slug, tenant id, status/active, config
+     version and the current chunk count by source prefix are printed from those rows.
+     Then a confirmation, skippable with `--yes`; a missing terminal is a **refusal**, not
+     a default-yes.
+  2. **`--dry-run` performs the same resolution and display**, then exits without writing.
+     It used to return at `provisioningService.js:189-207`, before the slug lookup at
+     `:210`, so it echoed the operator's own input.
+  3. **After the run the tenant is read again** and rows actually present are reported per
+     source file beside the label the run assigned (`attempted ingested → observed 1
+     row(s)`). Disagreements are marked `⚠ DISCREPANCY` and nothing else happens.
+
+  Plus **T-3**: `tests/provisioning/kbTenantBinding.integration.test.js` ingests one
+  `--kb-dir` into tenant A and then tenant B and asserts both hold full copies with A's
+  rows untouched.
+
+**THE MEASUREMENT THAT SIZES THIS.** The finding was not argued, it was executed against a
+  seeded scratch database. HEAD's CLI, one missing hyphen in the slug
+  (`smile-dental` → `smiledental`), same `--kb-dir`:
+
+```
+✓ provisioned 'smiledental'  (tenant b25c00a2-…)
+  created:  tenant, config@v1
+  kb:       ingested 2 doc(s): hours.md, services.md
+  3. Knowledge base ingested. Add more docs any time with --kb-dir.
+exit=0
+```
+
+  A **second tenant** was created and the clinic's whole knowledge base ingested into it,
+  and the run reported success. The operator's only signal was the filenames they had just
+  typed. The same command now prints the target first and refuses (§A.6's mis-aim, with the
+  CREATE path still open underneath it), writing nothing.
+
+**WHAT `--dry-run` NOW SHOWS, AND WHY IT IS THE WHOLE POINT.** The definition file and the
+  database row are allowed to carry different names, and until now only the file's name
+  ever reached the screen:
+
+```
+── Target — read from the database, not from your arguments ──
+  business_name:    Smile Dental (Voice Dev)      ← the row
+  slug:             smile-dental
+  tenant id:        e9070982-8c3f-453e-9e44-22e2f9071a58
+  knowledge_chunks: 12 row(s) — by source prefix:
+      faq                                8 row(s)
+      hours.md                           4 row(s)
+───────────────────────────────────────────────────────────
+DRY RUN — no rows written.
+{ "tenant": { "business_name": "Sunrise Dental Care", … } }   ← the file
+```
+
+  Both halves are printed and **labelled separately**. Conflating them is what made the old
+  dry run structurally incapable of catching a mis-aim, and the test that pins it asserts
+  the row's name appears in the target block and the file's name does not.
+
+**THE ONE BEHAVIOUR THAT IS REFUSED, AND WHY IT IS SCOPED THE WAY IT IS.** §6.1(b) of the
+  session brief required an unresolved tenant to fail loudly and not create. Applied
+  literally to every path that would disable tenant creation, which is the CLI's purpose.
+  It is therefore scoped to **`--kb-dir` against a slug that names no tenant**, which is
+  exactly where the audit found the hazard: `--kb-dir` is step 3 of the runbook the CLI
+  itself prints, so on the documented path the tenant always already exists, and a slug
+  that does not resolve there is a typo rather than a new clinic. Creating a tenant is
+  still one command — the same one without `--kb-dir`. **This guard is the one `--yes`
+  cannot skip**, deliberately: a confirmation prompt is worth nothing in the
+  non-interactive case, which is the case a runbook actually runs in.
+
+**WHAT WAS NOT CHANGED, AND THE EVIDENCE.** `ingestKnowledge`, `provisionTenant` and
+  `writeConfigV1` are **byte-identical to HEAD** — extracted from both revisions and
+  compared, 1240 / 4659 / 414 bytes each. The diff of
+  `src/modules/provisioning/provisioningService.js` is two hunks, both pure insertions
+  (`@@ -156,0 +157,108 @@` and `@@ -299,0 +408,5 @@`), with **zero removed lines**. The
+  `source` dedup (`WHERE tenant_id = $1 AND source = $2`), the skip semantics
+  (`result.skipped.push(source); continue`) and the write order are what they were.
+
+**WHAT THE READ-BACK REVEALED AND THIS SESSION DID NOT ACT ON — the input the next session
+  is waiting on.** The per-source report now puts a number on screen where there was none,
+  and the number cannot answer the question it invites. `hours.md attempted skipped
+  observed 4 row(s)` is printed identically whether the document is complete or was
+  truncated by a failure at chunk 5 of 26: **nothing in the schema records how many chunks
+  a document should have** (`schema.sql:289-301` — no status column, no expected count, no
+  completion flag), so "fully ingested" and "partially ingested and skipped" are the same
+  observation. That is D2-01/Q2-4 exactly, and it is now VISIBLE rather than invisible,
+  which is as far as a reporting change can take it. Fixing it means changing the dedup key
+  or adding a marker, i.e. changing what is written.
+
+Also unresolved and deliberately not touched: the opposite retry semantics of
+  `provisioningService.ingestKnowledge` (dedups by source) and `scripts/ingest-knowledge.js`
+  (no dedup — a re-run duplicates rows 1..N−1); wrapping `storeChunks` in a transaction;
+  and the product-surface question of whether document chunks should be deletable at all
+  (`faqService.js:109-112` filters them out of the FAQ editor, and there is no admin chunk
+  route, so a mis-aimed document is still removable only in `psql`).
+
+Prediction: an operator running the onboarding runbook against the wrong clinic sees the
+  wrong clinic's name before they confirm, and a mistyped slug on the `--kb-dir` path
+  cannot mint a tenant at all. Observable at customer #1, which is P5-1's stated trigger.
+Falsifier: a mis-aimed ingest that still lands — i.e. the operator reads the target block
+  and confirms anyway, which would mean the display is present but not legible, not that
+  the read is wrong. Also: `--yes` becoming the habitual invocation, which would reduce
+  change 1 to change 3 (a report after the fact) and leave only the unresolved-slug refusal
+  doing prevention.
+Review: at customer #1's onboarding, or when Session 4B changes the dedup key — whichever
+  is first. Bring the per-source `attempted → observed` output from the real run.
+Outcome: pending
