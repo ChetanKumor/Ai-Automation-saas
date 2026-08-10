@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 1fbd2cb43a4d1cea9027a97fad8f04ac81ed0d21
+Verified-at: 5a2be35b035562a7862898667b16ca0c8695f188
 Verified-on: 2026-08-10
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -66,8 +66,19 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Test suite: **1000 tests / 164 suites / 0 fail** (`npm test`, raw: `# tests 1000 / # pass 1000 / # fail 0`)
-  Last moved by **RAG Session 2 — bounding the embedding call** (+9 tests, +3 suites —
+- Test suite: **1019 tests / 168 suites / 0 fail** (`npm test`, raw: `# tests 1019 /
+  # pass 1019 / # fail 0 / # cancelled 0 / # skipped 0`)
+  ⚠️ **GREEN NOW MEANS THREE COUNTERS, NOT ONE.** `npm run os:check` refuses on
+  `# fail`, `# cancelled` **and** `# skipped`, and on any of them being unparseable.
+  Quoting `# fail 0` alone no longer establishes that a run was clean — see the
+  RAG Session 3 note below. Three consecutive full runs at this commit:
+  1019/168/0/0/0, and three at `776b63d` before the change at 1000/164/0/0/0.
+  Last moved by **RAG Session 3 — per-caller embedding deadlines** (+19 tests,
+  +4 suites — `tests/knowledge/embedBudgets.unit.test.js` at 5,
+  `tests/knowledge/embedWarmup.unit.test.js` at 6,
+  `tests/infra/osCheckGate.unit.test.js` at 6 and
+  `tests/infra/fixtureTenantIds.unit.test.js` at 2; see D-011 and the note
+  below), before that by **RAG Session 2 — bounding the embedding call** (+9 tests, +3 suites —
   `tests/knowledge/embedTimeout.unit.test.js` at 4,
   `tests/prompts/knowledgeAbsent.unit.test.js` at 4, and
   `tests/voice/voiceStreamRagSignal.integration.test.js` at 1; see D-010 and the
@@ -128,6 +139,65 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   shipping it alone would have traded a hung turn for a confidently invented one. The
   zero-chunk branch now keeps the anti-invention instruction. See **D-010** for the
   derivation of 3,000 ms and the coupling.
+  **ONE DEADLINE CANNOT SERVE THREE CALLERS — what RAG Session 3's +19 buys, and
+  why D-010 needed amending one commit after it landed.** D-010 bounded every
+  embedding call at a single **3,000 ms** derived from the voice turn, and recorded
+  its own falsifier: *"five samples on one machine against one region is not a
+  distribution, so the cold-start floor in particular rests on a single
+  observation."* **That falsifier fired** — in the suite rather than in production.
+  `tests/portal/portalFaqs.integration.test.js:465` POSTs a FAQ;
+  `createChunk` makes the first **cold** embedding call of that test process; under
+  `node --test`'s 20-way file parallelism it exceeded 3,000 ms, `EMBED_TIMEOUT`
+  propagated and the route **500'd**. An owner clicking Save had been held to a
+  voice turn's deadline, and **that request has no turn budget at all** — nothing
+  else on it can end it (`server.timeout` defaults to 0; `public/portal/faqs.js`
+  sets no fetch timeout — `02-ingestion.md` §D.3).
+  `embed` now takes a budget **class**, not a number, so the derivation lives in
+  one table rather than at four call sites: **turn 3,000 ms** (unchanged —
+  D-010's derivation, scoped to the path it was derived for), **interactive
+  10,000 ms** (`createChunk`/`updateChunk`), **batch 30,000 ms** (`storeChunks`).
+  The default, and the fallback for an unknown class name, is the **tightest**
+  class. Both directions were proven against `portalFaqs:465` **unedited**:
+  `EMBED_TIMEOUT_MS=50` used to fail it at `:474` (`500 !== 200`) and now fails it
+  at `:477` instead (`EmbedTimeoutError … 'turn'` — the retrieval call, which is
+  still turn-bound), while `EMBED_TIMEOUT_INTERACTIVE_MS=50` reproduces the
+  original failure byte-identically.
+  ⚠️ **The `:148-151` binding split is UNCHANGED** and so is `INV-R1`. The bound
+  still lives inside `embed`'s body; only the *class* is chosen at the call site.
+  **THE COLD CALL'S SPREAD IS THE FINDING, and it is why no bound derived from the
+  last sample is safe.** Measured through the SDK boundary during a full suite run
+  this session: cold **613 / 653 / 756 ms** under the same 20-way parallelism that
+  produced the red, warm **431–478 ms** across 9 calls (median 459). D-010 measured
+  **2,555 ms** cold uncontended. The first Session 3 attempt measured 1,281 and
+  1,371 ms cold, and **above 3,000 ms** under parallelism. That is a spread of at
+  least **4.9×** on one machine, one network, one region — so the interactive
+  floor is measured from 3,000 ms, *the only value ever observed to fire*, not from
+  the last healthy sample. Full derivation in **D-011** and at the table in
+  `knowledgeService.js`.
+  **The embedding path is warmed at boot** (`server.js`, after `app.listen`, never
+  awaited, never under `node --test`, `EMBED_WARMUP=false` to disable). It is an
+  **optimisation and not the fix** — a cold portal save succeeds now because the
+  interactive bound accommodates it. What warming buys is the ~2,555 ms cold
+  connection cost off the first request after a deploy, which on the genesis deploy
+  is the demo. It is batch-classed so a slow cold start is *measured* rather than
+  truncated at 3,000 ms, and it **logs its latency**, so every deploy contributes
+  one sample to the residual D-010 left open. Real boot, measured: **729 ms** warm
+  call, **458 ms** for the next embed in the same process.
+  ⚠️ **`os:check` USED TO BE GREEN ON A RUN IT COULD NOT SEE.** It read `# fail`
+  and nothing else, and `# fail` counts **one** of the three ways a test can end
+  without passing. Session 2 hit `# cancelled 4, # fail 0` for real. Both
+  `# cancelled` and `# skipped` are now gate conditions, both **named** rather than
+  counted, and an *unparseable* counter is a refusal rather than a zero. Two
+  asymmetries are pinned by test because neither is guessable: a throwing `before`
+  hook yields `# fail 0` with every sibling `cancelledByParent`, and a skipped
+  `describe` — the shape every DB-dependent suite here uses — **never increments
+  `# skipped`** at all; its children vanish from `# tests`, which only the
+  recorded-total comparison catches. Zero SKIP/TODO directives exist at HEAD, so
+  making `# skipped` fatal costs nothing today. Validated against real captured
+  output, not hand-written TAP: a clean 1000/164 run passes; a real red run is
+  named; a real `# fail 0, # cancelled 2` run is refused with both names and
+  `cancelledByParent`; a real skipped run names the skipped test *and* the skipped
+  suite and says which of the two the counter missed.
   **U-4 / U2-1 / U5-4 are CLOSED.** The 600–900 ms embedding latency had been quoted in
   three audit artifacts across three phases and never once reproduced — it was UI copy
   at `public/portal/faqs.js:13`. Measured this session, 5 calls through `embed()`
@@ -147,6 +217,18 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   scratch-DB sweeps are disjoint by prefix now, but **fixture tenant UUIDs have no such
   discipline and no check**. A new voice suite must grep
   `00000000-0000-0000-0000-` across `tests/` and take an unused id.
+  **THERE IS A CHECK NOW** (RAG Session 3): `tests/infra/fixtureTenantIds.unit.test.js`
+  fails if two suites declare the same fixture tenant uuid, and **names both files
+  and both line numbers** — the thing the original incident could not do, since the
+  `customers_tenant_id_fkey` violation named the victim. Red-checked by
+  construction: a scratch file re-declaring `…aaaa00000029` turns it red naming
+  itself and `voiceCancellation.integration.test.js:25`. The five pre-existing
+  cross-file uuid overlaps are benign and stay in scope only by a stated
+  **property** — a file that replaces `src/db/db` in `require.cache` never reaches
+  Postgres, so its "tenant" cannot collide with a row — rather than by a filename
+  allowlist, so a suite that stops stubbing comes back under the guard on its own.
+  A second test fails on any in-scope declaration the scan cannot resolve
+  statically, so the scan's blind spot is loud rather than silent.
   ⚠️ **§F.4's OTHER FOUR TESTS ARE NOT IMPLEMENTED.** T-3 (provisioning `--kb-dir`
   dedup, **P5-1**), T-4 (the three out-of-module readers, **P5-9**), T-5 (`getTrace`
   reachability, **P5-2**) and T-6 (foreign-vs-fabricated FAQ id equality) defend

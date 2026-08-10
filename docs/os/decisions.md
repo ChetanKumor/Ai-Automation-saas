@@ -251,3 +251,127 @@ tests survive an unrelated edit to the module they defend, including one that ch
 `embed`'s call signature to the SDK — they stub the transport at
 `GenerativeModel.prototype.embedContent`, which is why the new `{ signal }` argument
 passed straight through them.
+
+## D-011 — One embedding deadline was three deadlines wearing one number; D-010's residual fired
+Date: 2026-08-10
+Overrides: **amends D-010, which is left standing and unedited** (append-only). D-010's
+  changes 2, 3 and 4 are untouched, its 3,000 ms derivation is not revisited, and its
+  Prediction/Falsifier/Review lines still read exactly as written. What changes is the
+  *scope* of its change 1: 3,000 ms stops being the deadline for every embedding call and
+  becomes the deadline for the path it was derived for. It does **not** amend D-009 or
+  `INV-R1`: R1's tenant predicate, its call shape, and the local-vs-exported `embed`
+  binding split are all untouched — which fires D-009's review trigger again ("at the first
+  change to `src/modules/knowledge/knowledgeService.js`"), recorded at the end of this entry.
+Decision: `knowledgeService.embed(text, signal, budget)` takes a budget **class**, and each
+  call site declares which one it is. Three classes, each with its own default and its own
+  env override:
+
+  | Call site | Class | Bound | Env |
+  |---|---|---|---|
+  | `getRelevantChunks` (6 production entry points, `01-map.md` §2.2) | `turn` | **3,000 ms** | `EMBED_TIMEOUT_MS` |
+  | `createChunk`, `updateChunk` (portal FAQ save) | `interactive` | **10,000 ms** | `EMBED_TIMEOUT_INTERACTIVE_MS` |
+  | `storeChunks` (`scripts/ingest-knowledge.js`, `--kb-dir`) | `batch` | **30,000 ms** | `EMBED_TIMEOUT_BATCH_MS` |
+  | `embedWarmup.warmEmbeddings` (boot, new) | `batch` | **30,000 ms** | `EMBED_TIMEOUT_BATCH_MS` |
+
+  The **default, and the fallback for an unknown class name, is `turn`** — the tightest,
+  not the most generous. A call site added later that forgets to classify itself, or
+  misspells its class, gets the bound whose failure costs one turn's grounding, never the
+  one that lets a request hang for thirty seconds.
+  Unchanged from D-010, deliberately: the deadline still lives **inside** `embed`'s body, so
+  the local-vs-exported binding split does not have to move; it **composes** with a caller
+  `signal`; an already-aborted signal throws **before dispatch**; and an expiry still
+  carries `code: 'EMBED_TIMEOUT'` — now also naming which bound fired and carrying `budget`
+  as a field, because with three deadlines "the embedding deadline fired" identifies nothing
+  actionable.
+
+D-010's stated residual FIRED, and this is the register working rather than the register
+  being wrong. D-010 recorded, against U-4: *"five samples on one machine against one region
+  is not a distribution, and the cold-start floor in particular rests on a single
+  observation."* One commit later that single observation was contradicted — in the suite,
+  not in production. `tests/portal/portalFaqs.integration.test.js:465` POSTs a FAQ;
+  `createChunk` makes the first **cold** embedding call of that test process; under
+  `node --test`'s 20-way file parallelism it exceeded 3,000 ms and the route **500'd**.
+  The measured cold spread, one machine, one network, one region:
+
+  | Where | Cold | Warm |
+  |---|---|---|
+  | D-010 (uncontended, one process) | **2,555 ms** | 459 / 543 / 546 / 625 |
+  | Session 3, first attempt (uncontended) | 1,281 / 1,371 ms | — |
+  | Session 3, first attempt (20-way parallelism) | **above 3,000 ms** | — |
+  | Session 3, this pass (20-way parallelism, 12 real calls, 3 processes) | **613 / 653 / 756 ms** | 431–478, median 459 |
+
+  **613 ms to above 3,000 ms is a spread of at least 4.9x**, and Railway's path to Google
+  will not be tighter than localhost's. The lesson is not "3,000 was too small". It is that
+  **a bound derived by adding headroom to the last healthy sample is a bet on a distribution
+  nobody has**, and that the same number cannot be right for a caller inside an 8,000 ms
+  turn budget and a caller with none.
+
+The derivations, each naming the budget it serves and the measurement it rests on:
+  - **`turn` = 3,000 ms, unchanged.** D-010's derivation in full. Ceiling: the 8,000 ms
+    voice turn budget (`internalVoice.js:65-68`) less 300–465 ms hydration, with generation,
+    tool rounds and persistence still to come. Its asymmetry survives *only here*: a
+    spurious expiry costs **grounding on one turn** and nothing more, because
+    `contextAssembler.js:67-70` returns `[]` and D-010's change 4 keeps the anti-invention
+    instruction in the zero-chunk prompt. Cheap to fire, expensive to miss.
+  - **`interactive` = 10,000 ms.** Budget served: an owner holding a Save button. Ceiling:
+    **nothing else on that request can end it** (`server.timeout` defaults to 0;
+    `public/portal/faqs.js` sets no fetch timeout — `02-ingestion.md` §D.3), so this bound
+    *is* the request's bound; the largest bound any other step carries is
+    `DB_STATEMENT_TIMEOUT_MS` = 5,000 ms and §D.3's table lists five DB steps on this save,
+    two of them plural, so the route already tolerates tens of seconds of database. Floor:
+    measured **from 3,000 ms, the only value ever observed to fire** — 5,000 ms would sit
+    1.7x above it, *inside* the observed spread; 10,000 ms sits 3.3x above it, outside it.
+    The asymmetry inverts here: a spurious expiry is a 500 on a save the owner watched fail;
+    a late one costs them patience.
+  - **`batch` = 30,000 ms.** Budget served: none — an operator at a terminal, no socket,
+    nothing waiting. Floor: >=10x every cold measurement in this register and >=10x the value
+    known to fire; a call that reaches 30 s is wedged, not slow. It must be the most generous
+    of the three because **its spurious expiry is the most expensive**: `storeChunks` commits
+    row by row with no transaction, and `ingestKnowledge`'s resume check is
+    `SELECT 1 … AND source = $2` — so an expiry at chunk 14 of 25 leaves the document
+    half-ingested **and makes the re-run report it as `skipped`**, i.e. a permanently partial
+    knowledge base reported as clean. Ceiling: the run must still terminate — measured with
+    the repo's own `chunkText`, a 9–14 KB markdown document yields 23–26 chunks, so a fully
+    wedged file ends in ~12 minutes instead of never.
+
+Also shipped, and deliberately NOT presented as the fix: **warming the embedding path at
+  boot** (`server.js`, after `app.listen`, never awaited, never under `node --test`,
+  `EMBED_WARMUP=false` to disable). A cold portal save succeeds now because the interactive
+  bound accommodates it, not because anything was warmed. Warming removes the cold
+  connection cost from the first request after a deploy — which on the genesis deploy is the
+  demo — and, being `batch`-classed, **measures** a slow cold start rather than truncating it
+  at 3,000 ms into the one value that carries no information. It logs that measurement, so
+  every deploy from here contributes a sample to exactly the residual D-010 left open. Real
+  boot: 729 ms warm call, 458 ms for the next embed in the same process.
+
+Prediction: no embedding call from this repository can exceed its class's bound, and no
+  owner-facing FAQ save fails for a reason the voice turn's budget caused. `EMBED_TIMEOUT`
+  in production logs now names its class, so the next occurrence identifies which caller and
+  which bound without a bisect. Observable at the first production deploy and in the
+  `embed_warmup` line.
+Falsifier: `EMBED_TIMEOUT` with `budget: 'interactive'` or `budget: 'batch'` appearing at a
+  rate not attributable to real Google slowness — i.e. a bound still derived too tight. Or
+  the inverse and more likely one: the `turn` class firing often enough that turns are
+  routinely ungrounded, in which case the honest answer is that retrieval does not fit in a
+  voice turn at all and the fix is upstream of the deadline, not a bigger number. **Note
+  what is NOT a falsifier: another single measurement.** That is what put us here.
+Review: at the first production deploy, or 2026-11-01, whichever is first. Bring the
+  accumulated `embed_warmup` samples — by then the cold-start floor should rest on a
+  distribution rather than on any one session's afternoon.
+Outcome: pending
+
+**D-009's triggered review, recorded here (append-only; D-009 itself is untouched).**
+This is the second change to `src/modules/knowledge/knowledgeService.js` since D-009 and it
+again leaves R1's tenant predicate alone, so D-009's prediction is still **not exercised** and
+its outcome stays `pending`. `T-1`/`T-2` pass at this commit — verified by running
+`tests/knowledge/retrievalIsolation.integration.test.js` directly, not inferred from the suite
+total. What this session adds to the second-order claim is that those tests also survived a
+change to `embed`'s **arity**: they stub the transport at
+`GenerativeModel.prototype.embedContent`, so a third argument passed straight through them.
+
+**A note on `os:check`, which is not itself a decision but changes what every future entry
+means by "green".** The gate now refuses on `# fail`, `# cancelled` **and** `# skipped`, and
+on any of those counters being unparseable. Before this, `# fail 0` was the whole test, and
+`# fail` counts one of the three ways a test can end without passing — Session 2 hit
+`# cancelled 4, # fail 0` for real and the gate called it green. Any past entry quoting a
+clean run is quoting a weaker claim than an entry written after this commit.
