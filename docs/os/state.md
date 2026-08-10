@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 424ca0577a84967eda2b263d3b2bc17609d6c3ca
-Verified-on: 2026-08-08
+Verified-at: ce7a213da1532e9c88e68e510e775bdaef8f8209
+Verified-on: 2026-08-10
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -66,8 +66,12 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Test suite: **989 tests / 160 suites / 0 fail** (`npm test`, raw: `# tests 989 / # pass 989 / # fail 0`)
-  Last moved by **Issue 11** (+11 tests, +1 suite —
+- Test suite: **991 tests / 161 suites / 0 fail** (`npm test`, raw: `# tests 991 / # pass 991 / # fail 0`)
+  Last moved by **RAG Session 1 — R1 negative tests** (+2 tests, +1 suite —
+  `tests/knowledge/retrievalIsolation.integration.test.js`, the T-1/T-2 pair
+  `docs/os/audits/rag/05-isolation.md` §F.4 specified; see D-009 and the
+  note below), before that by
+  **Issue 11** (+11 tests, +1 suite —
   `tests/voice/didResolution.integration.test.js`), before that by
   **F1** (+5 tests, +1 suite), **F2** (+4 tests, +1 suite), **F3**
   (+9 tests, +1 suite — `tests/portal/portalWizardExit.unit.test.js`), **B1**
@@ -86,8 +90,25 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   `tests/portal/portalTestTurn.integration.test.js`), then **F3-R1** (+18 tests,
   +1 suite — `tests/admin/resetOwnerPassword.test.js`), all below. Every other
   line in this section that quotes 869/151, 874/152, 878/153, 887/154, 901/155,
-  924/156, 928/156, 960/158 or 978/159 is describing the commit it names and is
-  left as written.
+  924/156, 928/156, 960/158, 978/159 or 989/160 is describing the commit it names
+  and is left as written.
+  **RAG ISOLATION DEFENCE — what the +2 actually buys.** Before `ce7a213`, deleting
+  `WHERE tenant_id = $1` from `knowledgeService.getRelevantChunks`
+  (`knowledgeService.js:40`) left the suite at 989 pass / 0 fail, **byte-identical to
+  baseline** — measured, not argued (`docs/os/audits/rag/05-isolation.md` §F.3,
+  red-checked by execution at §F.5). R1 is the only vector query in the repository and
+  the only read whose rows reach a patient-facing prompt; it does not select
+  `tenant_id`, so nothing downstream can revalidate ownership (§B.R1). It is defended
+  now: under the same mutation shim T-1 and T-2 fail and **only** those two of 991;
+  with the predicate restored, 991/161/0. The invariant is named **INV-R1** in D-009.
+  The tests never stub `getRelevantChunks` — 29 of its 30 other test references do,
+  which is exactly why the predicate was undefended (§F.2) — and stub the embedding at
+  the SDK boundary instead, so they cost no Gemini quota.
+  ⚠️ **§F.4's OTHER FOUR TESTS ARE NOT IMPLEMENTED.** T-3 (provisioning `--kb-dir`
+  dedup, **P5-1**), T-4 (the three out-of-module readers, **P5-9**), T-5 (`getTrace`
+  reachability, **P5-2**) and T-6 (foreign-vs-fabricated FAQ id equality) defend
+  different hops and remain open. P5-1 in particular is untouched: on the `--kb-dir`
+  path the tenant boundary is still an operator typing a filename (§A.6).
   ⚠️ **THE SUITE HAD A DATABASE-DESTROYING RACE BETWEEN TEST FILES, AND F3-R1
   FOUND IT BY PERTURBING THE SCHEDULE.** `tests/admin/tenantDetail.test.js` and
   `tests/config/configService.integration.test.js` both **created**

@@ -115,3 +115,47 @@ Prediction: the next issue prompt committed ahead of its session does not turn `
   line in `state.md`, this carve-out is wrong and must be **reverted, not widened**.
 Review: 2026-10-01
 Outcome: pending
+
+## D-009 — The R1 retrieval boundary is governed by INV-R1, its own invariant
+Date: 2026-08-10
+Overrides: none. This entry does **not** amend, renumber, reword or extend `INV-1`…`INV-6`,
+  which are untouched and remain binding exactly as written. It names a boundary they were
+  never scoped to reach.
+Decision: **`INV-1` as written is portal-route-scoped.** Its text
+  (`docs/specs/portal-v1-spec.md:40`) governs where a *route* may read a tenant identifier
+  from — *"No portal route ever reads a tenant identifier from params, body, or query"* —
+  and the suite honours it comprehensively at that layer: five named cross-tenant tests plus
+  ~15 further INV-1 blocks across the portal suite (`05-isolation.md` §F.1). It says nothing
+  about the SQL underneath, and **four of R1's six entry points are not portal routes at
+  all** (WhatsApp inbound, voice turn JSON, voice turn SSE, and `checkKbRetrieval`'s
+  caller-supplied argument — §A rows 1, 2, 3, 6). Phase 5 left "does INV-1 reach past the
+  route layer" open as a founder call (**P5-11**). It is answered here, and the answer is
+  that the retrieval query gets its own invariant rather than a stretched reading of INV-1:
+
+  > **INV-R1** Every read of `knowledge_chunks` is tenant-scoped by a parameterised
+  > predicate, and `getRelevantChunks` **denies** — returns no rows, or throws — whenever
+  > the tenant cannot be resolved. It never defaults and never widens. A cross-tenant
+  > negative test that **fails when the predicate is removed** is mandatory in the suite.
+
+  Its regression defence is **T-1 and T-2** in
+  `tests/knowledge/retrievalIsolation.integration.test.js` (`ce7a213`) — the two tests
+  `05-isolation.md` §F.4 specified, and the last clause of INV-R1 is the property that was
+  verified by executing it, not by reading the tests.
+Reason: R1 is the only vector query in the repository and the only read whose rows reach a
+  patient-facing prompt, it does not select `tenant_id` so nothing downstream can revalidate
+  ownership (§B.R1), and Phase 5 measured that deleting its predicate left the suite at 989
+  pass / 0 fail, byte-identical to baseline (§F.3, red-checked at §F.5).
+Prediction: the next change that removes, defaults or conditionalises R1's tenant predicate
+  turns the suite red in the same commit that makes it. Falsifier: a future session finds the
+  predicate gone or weakened at HEAD with `npm test` green — in which case T-1/T-2 are
+  passing for some reason other than the predicate, and **the tests are wrong, not the
+  invariant**. Re-run the §F.5 mutation shim before trusting them again.
+Deferred, deliberately: **P5-10 is not closed here.** `INV-1`…`INV-6` still live only in
+  `docs/specs/portal-v1-spec.md:40-45`, declared binding by `portal-v2-spec.md:5`. Relocating
+  them into `docs/os/` is a later session's work and was not attempted: it is a docs change
+  *outside* `docs/os/`, so it cannot ride the commit that stamps `Verified-at` without
+  tripping the `os:check` provenance tolerance — the same mechanism D-008 describes. Until
+  that session runs, the pointer a reader of `docs/os/` needs is this entry.
+Review: 2026-11-01, or at the first change to `src/modules/knowledge/knowledgeService.js`,
+  whichever is first.
+Outcome: pending
