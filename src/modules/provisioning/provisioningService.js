@@ -154,6 +154,114 @@ async function ingestKnowledge(tenantId, kbDir) {
   return result;
 }
 
+// ── OBSERVATION — read-only, and deliberately nothing more ───────────────────
+//
+// 05-isolation.md §A.6 established that on the `--kb-dir` path the tenant
+// boundary is an operator typing a filename: the definition file names the
+// TENANT, `--kb-dir` names the DOCUMENTS, and nothing relates them. The one
+// affordance an operator would reach for — `--dry-run` — returns at :189-207,
+// BEFORE the slug lookup at :210, so it echoes the operator's own input and is
+// structurally incapable of saying "you are about to write into Smile Dental".
+//
+// The three functions below are what let the CLI answer that from the DATABASE
+// rather than from argv, before the write and again after it. They READ. The
+// dedup rule, the skip semantics and the write order in ingestKnowledge and
+// provisionTenant are untouched by this section — deciding what a discrepancy
+// between what was attempted and what is present should CAUSE (resume, per-chunk
+// dedup, distinguishing "fully ingested" from "partially ingested and skipped")
+// is a change to write semantics and is not made here.
+
+// Chunk counts for one tenant, grouped by SOURCE PREFIX. `faq` and `faq:te`
+// collapse to one entry — that colon is faqService's language tag
+// (faqService.js:51-53), not a separate corpus — while a document keeps its
+// whole basename, which is the unit an operator aimed at.
+// knowledgeService.countChunksBySourcePrefix answers one prefix per call, and a
+// "what does this tenant already hold" display cannot enumerate the prefixes in
+// advance; this is that question in one round trip.
+async function chunkCountsBySource(tenantId) {
+  const { rows } = await db.query(
+    `SELECT split_part(coalesce(source, ''), ':', 1) AS prefix, count(*)::int AS n
+       FROM knowledge_chunks
+      WHERE tenant_id = $1
+      GROUP BY 1
+      ORDER BY 1`,
+    [tenantId]
+  );
+  return rows.map((r) => ({ prefix: r.prefix || '(no source)', n: r.n }));
+}
+
+// What the DATABASE holds for the tenant this definition names — before a run,
+// or after one. Never creates, and never falls back to the definition's own
+// fields: when the slug names no row the answer is `found: false`, which is a
+// fact about the database rather than a guess about intent.
+//
+// The definition goes through `definitionSchema`, the same validator
+// provisionTenant uses, so the slug this resolves is provably the slug the write
+// will use. Re-deriving it in the CLI would let the display and the write drift
+// apart, which is the failure this whole function exists to make visible.
+async function describeTarget(definition) {
+  const parsed = definitionSchema.safeParse(definition);
+  if (!parsed.success) throw new DefinitionValidationError(parsed.error);
+  const slug = parsed.data.slug;
+
+  const { rows } = await db.query(
+    'SELECT id, business_name, slug, status, active FROM tenants WHERE slug = $1',
+    [slug]
+  );
+  if (!rows[0]) {
+    return { slug, found: false, tenant: null, config_version: null, chunks: [], chunk_total: 0 };
+  }
+
+  const tenant = rows[0];
+  const chunks = await chunkCountsBySource(tenant.id);
+  const { rows: cfg } = await db.query(
+    'SELECT version FROM tenant_configs WHERE tenant_id = $1',
+    [tenant.id]
+  );
+
+  return {
+    slug,
+    found: true,
+    tenant,
+    config_version: cfg[0] ? cfg[0].version : null,
+    chunks,
+    chunk_total: chunks.reduce((sum, c) => sum + c.n, 0),
+  };
+}
+
+// Rows ACTUALLY PRESENT for each named source. `ingestKnowledge`'s
+// ingested/skipped/failed labels are assembled from what the run asked for; this
+// is the other half of the sentence. Exact `source` match, because that is the
+// key the ingest writes and dedups on (:135-139) — a prefix match here would
+// answer a different question from the one the run acted on.
+async function observeSources(tenantId, sources) {
+  if (!sources.length) return new Map();
+  const { rows } = await db.query(
+    `SELECT source, count(*)::int AS n FROM knowledge_chunks
+      WHERE tenant_id = $1 AND source = ANY($2::text[])
+      GROUP BY source`,
+    [tenantId, sources]
+  );
+  return new Map(rows.map((r) => [r.source, r.n]));
+}
+
+// Does the label the run assigned disagree with what the table holds? Returns
+// the sentence to show, or null when the two are consistent. Pure, and reporting
+// only — every caller prints this and does nothing else with it.
+//
+// The `failed` + rows-present case is 02-ingestion.md's D2-01 made visible:
+// storeChunks commits row by row with no transaction, so a failure at chunk N
+// leaves rows 1..N-1 permanently committed, and the `source` dedup then skips
+// that file forever while the CLI reports the re-run as clean.
+function kbDiscrepancy(state, observed) {
+  if (state === 'ingested' && observed === 0) return 'reported ingested, but 0 rows are present';
+  if (state === 'skipped' && observed === 0) return 'reported already-ingested, but 0 rows are present';
+  if (state === 'failed' && observed > 0) {
+    return `reported FAILED, but ${observed} row(s) are present — the document is partial`;
+  }
+  return null;
+}
+
 // Provision (or reconcile) a tenant from a definition object.
 //
 // Returns a structured report:
@@ -297,6 +405,11 @@ module.exports = {
   provisionTenant,
   definitionSchema,
   DefinitionValidationError,
+  // read-only observation (see the OBSERVATION block above)
+  describeTarget,
+  chunkCountsBySource,
+  observeSources,
+  kbDiscrepancy,
   // exported for focused tests
   materializeConfig,
   ingestKnowledge,
