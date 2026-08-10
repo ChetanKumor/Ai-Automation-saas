@@ -564,9 +564,16 @@ const buildSystemPrompt = (tenant, customer, conversation, facts, knowledgeChunk
     ? `\nConversation summary:\n${conversation.summary}`
     : '';
 
+  // Q4-3: zero chunks used to drop this section entirely — and with it the only
+  // "do not invent information" instruction in the prompt — on precisely the
+  // turns with nothing to ground an answer in. Retrieval returns [] for an empty
+  // KB, for a miss, AND for any failure (contextAssembler.js:67-70 catches them
+  // all alike), and the embedding deadline added alongside this converts hangs
+  // into that third case by design. So the instruction survives the empty branch;
+  // only the scoping clause, which would be pointing at nothing, does not.
   const knowledgeSection = knowledgeChunks.length
     ? `\nBusiness knowledge (use ONLY this to answer questions — do not invent information):\n${knowledgeChunks.map(c => `- ${c.content}`).join('\n')}`
-    : '';
+    : '\nBusiness knowledge: none available for this question — do not invent information.';
 
   const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
   const dayOfWeek = new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata', weekday: 'long' });

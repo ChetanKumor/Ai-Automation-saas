@@ -438,6 +438,11 @@ async function handleTurnSSE(req, res) {
       customerId: customer_id,
       currentMessageId: inbound.id, // V-009: exclude this turn's inbound row by id
       text: transcript,
+      // D-09: this branch omitted the signal, so the RAG embedding call had no
+      // abort and no deadline on the branch production actually runs
+      // (VOICE_STREAM_TURNS=true, ARCHITECTURE.md:90). Same controller the reply
+      // loop gets at :455 — one turn, one budget.
+      signal: abortController.signal,
       onTiming: (name, ms) => turn.record(`fetch_parallel_${name}`, ms),
     });
     endFetch();

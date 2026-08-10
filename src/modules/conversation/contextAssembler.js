@@ -65,7 +65,13 @@ async function assembleConversationContext({ tenantId, conversationId, customerI
 
   const [knowledgeChunks, history, { rows: facts }] = await Promise.all([
     timed('knowledge', knowledgeService.getRelevantChunks(tenantId, text, ragTopK, { signal }).catch((err) => {
-      logger.error({ tenantId, err: err.message }, 'RAG failed (continuing without)');
+      // `errCode` distinguishes the embedding deadline (EMBED_TIMEOUT) from the
+      // other ways retrieval fails through this one line — a `22P02` from a
+      // malformed tenant id and a Google outage are already indistinguishable
+      // here (05-isolation.md P5-3). This does not fix P5-3; it keeps the new
+      // deadline from becoming a third case buried inside it.
+      logger.error({ tenantId, err: err.message, errCode: err.code ?? null },
+        'RAG failed (continuing without)');
       return [];
     })),
     timed('history', customerService.getRecentMessages(tenantId, conversationId, currentMessageId)),

@@ -4,18 +4,90 @@ const db = require('../../db/db');
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const embeddingModel = genAI.getGenerativeModel({ model: 'gemini-embedding-001' });
 
+// The deadline for ONE embedding call, in ms. Read at call time so tests can
+// vary it per case (the same shape as internalVoice.js:65-68's turnBudgetMs).
+//
+// 3,000 ms is derived, not picked — see docs/os/decisions.md D-010. Measured
+// this session through this very function against the live model (5 samples,
+// one machine, one region — not a distribution): 459 / 543 / 546 / 625 ms warm,
+// and 2,555 ms on the first call of a cold process, which pays the TLS
+// handshake. That cold call is the FLOOR: a deadline below ~2.6 s would fire on
+// the first turn after every deploy. The CEILING is the voice turn budget —
+// 8,000 ms (internalVoice.js:65-68), less 300–465 ms hydration (01-map.md:75) —
+// which must still leave generation, up to two tool rounds and persistence room
+// to finish. 3,000 ms clears the cold call, is ~5.5x the warm median, and leaves
+// 5,000 ms downstream.
+const DEFAULT_EMBED_TIMEOUT_MS = 3000;
+
+function embedTimeoutMs() {
+  const v = parseInt(process.env.EMBED_TIMEOUT_MS, 10);
+  return Number.isFinite(v) && v > 0 ? v : DEFAULT_EMBED_TIMEOUT_MS;
+}
+
+// A deadline expiry is NOT just another RAG error. contextAssembler.js:68 logs
+// every retrieval failure through one line, so a `22P02` from a malformed tenant
+// id and a Google outage are already indistinguishable there (05-isolation.md
+// P5-3). This carries its own `code` so the new timeout does not become a third
+// case collapsed into that bucket.
+class EmbedTimeoutError extends Error {
+  constructor(ms) {
+    super(`embedding call exceeded its ${ms}ms deadline`);
+    this.name = 'EmbedTimeoutError';
+    this.code = 'EMBED_TIMEOUT';
+  }
+}
+
 // `signal` (Issue 29): the voice turn's combined close/deadline AbortSignal —
-// aborts the in-flight embedding fetch. Absent (WhatsApp path, ingestion),
-// behavior is unchanged.
+// aborts the in-flight embedding fetch.
+//
+// The deadline lives INSIDE this body rather than in a wrapper around the export,
+// and that is load-bearing: getRelevantChunks:106 calls this local binding while
+// createChunk/updateChunk call `module.exports.embed` (see :148-151 below). A
+// wrapper on the export would bound four callers and miss R1 — the one call on
+// the patient-facing path. Here, all six entry points inherit it.
+//
+// The internal deadline COMPOSES with `signal`, it does not replace it: a caller
+// that passes one still aborts early (the voice turn giving up at 8,000 ms), and
+// a caller that passes nothing — WhatsApp, the portal FAQ save, the provisioning
+// CLI, validation, the portal test-turn — is bounded anyway, where before it was
+// bounded by nothing at all.
 async function embed(text, signal = null) {
   const request = {
     content: { parts: [{ text }] },
     outputDimensionality: 768
   };
-  const result = signal
-    ? await embeddingModel.embedContent(request, { signal })
-    : await embeddingModel.embedContent(request);
-  return result.embedding.values;
+
+  // An already-aborted caller signal must never reach the SDK: it wires signals
+  // with addEventListener (dist/index.js:448-452), which never fires for a signal
+  // that aborted before the listener was attached — the fetch would go out with a
+  // controller nothing can trip. Refuse before dispatch instead.
+  if (signal && signal.aborted) {
+    throw Object.assign(new Error('embedding aborted before dispatch'), { name: 'AbortError' });
+  }
+
+  const ms = embedTimeoutMs();
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, ms);
+  const relayAbort = () => controller.abort();
+  if (signal) signal.addEventListener('abort', relayAbort, { once: true });
+
+  try {
+    // Passing `signal` is what makes the bound real: buildFetchOptions
+    // (dist/index.js:441-456) constructs an AbortController — and therefore a
+    // cancellable fetch — ONLY when `signal !== undefined || timeout >= 0`. With
+    // no second argument it returns `{}`, a bare fetch with no deadline.
+    const result = await embeddingModel.embedContent(request, { signal: controller.signal });
+    return result.embedding.values;
+  } catch (err) {
+    // The caller's abort and our deadline both surface from the SDK as the same
+    // AbortError. Only this frame knows which fired.
+    if (timedOut) throw new EmbedTimeoutError(ms);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    if (signal) signal.removeEventListener('abort', relayAbort);
+  }
 }
 
 async function storeChunks(tenantId, chunks, source) {
