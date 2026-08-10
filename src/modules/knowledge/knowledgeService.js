@@ -4,24 +4,85 @@ const db = require('../../db/db');
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const embeddingModel = genAI.getGenerativeModel({ model: 'gemini-embedding-001' });
 
-// The deadline for ONE embedding call, in ms. Read at call time so tests can
-// vary it per case (the same shape as internalVoice.js:65-68's turnBudgetMs).
+// ── The deadline for ONE embedding call, per BUDGET CLASS ────────────────────
 //
-// 3,000 ms is derived, not picked — see docs/os/decisions.md D-010. Measured
-// this session through this very function against the live model (5 samples,
-// one machine, one region — not a distribution): 459 / 543 / 546 / 625 ms warm,
-// and 2,555 ms on the first call of a cold process, which pays the TLS
-// handshake. That cold call is the FLOOR: a deadline below ~2.6 s would fire on
-// the first turn after every deploy. The CEILING is the voice turn budget —
-// 8,000 ms (internalVoice.js:65-68), less 300–465 ms hydration (01-map.md:75) —
-// which must still leave generation, up to two tool rounds and persistence room
-// to finish. 3,000 ms clears the cold call, is ~5.5x the warm median, and leaves
-// 5,000 ms downstream.
-const DEFAULT_EMBED_TIMEOUT_MS = 3000;
+// D-010 bounded every embedding call at a single 3,000 ms constant. It was right
+// that the call needed a bound and wrong that there was one bound: this function
+// has three kinds of caller with unrelated budgets, and 3,000 ms was derived from
+// exactly one of them. D-010's own recorded falsifier fired — in the suite rather
+// than in production — when the portal FAQ save, which has no turn budget at all,
+// exceeded a deadline derived from the voice turn's. See D-011.
+//
+// Each class names the budget it serves and what its number rests on. Every
+// value is read at call time, the same shape as internalVoice.js:65-68's
+// turnBudgetMs, so tests vary it per case instead of sleeping.
+//
+//   turn — getRelevantChunks below. Six production entry points (01-map.md §2.2);
+//     the voice one must finish inside 8,000 ms (internalVoice.js:65-68) less
+//     300–465 ms hydration, with generation, up to two tool rounds and outbound
+//     persistence still to come. UNCHANGED at D-010's derived 3,000 ms — this
+//     session scopes that derivation to the path it was derived for, it does not
+//     revisit it. The asymmetry that justified the small value is still true only
+//     here: a spurious expiry costs GROUNDING ON ONE TURN, because
+//     contextAssembler.js:67-70 returns [] and the zero-chunk prompt still
+//     carries the instruction not to invent (D-010's change 4). Firing early is
+//     cheap; overrunning the turn budget loses the whole call.
+//
+//   interactive — createChunk / updateChunk below: an owner clicking Save in the
+//     portal. 10,000 ms.
+//     CEILING: nothing else on that request can end it — Node's server.timeout
+//     defaults to 0 and public/portal/faqs.js sets no fetch timeout
+//     (02-ingestion.md §D.3) — so this IS the request's bound. The largest bound
+//     any other step carries is DB_STATEMENT_TIMEOUT_MS = 5,000 ms (db.js:16-23),
+//     and §D.3's table lists five DB steps on this save, two of them plural — so
+//     the route already tolerates tens of seconds of database. 10,000 ms keeps
+//     the embedding call well inside a tail the request already has.
+//     FLOOR: 3,000 ms is the only value ever observed to FIRE on this path, so
+//     headroom is measured from it, not from the last healthy sample. Cold calls
+//     have measured 613 / 653 / 756 ms (Session 3, under the same 20-way suite
+//     parallelism that produced the red), 2,555 ms (D-010, uncontended), and
+//     above 3,000 ms (Session 3's first attempt, under parallelism) — a spread of
+//     at least 4.9x on one machine, one network, one region. 5,000 ms would sit
+//     1.7x above the value known to fire, inside that spread. 10,000 ms sits 3.3x
+//     above it, outside it. A spurious expiry here is a 500 on a save the owner
+//     watched fail; a late one costs them patience.
+//
+//   batch — storeChunks below, reached only from scripts/ingest-knowledge.js and
+//     provisioningService.ingestKnowledge:147. An operator at a terminal: no
+//     socket, no budget, nothing waiting. 30,000 ms.
+//     FLOOR: >=10x every cold measurement in the register and >=10x the value
+//     known to fire. A batch call that reaches 30 s is wedged, not slow. It has
+//     to be this generous because a spurious expiry here is the most expensive of
+//     the three — storeChunks commits row by row with NO transaction, and
+//     ingestKnowledge's resume check is `SELECT 1 … AND source = $2`, so an
+//     expiry at chunk 14 of 25 leaves the document half-ingested AND makes the
+//     re-run report it as `skipped`. That is a permanently partial knowledge base
+//     reported as a clean skip.
+//     CEILING: the run must still terminate. Measured with this file's own
+//     chunkText, a 9–14 KB markdown document yields 23–26 chunks, so a fully
+//     wedged file ends in ~12 minutes instead of never.
+const EMBED_BUDGETS = Object.freeze({
+  turn:        Object.freeze({ env: 'EMBED_TIMEOUT_MS',             ms: 3000 }),
+  interactive: Object.freeze({ env: 'EMBED_TIMEOUT_INTERACTIVE_MS', ms: 10000 }),
+  batch:       Object.freeze({ env: 'EMBED_TIMEOUT_BATCH_MS',       ms: 30000 }),
+});
 
-function embedTimeoutMs() {
-  const v = parseInt(process.env.EMBED_TIMEOUT_MS, 10);
-  return Number.isFinite(v) && v > 0 ? v : DEFAULT_EMBED_TIMEOUT_MS;
+// The fallback is the TIGHTEST class, not the most generous, and an unknown name
+// falls back too rather than throwing. A call site added later that forgets to
+// classify itself, or misspells its class, gets the bound that costs one turn's
+// grounding — never the one that lets a request hang for 30 s. Being wrong in the
+// conservative direction is recoverable; the other direction reintroduces exactly
+// the unbounded call D-010 exists to have ended.
+const DEFAULT_EMBED_BUDGET = 'turn';
+
+function embedBudget(name) {
+  return Object.prototype.hasOwnProperty.call(EMBED_BUDGETS, name) ? name : DEFAULT_EMBED_BUDGET;
+}
+
+function embedTimeoutMs(budget) {
+  const spec = EMBED_BUDGETS[embedBudget(budget)];
+  const v = parseInt(process.env[spec.env], 10);
+  return Number.isFinite(v) && v > 0 ? v : spec.ms;
 }
 
 // A deadline expiry is NOT just another RAG error. contextAssembler.js:68 logs
@@ -29,11 +90,18 @@ function embedTimeoutMs() {
 // id and a Google outage are already indistinguishable there (05-isolation.md
 // P5-3). This carries its own `code` so the new timeout does not become a third
 // case collapsed into that bucket.
+//
+// It names WHICH bound was exceeded, because with three of them "the embedding
+// deadline fired" no longer identifies anything actionable: the same message from
+// the turn class and from the batch class mean a slow Google and a wedged socket
+// respectively, and they are fixed differently. `budget` rides as a field too, so
+// a structured log can group on it without parsing prose.
 class EmbedTimeoutError extends Error {
-  constructor(ms) {
-    super(`embedding call exceeded its ${ms}ms deadline`);
+  constructor(ms, budget) {
+    super(`embedding call exceeded its ${ms}ms '${budget}' deadline (${EMBED_BUDGETS[budget].env})`);
     this.name = 'EmbedTimeoutError';
     this.code = 'EMBED_TIMEOUT';
+    this.budget = budget;
   }
 }
 
@@ -41,17 +109,25 @@ class EmbedTimeoutError extends Error {
 // aborts the in-flight embedding fetch.
 //
 // The deadline lives INSIDE this body rather than in a wrapper around the export,
-// and that is load-bearing: getRelevantChunks:106 calls this local binding while
-// createChunk/updateChunk call `module.exports.embed` (see :148-151 below). A
+// and that is load-bearing: getRelevantChunks:184 calls this local binding while
+// createChunk/updateChunk call `module.exports.embed` (see :226-229 below). A
 // wrapper on the export would bound four callers and miss R1 — the one call on
-// the patient-facing path. Here, all six entry points inherit it.
+// the patient-facing path. Here, all six entry points inherit it. That split is
+// UNCHANGED by the per-class deadlines: the class is chosen at the call site and
+// the bound is applied here, so which binding a caller reaches through still does
+// not matter.
 //
 // The internal deadline COMPOSES with `signal`, it does not replace it: a caller
 // that passes one still aborts early (the voice turn giving up at 8,000 ms), and
 // a caller that passes nothing — WhatsApp, the portal FAQ save, the provisioning
 // CLI, validation, the portal test-turn — is bounded anyway, where before it was
 // bounded by nothing at all.
-async function embed(text, signal = null) {
+//
+// `budget` names which of the three deadlines above applies. It is the third
+// argument rather than a per-call number so the derivation lives in ONE table
+// instead of being spread across the call sites — a caller declares what kind of
+// work it is, not how many milliseconds it thinks it deserves.
+async function embed(text, signal = null, budget = DEFAULT_EMBED_BUDGET) {
   const request = {
     content: { parts: [{ text }] },
     outputDimensionality: 768
@@ -65,7 +141,8 @@ async function embed(text, signal = null) {
     throw Object.assign(new Error('embedding aborted before dispatch'), { name: 'AbortError' });
   }
 
-  const ms = embedTimeoutMs();
+  const cls = embedBudget(budget);
+  const ms = embedTimeoutMs(cls);
   const controller = new AbortController();
   let timedOut = false;
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, ms);
@@ -82,7 +159,7 @@ async function embed(text, signal = null) {
   } catch (err) {
     // The caller's abort and our deadline both surface from the SDK as the same
     // AbortError. Only this frame knows which fired.
-    if (timedOut) throw new EmbedTimeoutError(ms);
+    if (timedOut) throw new EmbedTimeoutError(ms, cls);
     throw err;
   } finally {
     clearTimeout(timer);
@@ -92,7 +169,9 @@ async function embed(text, signal = null) {
 
 async function storeChunks(tenantId, chunks, source) {
   for (const chunk of chunks) {
-    const embedding = await embed(chunk);
+    // 'batch': CLI ingestion. Nothing is waiting, and a spurious expiry mid-loop
+    // leaves the document half-committed — there is no transaction here.
+    const embedding = await embed(chunk, null, 'batch');
     await db.query(
       `INSERT INTO knowledge_chunks (tenant_id, content, embedding, source)
        VALUES ($1, $2, $3::vector, $4)`,
@@ -103,7 +182,9 @@ async function storeChunks(tenantId, chunks, source) {
 }
 
 async function getRelevantChunks(tenantId, query, topK = 3, { signal = null } = {}) {
-  const queryEmbedding = await embed(query, signal);
+  // 'turn': the patient-facing read. Stated rather than left to the default so a
+  // reader sees the class at the site, but it IS the default — see embedBudget.
+  const queryEmbedding = await embed(query, signal, 'turn');
   // `id` rides along for trace retrieval provenance (Issue 22) — every
   // consumer reads only content/similarity, so this is capture-only.
   const { rows } = await db.query(
@@ -189,7 +270,9 @@ async function countChunksBySourcePrefix(tenantId, prefix) {
 }
 
 async function createChunk(tenantId, { content, source }) {
-  const embedding = await module.exports.embed(content);
+  // 'interactive': an owner is holding a Save button. This bound is the only
+  // thing on the request capable of ending it (02-ingestion.md §D.3).
+  const embedding = await module.exports.embed(content, null, 'interactive');
   const { rows } = await db.query(
     `INSERT INTO knowledge_chunks (tenant_id, content, source, embedding)
      VALUES ($1, $2, $3, $4::vector) RETURNING id, content, source, created_at`,
@@ -214,7 +297,7 @@ async function updateChunk(tenantId, id, { content, source }) {
     return rows[0];
   }
 
-  const embedding = await module.exports.embed(content);
+  const embedding = await module.exports.embed(content, null, 'interactive'); // same Save button as createChunk
   const { rows } = await db.query(
     `UPDATE knowledge_chunks SET content = $3, source = $4, embedding = $5::vector
      WHERE tenant_id = $1 AND id = $2 RETURNING id, content, source, created_at`,
@@ -235,6 +318,7 @@ async function deleteChunk(tenantId, id) {
 }
 
 module.exports = {
-  embed, storeChunks, getRelevantChunks, chunkText,
+  embed, EMBED_BUDGETS, DEFAULT_EMBED_BUDGET,
+  storeChunks, getRelevantChunks, chunkText,
   listChunks, getChunk, countChunksBySourcePrefix, createChunk, updateChunk, deleteChunk,
 };

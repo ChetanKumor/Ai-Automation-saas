@@ -108,6 +108,7 @@ const coreActions       = require('./core/coreActions');
 const crmModule         = require('./src/modules/crm');
 const collectionsModule = require('./src/modules/collections');
 const workflowEngine    = require('./src/modules/workflow/workflowEngine');
+const embedWarmup       = require('./src/modules/knowledge/embedWarmup');
 coreActions.init();
 crmModule.init();
 if (process.env.COLLECTIONS_ENABLED === 'true') {
@@ -123,6 +124,21 @@ const HOST = process.env.HOST || '0.0.0.0';
 const server = app.listen(PORT, HOST, () => {
   logger.info({ host: HOST, port: PORT }, 'server started');
 });
+
+// Open the embedding connection now, so the FIRST REQUEST does not.
+//
+// An OPTIMISATION, not a correctness fix: each embedding call site now carries
+// the deadline its own budget allows (D-011), so a cold call on the portal save
+// path already succeeds. What this removes is the ~2,555 ms cold connection cost
+// (D-010) from the first turn after a deploy — which, on the genesis deploy, is
+// the demo. It also logs its measured latency, so every deploy contributes one
+// cold-start sample to the residual D-010 left open.
+//
+// DELIBERATELY NOT AWAITED, and deliberately AFTER app.listen: the listener is
+// already bound above, so warming cannot delay accepting connections. The promise
+// never rejects (embedWarmup.js), so the bare call cannot raise an unhandled
+// rejection. Skipped under `node --test` and by EMBED_WARMUP=false.
+embedWarmup.warmEmbeddings();
 
 const reminderTask = reminderCron.start();
 const collectionsTask = collectionsModule.cronTask;
