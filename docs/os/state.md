@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: ce7a213da1532e9c88e68e510e775bdaef8f8209
+Verified-at: 1fbd2cb43a4d1cea9027a97fad8f04ac81ed0d21
 Verified-on: 2026-08-10
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -66,8 +66,12 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Test suite: **991 tests / 161 suites / 0 fail** (`npm test`, raw: `# tests 991 / # pass 991 / # fail 0`)
-  Last moved by **RAG Session 1 — R1 negative tests** (+2 tests, +1 suite —
+- Test suite: **1000 tests / 164 suites / 0 fail** (`npm test`, raw: `# tests 1000 / # pass 1000 / # fail 0`)
+  Last moved by **RAG Session 2 — bounding the embedding call** (+9 tests, +3 suites —
+  `tests/knowledge/embedTimeout.unit.test.js` at 4,
+  `tests/prompts/knowledgeAbsent.unit.test.js` at 4, and
+  `tests/voice/voiceStreamRagSignal.integration.test.js` at 1; see D-010 and the
+  note below), before that by **RAG Session 1 — R1 negative tests** (+2 tests, +1 suite —
   `tests/knowledge/retrievalIsolation.integration.test.js`, the T-1/T-2 pair
   `docs/os/audits/rag/05-isolation.md` §F.4 specified; see D-009 and the
   note below), before that by
@@ -104,6 +108,45 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   The tests never stub `getRelevantChunks` — 29 of its 30 other test references do,
   which is exactly why the predicate was undefended (§F.2) — and stub the embedding at
   the SDK boundary instead, so they cost no Gemini quota.
+  **THE EMBEDDING CALL IS NOW BOUNDED — what RAG Session 2's +9 buys.** Before this
+  commit there was **no bound of any kind** on the one outbound HTTP call in the
+  retrieval path: five of `embed`'s six entry points passed no signal, the sixth
+  (voice) passed one on the JSON branch only, and the SDK issues a bare `fetch` with
+  no deadline unless `signal` or `timeout` is set — verified in
+  `node_modules/@google/generative-ai/dist/index.js:443` this session, not assumed
+  (`02-ingestion.md` §D.3). `embed` now carries a **3,000 ms** deadline
+  (`EMBED_TIMEOUT_MS`) **inside the function body**, so all six entry points inherit it
+  regardless of whether they call the local binding or `module.exports.embed`; it
+  composes with a caller `signal` rather than replacing it. The SSE voice branch now
+  passes its turn signal to retrieval, closing **D-09** — the branch production
+  actually runs (`ARCHITECTURE.md:90` sets `VOICE_STREAM_TURNS=true` at deploy).
+  ⚠️ **THE TIMEOUT ALONE WOULD HAVE MADE THINGS WORSE, AND THAT IS WHY Q4-3 SHIPPED
+  WITH IT.** `contextAssembler.js:67-70` catches every RAG failure and returns `[]`,
+  and zero chunks used to drop the whole knowledge section — including the only
+  occurrence of *"do not invent information"* anywhere in `src/`. A deadline converts a
+  hang into a fast RAG failure, so it *raises* the rate at which that path fires:
+  shipping it alone would have traded a hung turn for a confidently invented one. The
+  zero-chunk branch now keeps the anti-invention instruction. See **D-010** for the
+  derivation of 3,000 ms and the coupling.
+  **U-4 / U2-1 / U5-4 are CLOSED.** The 600–900 ms embedding latency had been quoted in
+  three audit artifacts across three phases and never once reproduced — it was UI copy
+  at `public/portal/faqs.js:13`. Measured this session, 5 calls through `embed()`
+  itself: **2,555 ms cold**, then 546 / 625 / 543 / 459 ms warm. The claim is roughly
+  right for a warm process and silent about the cold one, which is 2.8× its ceiling and
+  is the number a timeout has to clear. ⚠️ Residual: five samples on one machine
+  against one region is **not a distribution**, and the cold-start floor rests on a
+  single observation.
+  ⚠️ **TWO VOICE SUITES SHARED A FIXTURE TENANT UUID, AND IT COST A FULL SUITE RUN.**
+  `tests/voice/voiceStreamRagSignal.integration.test.js` was first written with
+  `TENANT_ID = …aaaa00000029`, already owned by
+  `tests/voice/voiceCancellation.integration.test.js`. Both `cleanup()` that id under
+  `node --test`'s parallel file scheduling, so the new file deleted the other's tenant
+  mid-run: **4 failures in `voiceCancellation`, 0 when that file ran alone**, and the
+  loudest symptom (`customers_tenant_id_fkey` violation) named the victim, not the
+  cause. Same class as the `zyon_test_%` scratch-DB race below, one layer up: the
+  scratch-DB sweeps are disjoint by prefix now, but **fixture tenant UUIDs have no such
+  discipline and no check**. A new voice suite must grep
+  `00000000-0000-0000-0000-` across `tests/` and take an unused id.
   ⚠️ **§F.4's OTHER FOUR TESTS ARE NOT IMPLEMENTED.** T-3 (provisioning `--kb-dir`
   dedup, **P5-1**), T-4 (the three out-of-module readers, **P5-9**), T-5 (`getTrace`
   reachability, **P5-2**) and T-6 (foreign-vs-fabricated FAQ id equality) defend

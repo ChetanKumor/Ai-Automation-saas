@@ -159,3 +159,95 @@ Deferred, deliberately: **P5-10 is not closed here.** `INV-1`…`INV-6` still li
 Review: 2026-11-01, or at the first change to `src/modules/knowledge/knowledgeService.js`,
   whichever is first.
 Outcome: pending
+
+## D-010 — Every embedding call is bounded at 3,000 ms, and the zero-chunk prompt keeps its guard
+Date: 2026-08-10
+Overrides: none. It does **not** amend D-009 or `INV-R1`: R1's tenant predicate, its call
+  shape, and the local-vs-exported `embed` binding at `knowledgeService.js:106` are all
+  untouched. It is, however, the first change to
+  `src/modules/knowledge/knowledgeService.js` since D-009, which **fires D-009's review
+  trigger** ("Review: 2026-11-01, or at the first change to
+  `src/modules/knowledge/knowledgeService.js`, whichever is first"). That review is
+  recorded at the end of this entry rather than by editing D-009, which is append-only.
+Decision: four changes, shipped in one commit because the fourth is the price of the first.
+  1. `knowledgeService.embed` carries an internal **3,000 ms** deadline, overridable by
+     `EMBED_TIMEOUT_MS` and read at call time. It lives **inside** the function body, not
+     in a wrapper around the export, and it **composes** with a caller-supplied `signal`
+     rather than replacing it.
+  2. The SSE voice branch (`internalVoice.js:435-447`) passes its turn signal to
+     `assembleConversationContext`. This is D-09 in `01-map.md` §5.
+  3. A deadline expiry is distinguishable in the log: the error carries
+     `code: 'EMBED_TIMEOUT'` and `contextAssembler.js:68` now emits `errCode`.
+  4. A turn that retrieves **zero** chunks keeps the instruction not to invent
+     information (Q4-3).
+
+Why 3,000 ms — derived from measurement, not chosen. **U-4/U2-1/U5-4 were closed first**,
+  because the number the timeout rests on had been quoted in three audit artifacts for
+  three phases without ever being reproduced. Five calls through `embed()` itself against
+  live `gemini-embedding-001` at `outputDimensionality: 768`:
+
+  | # | text | ms |
+  |---|---|---|
+  | 1 | `what are your timings` (first call of a cold process) | **2,555** |
+  | 2 | `do you do root canal` | 546 |
+  | 3 | `రేపు అపాయింట్‌మెంట్ దొరుకుతుందా` | 625 |
+  | 4 | `kitna kharcha aayega cleaning ka` | 543 |
+  | 5 | `Q: Do you have parking?\nA: …` | 459 |
+
+  Median 546 ms, mean 946 ms. **The FLOOR is call 1.** A cold process pays DNS + TLS on
+  its first embedding, and 2,555 ms is 2.8× the top of the claimed 600–900 ms band. Any
+  deadline below ~2.6 s would fire on the first turn after every deploy and after every
+  idle-socket reap — converting a healthy call into an ungrounded one at exactly the
+  moment (the genesis deploy) when the first real turn happens.
+  **The CEILING is the voice turn budget.** 8,000 ms (`internalVoice.js:65-68`), less
+  300–465 ms hydration (`01-map.md:75`), must still leave generation, up to two tool
+  rounds, and outbound persistence room to finish. Retrieval cannot own half the turn.
+  3,000 ms clears the measured cold call with ~17% headroom, is ~5.5× the warm median,
+  and leaves 5,000 ms downstream.
+  **The asymmetry settles the remaining doubt in favour of the smaller value.** Because
+  change 4 ships alongside, a deadline that fires spuriously costs *grounding on one
+  turn*, not the turn — the reply still goes out, still guarded. A deadline set too
+  generously instead lets the 8,000 ms turn budget fire, and the caller hears the
+  worker's static apology: the whole turn is lost. Cheap failure on one side, expensive
+  on the other.
+
+Why change 4 could not be deferred: `contextAssembler.js:67-70` catches every RAG failure
+  and returns `[]`, and at HEAD zero chunks dropped the entire knowledge section —
+  including the only occurrence of *"do not invent information"* anywhere in `src/`
+  (`aiService.js:568`). A timeout converts a hang into a fast RAG failure, so change 1
+  **raises the rate at which that path fires**. Shipping 1 without 4 would trade a hung
+  turn for a confidently invented one, in Telugu, about a clinic the model knows nothing
+  about — a worse outcome, not a better one. The rule applied: if a change increases the
+  rate of a failure mode, the mitigation for that failure mode ships in the same commit.
+
+Not changed, deliberately: the `embed` local-binding vs `module.exports.embed` split
+  (`knowledgeService.js:106` vs `:192`/`:217`). The deadline was put inside the function
+  body precisely so the split did not have to move — inside, all six entry points inherit
+  the bound regardless of which binding they call; a wrapper on the export would have
+  bounded four and missed R1, the one call on the patient-facing path.
+
+Prediction: no embedding call from this repository can exceed ~3 s wall-clock, on any of
+  the six entry points, and a turn whose retrieval fails still reaches the model with an
+  instruction not to invent. Observable at the first production voice turn and in
+  `EMBED_TIMEOUT` appearing (or not) in logs.
+Falsifier: `EMBED_TIMEOUT` shows up in production logs at a rate that is not attributable
+  to real Google slowness — i.e. the deadline is firing on healthy calls. Five samples on
+  one machine against one region is **not a distribution** (see the UNVERIFIED note kept
+  against U-4), so the cold-start floor in particular rests on a single observation. If
+  that happens the answer is to raise the deadline toward 4,000 ms, **not** to remove it:
+  unbounded was the state this entry exists to end.
+Review: 2026-11-01, or at the first production voice turn, whichever is first.
+Outcome: pending
+
+**D-009's triggered review, recorded here (append-only; D-009 itself is untouched).**
+D-009 predicted that the next change removing, defaulting or conditionalising R1's tenant
+predicate would turn the suite red in the same commit. This session changed
+`knowledgeService.js` without touching the predicate, and `T-1`/`T-2` in
+`tests/knowledge/retrievalIsolation.integration.test.js` pass unchanged at this commit —
+verified by running that file directly, not inferred from the suite total. The prediction
+is **not yet exercised** (no session has attempted to weaken the predicate), so D-009's
+outcome stays `pending`. What this session does confirm is the second-order claim: the
+tests survive an unrelated edit to the module they defend, including one that changes
+`embed`'s call signature to the SDK — they stub the transport at
+`GenerativeModel.prototype.embedContent`, which is why the new `{ signal }` argument
+passed straight through them.

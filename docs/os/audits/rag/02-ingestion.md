@@ -752,9 +752,18 @@ capable of ending the request. The response is held for as long as Google holds 
 owner's browser is the only actor that can give up, and `public/portal/faqs.js` sets no fetch
 timeout either; the Save button stays disabled reading "Saving…" (`faqs.js:13`).
 
-**Typical case, for contrast:** ~600–900 ms. That figure is **UNVERIFIED** — it is UI copy at
-`public/portal/faqs.js:13` (*"~0.6–0.9s measured against the live embedding model"*), describing
-the ingestion side. Read verbatim this session; not reproduced. Phase 1 §8 U-4 stands.
+**Typical case, for contrast:** ~600–900 ms. That figure was **UNVERIFIED** when this section
+was written — it is UI copy at `public/portal/faqs.js:13` (*"~0.6–0.9s measured against the live
+embedding model"*), describing the ingestion side. Read verbatim that session; not reproduced.
+
+> **UPDATE 2026-08-10 (RAG Session 2) — measured, and §D.3's headline finding is now FIXED.**
+> Five instrumented calls through `embed()` itself: 2,555 ms cold, then 546 / 625 / 543 / 459 ms.
+> The typical case above is broadly right for a *warm* process and silent about the cold one,
+> which is 2.8× its ceiling. **Row 4 of the table above no longer reads `none`:** `embed` now
+> carries a 3,000 ms client-side deadline (`EMBED_TIMEOUT_MS`), so "worst-case request duration:
+> unbounded" is retired for every one of the six entry points, this one included. The deadline's
+> derivation and the reason the zero-chunk prompt fix had to ship with it are in **D-010**.
+> U-4 / U2-1 / U5-4 are closed with a stated residual.
 
 ### D.4 Q2-5 — does a whitespace-only edit re-embed? **No. Traced concretely.**
 
@@ -942,7 +951,7 @@ threshold. That is why several are D rather than C or E.
 
 | ID | What could not be established | What would establish it |
 |---|---|---|
-| **U2-1** | **Actual embedding latency from this codebase.** The 600–900 ms figure is UI copy at `public/portal/faqs.js:13`, read verbatim this session but **not reproduced**. Carrying Phase 1 U-4 forward unchanged; no API call was made. | One instrumented call, or Phase 4 §D. |
+| **U2-1** | ~~**Actual embedding latency from this codebase.** The 600–900 ms figure is UI copy at `public/portal/faqs.js:13`, read verbatim this session but **not reproduced**. Carrying Phase 1 U-4 forward unchanged; no API call was made.~~ **CLOSED 2026-08-10 (RAG Session 2)** with U-4 — see `01-map.md` §8 U-4 for the five measurements and the verdict. For §D.3's purposes the relevant figure is the **cold** one: 2,555 ms, paid by the portal FAQ save on the first embedding of a fresh process. The unbounded-duration finding in §D.3 is now fixed, not merely sized — `embed` carries a 3,000 ms deadline (**D-010**). ⚠️ Residual: 5 samples is not a distribution. | ~~One instrumented call, or Phase 4 §D.~~ For the residual: production-region samples after Issue 20. |
 | **U2-2** | **Whether Q+A concatenation embeds better or worse than answer-only** (§A.5). Requires an eval set of (query → expected chunk) pairs. **None exists** — every test stubs `getRelevantChunks`; there are 0 production queries and 0 transcripts. | Build an eval set, or wait for production traffic. |
 | **U2-3** | **The relevance cost of omitting `taskType`** (§C.3). Same blocker as U2-2, plus: `checkKbRetrieval` is a topK-1 smoke test and structurally cannot measure relevance. | Same as U2-2. |
 | **U2-4** | **Whether transliterated/code-mixed Telugu retrieves against native-script chunks** (§C.4). Not answerable from the repository. | Production queries, or an eval set with romanised variants. |
