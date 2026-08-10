@@ -63,7 +63,7 @@ async function assembleConversationContext({ tenantId, conversationId, customerI
     return promise.finally(() => onTiming(name, Number(process.hrtime.bigint() - t0) / 1e6));
   };
 
-  const [knowledgeChunks, history, { rows: facts }] = await Promise.all([
+  const [retrieved, history, { rows: facts }] = await Promise.all([
     timed('knowledge', knowledgeService.getRelevantChunks(tenantId, text, ragTopK, { signal }).catch((err) => {
       // `errCode` distinguishes the embedding deadline (EMBED_TIMEOUT) from the
       // other ways retrieval fails through this one line — a `22P02` from a
@@ -81,15 +81,33 @@ async function assembleConversationContext({ tenantId, conversationId, customerI
     )),
   ]);
 
+  // Q4-1: the relevance floor. Everything R1 returned is a candidate; only what
+  // clears the floor is handed to prompt assembly, where it will be rendered
+  // under "use ONLY this to answer questions" and therefore presented to the
+  // model as clinic-approved fact. The derivation of the number, and why it is
+  // deliberately conservative, live beside it in knowledgeService.js.
+  const { kept: knowledgeChunks, filtered } = knowledgeService.applyRelevanceFloor(retrieved);
+
   // Trace retrieval provenance (Issue 22): chunk ids + scores only — never
   // chunk content (content already lives in knowledge_chunks). This is the
   // SINGLE capture point for both channels, riding the ALS context; outside a
   // traced turn current() is null and this is a no-op. No retrieval (KB-less
   // tenant, RAG failure) records null, not [].
+  //
+  // Chunks the floor DISCARDED are recorded too, marked `below_floor`. Without
+  // them the trace shows only what survived, and the score distribution needed to
+  // tune the floor is exactly the part that was thrown away — a floor set from two
+  // measured bands can only become a floor set from production data if the data it
+  // rejects is kept. Surviving entries keep their original two-key shape, so a
+  // reader (and traces.integration.test.js:276) sees no change on the kept side;
+  // the marker's presence is the whole distinction.
   const trace = traces.current();
   if (trace) {
-    trace.setRetrieval(knowledgeChunks.length
-      ? knowledgeChunks.map((c) => ({ chunk_id: c.id ?? null, score: c.similarity ?? null }))
+    trace.setRetrieval(retrieved.length
+      ? [
+        ...knowledgeChunks.map((c) => ({ chunk_id: c.id ?? null, score: c.similarity ?? null })),
+        ...filtered.map((c) => ({ chunk_id: c.id ?? null, score: c.similarity ?? null, below_floor: true })),
+      ]
       : null);
   }
 

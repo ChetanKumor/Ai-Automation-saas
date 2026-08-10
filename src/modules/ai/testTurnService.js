@@ -103,14 +103,22 @@ async function runTestTurn(tenantId, question) {
   // mirroring the shared assembler exactly: a RAG failure (including its OWN
   // separate embedding-model quota) degrades to no knowledge, never aborts
   // the turn.
-  let knowledgeChunks = [];
+  let retrieved = [];
   try {
-    knowledgeChunks = await knowledgeService.getRelevantChunks(tenantId, question, RAG_TOP_K);
+    retrieved = await knowledgeService.getRelevantChunks(tenantId, question, RAG_TOP_K);
   } catch (err) {
     logger.error({ tenantId, err: err.message }, 'test turn RAG failed (continuing without)');
   }
-  trace.setRetrieval(knowledgeChunks.length
-    ? knowledgeChunks.map((c) => ({ chunk_id: c.id ?? null, score: c.similarity ?? null }))
+  // Q4-1's relevance floor, and Issue 22's capture including what it discarded —
+  // both identical to contextAssembler.js, which is where the reasoning lives.
+  // The owner testing their receptionist must see the retrieval the receptionist
+  // would actually get, so this page cannot be exempt from the floor.
+  const { kept: knowledgeChunks, filtered } = knowledgeService.applyRelevanceFloor(retrieved);
+  trace.setRetrieval(retrieved.length
+    ? [
+      ...knowledgeChunks.map((c) => ({ chunk_id: c.id ?? null, score: c.similarity ?? null })),
+      ...filtered.map((c) => ({ chunk_id: c.id ?? null, score: c.similarity ?? null, below_floor: true })),
+    ]
     : null);
 
   // Synthetic, never-persisted customer/conversation — no row exists anywhere

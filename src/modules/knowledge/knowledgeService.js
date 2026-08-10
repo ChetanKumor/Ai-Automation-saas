@@ -198,6 +198,92 @@ async function getRelevantChunks(tenantId, query, topK = 3, { signal = null } = 
   return rows;
 }
 
+// ── The relevance floor for chunks that reach a prompt (Q4-1) ────────────────
+//
+// R1 above takes top-K with no threshold. At the envelope's 150–250 chunks per
+// tenant and topK=3 it ALWAYS returns three rows, and aiService.js renders every
+// one of them under "Business knowledge (use ONLY this to answer questions — do
+// not invent information)". The third row is therefore presented to the model as
+// the authoritative answer to the question that was asked, whatever it is about.
+//
+// ── WHERE THE NUMBER COMES FROM ──────────────────────────────────────────────
+// There is no evaluation set, no production traffic and no transcripts, so an
+// OPTIMAL cut cannot be derived and this is not one. Two bands have been
+// measured, and 0.25 is the midpoint between them:
+//
+//   UPPER BOUND — 0.4204. The lowest cosine similarity observed between ANY real
+//     query and ANY real chunk, over 42 measured pairs of real dental-clinic FAQ
+//     text under gemini-embedding-001 at outputDimensionality 768 (this session's
+//     measurement; see D-013). It came from the most unrelated pair available —
+//     an out-of-domain question about a metro train against a children's-dentistry
+//     FAQ. Real text simply does not go below this, so a floor at or above it
+//     would start cutting into the range honest content occupies, and with no
+//     eval set nothing would report what it had cut.
+//
+//   LOWER BOUND — 0.0955. The highest similarity 1,200 random unit-Gaussian
+//     768-dim vectors reached against a real query vector (05-isolation.md §H.2).
+//     That is a max-of-N statistic on chance, not a property of embedded text:
+//     1/sqrt(768) = 0.0361 is the standard deviation of cosine between independent
+//     unit vectors, so 0.0955 is ~2.6 sigma. Below this a floor cannot separate
+//     anything from coincidence.
+//
+//   (0.0955 + 0.4204) / 2 = 0.2580, rounded DOWN to 0.25 — every rounding on this
+//   value goes toward keeping chunks, for the reason below.
+//
+// ── WHY IT IS DELIBERATELY TOO LOW ───────────────────────────────────────────
+// The two failure directions are not symmetric, and only one of them is visible.
+// Under-filtering leaves today's behaviour, which is a known and recorded finding.
+// Over-filtering silently deletes a correct answer: the turn then takes the
+// zero-chunk branch, the model says it will check and get back to them, and
+// nothing anywhere records that an answer existed. Without an eval set that
+// failure is undetectable, so the floor is set where it cannot cause it.
+// Concretely: at 0.25 the floor would not have removed a single one of the 42
+// measured pairs. It is a floor awaiting production data, not a tuned parameter,
+// and applyRelevanceFloor's discarded rows are recorded to `turn_traces`
+// (contextAssembler.js) precisely so the data to tune it accumulates.
+//
+// Cross-lingual retrieval was measured too, because this product's patients ask
+// in Telugu and Hindi against FAQs written in English and R1 neither selects nor
+// filters the language tag: correct answers scored 0.8087–0.8603 and ranked first
+// every time. Vernacular turns are nowhere near this floor.
+const RELEVANCE_FLOOR = Object.freeze({ env: 'RAG_MIN_SIMILARITY', value: 0.25 });
+
+// Read at call time, same shape as embedTimeoutMs above, so a test varies it per
+// case and an operator changes it without a restart. Out-of-range values fall
+// back rather than throwing: cosine similarity is bounded to [-1, 1], so anything
+// outside it is a typo, and a typo must not silently empty every prompt.
+function minSimilarity() {
+  const v = Number.parseFloat(process.env[RELEVANCE_FLOOR.env]);
+  return Number.isFinite(v) && v >= -1 && v <= 1 ? v : RELEVANCE_FLOOR.value;
+}
+
+// Split R1's rows into the ones that may reach a prompt and the ones that may not.
+//
+// This is NOT applied inside getRelevantChunks, and that is deliberate twice over.
+// R1's contract is "the nearest K rows this tenant owns" — a health probe
+// (validationService.checkKbRetrieval) legitimately wants that and would start
+// failing tenants whose knowledge base is fine if the floor moved underneath it.
+// And whether a row is good enough to be presented to a patient as clinic-approved
+// fact is a property of the PROMPT, conferred by the authority header, so it
+// belongs at the layer that confers it. Session 1's retrievalIsolation tests call
+// getRelevantChunks directly and are unaffected by this file's change.
+//
+// A row with no usable score is KEPT. The floor can only exclude what it can
+// measure, and `embedding` is nullable (schema.sql:293), so a NULL-embedding row
+// comes back with `similarity = NULL` (05-isolation.md §H.5). Excluding those
+// would be the floor quietly doing something it was not derived to do; that case
+// is Q3-2's and is closed separately.
+function applyRelevanceFloor(rows, floor = minSimilarity()) {
+  const kept = [];
+  const filtered = [];
+  for (const row of rows) {
+    const score = row && Number.isFinite(row.similarity) ? row.similarity : null;
+    if (score === null || score >= floor) kept.push(row);
+    else filtered.push(row);
+  }
+  return { kept, filtered, floor };
+}
+
 function chunkText(text, maxLen = 500, overlap = 50) {
   const paragraphs = text.split(/\n\s*\n/);
   const chunks = [];
@@ -319,6 +405,7 @@ async function deleteChunk(tenantId, id) {
 
 module.exports = {
   embed, EMBED_BUDGETS, DEFAULT_EMBED_BUDGET,
+  RELEVANCE_FLOOR, minSimilarity, applyRelevanceFloor,
   storeChunks, getRelevantChunks, chunkText,
   listChunks, getChunk, countChunksBySourcePrefix, createChunk, updateChunk, deleteChunk,
 };
