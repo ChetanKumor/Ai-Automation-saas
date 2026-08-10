@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 091aa199a410d996f530bac7290386b8c6659798
+Verified-at: 2729396f73bf6da582b52f863038d6c8c5555aec
 Verified-on: 2026-08-10
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -66,17 +66,22 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Test suite: **1028 tests / 171 suites / 0 fail** (`npm test`, raw: `# tests 1028 /
-  # pass 1028 / # fail 0 / # cancelled 0 / # skipped 0`)
+- Test suite: **1043 tests / 173 suites / 0 fail** (`npm test`, raw: `# tests 1043 /
+  # pass 1043 / # fail 0 / # cancelled 0 / # skipped 0`)
   ⚠️ **GREEN NOW MEANS THREE COUNTERS, NOT ONE.** `npm run os:check` refuses on
   `# fail`, `# cancelled` **and** `# skipped`, and on any of them being unparseable.
   Quoting `# fail 0` alone no longer establishes that a run was clean — see the
   RAG Session 3 note below. Three consecutive full runs at this commit:
-  1028/171/0/0/0, and three at `6c36259` before the change at 1019/168/0/0/0.
+  1043/173/0/0/0, and three at `0249814` before the change at 1028/171/0/0/0.
   Neither recorded intermittent fired in any of the six
   (`portalFaqs.integration.test.js:465` did not resurface, and
-  `portalKnowledgeSummary` produced no cancellations).
-  Last moved by **RAG Session 4A — the provisioning CLI reports the tenant**
+  `portalKnowledgeSummary` produced no cancellations) — twelve consecutive clean
+  runs for both across Sessions 3, 4A and 5.
+  Last moved by **RAG Session 5 — the relevance floor and the data fence**
+  (+15 tests, +2 suites — `tests/knowledge/relevanceFloor.integration.test.js`
+  at 6 and `tests/prompts/knowledgeFence.unit.test.js` at 9; see D-013 and the
+  note below), before that by
+  **RAG Session 4A — the provisioning CLI reports the tenant**
   (+9 tests, +3 suites — `tests/provisioning/provisionCli.integration.test.js`
   at 7 across two suites and `tests/provisioning/kbTenantBinding.integration.test.js`
   at 2; see D-012 and the note below), before that by
@@ -112,8 +117,40 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   `tests/portal/portalTestTurn.integration.test.js`), then **F3-R1** (+18 tests,
   +1 suite — `tests/admin/resetOwnerPassword.test.js`), all below. Every other
   line in this section that quotes 869/151, 874/152, 878/153, 887/154, 901/155,
-  924/156, 928/156, 960/158, 978/159 or 989/160 is describing the commit it names
-  and is left as written.
+  924/156, 928/156, 960/158, 978/159, 989/160 or 1028/171 is describing the commit
+  it names and is left as written.
+  **WHAT REACHES THE MODEL — what RAG Session 5's +15 buys, and what it does NOT.**
+  Two findings that fired on every patient turn are now acted on. Q4-1: R1 took
+  top-K with no threshold, so at 150–250 chunks per tenant and topK=3 all three
+  rows always reached the prompt under *"use ONLY this to answer questions — do
+  not invent information"* — an unrelated chunk presented to a patient as the
+  clinic's own answer. A relevance floor of **0.25** cosine now stands between R1
+  and prompt assembly (`RAG_MIN_SIMILARITY`, applied in `contextAssembler.js` and
+  `testTurnService.js`, **not** inside `getRelevantChunks` — see D-013 for why).
+  Q4-2: chunk content was interpolated bare, directly above the `Rules:` block that
+  carries the no-medical-advice rule; it is now enclosed in a data fence whose
+  marker is checked against the content and escalated on collision, at a measured
+  cost of **+110 prompt tokens** on a populated turn and **+0** on a zero-chunk one.
+  ⚠️ **Q4-1 IS SIZED AND INSTRUMENTED, NOT CLOSED.** The floor was derived from two
+  measured bands (D-013) and is deliberately far below what would separate them:
+  **at 0.25 it would not have removed a single one of the 41 real pairs measured**,
+  including the root-canal query whose top three scored 0.6252 / 0.5802 / 0.4962.
+  The separating value is near 0.67 and is not defensible from five positive
+  examples — over-filtering silently deletes correct answers and is invisible
+  without an evaluation set, which this repository does not have. The floor ships
+  conservative, and the scores it discards are now recorded to
+  `turn_traces.retrieval` as `below_floor` so the distribution needed to tune it
+  accumulates. **The correct next instrument is an evaluation set, not a higher
+  number.**
+  ⚠️ **THE NUMBER THE SESSION WAS POINTED AT WAS MEASURING SOMETHING ELSE.**
+  `05-isolation.md` §H.2's `~0.095` for "unrelated content" is the noise band of
+  **random unit-Gaussian vectors** (§H.1 states the seed vectors were random), not
+  of embedded text: `1/sqrt(768) = 0.0361` is the standard deviation of cosine
+  between independent unit vectors, so 0.0955 is ~2.6 sigma over 1,200 draws. Real
+  unrelated dental-clinic text under `gemini-embedding-001@768` measures
+  **0.4204–0.6252**, and correct answers **0.7186–0.8603**. A floor derived from
+  0.095 would have been inert. §H.2 is not wrong — it is being read as a claim it
+  never made. Anything reusing it as a relevance number should read D-013 first.
   **RAG ISOLATION DEFENCE — what the +2 actually buys.** Before `ce7a213`, deleting
   `WHERE tenant_id = $1` from `knowledgeService.getRelevantChunks`
   (`knowledgeService.js:40`) left the suite at 989 pass / 0 fail, **byte-identical to

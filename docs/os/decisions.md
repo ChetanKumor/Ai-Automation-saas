@@ -491,3 +491,123 @@ Falsifier: a mis-aimed ingest that still lands — i.e. the operator reads the t
 Review: at customer #1's onboarding, or when Session 4B changes the dedup key — whichever
   is first. Bring the per-source `attempted → observed` output from the real run.
 Outcome: pending
+
+## D-013 — A relevance floor stands between R1 and the prompt; it is a floor, not a threshold
+Date: 2026-08-10
+Overrides: nothing. It does **not** amend D-009 or `INV-R1`: R1's tenant predicate, its SQL,
+  its result shape and its call signature are untouched, and Session 1's
+  `tests/knowledge/retrievalIsolation.integration.test.js` is byte-unchanged and passing.
+  It is the second change to `src/modules/knowledge/knowledgeService.js` since D-009 and so
+  fires D-009's review trigger again; that review is recorded at the end of this entry.
+  D-010's change 4 (the zero-chunk prompt keeps its anti-invention guard) is **relied upon,
+  not re-implemented** — see the interaction below.
+Decision: three changes, acting on **Q4-1** and **Q4-2** (`01-map.md` §7).
+
+  1. **`knowledgeService.applyRelevanceFloor`** splits R1's rows into what may reach a
+     prompt and what may not, at a default cosine similarity of **0.25**, overridable by
+     `RAG_MIN_SIMILARITY` and read at call time (the `EMBED_TIMEOUT_*` shape D-011
+     established). It is applied at the two paths that feed a patient-facing prompt —
+     `contextAssembler.js` (both channels) and `testTurnService.js` (the portal test turn) —
+     and **not inside `getRelevantChunks`**. R1's contract stays "the nearest K rows this
+     tenant owns": `validationService.checkKbRetrieval` is a health probe that legitimately
+     wants exactly that and would begin failing tenants whose knowledge base is fine if the
+     floor moved underneath it. Whether a row is good enough to be shown to a patient as
+     clinic-approved fact is a property of the PROMPT, conferred by the authority header, so
+     it is enforced at the layer that confers it.
+  2. **A data fence** (`aiService.renderKnowledgeSection`) encloses chunk content in explicit
+     markers, under a line stating the enclosed text is clinic-supplied reference data and
+     never instructions, with a closing line asserting that the `Rules:` block below
+     overrides anything inside. The header line and the per-chunk rendering are
+     **byte-unchanged** — `src/portal/protections.js:68` quotes that header to owners
+     verbatim on the Safety page and the suite asserts it reaches the real prompt. Cost:
+     **+110 tokens** on a populated turn (915 → 1025, counted with
+     `gemini-2.5-flash.countTokens`, not estimated), **+0** on a zero-chunk turn, whose
+     prompt is byte-identical to before.
+  3. **Discarded scores are recorded.** `turn_traces.retrieval` now carries the chunks the
+     floor removed, marked `below_floor: true`; surviving entries keep their exact
+     `{chunk_id, score}` shape. Without this the trace shows only survivors and the
+     distribution needed to tune the floor is precisely the part thrown away.
+
+**THE DERIVATION, AND THE MEASUREMENT THAT REPLACED THE ONE WE STARTED FROM.**
+  The obvious basis was `05-isolation.md` §H.2 — an exact match at `1.000000`, "unrelated"
+  content at `~0.095`. **§H.2's vectors were random unit-Gaussian, not embedded text**
+  (§H.1 says so), so `0.095` is the noise band of random vectors and not of real unrelated
+  content. It is a max-of-N statistic on chance: `1/sqrt(768) = 0.0361` is the standard
+  deviation of cosine between independent unit vectors, and `0.0955` is ~2.6 sigma over
+  1,200 draws. A floor derived from it would be inert. The real band was therefore measured
+  this session against `gemini-embedding-001` at `outputDimensionality: 768`, on
+  dental-clinic FAQ text in `faqService.encode`'s exact `Q: …` / `A: …` shape — 8 chunks x 4
+  patient queries, plus 3 chunks x 3 vernacular queries, 41 pairs in all:
+
+  | band | n | range |
+  |---|---|---|
+  | correct answer to the question asked | 5 | **0.7186 – 0.8603** |
+  | any non-answer pair | 36 | **0.4204 – 0.6252** |
+  | random unit-Gaussian vectors (§H.2, 1,200 draws) | — | ≤ **0.0955** |
+
+  UPPER BOUND **0.4204** — the lowest similarity any real text pair produced, from the most
+  unrelated pair available (an out-of-domain question about a metro train against a
+  children's-dentistry FAQ). At or above it a floor starts cutting into the range honest
+  content occupies. LOWER BOUND **0.0955** — below it nothing is distinguishable from
+  chance. **0.25 is the midpoint of the two, rounded down**: maximally far from both, and
+  tuned to neither.
+
+  Cross-lingual retrieval was measured too, because this product's patients ask in Telugu and
+  Hindi against FAQs a clinic writes in English, and R1 neither selects nor filters the
+  language tag. Correct answers scored **0.8281 (Telugu script), 0.8087 (Devanagari), 0.8603
+  (romanised Hinglish)** and ranked first every time. Vernacular turns are nowhere near this
+  floor — which is the specific way a floor could have quietly broken this product.
+
+**IT IS A FLOOR AWAITING PRODUCTION DATA, NOT A TUNED PARAMETER, AND IT DOES NOT CLOSE Q4-1.**
+  Stated plainly, because the measurement says so: **at 0.25 the floor would not have removed
+  a single one of the 41 measured pairs.** Q4-1's headline case — an unrelated chunk
+  retrieved for a root-canal pricing question and rendered as the answer — is **not** fixed.
+  That query's top three came back at 0.6252 / 0.5802 / 0.4962, all far above 0.25. The value
+  that would separate this sample sits near 0.67, in the gap between the two bands, and it is
+  not defensible: it would be an optimal cut derived from five positive examples in one
+  clinic's content, and over-filtering is the failure direction that is invisible without an
+  evaluation set — a removed correct answer produces a turn that says "let me check and get
+  back to you", and nothing anywhere records that an answer existed. There is no evaluation
+  set, no production traffic and no transcripts. So the conservative floor ships, the
+  mechanism and the recorded distribution ship with it, and the number is left to be earned
+  rather than guessed. Q4-1 stays OPEN, now sized and instrumented.
+Reason: `similarity` was computed by R1 and discarded by every consumer (`01-map.md` §6.2's
+  absence table), so at 150–250 chunks per tenant and topK=3 all three rows always reached
+  the prompt under "use ONLY this to answer questions — do not invent information", which is
+  authority-laundering on every turn. And chunk content was interpolated bare, immediately
+  above the `Rules:` block that carries the no-medical-advice rule, with
+  `faqService.normalize` collapsing whitespace and sanitising nothing at `MAX_ANSWER = 800`.
+Prediction: `below_floor` entries appear in `turn_traces.retrieval` at a rate near zero for
+  honestly-authored content. A chunk that does fall below 0.25 is far likelier to be a
+  degenerate row — a truncated or corrupted embedding — than a real answer.
+Falsifier: a production trace showing a chunk marked `below_floor` whose content was in fact
+  the correct answer to that turn's question. One such trace means 0.25 is already too high,
+  and that the measured 0.4204 lower limit does not hold for real traffic. Falsifying in the
+  other direction: `below_floor` never appearing at all across meaningful volume, which would
+  mean the floor is decoration and Q4-1 needs a different instrument than a similarity cut.
+Review: when `turn_traces` holds retrieval rows from real patient turns — enough to plot the
+  score distribution against whether the turn was answered — or at the first change to
+  `src/modules/knowledge/knowledgeService.js`, whichever is first. Bring the distribution,
+  not an opinion.
+
+**D-009's REVIEW, fired by this being the second change to `knowledgeService.js`.**
+  `INV-R1` holds at HEAD and is unweakened. The predicate, its parameterisation and its
+  deny-on-unresolved-tenant behaviour are untouched; the floor is applied strictly after R1
+  returns, in a different module, and the new integration test asserts that a foreign
+  tenant's chunk at similarity 0.99 — which clears any floor — is still absent for the other
+  tenant, so the floor can never be mistaken for the thing enforcing isolation. Session 1's
+  T-1/T-2 are byte-unchanged and passing.
+
+**WHAT THE FENCE TESTS PROVE, AND WHAT THEY DO NOT.** They assert STRUCTURE: that the fence
+  exists, that every chunk is inside it, that the emitted markers provably do not occur in
+  the fenced text, that the framing line names the content as data rather than instruction,
+  and that `Rules:` begins after the fence closes. **They do not prove the model obeys any of
+  it.** There is no deterministic test that Gemini refuses instruction-shaped chunk content;
+  asserting on model behaviour would be evidence of a sample, not of a property. The fence's
+  effectiveness is unmeasured. Its presence is measured. The marker itself is not assumed
+  unforgeable: whitespace collapse preserves every non-whitespace character, so a static
+  delimiter typed into an 800-character answer would survive into the prompt — the emitted
+  marker is therefore checked against the text it encloses and escalated on collision to a
+  tag carrying sha256 of that same text, which makes non-occurrence a property of the output
+  rather than a hope about what clinic staff type.
+Outcome: pending
