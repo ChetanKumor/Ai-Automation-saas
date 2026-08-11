@@ -403,11 +403,18 @@ describe('portal receptionist — persona & voice config (route-level)', { skip:
 
     for (const channel of ['whatsapp', 'voice']) {
       const prompt = await preview(ownerA.tenantId, channel);
-      assert.ok(prompt.includes(VALID.greeting.en), `${channel}: greeting is verbatim`);
       assert.ok(prompt.includes('Polite and formal.'), `${channel}: tone "professional" renders the formal STYLE_LINE`);
       assert.ok(prompt.includes(`"${VALID.display_name}."`), `${channel}: the receptionist's own name appears`);
       assert.ok(prompt.includes('Never use this name to address the'), `${channel}: and the never-address-the-customer rule ships with it`);
     }
+    // The greeting is WhatsApp-only in the PROMPT since V1c — on voice it is
+    // spoken from /call/start's payload instead, so an owner's edit still
+    // reaches the caller, just not through here. Asserted in both directions so
+    // this test keeps guarding the split rather than going quiet about it.
+    assert.ok((await preview(ownerA.tenantId, 'whatsapp')).includes(VALID.greeting.en),
+      'whatsapp: greeting is verbatim');
+    assert.ok(!(await preview(ownerA.tenantId, 'voice')).includes(VALID.greeting.en),
+      'voice: the greeting must NOT be in the prompt — the worker speaks it on join');
     // response_length: 'concise' adds the extra brevity line, channel-specific wording.
     assert.ok((await preview(ownerA.tenantId, 'voice')).includes('Keep answers to one short sentence whenever you can.'));
     assert.ok((await preview(ownerA.tenantId, 'whatsapp')).includes('Prefer the shortest complete answer — trim extra detail.'));
@@ -454,9 +461,15 @@ describe('portal receptionist — persona & voice config (route-level)', { skip:
       });
       const json = await httpRes.json();
       assert.equal(httpRes.status, 200, JSON.stringify(json));
-      assert.deepEqual(Object.keys(json).sort(), ['call_session_id', 'conversation_id', 'correlation_id', 'customer_id'],
-        'the bridge response has no persona/voice fields at all today');
+      // V1c added `greeting` — the greeting TEXT, resolved per language. The gap
+      // this test names is unchanged and is about the VOICE persona: the speaker
+      // and pace the owner chose still do not reach the worker, so the greeting
+      // now travels in the wrong voice rather than not travelling at all.
+      assert.deepEqual(Object.keys(json).sort(),
+        ['call_session_id', 'conversation_id', 'correlation_id', 'customer_id', 'greeting'],
+        'the bridge response carries greeting text but still no persona/voice fields');
       assert.ok(!JSON.stringify(json).includes('kavitha'), 'the chosen speaker never reaches the bridge response');
+      assert.ok(!JSON.stringify(json).includes('0.85'), 'nor does the chosen pace');
     } finally {
       server.close();
     }

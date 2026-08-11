@@ -196,6 +196,46 @@ def build_turn_metrics(call: CallState, turn: int, user_metrics, agent_metrics) 
     return payload
 
 
+def speak_greeting(session, started: dict):
+    """Speak `/call/start`'s greeting on join, if it returned one (V1c).
+
+    The brain returns the clinic's own greeting for THIS caller's language, with
+    the recording-consent line already inside it, resolved before the caller has
+    said anything. Speaking it here — say() needs only the TTS plugin — is what
+    saves the caller a full STT → brain → Gemini → TTS turn just to be greeted.
+    The brain no longer carries a greeting instruction in the VOICE prompt (the
+    WhatsApp one is unchanged). All subsequent turns flow through llm_node, never
+    say().
+
+    An empty/absent greeting means say nothing: the call proceeds exactly as it
+    does today. That is also the deploy-skew path — an older brain returns no
+    `greeting` key at all.
+
+    `add_to_chat_ctx=False` is LOAD-BEARING, not tidiness. With the default True,
+    agent_activity.py:2589 builds an assistant ChatMessage for this speech and
+    fires `conversation_item_added` — the event turn_metrics_listener counts. The
+    greeting would emit a turn-1 metrics line whose stt/eou/llm fields are all
+    null (there was no user turn) and shift every real turn's index by one. That
+    is precisely the residual documented on that handler: a pending user leg
+    mis-attributing to a say() reply, which was unreachable until this function
+    existed. False keeps the greeting out of the chat context and therefore out
+    of the metrics stream.
+
+    It does NOT silence or hide the greeting. In agent_activity._tts_task_impl
+    the audio and transcript forwarding tasks start at :2521/:2537, well before
+    the `if forwarded_text and add_to_chat_ctx:` gate at :2589, which covers only
+    the chat-context insert — so the caller hears it and it still reaches the
+    room transcript. test_greeting.py pins that ordering against the installed
+    library, because a future upgrade could move it silently.
+
+    Returns the SpeechHandle, or None when nothing was said.
+    """
+    greeting = (started.get("greeting") or "").strip()
+    if not greeting:
+        return None
+    return session.say(greeting, add_to_chat_ctx=False)
+
+
 def turn_metrics_listener(call: CallState, log: Optional[logging.Logger] = None):
     """Build the `conversation_item_added` handler that emits the per-turn line.
 
@@ -542,12 +582,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     await session.start(room=ctx.room, agent=agent)
 
-    # Greeting: /call/start does not currently return greeting text; if the
-    # brain adds one, speak it proactively (say() needs only the TTS plugin).
-    # All subsequent turns flow through llm_node, never say().
-    greeting = (started.get("greeting") or "").strip()
-    if greeting:
-        session.say(greeting)
+    speak_greeting(session, started)
 
 
 if __name__ == "__main__":

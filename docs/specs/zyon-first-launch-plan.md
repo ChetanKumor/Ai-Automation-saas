@@ -287,6 +287,57 @@ is found before it has a caller. Do it when Issue 12 or 13 makes a DID something
 operator actually needs to enter; there is nothing to configure until then, and
 external clock C-2 (Plivo DID) is still unfiled.
 
+**Issue 37 — chore: `customers.preferred_language` is written unvalidated.**
+Filed by the V1c session, **not built.** `customerService.js:69-73` writes whatever
+string arrived as the turn's `language` straight into the column, on first detection:
+
+```sql
+UPDATE customers SET preferred_language = $1
+ WHERE id = $2 AND tenant_id = $3 AND preferred_language IS NULL
+```
+
+The value originates outside this system. Sarvam STT sets it
+(`voice-agent/agent.py:523-524`, `ev.language`), the worker forwards it on
+`delegate_turn`, and nothing between the socket and the UPDATE checks it against
+`configSchema`'s `LANG_CODES`. So the column that names a customer's language is
+constrained by the config schema in intent and by nothing at all in fact: it holds
+`te-IN` today because that is what the vendor happens to emit, and would hold
+`ta-IN`, `zh`, or a vendor error string just as readily.
+
+**This is the divergence `configLang` was built to absorb, not to hide.** V1c
+normalises at the read boundary (`src/modules/config/schema.js`), so an unresolvable
+value now falls back to the tenant default with a WARN instead of silently becoming
+an English greeting — but the column still accumulates values no schema admits, and
+every future reader inherits the same obligation. Two candidate fixes, neither
+chosen here: normalise on WRITE (cheap, but rewrites history's meaning and discards a
+signal about what STT actually returns), or add a CHECK constraint and reject
+(honest, but turns a vendor surprise into a failed turn on the call path).
+
+**Not a launch blocker and not a correctness bug at HEAD** — the one reader that
+matters reads through `configLang`, and `resolveLanguage`'s other consumer
+(`ackTextFor`) was repointed through it in the same commit. Recorded so the next
+reader of that column does not assume it holds a `LANG_CODES` value.
+
+**Issue 38 — chore: the worker's TTS language ignores the greeting's language.**
+Observed during V1c's dev-room run, **not built.** `agent.py:501` constructs the
+Sarvam TTS with `target_language_code=language_prior or DEFAULT_LANGUAGE`, where
+`language_prior` comes from room metadata and `DEFAULT_LANGUAGE` is `te-IN`. The
+greeting's language is resolved independently, by the brain, from the caller's
+stored `preferred_language` — and `/call/start` returns only the text.
+
+Measured, not inferred: with the dev caller stored as `en-IN`, `/call/start`
+returned *"Hello! Welcome. How can I help you today?"* and the worker synthesised it
+with `target_language_code: "te-IN"` — an English sentence spoken by a
+Telugu-configured voice. The first turn then corrects it, because
+`_switch_tts_language` runs on the brain's `language` in the turn response.
+
+So the mismatch is confined to the greeting, which is exactly the utterance V1c
+added. Fixing it means either returning the resolved language code beside the
+greeting on `/call/start` (small, and the payload is already there) or having the
+worker send its `language_prior`. Deliberately out of V1c's scope — that session was
+explicitly barred from TTS changes — and the greeting is intelligible either way,
+so this is quality, not breakage.
+
 ---
 
 ## Cut lines & critical path

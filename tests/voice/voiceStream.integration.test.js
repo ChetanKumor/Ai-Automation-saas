@@ -240,10 +240,16 @@ describe('voice turn SSE mode (PR9C)', () => {
     assert.match(res.headers.get('content-type'), /text\/event-stream/);
 
     assert.deepEqual(events.map((e) => e.event), ['ack', 'delta', 'delta', 'done']);
+    // V1c: the ack table is keyed on CONFIG codes ('te') and the request's
+    // worker-namespace language ('te-IN') resolves through configLang — the same
+    // single boundary the greeting uses. `_ackTextFor` is asserted against
+    // rather than the raw table so the lookup, not just the copy, is pinned.
     assert.deepEqual(events[0].data, {
-      text: internalVoice._VOICE_ACK_COPY['te-IN'],
+      text: internalVoice._ackTextFor('te-IN'),
       language: 'te-IN',
     });
+    assert.equal(events[0].data.text, internalVoice._VOICE_ACK_COPY.te,
+      'te-IN resolves to the te ack line — one function knows both namespaces');
     assert.equal(events[1].data.text, 'Booked for ');
     assert.equal(events[2].data.text, 'ten thirty tomorrow.');
     assert.deepEqual(events[3].data, {

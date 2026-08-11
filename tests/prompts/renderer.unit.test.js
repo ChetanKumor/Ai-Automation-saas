@@ -39,7 +39,9 @@ describe('renderSystemPrompt — determinism & section order', () => {
       const anchors = [
         'You are the AI receptionist for New Clinic',                                    // role/identity
         channel === 'voice' ? 'Hours:' : 'Clinic facts:',                                // clinic facts
-        channel === 'voice' ? 'Greet the caller with exactly' : 'use this greeting verbatim', // greeting
+        // Greeting: WhatsApp only since V1c — on voice the greeting is spoken
+        // from /call/start's payload, so the section renders no line at all.
+        ...(channel === 'voice' ? [] : ['use this greeting verbatim']),                   // greeting
         'Tone:',                                                                          // personality
         'Operator instructions',                                                          // custom_instructions
         GUARDRAIL_HEAD,                                                                   // guardrails
@@ -246,23 +248,32 @@ describe('renderSystemPrompt — pricing facts block', () => {
 });
 
 describe('renderSystemPrompt — greeting, consent, language', () => {
-  it('greeting literal follows languages.default; consent toggles per language', () => {
+  it('greeting literal follows languages.default (WhatsApp)', () => {
+    // Repointed from voice at V1c: the voice channel renders no greeting line at
+    // all now (see voiceGreetingSuppressed.unit.test.js). The per-language
+    // selection this asserts is unchanged and still WhatsApp's contract.
     for (const lang of ['te', 'hi', 'en']) {
-      const on = renderSystemPrompt(cfg({
-        languages: { default: lang },
-        recording_consent: { enabled: true },
-      }), { channel: 'voice' });
-      assert.ok(on.includes(clinicDefaults.greeting[lang]), `${lang}: greeting literal verbatim`);
-      assert.ok(on.includes(clinicDefaults.recording_consent.line[lang]), `${lang}: consent literal verbatim`);
-
-      const off = renderSystemPrompt(cfg({ languages: { default: lang } }), { channel: 'voice' });
-      assert.ok(!off.includes(clinicDefaults.recording_consent.line[lang]), `${lang}: consent off → line absent`);
+      const out = renderSystemPrompt(cfg({ languages: { default: lang } }), { channel: 'whatsapp' });
+      assert.ok(out.includes(clinicDefaults.greeting[lang]), `${lang}: greeting literal verbatim`);
     }
   });
 
-  it('consent is voice-only: a WhatsApp render never carries the recording line', () => {
-    const out = renderSystemPrompt(cfg({ recording_consent: { enabled: true } }), { channel: 'whatsapp' });
-    assert.ok(!out.includes(clinicDefaults.recording_consent.line.en));
+  it('the consent line reaches NEITHER channel’s prompt', () => {
+    // It was voice-only and prompt-borne; since V1c it is spoken from
+    // /call/start's greeting payload, so no rendered prompt carries it in any
+    // language, enabled or not. Two lines of defence in one assertion: WhatsApp
+    // must never have had it, and voice must no longer instruct it — a prompt
+    // that still did would make the caller hear it twice.
+    for (const channel of ['whatsapp', 'voice']) {
+      for (const enabled of [true, false]) {
+        const out = renderSystemPrompt(
+          cfg({ recording_consent: { enabled } }), { channel });
+        for (const lang of ['te', 'hi', 'en']) {
+          assert.ok(!out.includes(clinicDefaults.recording_consent.line[lang]),
+            `${channel}/${enabled}: ${lang} consent line must not render`);
+        }
+      }
+    }
   });
 
   it('language policy line names the default and offers switching', () => {
@@ -274,14 +285,17 @@ describe('renderSystemPrompt — greeting, consent, language', () => {
   it('stale pre-refine doc missing the default-language line fails safe (fallback + WARN)', () => {
     // Bypass the schema on purpose: simulate a stored doc that predates the
     // greeting/consent coverage refine (getTenantConfig WARNs and returns as-is).
-    const stale = cfg({ languages: { default: 'te' }, recording_consent: { enabled: true } });
+    //
+    // Repointed to WhatsApp at V1c. The consent half of this test moved with the
+    // consent line itself — pickLine's consent fallback is now exercised on the
+    // /call/start path and is covered directly in
+    // voiceGreetingSuppressed.unit.test.js, against the same exported function.
+    const stale = cfg({ languages: { default: 'te' } });
     delete stale.greeting.te;
-    delete stale.recording_consent.line.te;
     const warns = [];
-    const out = renderSystemPrompt(stale, { channel: 'voice', onWarn: (e, d) => warns.push(e) });
+    const out = renderSystemPrompt(stale, { channel: 'whatsapp', onWarn: (e, d) => warns.push(e) });
     assert.ok(out.includes(clinicDefaults.greeting.en), 'falls back to the English greeting');
-    assert.ok(out.includes(clinicDefaults.recording_consent.line.en), 'falls back to the English consent line');
-    assert.deepEqual(warns.sort(), ['consent_line_fallback', 'greeting_line_fallback']);
+    assert.deepEqual(warns, ['greeting_line_fallback']);
   });
 });
 

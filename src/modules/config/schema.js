@@ -18,6 +18,32 @@ const { E164_RE } = require('../../utils/phone');
 // ── Reusable field validators ────────────────────────────────────────────────
 const LANG_CODES = ['te', 'hi', 'en'];                                   // Telugu, Hindi, English — the only languages v1 supports
 const LANG  = z.enum(LANG_CODES);                                        // a single language code
+
+// ── configLang — the ONE place that knows two language namespaces exist ──────
+// This config document is keyed on the bare codes above. The voice worker is
+// not: Sarvam STT emits BCP-47 ('te-IN'), voice-agent/agent.py:523-524 puts that
+// on CallState, it rides delegate_turn, and customerService.js:69-73 persists it
+// verbatim into `customers.preferred_language`. So the column that names a
+// tenant's language in practice holds a value this schema would reject.
+//
+// Normalise at the boundary rather than mapping per call site: a lookup table in
+// the greeting path would be a SECOND convention for the same fact. Every
+// consumer that must cross the two namespaces goes through here.
+//
+// DEFENSIVE BY NECESSITY: the writer at customerService.js:69-73 is unvalidated
+// — it stores whatever third-party string STT returned into a column this schema
+// constrains. That divergence is a separate issue (filed); this function is what
+// keeps it from reaching a caller as a wrong-language greeting.
+//
+// Returns a declared LANG_CODES value, or null. Null is "not resolvable" and the
+// caller must fall back deliberately — never to English by accident.
+function configLang(code) {
+  if (typeof code !== 'string') return null;
+  // Region/script subtags are dropped ('te-IN' → 'te'); the primary subtag is
+  // the only part LANG_CODES speaks. BCP-47 tags are case-insensitive.
+  const primary = code.trim().toLowerCase().split(/[-_]/)[0];
+  return LANG_CODES.includes(primary) ? primary : null;
+}
 const E164  = z.string().regex(E164_RE, 'must be E.164 (e.g. +919876543210)'); // international phone number — shares normalizePhone's bounds (F-003b)
 const HHMM  = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'must be 24h HH:MM'); // wall-clock time of day
 const YMD   = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be a YYYY-MM-DD date'); // calendar date
@@ -356,4 +382,4 @@ const configSchema = z.object({
     }
   });
 
-module.exports = { configSchema, LANG_CODES, SARVAM_V3_SPEAKERS, SARVAM_V3_SPEAKER_GENDER };
+module.exports = { configSchema, LANG_CODES, configLang, SARVAM_V3_SPEAKERS, SARVAM_V3_SPEAKER_GENDER };

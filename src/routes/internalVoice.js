@@ -16,6 +16,9 @@ const { createTurnTimer } = require('../infra/logging/turnMetrics');
 const traces              = require('../modules/traces/collector');
 const eventBus            = require('../../core/events');
 const EVENT               = require('../../core/eventTypes');
+const configService       = require('../modules/config/configService');
+const { configLang }      = require('../modules/config/schema');
+const { pickLine }        = require('../modules/prompts/templates/clinic');
 
 const router = express.Router();
 
@@ -47,13 +50,20 @@ function authenticate(req, res, next) {
 // Brain-authored acknowledgment copy, per language (the worker NEVER authors
 // language). Spoken the moment a turn resolves to a tool round. Constants for
 // now; env-overridable copy is a later PR.
+//
+// Keyed on the CONFIG namespace (V1c). It used to be keyed on 'te-IN'/'hi-IN'/
+// 'en-IN', which worked only because `effectiveLanguage` happens to arrive from
+// STT in that namespace — a tenant-default language ('te', from
+// config.languages.default) fell straight through to English. Both namespaces
+// now resolve through configLang, so this table and config.greeting are keyed
+// the same way and neither can drift.
 const VOICE_ACK_COPY = {
-  'te-IN': 'ఒక్క నిమిషం, చూస్తున్నాను.',
-  'hi-IN': 'एक मिनट, ज़रा देखते हैं।',
-  'en-IN': 'One moment, let me check.',
+  te: 'ఒక్క నిమిషం, చూస్తున్నాను.',
+  hi: 'एक मिनट, ज़रा देखते हैं।',
+  en: 'One moment, let me check.',
 };
 
-const ackTextFor = (language) => VOICE_ACK_COPY[language] || VOICE_ACK_COPY['en-IN'];
+const ackTextFor = (language) => VOICE_ACK_COPY[configLang(language)] || VOICE_ACK_COPY.en;
 
 // ── Issue 29: coordinated turn budget ────────────────────────────────────────
 // The server-side deadline for one JSON turn. MUST stay strictly BELOW the
@@ -542,6 +552,59 @@ async function persistPartialOutbound(scope, text, turn) {
 }
 
 /**
+ * The greeting the worker speaks on join (V1c), for the language resolved BEFORE
+ * the caller has said anything.
+ *
+ * Language, in precedence order:
+ *   1. the customer's stored `preferred_language` — a returning caller, already
+ *      on the row identityService just resolved, so this costs no query;
+ *   2. the tenant's `config.languages.default`.
+ * The greeting precedes STT by definition, so detection cannot contribute.
+ *
+ * Both inputs cross the config/worker namespace boundary through `configLang`
+ * and nowhere else. A stored value that does not resolve (a region suffix this
+ * repo has not declared, or the garbage an unvalidated writer could leave — see
+ * configLang's note) falls back to the tenant default and WARNs. It must never
+ * quietly become English: an English greeting to a Telugu caller is a wrong
+ * answer that looks like a working one.
+ *
+ * Returns '' when there is nothing to say — no config row, or a config with no
+ * usable greeting line. The worker treats '' as "don't speak" and the call
+ * proceeds exactly as it does today.
+ */
+async function buildCallGreeting({ tenantId, customer }) {
+  const config = await configService.getTenantConfig(tenantId);
+  if (!config || !config.languages || !config.languages.default) return '';
+
+  const stored = customer && customer.preferred_language;
+  let lang = configLang(stored);
+  if (stored && !lang) {
+    logger.warn(
+      { scope: 'voice', tenantId, stored },
+      'call/start: stored preferred_language does not resolve to a supported language — using tenant default');
+  }
+  if (!lang) lang = configLang(config.languages.default);
+  if (!lang) return ''; // a config whose own default is unresolvable: say nothing rather than guess
+
+  // Same per-language maps and the SAME fallback the renderer uses (pickLine is
+  // its own function, imported, not a second copy).
+  const parts = [];
+  const greeting = pickLine(config.greeting, lang, 'greeting', null);
+  if (greeting) parts.push(greeting.trim());
+
+  // The consent line is a legal-floor line: it is sourced from config for this
+  // language, never approximated and never authored here. It rides INSIDE the
+  // greeting because the prompt no longer instructs it (clinic.js §3) — this is
+  // now the only path that speaks it.
+  if (config.recording_consent && config.recording_consent.enabled) {
+    const consent = pickLine(config.recording_consent.line, lang, 'consent', null);
+    if (consent) parts.push(consent.trim());
+  }
+
+  return parts.join(' ');
+}
+
+/**
  * POST /internal/voice/call/start — bridge a call into the brain's identity model.
  *
  * Identity resolves ONCE here, at bridge time, via the SAME identityService the
@@ -589,6 +652,15 @@ async function handleCallStart(req, res) {
       fromNumber: caller_id,
     });
 
+    // V1c: the line the worker speaks on join. Never allowed to fail the bridge
+    // — a call with no greeting is a working call, a 500 here is a dropped one.
+    let greeting = '';
+    try {
+      greeting = await buildCallGreeting({ tenantId: tenant_id, customer });
+    } catch (err) {
+      logger.error({ err: err.message, tenantId: tenant_id }, 'call/start greeting build failed');
+    }
+
     return res.json({
       call_session_id: session.id,
       customer_id: customer.id,
@@ -597,6 +669,8 @@ async function handleCallStart(req, res) {
       // per-call state, echoes it (X-Correlation-Id) on every turn/end post,
       // and stamps its own log lines with it.
       correlation_id: requestContext.get()?.correlationId ?? null,
+      // V1c: spoken on join via session.say(). '' means "say nothing".
+      greeting,
     });
   } catch (err) {
     logger.error({ err: err.message }, 'internal voice call/start failed');
@@ -680,4 +754,6 @@ module.exports._handleCallStart = handleCallStart;
 module.exports._handleCallEnd = handleCallEnd;
 module.exports._handleTurnSSE = handleTurnSSE;
 module.exports._VOICE_ACK_COPY = VOICE_ACK_COPY;
+module.exports._ackTextFor = ackTextFor;
+module.exports._buildCallGreeting = buildCallGreeting;
 

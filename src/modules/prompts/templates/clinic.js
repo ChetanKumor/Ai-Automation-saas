@@ -322,21 +322,27 @@ function renderClinic(config, { channel, onWarn }) {
       : '- If the customer asks for a human, is upset, or you cannot help, offer a callback from clinic staff.');
   }
 
-  // ── 3. Greeting + consent ──
+  // ── 3. Greeting + consent — WHATSAPP ONLY (V1c) ──
+  // The whole block is suppressed for voice. On a call the greeting no longer
+  // travels as an instruction at all: `/call/start` returns the greeting text
+  // (greeting + consent line, for the caller's own language) and the worker
+  // speaks it through session.say() the moment it joins — so the caller hears it
+  // without paying a full STT → brain → Gemini → TTS turn for it.
+  //
+  // Both lines go, not just the greeting. The returned string ALREADY carries
+  // the consent line, so leaving `Then say exactly: "<consent>"` in the voice
+  // prompt would make the model recite it a second time on the caller's first
+  // turn. Consent was already voice-only here, so dropping it costs WhatsApp
+  // nothing; the greeting's WhatsApp arm below is untouched and its rendered
+  // prompt is byte-identical to before.
+  //
+  // Precedence note: a tenant with a legacy non-empty `tenants.ai_prompt` never
+  // reaches this renderer at all (aiService.js:479-484) — see the commit body.
   const greetLines = [];
-  const greeting = pickLine(config.greeting, defaultLang, 'greeting', onWarn);
-  if (greeting) {
-    greetLines.push(voice
-      ? `Greet the caller with exactly: "${greeting}"`
-      : `When you greet the customer, use this greeting verbatim: "${greeting}"`);
-  }
-  // Consent is VOICE-ONLY by design: recording_consent is "a spoken consent
-  // line played on calls" (schema) — "this call may be recorded" makes no sense
-  // in a WhatsApp chat. The per-language literal embeds verbatim.
-  if (voice && config.recording_consent && config.recording_consent.enabled) {
-    const consent = pickLine(config.recording_consent.line, defaultLang, 'consent', onWarn);
-    if (consent) {
-      greetLines.push(`Then say exactly: "${consent}"`);
+  if (!voice) {
+    const greeting = pickLine(config.greeting, defaultLang, 'greeting', onWarn);
+    if (greeting) {
+      greetLines.push(`When you greet the customer, use this greeting verbatim: "${greeting}"`);
     }
   }
 
@@ -385,7 +391,12 @@ function renderClinic(config, { channel, onWarn }) {
 // actually renders. It reuses these functions to answer that yes/no question —
 // it never displays their returned prompt text, which stays internal to the
 // renderer (owners never see prompt scaffolding, spec §5.12).
+// `pickLine` is exported for V1c: `/call/start` builds the spoken greeting from
+// the same two per-language maps this template reads, and must resolve a missing
+// entry EXACTLY as the renderer does (en, then any line present, then null).
+// Exported rather than reimplemented so the two paths cannot drift into two
+// fallback conventions for one config document.
 module.exports = {
   renderClinic, VOICE_CUSTOM_INSTRUCTIONS_CHARS, LANG_NAMES,
-  pricingFacts, bookingPolicies, emergencyGuidance, hoursSummary,
+  pricingFacts, bookingPolicies, emergencyGuidance, hoursSummary, pickLine,
 };
