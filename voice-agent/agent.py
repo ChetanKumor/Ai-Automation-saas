@@ -29,6 +29,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import os
 import time
 from dataclasses import dataclass, field
@@ -108,9 +109,138 @@ class CallState:
     language: Optional[str] = None      # effective language (STT-detected / brain)
     failed: bool = False                # a delegate_turn failed → call ends 'failed'
     end_requested: bool = False         # brain asked to end (or the failure path)
+    turn_index: int = 0                 # agent turns seen; indexes the metrics line
+    # The user leg of the turn's timings, held until the agent leg arrives.
+    pending_user_metrics: Optional[dict] = None
 
     def duration_s(self) -> float:
         return round(time.monotonic() - self.started_at, 1)
+
+
+# ── Per-turn latency line ─────────────────────────────────────────────────────
+# ONE structured line per turn, carrying the stage timings livekit-agents already
+# computes and currently discards. The source is the framework's own per-turn
+# report, `ChatMessage.metrics` (livekit-agents 1.6.4 — the `MetricsReport`
+# TypedDict at llm/chat_context.py:261-313, attached to every message at :324),
+# delivered on the session's `conversation_item_added` event.
+#
+# NOT the session's `metrics_collected` event, for two reasons read out of the
+# INSTALLED library rather than assumed:
+#   1. It is deprecated for exactly this use. voice/events.py:375-376:
+#      "Per-turn latency metrics are available on ChatMessage.metrics".
+#   2. Decisively, it cannot carry the llm_node timing on THIS wiring. LLMMetrics
+#      is constructed at one site only — llm/llm.py:315, emitted at :369 — inside
+#      LLMStream._metrics_monitor_task, and an LLMStream exists only when
+#      LLM.chat() is called. BrainAgent.llm_node overrides that slot and
+#      BrainStubLLM.chat raises by contract, so LLMMetrics NEVER fires here.
+#      The framework does still time the overridden node: generation.py:146-147
+#      stamps _LLMGenerationData.ttft on the FIRST chunk llm_node yields, and
+#      agent_activity.py:2987-2988 publishes it as `llm_node_ttft` on the
+#      assistant message built at :3028-3038. Same number, different carrier.
+#
+# The two legs arrive on two different messages: the endpoint/STT timings ride the
+# USER message (agent_activity.py:3967-3986, `_init_metrics_from_end_of_turn`) and
+# the llm/tts timings ride the ASSISTANT message. The handler therefore holds the
+# user leg and emits once, when the assistant item for that turn lands.
+TURN_METRICS_EVENT = "voice_worker_turn_metrics"
+
+# Payload field → `ChatMessage.metrics` key, ordered as the stages occur. Both
+# user-leg values are measured from the same anchor (the caller's last speaking
+# time), so transcription_delay precedes end_of_turn_delay on the timeline.
+_USER_STAGES = (
+    ("stt_final_ms", "transcription_delay"),
+    ("eou_delay_ms", "end_of_turn_delay"),
+)
+_AGENT_STAGES = (
+    ("llm_ttft_ms", "llm_node_ttft"),
+    ("tts_ttfb_ms", "tts_node_ttfb"),
+    ("e2e_ms", "e2e_latency"),
+)
+
+
+def _ms(metrics, key: str) -> Optional[float]:
+    """`metrics[key]` (seconds, per MetricsReport) in milliseconds, or None.
+
+    Never raises. A missing key, a carrier that is not a mapping, a bool, a
+    non-number, a NaN or an infinity all degrade to a null field: a surprise in
+    the metrics must cost a null in the log line, never a turn.
+    """
+    try:
+        value = metrics[key]
+    except Exception:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if math.isnan(value) or math.isinf(value):
+        return None
+    return round(value * 1000.0, 1)
+
+
+def build_turn_metrics(call: CallState, turn: int, user_metrics, agent_metrics) -> dict:
+    """The one payload per turn. Pure — no logging, no I/O, never raises.
+
+    Keyed on the Issue 21 correlation id, which /call/start returns and
+    entrypoint() stores on CallState; `turn` disambiguates the many turns that
+    share one call's chain id.
+    """
+    payload = {
+        "call_session_id": call.call_session_id,
+        "correlation_id": call.correlation_id,
+        "turn": turn,
+        "language": call.language,
+    }
+    for name, key in _USER_STAGES:
+        payload[name] = _ms(user_metrics, key)
+    for name, key in _AGENT_STAGES:
+        payload[name] = _ms(agent_metrics, key)
+    return payload
+
+
+def turn_metrics_listener(call: CallState, log: Optional[logging.Logger] = None):
+    """Build the `conversation_item_added` handler that emits the per-turn line.
+
+    Returned as a closure rather than written inline in entrypoint() so tests can
+    drive it directly, with no live AgentSession and no room.
+    """
+    log = log or logger
+
+    def _on_conversation_item_added(ev) -> None:
+        try:
+            item = getattr(ev, "item", None)
+            role = getattr(item, "role", None)
+            metrics = getattr(item, "metrics", None)
+
+            if role == "user":
+                # Overwritten each turn and cleared on use, so a leg is never
+                # counted twice. ⚠️ One residual: a turn whose reply is empty
+                # (human mode / AI disabled) adds NO assistant message —
+                # agent_activity.py:3024 gates on `forwarded_text` — so its leg
+                # stays pending until the next assistant item. Today the next
+                # such item is always the next turn's, which then carries the
+                # right leg anyway; it would mis-attribute only to a session.say()
+                # reply, and say() is unreachable at HEAD (/call/start returns no
+                # greeting). Documented rather than defended: nothing on the two
+                # messages links them, so a real fix needs a turn id the
+                # framework does not expose.
+                call.pending_user_metrics = metrics
+                return
+            if role != "assistant":
+                # AgentHandoff and the unknown-type discriminator carry no timings.
+                return
+
+            call.turn_index += 1
+            payload = build_turn_metrics(
+                call, call.turn_index, call.pending_user_metrics, metrics
+            )
+            call.pending_user_metrics = None
+            log.info(TURN_METRICS_EVENT, extra={"turn_metrics": payload})
+        except Exception:
+            # This fires inside the framework's reply task, and rtc.EventEmitter
+            # .emit swallows Exception but RE-RAISES TypeError — so a raising
+            # handler really can land on the turn path. The guard has to be here.
+            log.warning("turn metrics line skipped", exc_info=True)
+
+    return _on_conversation_item_added
 
 
 class BrainStubLLM(llm.LLM):
@@ -392,6 +522,11 @@ async def entrypoint(ctx: JobContext) -> None:
     def _on_user_input_transcribed(ev) -> None:
         if ev.is_final and ev.language:
             call.language = str(ev.language)
+
+    # ONE latency line per turn. Registration only — the session is already
+    # constructed and its turn behaviour is untouched. See build_turn_metrics for
+    # why the source is conversation_item_added and not metrics_collected.
+    session.on("conversation_item_added", turn_metrics_listener(call))
 
     # End-of-call: when the brain asks to end (or the failure path fired), let
     # the queued closing line finish playing, then shut the job down (→ call_end).
