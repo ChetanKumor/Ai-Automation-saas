@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 0564a0bdbf4a4bf11be98bbebb096f4fd4b0b027
+Verified-at: 7abec816755dfe1ce0df92877418f62c1ba330b8
 Verified-on: 2026-08-11
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -381,6 +381,101 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE WORKER NOW TIMES ITS OWN TURNS — Q6's missing wiring, built** (`7abec81`).
+  `docs/audit/voice-latency/00-verification.md` §Q6 established that the framework
+  computes every stage timing and the worker subscribes to none of them. `agent.py`
+  now emits **one** `voice_worker_turn_metrics` line per turn: `stt_final_ms`,
+  `eou_delay_ms`, `llm_ttft_ms`, `tts_ttfb_ms`, `e2e_ms`, plus `call_session_id`,
+  `correlation_id`, `turn` and `language`. Python suite **37 → 46**; Node suite
+  **unmoved at 1043/173/0/0/0** (the change is confined to `voice-agent/`).
+  ⚠️ **THE ISSUE NAMED `metrics_collected` AND THAT EVENT CANNOT DO THE JOB HERE.
+  This is the session's substance, and it was found by reading the installed
+  library rather than the prompt.** Two facts, both at file:line in
+  `voice-agent/.venv` (livekit-agents **1.6.4**):
+  (1) `MetricsCollectedEvent`'s own docstring — `voice/events.py:375-376` — reads
+  *"Deprecated: … Per-turn latency metrics are available on `ChatMessage.metrics`."*
+  (2) Decisively, it **cannot carry the llm_node timing on this wiring at all**.
+  `LLMMetrics` is constructed at exactly one site — `llm/llm.py:315`, emitted at
+  `:369` — inside `LLMStream._metrics_monitor_task`, and an `LLMStream` exists only
+  when `LLM.chat()` is called. `BrainAgent.llm_node` overrides that slot and
+  `BrainStubLLM.chat` **raises by contract**, so **`LLMMetrics` never fires**. The
+  prompt anticipated exactly this as "the likeliest surprise", and it is real.
+  **The number is not missing — it is carried elsewhere, and that is why the
+  session did not stop.** `voice/generation.py:146-147` stamps
+  `_LLMGenerationData.ttft` on the **first chunk the overridden node yields**, and
+  `voice/agent_activity.py:2987-2988` publishes it as **`llm_node_ttft`** on the
+  assistant message (built `:3028-3038`). So the source is `ChatMessage.metrics` —
+  the `MetricsReport` TypedDict at `llm/chat_context.py:261-313`, attached to every
+  message at `:324` — delivered on **`conversation_item_added`**.
+  **TWO LEGS, TWO MESSAGES.** Endpoint and STT timings ride the **user** message
+  (`agent_activity.py:3967-3986`, `_init_metrics_from_end_of_turn`); llm/tts ride
+  the **assistant** message. The handler holds the user leg and emits once, when
+  the assistant item lands — which is what makes it one line per turn rather than
+  one per component.
+  **Issue 21's correlation id ALREADY reaches the worker**, so the line is keyed on
+  it rather than on a new identifier: `/call/start` returns it
+  (`internalVoice.js:592-600`), `agent.py` stores it on `CallState` and already
+  warns when a skewed brain omits it. `turn` disambiguates the many turns sharing
+  one call's chain id. **No correlation id was added to the brain**, per scope.
+  **AgentSession construction is untouched** — `session.on(...)` beside the
+  existing `user_input_transcribed` handler. No turn behaviour changed, no
+  dependency added, no SSE/Node/tokenizer/greeting/VAD change.
+  ⚠️ **WHAT "MALFORMED" ACTUALLY MEANS HERE WAS MEASURED, AND IT INVERTED THE
+  OBVIOUS GUESS.** `MetricsReport` is pydantic-validated on `ChatMessage`, so the
+  values a defensive reader would expect to guard cannot occur: **`None` is
+  rejected** at construction, `"0.18"` and `True` are silently **coerced**, unknown
+  keys are **dropped**. What passes validation untouched is **`NaN` and `inf`** —
+  which are also the dangerous ones, since a NaN in the line poisons every
+  downstream average silently. Each field degrades to a logged null on its own.
+  The unvalidated cases are still handled and still tested, because
+  `getattr(item, "metrics", None)` is `None` for any item that is not a
+  `ChatMessage`.
+  ⚠️ **THE HANDLER'S OWN try/except IS LOAD-BEARING, NOT BELT-AND-BRACES.**
+  `rtc.EventEmitter.emit` catches `Exception` and logs — **but re-raises
+  `TypeError`** — and this handler runs inside the framework's reply task. So a
+  `TypeError` from a metrics line really would land on the turn path.
+  ⚠️ **A TURN WITH AN EMPTY REPLY PRODUCES NO LINE, by construction.**
+  `agent_activity.py:3024` gates the assistant message on `forwarded_text`, so a
+  human-mode / AI-disabled turn (empty `reply_text`) adds none and is not timed.
+  Honest — there was no agent reply to time — but it means the line count is
+  *spoken* turns, not turns. Its residual is documented at the fix site: that
+  turn's user leg stays pending, and could in principle attach to a
+  `session.say()` reply, which is **unreachable at HEAD** (Q3 — `/call/start`
+  returns no greeting). Nothing on the two messages links them, so a real fix
+  needs a turn id the framework does not expose.
+  **Red-checked by execution**, four mutations, each reddening only the test that
+  covers it: dropping the user-leg stash, emitting for every item, dropping the
+  non-finite guard, narrowing the `except`.
+  ⚠️ **NO LIVE DEV-ROOM TURN WAS PERFORMED, and no fixture is offered in its
+  place.** LiveKit cloud is reachable and all worker credentials are present, but
+  the Node brain was not running locally and a real line requires a participant
+  **speaking audio** into the room — the transcript, the brain reply and the
+  synthesis all have to happen. What was produced instead, and labelled as such:
+  the line rendered through LiveKit's **own** formatters
+  (`cli/log.py` `JsonFormatter` / `ColoredFormatter` with the exact format strings
+  `setup_logging` installs), driven by the real handler and the real carrier. That
+  evidences the line's **shape**, not a turn.
+  ⚠️ **THE PYTHON SUITE IS RED AT A CLEAN TREE ON THIS MACHINE, AND IT IS NOT
+  THIS SESSION'S DOING. FILED, NOT FIXED.** `uv run pytest` at `0564a0b` gives
+  **4 failed / 33 passed**, all four in `tests/test_agent_shim.py`
+  (`test_happy_path_delegates_exact_contract_and_yields_reply_exactly`,
+  `test_brain_language_switch_calls_update_options_before_reply`,
+  `test_end_call_true_signals_shutdown_once_after_yield`,
+  `test_empty_reply_stays_silent_and_keeps_call_open`). Cause: `agent.py:39` calls
+  `load_dotenv()` **at import**, and the **gitignored** `voice-agent/.env:17` sets
+  `VOICE_STREAM_TURNS=true`, so those JSON-path tests run the SSE path and fail on
+  `stream_turn failed: SSE stream ended without a done event`. `.env.example:32`
+  ships `false`, so the suite is green on a machine without that line — which is
+  why this has never been caught, and why **the Python suite's verdict currently
+  depends on a file that is not in the repository**. With the shipped default the
+  same tree is **46 passed / 0 failed**. The new tests pin the flag themselves and
+  pass under both. The durable fix is env isolation in `voice-agent/conftest.py`;
+  deliberately not built here, being a second thing.
+  ⚠️ **`voice-agent/.env:16` sets `VOICE_METRICS=true` and NOTHING READS IT** —
+  verified by grep across the repository, zero hits outside that file. A dangling
+  flag suggesting someone once intended a metrics switch. The new line is **not**
+  gated on it; wiring an env gate was not in scope and inventing a reader for a
+  flag no one set deliberately would be worse than leaving it visible.
 - **Issue 11 — DID→tenant resolution. DONE** (`9be2382`), and **UNWIRED**.
   `tenantService.getByDid(dialledNumber)` returns the tenant that owns an
   inbound dialled number, or null.
