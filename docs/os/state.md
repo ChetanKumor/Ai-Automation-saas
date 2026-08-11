@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 7abec816755dfe1ce0df92877418f62c1ba330b8
+Verified-at: 1bb1e6d7f2905f716b6764484167185be583e61c
 Verified-on: 2026-08-11
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -66,6 +66,13 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
+- Python worker suite: **46 passed / 0 failed** (`uv run pytest` in `voice-agent/`).
+  Not counted by `npm run os:check`, which measures the Node suite only — a red
+  Python suite does **not** turn os:check red, so it has to be run deliberately.
+  **Machine-independent since `1bb1e6d`** (V1a-R1): `voice-agent/tests/conftest.py`
+  pins every variable `agent.py` reads, and the verdict is now identical with and
+  without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
+  set the verdict — see the V1a note below for the mechanism and the red-check.
 - Test suite: **1043 tests / 173 suites / 0 fail** (`npm test`, raw: `# tests 1043 /
   # pass 1043 / # fail 0 / # cancelled 0 / # skipped 0`)
   ⚠️ **GREEN NOW MEANS THREE COUNTERS, NOT ONE.** `npm run os:check` refuses on
@@ -375,6 +382,30 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   `docs/audit/2026-08-b2r1-filed.md` so nobody repeats it. Sibling of the
   recorded `tests/traces/traces.integration.test.js:247` intermittent; neither
   has an established frequency.
+  **A third intermittent — `tests/portal/auth.unit.test.js:43` ('a tampered
+  stored string fails closed') — is now DIAGNOSED, root cause and all, and is a
+  bug in the test rather than in `src/portal/auth.js`. NOT FIXED: Node-side, and
+  V1a-R1 was scoped to the Python suite.** Caught red at `1bb1e6d` and green on
+  the immediately following run. `auth.unit.test.js:49-50` reads:
+
+      const last = flip[5];
+      flip[5] = (last[last.length - 1] === 'A' ? 'B' : 'A') + last.slice(1);
+
+  It inspects the **last** character of the hash segment and rewrites the
+  **first** one. When that first character already is `A`, the expression
+  reproduces the segment byte-for-byte, nothing is tampered with, and
+  `verifyPassword` correctly returns `true` against the assertion's `false`. The
+  segment is base64 and always ends `=`, so the `'A' ? 'B' : 'A'` guard never
+  selects `B`: the trigger is exactly *first char is `A`*, uniform at **1 in 64
+  runs (~1.6%)**. Proven by construction, not inferred — hashing until a segment
+  began with `A` (370 draws) and then running lines 48-51 verbatim gave
+  `flip[5] === last  →  true` and `verifyPassword(...) → true`
+  (`scratchpad/logs/flake-diagnosis.log`). **The test has therefore never once
+  exercised the tampered-hash case it is named for on ~1.6% of runs, and on the
+  other 98.4% it tampers with the first character while its comment claims the
+  last** — the assertion is real but weaker than it reads. One-line fix
+  (`last.slice(0, -1) + (last[last.length - 1] === 'A' ? 'B' : 'A')`) left to a
+  Node-scoped issue; the remaining seven assertions in that test are unaffected.
   ⚠️ **The shared test database was one migration behind for a THIRD time.**
   `saas_crm_test` was missing `026` (`tenant_entities.updated_at` absent,
   `42703`). Nothing failed, because every suite reading that column mints a
@@ -455,22 +486,50 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   (`cli/log.py` `JsonFormatter` / `ColoredFormatter` with the exact format strings
   `setup_logging` installs), driven by the real handler and the real carrier. That
   evidences the line's **shape**, not a turn.
-  ⚠️ **THE PYTHON SUITE IS RED AT A CLEAN TREE ON THIS MACHINE, AND IT IS NOT
-  THIS SESSION'S DOING. FILED, NOT FIXED.** `uv run pytest` at `0564a0b` gives
+  **THE PYTHON SUITE WAS RED AT A CLEAN TREE ON THIS MACHINE. FIXED at `1bb1e6d`
+  (V1a-R1).** It was not V1a's doing. `uv run pytest` at `0564a0b` gave
   **4 failed / 33 passed**, all four in `tests/test_agent_shim.py`
   (`test_happy_path_delegates_exact_contract_and_yields_reply_exactly`,
   `test_brain_language_switch_calls_update_options_before_reply`,
   `test_end_call_true_signals_shutdown_once_after_yield`,
-  `test_empty_reply_stays_silent_and_keeps_call_open`). Cause: `agent.py:39` calls
+  `test_empty_reply_stays_silent_and_keeps_call_open`). Cause: `agent.py:40` calls
   `load_dotenv()` **at import**, and the **gitignored** `voice-agent/.env:17` sets
-  `VOICE_STREAM_TURNS=true`, so those JSON-path tests run the SSE path and fail on
+  `VOICE_STREAM_TURNS=true`, so those JSON-path tests ran the SSE path and failed on
   `stream_turn failed: SSE stream ended without a done event`. `.env.example:32`
-  ships `false`, so the suite is green on a machine without that line — which is
-  why this has never been caught, and why **the Python suite's verdict currently
-  depends on a file that is not in the repository**. With the shipped default the
-  same tree is **46 passed / 0 failed**. The new tests pin the flag themselves and
-  pass under both. The durable fix is env isolation in `voice-agent/conftest.py`;
-  deliberately not built here, being a second thing.
+  ships `false`, so the suite was green on a machine without that line — which is
+  why it went uncaught, and why **the Python suite's verdict depended on a file
+  that is not in the repository**. (Re-measured at `004d00c` the same finding reads
+  **4 failed / 42 passed**: the four failures are byte-identical and V1a's own nine
+  `test_turn_metrics.py` tests account for the whole delta, 37 → 46.)
+  **Fix: `voice-agent/tests/conftest.py`** sets every variable `agent.py` reads to
+  `agent.py`'s own fallback, so the suite runs as if no `.env` existed. It turns on
+  a property of the installed **python-dotenv 1.2.2** — `main.py:387`
+  `load_dotenv(..., override=False)` and `main.py:105`
+  `if k in os.environ and not self.override: continue` — so a key **set** before the
+  first `import agent` survives. **The direction is a trap: `os.environ.pop()` would
+  hand the key back to the file**, an absent key being exactly the one `load_dotenv()`
+  fills in. Placed in `tests/` rather than the rootdir `voice-agent/conftest.py`
+  (which owns only the `sys.path` insert) to keep the isolation beside the tests it
+  governs; either is test-side, and no `agent.py` change was needed.
+  **Verdicts are now identical with and without the file: 46 passed / 0 failed both
+  ways**, same per-file distribution. **Red-checked by execution**, four mutations:
+  deleting the conftest reproduces the original four failures exactly; the
+  module-scope loop and the autouse fixture each alone fix those four, but only the
+  loop reaches the **import-time** constants — with `VOICE_TURN_TIMEOUT_S=abc` in the
+  environment the suite passes 46 with it and dies in **3 collection errors** on
+  `agent.py:53`'s unguarded `float()` without it.
+  ⚠️ **`VOICE_TURN_TIMEOUT_S` remains unguarded at `agent.py:53` in the RUNTIME.**
+  The suite is now immune; the worker is not. A non-numeric value in a deployed
+  environment crashes it at import. Out of scope for a test-side issue, unfiled.
+  **Also corrected from V1a's report:** `VOICE_DEFAULT_LANGUAGE` (`agent.py:75`) is
+  reached by the suite after all — indirectly, through `apology_for()` at
+  `agent.py:99`, which `test_agent_shim.py:271-273` calls. It could not have flipped
+  those assertions (`in APOLOGIES.values()` holds for any value, the fallback chain
+  landing inside that set), but it is a live path, not an unread constant, and it is
+  pinned. `VOICE_TENANT_ID` / `VOICE_DEV_CALLER_NUMBER` do gate a real branch
+  (`agent.py:442`) but only inside `entrypoint()`, which **no test calls** — pinned
+  to `""` anyway, so a future test that reaches it gets the deterministic
+  empty-environment refusal rather than a developer's tenant.
   ⚠️ **`voice-agent/.env:16` sets `VOICE_METRICS=true` and NOTHING READS IT** —
   verified by grep across the repository, zero hits outside that file. A dangling
   flag suggesting someone once intended a metrics switch. The new line is **not**
