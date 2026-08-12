@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: c1645fbff325e81b2252ce3d03a946ebffe776a1
-Verified-on: 2026-08-12
+Verified-at: 0eb67d2dfe14fdb90da6b4b8f79d4365db9c87ba
+Verified-on: 2026-08-13
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -396,35 +396,150 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   recorded `tests/traces/traces.integration.test.js:247` intermittent; neither
   has an established frequency.
   **A third intermittent — `tests/portal/auth.unit.test.js:43` ('a tampered
-  stored string fails closed') — is now DIAGNOSED, root cause and all, and is a
-  bug in the test rather than in `src/portal/auth.js`. NOT FIXED: Node-side, and
-  V1a-R1 was scoped to the Python suite.** Caught red at `1bb1e6d` and green on
-  the immediately following run. `auth.unit.test.js:49-50` reads:
+  stored string fails closed') — was DIAGNOSED here and is now FIXED AND CLOSED
+  by Issue 40 (`0eb67d2`); see the Issue 40 entry below for the fix, the
+  determinism sweep and the four mutations. It was a bug in the test, never in
+  `src/portal/auth.js`.** Caught red at `1bb1e6d` and green on
+  the immediately following run. `auth.unit.test.js:49-50` read:
 
       const last = flip[5];
       flip[5] = (last[last.length - 1] === 'A' ? 'B' : 'A') + last.slice(1);
 
-  It inspects the **last** character of the hash segment and rewrites the
-  **first** one. When that first character already is `A`, the expression
-  reproduces the segment byte-for-byte, nothing is tampered with, and
-  `verifyPassword` correctly returns `true` against the assertion's `false`. The
+  It inspected the **last** character of the hash segment and rewrote the
+  **first** one. When that first character already was `A`, the expression
+  reproduced the segment byte-for-byte, nothing was tampered with, and
+  `verifyPassword` correctly returned `true` against the assertion's `false`. The
   segment is base64 and always ends `=`, so the `'A' ? 'B' : 'A'` guard never
-  selects `B`: the trigger is exactly *first char is `A`*, uniform at **1 in 64
+  selected `B`: the trigger was exactly *first char is `A`*, uniform at **1 in 64
   runs (~1.6%)**. Proven by construction, not inferred — hashing until a segment
   began with `A` (370 draws) and then running lines 48-51 verbatim gave
   `flip[5] === last  →  true` and `verifyPassword(...) → true`
-  (`scratchpad/logs/flake-diagnosis.log`). **The test has therefore never once
+  (`scratchpad/logs/flake-diagnosis.log`). **The test had therefore never once
   exercised the tampered-hash case it is named for on ~1.6% of runs, and on the
-  other 98.4% it tampers with the first character while its comment claims the
-  last** — the assertion is real but weaker than it reads. One-line fix
-  (`last.slice(0, -1) + (last[last.length - 1] === 'A' ? 'B' : 'A')`) left to a
-  Node-scoped issue; the remaining seven assertions in that test are unaffected.
+  other 98.4% it tampered with the first character while its comment claimed the
+  last** — the assertion was real but weaker than it read. The remaining seven
+  assertions in that test were unaffected.
+  ⚠️ **THE ONE-LINE FIX PROPOSED HERE WAS WRONG, AND ISSUE 40 MEASURED IT RATHER
+  THAN APPLYING IT.** This entry recommended
+  `last.slice(0, -1) + (last[last.length - 1] === 'A' ? 'B' : 'A')` — flip the
+  literal last character, matching the comment's wording. That character is
+  base64 **padding**: the segment is 88 chars ending `==`, and node's decoder
+  ignores what follows the `=`, so `…hA==` → `…hA=A` is a different STRING that
+  decodes to the **same 64 bytes**. `verifyPassword` returns `true` on it, so
+  that fix would have turned a 1-in-64 red into a red on **every** run — and it
+  would have passed an anti-vacuity check written against the string. Measured,
+  not reasoned: `01-reproduce.log` §E, and reproduced inside the suite as
+  mutation M4.
   ⚠️ **The shared test database was one migration behind for a THIRD time.**
   `saas_crm_test` was missing `026` (`tenant_entities.updated_at` absent,
   `42703`). Nothing failed, because every suite reading that column mints a
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE TAMPERED-HASH TEST NOW ASSERTS THAT IT TAMPERED — Issue 40, built and
+  CLOSED** (`0eb67d2`). `tests/portal/auth.unit.test.js:43` flips the FIRST
+  character of the hash segment — the character it inspects — and asserts the
+  segment changed before asserting `verifyPassword` returns false. Node
+  **1103 / 180 suites / 0 fail / 0 cancelled / 0 skipped — UNMOVED**; Python
+  unmoved at **72**. No test was added, and that is the shape of the fix: one
+  corrected index and one assertion inside a test that already existed.
+  **THE DIAGNOSIS WAS ALREADY WRITTEN DOWN AND IT HELD.** The V1a-R1 entry above
+  had the mechanism exactly right; this session's Phase 0 reproduced it by
+  construction rather than by waiting. Measured at HEAD: the segment is 88 chars
+  and its last character is `=` in **200 of 200** draws, so the
+  `=== 'A' ? 'B' : 'A'` guard never selected `B` and every flip wrote a literal
+  `A`; the first character is `A` in **978 of 64,000** draws — **1 in 65.4**,
+  against 1 in 64 for a uniform 64-symbol alphabet; and hashing until a segment
+  began with `A` (10 draws) then running lines 48-51 verbatim gave
+  `flip[5] === last → true` and `verifyPassword(…) → true`
+  (`scratchpad/issue40/logs/01-reproduce.log`).
+  ⚠️ **THE FAILURE DIRECTION IS A FALSE RED, NOT A FALSE GREEN, AND THAT CHANGES
+  WHAT THE FIX CAN CLAIM.** In the trigger case the old test *failed* — it
+  asserted `false` and got `true`. So there is no mutation under which the old
+  assertion passes and the new one reds: the pre-fix test could not pass
+  vacuously, it could only **fail vacuously**, at the wrong line, naming
+  `verifyPassword` and implicating a module that was behaving correctly on a
+  string it had every reason to accept, since the string handed to it was
+  byte-identical to the one it had just produced. What the new assertion buys is
+  therefore **attribution and an asserted precondition**, not a pass→fail
+  conversion: the tamper is now checked rather than assumed, so a run that did
+  not tamper can no longer be counted as coverage of the case the test is named
+  for. That is worth stating plainly because the issue was written expecting the
+  other direction.
+  ⚠️ **THE OBVIOUS FIX — THE ONE THIS FILE ITSELF PROPOSED — IS WRONG, AND IT
+  WOULD HAVE PASSED THE ANTI-VACUITY ASSERTION.** Flipping the literal last
+  character tampers with base64 **padding**: `…hA==` → `…hA=A` is a different
+  string that decodes to the **same 64 bytes**, so `verifyPassword` returns
+  `true` and the test reds on **every** run. A guard comparing strings sees a
+  difference and says nothing. The tamper has to land on a DATA character, which
+  is why the fix moved the inspection to index 0 rather than moving the write to
+  the end. Measured in `01-reproduce.log` §E and reproduced inside the suite as
+  mutation M4 — the anti-vacuity assertion passes, and the line after it reds.
+  **Red-checked by execution, four mutations, each verified APPLIED by grep
+  before its run**, each reddening only what it should. **M1** (old flip logic +
+  a forced `A` segment, guard present) reds **only** the tampered-hash test, at
+  the guard, with `error: 'the tamper must actually change the hash segment'` and
+  `expected`/`actual` printed **identical**. **M2** (the same, guard removed —
+  the pre-fix test verbatim) reds the same test at `verifyPassword` instead,
+  `expected: false / actual: true`: the flake exactly as it presented, blaming
+  the innocent module. **M3** (the forced trigger alone, against the fixed flip)
+  stays **green 6/6** — the diagnostic that M1's and M2's red comes from the flip
+  logic and not from the forcing. **M4** is the padding trap above.
+  **DETERMINISM — 200 CONSECUTIVE RUNS GREEN, AND THE SAME 200 AGAINST THE
+  PRE-FIX FILE AS A CONTROL.** Fixed suite: **200 green / 0 red of 200**. The
+  pre-fix file, extracted from `3714105` and run the same 200 times from a
+  scratch path — `scratchpad/issue40/` sits exactly two directories below the
+  root as `tests/portal/` does, so `require('../../src/portal/auth')` resolves to
+  the same module without editing a line of it — **197 green / 3 red**, the reds
+  at runs **36, 101 and 105**, each `not ok 5 - a tampered stored string fails
+  closed` with `expected: false / actual: true`. Predicted reds at 1-in-64:
+  **3.125**. Observed: **3**.
+  ⚠️ **200 IS ENOUGH, BARELY, AND ONLY BECAUSE THE CONTROL ARM RAN TOO.** A green
+  200 on its own is a **95.7%** instrument, not a proof: `(63/64)^200 = 0.043`,
+  so a test carrying this defect survives 200 runs unscathed about **1 time in
+  23**. 99% would need **293** runs and 99.9% **439**. So the green arm alone
+  establishes the fix at roughly 23:1 and no better, which is a real check rather
+  than a smoke test but is not the whole of it. What closes the gap is the
+  control: the same harness, the same machine, the same 200 runs, reddening three
+  times on the pre-fix file — the sweep is *demonstrably* capable of exposing
+  this defect at this run count, rather than assumed to be. **Quote the power,
+  not the run count**, and run the pre-fix arm whenever a flake fix claims
+  determinism from repetition.
+  **THE SWEEP FOR A SECOND SITE FOUND NONE, AND THE SWEEP IS WIDER THAN THE
+  IDIOM.** V1c and Issue 39 each found a defective guard duplicated elsewhere, so
+  five patterns were run across `tests/` (`scratchpad/issue40/logs/02-flip-sites.log`):
+  the two-way character ternary — **one hit, this test**; `.length - 1` indexing
+  — 3 other hits, all plain reads of a last element (`bookingRules:160`,
+  `traces:502`) or a comment quoting Express (`serverListen:13`); head/tail slice
+  reassembly — **one hit, this test**; byte-level buffer flips — 3 hits, all PRNG
+  mixing or a probe vector; and everything self-described as tampering — whose
+  only other genuine site is `tests/webhook/signature.test.js:93`, which tampers
+  by building a **literally different JSON body** (`{amount:100}` →
+  `{amount:999}`), statically distinct and incapable of being a no-op. **Nothing
+  else was changed**, per scope.
+- **STANDING — A SOURCE PIN SHIPS WITH ITS RED-CHECK OR IT DOES NOT SHIP.** A
+  test that asserts something about the **text of a source file** — located by
+  `indexOf`, a hand-written regex, or an AST walk — is **vacuous until an applied
+  mutation has been shown to red it**. Not "read carefully": applied, greped for
+  in the file to prove it landed, and run. Four instances in three sessions, each
+  green against a tree carrying the very defect it was written to pin:
+  **V1c** — an AST pin on `agent.py` whose mutation silently failed to apply, and
+  the test passed. **Issue 39, pin #1** — `/app\.listen\(([^)]*)\)/` stops at the
+  first `)`, so `app.listen(PORT, HOST, () => {` captured `PORT, HOST, () ` and
+  the callback fell outside the group. **Issue 39, pin #2** — after a balanced
+  scan fixed that, `indexOf('app.listen(')` matched the phrase **inside the
+  test's own new comment**, whose balanced scan returns the empty string, which
+  contains no callback and passes. **Issue 40** — not a pin, but the same disease
+  one layer out: the mutation harness's anchors missed **silently** (the tree is
+  CRLF, the anchors were `\n`), and then a replacement containing
+  `stored.split('$')` hit `String.replace`'s `$'` pattern — "everything after the
+  match" — and spliced the rest of the file in twice, producing a mutation nobody
+  wrote and a test file that ran **1 test instead of 6**. Both were caught only
+  by the matched-**exactly-once** check and the grep-after-apply that Issue 39
+  introduced; keep both, and use a **function** replacer so no `$` pattern is
+  live. ⚠️ And never pipe a mutation script through `head`/`tail`: the SIGPIPE
+  kills it between apply and restore and leaves the mutation sitting in the
+  working tree. It happened this session. Write to the log, then read the log.
 - **A LISTEN FAILURE IS NOW LOUD — Issue 39, built and CLOSED** (`c1645fb`).
   `server.js` no longer passes a callback to `app.listen`; it attaches
   `'listening'` and `'error'` itself, so the success log fires only on a real
@@ -530,7 +645,8 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   It is benign there — an ephemeral port cannot collide, so the error path is
   unreachable — and rewriting 30 test helpers is not this issue. The only other
   production-shaped call site is `spike/voice-retell/server.js:61`, a spike that
-  is not deployed. Next free issue number is **40**.
+  is not deployed. Issue **40** was allocated from here and is closed above;
+  the next free issue number is **41**.
 - **THE GREETING IS NOW SPOKEN IN THE LANGUAGE IT IS WRITTEN IN — Issue 38,
   built and CLOSED** (`1b7be6c`). `/internal/voice/call/start` returns `language`
   beside `greeting`; `voice-agent/agent.py` synthesises with it. Node
@@ -1843,17 +1959,27 @@ github.com is not repo-derivable; what is verified is that nothing in this repo 
 them.) The sequence runs to **36**, not 28: the original plan defined 1–28 and later work
 kept counting.
 
-- **Done:** 3, 4, 5, 6, 7, 8, 9, 10, **11**, 15, 16, 17, 18, 19, 21, 22, 29, 30, 31, 32, 33, 34
-- **Not done:** 1 (ops), 2 (ops), 12, 13, 14, 20, 23, 24, 27, 28, **35**, **36**
+- **Done:** 3, 4, 5, 6, 7, 8, 9, 10, **11**, 15, 16, 17, 18, 19, 21, 22, 29, 30, 31, 32, 33, 34,
+  **38**, **39**, **40**
+- **Not done:** 1 (ops), 2 (ops), 12, 13, 14, 20, 23, 24, 27, 28, **35**, **36**, **37**
 - **Residue-only** (built and tested; awaiting Issue 20 for a prod render): 25, 26
 
 ⚠️ **11 is done but UNWIRED** — `getByDid` has no caller until Issue 12. Counting it
 as done is correct and counting it as progress toward a live call is not; see the
-Issue 11 entry above. **The sequence now runs to 36, not 34.** 35 (Sarvam realtime
+Issue 11 entry above. **The sequence now runs to 40, not 36.** 35 (Sarvam realtime
 STT) was allocated by `a797d14`'s prompt file and never written into the plan's
 Phase 8; 36 (no operator surface writes `voice.did`) was filed by the Issue 11
 session. Both are now recorded in `docs/specs/zyon-first-launch-plan.md` §Phase 8.
-**Next free number is 37.**
+**Next free number is 41.**
+
+⚠️ **THIS LIST WAS FOUR NUMBERS STALE, AND THE PLAN IS NO LONGER THE ONLY PLACE
+NUMBERS ARE ALLOCATED.** It was last updated by the Issue 11 session (`671073c`);
+37, 38, 39 and 40 were allocated and three of them closed without it moving.
+Corrected here: 38, 39 and 40 are done, 37 is filed and not built. **39 and 40
+exist only in `docs/os/state.md`** — neither was written into
+`docs/specs/zyon-first-launch-plan.md`, whose §Phase 8 stops at 38 — so the claim
+above that the plan is the numbering authority is now aspirational rather than
+descriptive, and a session allocating a number must read both files.
 
 **Issues 31–33 — verified complete (2026-07-28), was "allocated, unverified."** The
 Issue-NN ↔ V-number mapping is still recollection, not a repo-written fact — no
