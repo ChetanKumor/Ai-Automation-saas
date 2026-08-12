@@ -44,10 +44,29 @@ describe('portal password hashing', () => {
     const stored = hashPassword('original');
     const parts = stored.split('$');
 
-    // Flip the last char of the hash segment → must not verify.
+    // Flip the FIRST char of the hash segment → must not verify.
+    //
+    // The guard inspects the character it REWRITES. It used to read
+    // `segment[segment.length - 1]` while writing index 0, and those are not the
+    // same character: the segment is base64 of a 64-byte hash, so it is 88 chars
+    // ending '==', the ternary never selected 'B', and every "flip" wrote a
+    // literal 'A'. On the 1-in-64 draws whose segment already began with 'A'
+    // that reproduced the segment byte for byte — nothing was tampered with,
+    // verifyPassword correctly returned true, and this test went red at ~1.6% of
+    // runs naming the innocent module (Issue 40).
+    //
+    // The tamper must land on a DATA character and not on the padding. Flipping
+    // the literal last char yields a different STRING that decodes to the SAME
+    // 64 bytes — node's base64 decoder ignores what follows '=' — so it would
+    // tamper with nothing while looking like it had, and this test would be red
+    // on every run instead of one in sixty-four.
     const flip = parts.slice();
-    const last = flip[5];
-    flip[5] = (last[last.length - 1] === 'A' ? 'B' : 'A') + last.slice(1);
+    const original = flip[5];
+    flip[5] = (original[0] === 'A' ? 'B' : 'A') + original.slice(1);
+    // The tamper is asserted, not assumed. A run where the segment came back
+    // unchanged never exercised the case this test is named for, whichever way
+    // the assertion below then happened to land.
+    assert.notEqual(flip[5], original, 'the tamper must actually change the hash segment');
     assert.equal(verifyPassword('original', flip.join('$')), false);
 
     // Structurally broken variants all fail closed (never verify, never throw).
