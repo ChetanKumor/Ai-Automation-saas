@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 1b7be6c592404513f77bc65d2a764726ad2fea97
+Verified-at: c1645fbff325e81b2252ce3d03a946ebffe776a1
 Verified-on: 2026-08-12
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -73,8 +73,8 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1097 tests / 179 suites / 0 fail** (`npm test`, raw: `# tests 1097 /
-  # pass 1097 / # fail 0 / # cancelled 0 / # skipped 0`)
+- Test suite: **1103 tests / 180 suites / 0 fail** (`npm test`, raw: `# tests 1103 /
+  # pass 1103 / # fail 0 / # cancelled 0 / # skipped 0`)
   ⚠️ **GREEN NOW MEANS THREE COUNTERS, NOT ONE.** `npm run os:check` refuses on
   `# fail`, `# cancelled` **and** `# skipped`, and on any of them being unparseable.
   Quoting `# fail 0` alone no longer establishes that a run was clean — see the
@@ -84,7 +84,10 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   (`portalFaqs.integration.test.js:465` did not resurface, and
   `portalKnowledgeSummary` produced no cancellations) — twelve consecutive clean
   runs for both across Sessions 3, 4A and 5.
-  Last moved by **Issue 38 — the greeting is synthesised in the language the
+  Last moved by **Issue 39 — a listen failure is loud, not a successful boot**
+  (+6 tests, +1 suite — `tests/infra/serverListen.integration.test.js`; three
+  consecutive full runs at 1103/180/0/0/0; see the note below), before that by
+  **Issue 38 — the greeting is synthesised in the language the
   brain resolved** (+16 tests, +1 suite — `tests/config/configLang.unit.test.js`
   at 7 in a new `speakableLang` suite, and 9 in the existing
   `tests/voice/callStartGreeting.integration.test.js`; three consecutive full
@@ -422,6 +425,112 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **A LISTEN FAILURE IS NOW LOUD — Issue 39, built and CLOSED** (`c1645fb`).
+  `server.js` no longer passes a callback to `app.listen`; it attaches
+  `'listening'` and `'error'` itself, so the success log fires only on a real
+  bind and a bind failure logs the code and **exits 1**. Node
+  **1097 → 1103 / 180 suites / 0 fail / 0 cancelled / 0 skipped**; Python
+  unmoved at **72**.
+  ⚠️ **THE OBSERVATION WAS TRUE, AND THE CAUSE WAS EXPRESS — NOT AN
+  UNCONDITIONAL LOG AND NOT WINDOWS.** The log had been inside the listen
+  callback since `edabfa3`, which is exactly why nobody suspected it.
+  **Express 5 registers the callback you hand `app.listen` on BOTH outcomes**
+  (`node_modules/express/lib/application.js:598-606`, express@5.2.1):
+
+      if (typeof args[args.length - 1] === 'function') {
+        var done = args[args.length - 1] = once(args[args.length - 1])
+        server.once('error', done)          // <-- the FAILURE path, same fn
+      }
+      return server.listen.apply(server, args)
+
+  So the callback fired from the **error** path, logging a successful boot on a
+  failed bind — and because that `once('error')` **consumed** the event, node's
+  default unhandled-`'error'` throw never fired, so the process did not exit
+  either. Our callback takes no `err` argument, so the error object was
+  discarded unread.
+  **MEASURED, NOT REASONED — five variants, all five reproducing.** A second
+  `node server.js` against a held port logged `server started` with no
+  `EADDRINUSE` and stayed alive in every one of `0.0.0.0`→`0.0.0.0`,
+  `127.0.0.1`→`0.0.0.0`, `0.0.0.0`→`127.0.0.1`, `::`→`0.0.0.0`,
+  `0.0.0.0`→`::`. The three candidate causes were then discriminated rather
+  than assumed. *A different interface*: **rejected** — variant A is identical
+  addresses. *The platform permits the co-bind*: **rejected** — two bare `net`
+  sockets on this machine get `EADDRINUSE` on `0.0.0.0`, `127.0.0.1`, `::` and
+  `::1` alike. *It genuinely bound*: **rejected** — `netstat -ano` with both
+  processes up showed **one** LISTENING row, owned by the FIRST pid, and all
+  seven HTTP probes were answered by that process (attributed by pid through
+  the `incoming request` line). The decisive measurement was a
+  `NODE_OPTIONS=--require` probe that instrumented `http.Server.prototype.listen`
+  without touching `server.js`: for the second process it logged
+  `'error' fired — code=EADDRINUSE` and **never** logged `'listening' fired`,
+  while that same process emitted `"msg":"server started"`.
+  **Exit behaviour at `c222006`, measured over a 45,015 ms window: it never
+  exited.** Exit code null, no signal, `EADDRINUSE` absent from every line of
+  its output, crons running, holding no listener. After the fix the same
+  reproduction exits **1 in 823 ms** with
+  `{"code":"EADDRINUSE","msg":"server failed to bind — exiting"}` and no
+  success line.
+  **IT ALSO EXPLAINS A WORKAROUND THAT HAD BEEN CARRIED FOR TWO SESSIONS.**
+  The V1c and Issue 38 sessions both worked around "a stale process on :3000
+  serves pre-edit code — run on PORT=3001" without ever explaining it. ⚠️ That
+  note was a working note between sessions and was **never written down here**,
+  which is why it survived as folklore rather than being diagnosed. It is this
+  defect: the new process announced a successful start, bound nothing, and the
+  old one kept answering every request.
+  `process.exit(1)` rather than `process.exitCode = 1` is load-bearing — the
+  crons start unconditionally and their timers hold the event loop open, so an
+  exit code alone would leave running exactly the zombie this removes.
+  **Red-checked by execution, four mutations, each verified APPLIED by grep
+  before its run**, and each reddening only what it should: removing the
+  `'error'` listener reds **only** test 3 (the failure is no longer logged —
+  tests 1 and 2 stay green, because node's own throw still exits non-zero,
+  which is the honest diagnostic that the handler buys the LOG, not the exit);
+  restoring the express callback form **with** a correct error handler still
+  present reds tests 1 and 6; restoring `c222006`'s exact shape reds **4 of 6**
+  — 1, 2, 3 and 6, with the anti-vacuity test and the control staying green;
+  `process.exit(0)` reds only test 2.
+  ⚠️ **THE FIRST VERSION OF THE SOURCE PIN WAS VACUOUS, AND ONLY THE MUTATION
+  CAUGHT IT.** Test 6 reads the argument text of `app.listen(...)` and asserts
+  no callback. Two independent defects, both green against a tree carrying the
+  bug: a naive `/app\.listen\(([^)]*)\)/` stops at the **first** `)`, so
+  `app.listen(PORT, HOST, () => {` captures `PORT, HOST, () ` and the arrow
+  falls outside the group; and once that was fixed with a balanced scan,
+  `indexOf('app.listen(')` matched the phrase **inside the new comment block**
+  — including the literal `app.listen()` — whose balanced scan returns the empty
+  string, which contains no callback and passes. It now skips comment lines and
+  asserts the captured text mentions `PORT`, so the empty-string case cannot
+  come back silently. Residual, stated rather than hidden: a callback passed by
+  NAME would still slip past the pin, and is left to the four runtime
+  assertions.
+  **The test is real runtime evidence: it spawns `node server.js` as a child**
+  against a port the test process actually holds, and asserts the exit is
+  non-zero, the failure is logged naming `EADDRINUSE` and the port, and the
+  success log is ABSENT. The negative assertion is the actual bug and is the one
+  that can pass vacuously, so two things stand against that: a **control run**
+  on a free port asserting the success log appears **exactly once** (proving the
+  harness can boot the server at all), and an explicit assertion that the
+  blocked child died on the BIND and not in `env.js`. The children run with cwd
+  set to a fresh empty directory, because `server.js:1` is
+  `require('dotenv').config()` and its default path is
+  `process.cwd() + '/.env'` — so a developer's `.env` cannot reach them.
+  ⚠️ **ONE PRE-EXISTING TEST WAS EDITED, and my own change is what weakened it.**
+  `tests/knowledge/embedWarmup.unit.test.js:125` located the call with
+  `src.indexOf('app.listen(')` to assert the warm call comes after it. The new
+  comment block names `app.listen()` in prose *above* the call, so that index
+  now pointed at a comment and the assertion would have kept passing while
+  measuring nothing. Changed to `indexOf('= app.listen(')`, which only the real
+  call site matches. No assertion changed status.
+  ⚠️ **MEASURED ON win32 10.0.22631, node v22.17.1 — NOT on Linux.** The
+  swallowing mechanism is Express's and is platform-independent JavaScript, read
+  at file:line rather than inferred, so the same shape is expected on Railway;
+  but the reproduction itself was run on one platform and that is the whole
+  evidence base.
+  ⚠️ **THE SAME TRAP EXISTS ~30 MORE TIMES AND WAS DELIBERATELY LEFT.**
+  `app.listen(0, resolve)` appears throughout `tests/` and `scripts/portal/`.
+  It is benign there — an ephemeral port cannot collide, so the error path is
+  unreachable — and rewriting 30 test helpers is not this issue. The only other
+  production-shaped call site is `spike/voice-retell/server.js:61`, a spike that
+  is not deployed. Next free issue number is **40**.
 - **THE GREETING IS NOW SPOKEN IN THE LANGUAGE IT IS WRITTEN IN — Issue 38,
   built and CLOSED** (`1b7be6c`). `/internal/voice/call/start` returns `language`
   beside `greeting`; `voice-agent/agent.py` synthesises with it. Node
