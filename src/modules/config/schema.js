@@ -44,6 +44,25 @@ function configLang(code) {
   const primary = code.trim().toLowerCase().split(/[-_]/)[0];
   return LANG_CODES.includes(primary) ? primary : null;
 }
+
+// The other direction, and it lives here for the same reason configLang does:
+// this file's claim to be the ONE place that knows two namespaces exist is only
+// true if the inverse is here too. Issue 38 needs it — /call/start resolves the
+// greeting in the CONFIG namespace ('te') and the voice worker synthesises in the
+// SPEAKABLE one ('te-IN'), the same namespace the SSE `done` event already emits
+// (internalVoice.js:510) and the one Sarvam TTS's target_language_code takes.
+//
+// The brain emits the form its consumer needs; the worker receives a code and
+// passes it through. A reverse map in Python would be a second convention for
+// the same fact, which is what configLang exists to prevent.
+//
+// Accepts either namespace (it normalises through configLang first, so 'te',
+// 'te-IN' and 'TE-in' all answer 'te-IN') and returns null — never a language —
+// for anything undeclared, so callers keep having to fall back deliberately.
+const SPEAKABLE_LANG = { te: 'te-IN', hi: 'hi-IN', en: 'en-IN' };
+function speakableLang(code) {
+  return SPEAKABLE_LANG[configLang(code)] || null;
+}
 const E164  = z.string().regex(E164_RE, 'must be E.164 (e.g. +919876543210)'); // international phone number — shares normalizePhone's bounds (F-003b)
 const HHMM  = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'must be 24h HH:MM'); // wall-clock time of day
 const YMD   = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be a YYYY-MM-DD date'); // calendar date
@@ -382,4 +401,4 @@ const configSchema = z.object({
     }
   });
 
-module.exports = { configSchema, LANG_CODES, configLang, SARVAM_V3_SPEAKERS, SARVAM_V3_SPEAKER_GENDER };
+module.exports = { configSchema, LANG_CODES, configLang, speakableLang, SARVAM_V3_SPEAKERS, SARVAM_V3_SPEAKER_GENDER };

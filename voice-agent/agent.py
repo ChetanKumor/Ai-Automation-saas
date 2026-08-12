@@ -196,6 +196,58 @@ def build_turn_metrics(call: CallState, turn: int, user_metrics, agent_metrics) 
     return payload
 
 
+def build_tts(language: Optional[str]):
+    """The call's Sarvam TTS, targeted at `language` (Issue 38).
+
+    Extracted from entrypoint() so the language actually handed to the plugin is
+    assertable — entrypoint() needs a LiveKit job context and no test calls it,
+    the same reason speak_greeting and turn_metrics_listener are functions.
+
+    Takes a RESOLVED code, not the /call/start payload: a function that unpacks
+    that payload has to know its shape, and the shape grows a field every time
+    the brain learns something new. The precedence lives at the single call site.
+
+    THE GUARD IS NOT DEFENSIVE HABIT — the rejections were measured against the
+    installed plugin, not read off its source. sarvam.TTS.__init__ raises
+    ValueError("Target language code is required and cannot be empty") on '   '
+    and None, and AttributeError("'int' object has no attribute 'strip'") on 123
+    or a dict — it calls .strip() before anything else. Either one lands at
+    construction, which is call-bridge time: a DROPPED CALL, strictly worse than
+    the wrong-language greeting this change exists to fix, because a wrong
+    greeting self-corrects from the first turn and a dropped call does not.
+    What it does NOT check is membership: LanguageCode (livekit.agents.language)
+    is a permissive str subclass that accepts 'ta-IN' and 'banana' alike, so an
+    unsupported-but-well-formed code cannot be caught here. Anything the
+    constructor would reject falls back to DEFAULT_LANGUAGE and WARNs naming the
+    value, so a skewed brain costs a log line rather than a call. It lands on the
+    default rather than the room prior because this function is deliberately
+    single-argument and cannot see one; the prior is still consulted for every
+    case where the brain simply says nothing (absent key, None, ''), which is the
+    deploy-skew path — those are falsy, so the call site's chain handles them
+    before this guard is reached. Only a value that is truthy AND unusable
+    ('   ', a number, a dict) reaches here, and for those an unvalidated room hint
+    is no better a guess than the configured default.
+
+    A code that is well-formed but unsupported is NOT second-guessed here: the
+    worker holds no language table to check it against and inventing one would
+    be a second convention for a fact the brain already owns (schema.js's
+    speakableLang, which answers null for anything undeclared — so the brain
+    never sends one).
+    """
+    if not isinstance(language, str) or not language.strip():
+        if language is not None:
+            logger.warning(
+                "greeting language %r unusable — falling back to %s",
+                language, DEFAULT_LANGUAGE,
+            )
+        language = DEFAULT_LANGUAGE
+    return sarvam.TTS(
+        model=SARVAM_TTS_MODEL,
+        speaker=SARVAM_TTS_SPEAKER,
+        target_language_code=language.strip(),
+    )
+
+
 def speak_greeting(session, started: dict):
     """Speak `/call/start`'s greeting on join, if it returned one (V1c).
 
@@ -535,11 +587,13 @@ async def entrypoint(ctx: JobContext) -> None:
         flush_signal=True,
         language=language_prior or STT_AUTO_DETECT,
     )
-    tts = sarvam.TTS(
-        model=SARVAM_TTS_MODEL,
-        speaker=SARVAM_TTS_SPEAKER,
-        target_language_code=language_prior or DEFAULT_LANGUAGE,
-    )
+    # Issue 38: the greeting is synthesised in the language the BRAIN resolved the
+    # greeting TEXT in — /call/start returns it in the same 'te-IN' namespace the
+    # SSE done event uses, so nothing here maps between namespaces. This one line
+    # is the whole precedence policy: brain, then the room's per-call prior, then
+    # the env default. A brain older than this returns no `language` and the
+    # expression collapses to exactly the pre-change behaviour.
+    tts = build_tts(started.get("language") or language_prior or DEFAULT_LANGUAGE)
 
     end_requested = asyncio.Event()
     agent = BrainAgent(brain=brain, call=call, tts=tts, on_end_call=end_requested.set)

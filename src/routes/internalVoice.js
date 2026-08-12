@@ -17,7 +17,7 @@ const traces              = require('../modules/traces/collector');
 const eventBus            = require('../../core/events');
 const EVENT               = require('../../core/eventTypes');
 const configService       = require('../modules/config/configService');
-const { configLang }      = require('../modules/config/schema');
+const { configLang, speakableLang } = require('../modules/config/schema');
 const { pickLine }        = require('../modules/prompts/templates/clinic');
 
 const router = express.Router();
@@ -568,13 +568,23 @@ async function persistPartialOutbound(scope, text, turn) {
  * quietly become English: an English greeting to a Telugu caller is a wrong
  * answer that looks like a working one.
  *
- * Returns '' when there is nothing to say — no config row, or a config with no
- * usable greeting line. The worker treats '' as "don't speak" and the call
- * proceeds exactly as it does today.
+ * Returns `{ text, language }`. `text` is '' when there is nothing to say — no
+ * config row, or a config with no usable greeting line — and the worker treats
+ * '' as "don't speak", so the call proceeds exactly as it does today.
+ *
+ * `language` is the resolved language in the SPEAKABLE namespace ('te-IN'), or
+ * null when nothing resolved. Issue 38: the worker synthesises `text` with it,
+ * and it is deliberately the same form the SSE `done` event already emits
+ * (`:510`) rather than a second convention — the resolution happens in the
+ * config namespace and crosses back through `speakableLang`, the inverse of the
+ * `configLang` call above and its neighbour in schema.js. Before this the worker
+ * synthesised the greeting with a room-metadata hint or its env default, so a
+ * Telugu greeting could be spoken by an English voice.
  */
 async function buildCallGreeting({ tenantId, customer }) {
+  const NOTHING = { text: '', language: null };
   const config = await configService.getTenantConfig(tenantId);
-  if (!config || !config.languages || !config.languages.default) return '';
+  if (!config || !config.languages || !config.languages.default) return NOTHING;
 
   const stored = customer && customer.preferred_language;
   let lang = configLang(stored);
@@ -584,7 +594,7 @@ async function buildCallGreeting({ tenantId, customer }) {
       'call/start: stored preferred_language does not resolve to a supported language — using tenant default');
   }
   if (!lang) lang = configLang(config.languages.default);
-  if (!lang) return ''; // a config whose own default is unresolvable: say nothing rather than guess
+  if (!lang) return NOTHING; // a config whose own default is unresolvable: say nothing rather than guess
 
   // Same per-language maps and the SAME fallback the renderer uses (pickLine is
   // its own function, imported, not a second copy).
@@ -601,7 +611,7 @@ async function buildCallGreeting({ tenantId, customer }) {
     if (consent) parts.push(consent.trim());
   }
 
-  return parts.join(' ');
+  return { text: parts.join(' '), language: speakableLang(lang) };
 }
 
 /**
@@ -615,7 +625,8 @@ async function buildCallGreeting({ tenantId, customer }) {
  * call_session's customer/conversation (the worker never resolves identity).
  *
  * req:  { tenant_id, caller_id, channel:"voice" }
- * res:  { call_session_id, customer_id, conversation_id }
+ * res:  { call_session_id, customer_id, conversation_id, correlation_id,
+ *         greeting, language }
  */
 async function handleCallStart(req, res) {
   const { tenant_id, caller_id, channel = 'voice' } = req.body || {};
@@ -655,8 +666,9 @@ async function handleCallStart(req, res) {
     // V1c: the line the worker speaks on join. Never allowed to fail the bridge
     // — a call with no greeting is a working call, a 500 here is a dropped one.
     let greeting = '';
+    let language = null;
     try {
-      greeting = await buildCallGreeting({ tenantId: tenant_id, customer });
+      ({ text: greeting, language } = await buildCallGreeting({ tenantId: tenant_id, customer }));
     } catch (err) {
       logger.error({ err: err.message, tenantId: tenant_id }, 'call/start greeting build failed');
     }
@@ -671,6 +683,12 @@ async function handleCallStart(req, res) {
       correlation_id: requestContext.get()?.correlationId ?? null,
       // V1c: spoken on join via session.say(). '' means "say nothing".
       greeting,
+      // Issue 38: the language `greeting` is written in, in the SAME namespace
+      // the SSE `done` event emits ('te-IN') — which is also Sarvam TTS's
+      // target_language_code. The worker synthesises the greeting with it; null
+      // (nothing resolved, or a brain older than this) leaves the worker on its
+      // existing room-prior/env-default chain.
+      language,
     });
   } catch (err) {
     logger.error({ err: err.message }, 'internal voice call/start failed');

@@ -305,4 +305,133 @@ describe('call/start greeting (V1c)', () => {
     assert.equal(json.greeting, '');
     assert.ok(json.call_session_id, 'the call still bridges');
   });
+
+  // ── The language the greeting is IN (Issue 38) ─────────────────────────────
+  //
+  // V1c resolved the greeting's language correctly and then told the worker
+  // nothing about it. The worker synthesised with `language_prior or
+  // DEFAULT_LANGUAGE` — a dev-room metadata hint or an env default — so a Telugu
+  // greeting could be, and was, spoken by an English voice.
+  //
+  // The field is emitted in the SPEAKABLE namespace ('te-IN'): the same form the
+  // SSE `done` event already sends (internalVoice.js:510) and the form Sarvam
+  // TTS's target_language_code takes. That is the point — not a second
+  // convention, and no mapping table on the Python side.
+  //
+  // Every assertion below pairs the code with the TEXT. A `language` that agreed
+  // with itself but not with the bytes in `greeting` is the exact bug this
+  // closes, so asserting the code alone would be asserting nothing.
+
+  const langOf = (tag) => ({ 'te-IN': 'te', 'hi-IN': 'hi', 'en-IN': 'en' }[tag]);
+
+  function assertGreetingMatchesLanguage(json) {
+    const lang = langOf(json.language);
+    assert.ok(lang, `language must be a speakable tag, got: ${JSON.stringify(json.language)}`);
+    assert.ok(json.greeting.includes(GREET[lang]),
+      `language says ${json.language} but the greeting text is not ${lang}: ${json.greeting}`);
+    for (const other of ['te', 'hi', 'en'].filter((l) => l !== lang)) {
+      assert.ok(!json.greeting.includes(GREET[other]),
+        `language says ${json.language} but the ${other} greeting is in the text`);
+    }
+    return lang;
+  }
+
+  it('a te-IN caller: language is te-IN and the text is Telugu', async () => {
+    const phone = '+919000380001';
+    await seedCaller(T.CLINIC, phone, 'te-IN');
+    const { status, json } = await callStart(T.CLINIC, phone);
+
+    assert.equal(status, 200);
+    assert.equal(json.language, 'te-IN');
+    assert.equal(assertGreetingMatchesLanguage(json), 'te');
+    // The consent line rides in the same string and must be the same language.
+    assert.ok(json.greeting.includes(CONSENT.te));
+  });
+
+  it('a hi-IN caller: language is hi-IN and the text is Hindi', async () => {
+    const phone = '+919000380002';
+    await seedCaller(T.CLINIC, phone, 'hi-IN');
+    const { json } = await callStart(T.CLINIC, phone);
+
+    assert.equal(json.language, 'hi-IN');
+    assert.equal(assertGreetingMatchesLanguage(json), 'hi');
+    assert.ok(json.greeting.includes(CONSENT.hi));
+  });
+
+  it('a tenant-default caller: language is the tenant default, not an env default', async () => {
+    // No stored language anywhere — the tenant's own config.languages.default is
+    // the only thing that can be known before the caller speaks.
+    const { json } = await callStart(T.CLINIC, '+919000380003');
+    assert.equal(json.language, 'te-IN', "CLINIC's default is te");
+    assert.equal(assertGreetingMatchesLanguage(json), 'te');
+  });
+
+  it('a tenant-default caller at an en-default tenant gets en-IN — the default is READ', async () => {
+    // The guard against the previous test passing for the wrong reason. A
+    // hardcoded 'te-IN' — which is precisely what the worker used to use — makes
+    // exactly this one red.
+    const { json } = await callStart(T.ENDEF, '+919000380004');
+    assert.equal(json.language, 'en-IN', "ENDEF's default is en");
+    assert.equal(assertGreetingMatchesLanguage(json), 'en');
+  });
+
+  it('a garbage-language caller: language is the TENANT DEFAULT, per V1c', async () => {
+    // Consistent with the greeting text's own fallback, which is the property
+    // that matters: an unresolvable stored value must not split the two apart and
+    // have the worker synthesise Telugu text with an English voice.
+    const warn = mock.method(logger, 'warn', () => {});
+    try {
+      const phone = '+919000380005';
+      await seedCaller(T.CLINIC, phone, 'xx-ZZ');
+      const { json } = await callStart(T.CLINIC, phone);
+
+      assert.equal(json.language, 'te-IN', 'the tenant default, not English and not the garbage');
+      assert.equal(assertGreetingMatchesLanguage(json), 'te');
+    } finally {
+      warn.mock.restore();
+    }
+  });
+
+  it('a real-but-unsupported language (ta-IN) takes the same default path', async () => {
+    const phone = '+919000380006';
+    await seedCaller(T.CLINIC, phone, 'ta-IN');
+    const { json } = await callStart(T.CLINIC, phone);
+    assert.equal(json.language, 'te-IN');
+    assert.notEqual(json.language, 'ta-IN', 'never echo a language the clinic cannot speak');
+    assert.equal(assertGreetingMatchesLanguage(json), 'te');
+  });
+
+  it('the tag is exactly what the SSE done event emits — one namespace, not two', async () => {
+    // The convention this field must match, asserted against the shape rather
+    // than against a hand-copied literal: worker-namespace tags, which is what
+    // customerService.resolveLanguage returns to `done` and what Sarvam takes.
+    const phone = '+919000380007';
+    await seedCaller(T.CLINIC, phone, 'hi-IN');
+    const { json } = await callStart(T.CLINIC, phone);
+
+    assert.match(json.language, /^[a-z]{2}-[A-Z]{2}$/, 'BCP-47, not a bare config code');
+    assert.notEqual(json.language, 'hi', 'the bare config code must NOT leak to the worker');
+    assert.equal(json.language, 'hi-IN');
+  });
+
+  it('nothing to say → language is null, and the worker keeps its own default', async () => {
+    // Null rather than a guess: the worker falls back to its room prior / env
+    // default exactly as it did before this field existed. A tag here would tell
+    // the worker to synthesise in a language nothing resolved.
+    const { status, json } = await callStart(T.NOCONFIG, '+919000380008');
+    assert.equal(status, 200);
+    assert.equal(json.greeting, '');
+    assert.equal(json.language, null);
+  });
+
+  it('language accompanies the greeting on every 200 — the worker can always read it', async () => {
+    // The field must be present (even as null), not conditionally absent: an
+    // absent key and a null both mean "no language", but only one of them is a
+    // contract the worker can rely on.
+    for (const [tenant, phone] of [[T.CLINIC, '+919000380009'], [T.NOCONFIG, '+919000380010']]) {
+      const { json } = await callStart(tenant, phone);
+      assert.ok('language' in json, 'language must always be present');
+      assert.ok('greeting' in json, 'greeting must always be present');
+    }
+  });
 });

@@ -461,13 +461,18 @@ describe('portal receptionist — persona & voice config (route-level)', { skip:
       });
       const json = await httpRes.json();
       assert.equal(httpRes.status, 200, JSON.stringify(json));
-      // V1c added `greeting` — the greeting TEXT, resolved per language. The gap
-      // this test names is unchanged and is about the VOICE persona: the speaker
-      // and pace the owner chose still do not reach the worker, so the greeting
-      // now travels in the wrong voice rather than not travelling at all.
+      // V1c added `greeting` — the greeting TEXT, resolved per language — and
+      // Issue 38 added `language`, the code that text is synthesised in. The gap
+      // this test names is UNCHANGED and is about the VOICE PERSONA: the speaker
+      // and pace the owner chose still do not reach the worker. What Issue 38
+      // fixed is the language the voice speaks, not which voice speaks it, so the
+      // greeting still travels in the wrong voice — just no longer in the wrong
+      // language as well. The key list stays exhaustive on purpose: it is how
+      // this test detects a persona field arriving, and a growing payload must
+      // cost a deliberate edit here rather than passing silently.
       assert.deepEqual(Object.keys(json).sort(),
-        ['call_session_id', 'conversation_id', 'correlation_id', 'customer_id', 'greeting'],
-        'the bridge response carries greeting text but still no persona/voice fields');
+        ['call_session_id', 'conversation_id', 'correlation_id', 'customer_id', 'greeting', 'language'],
+        'the bridge response carries greeting text and language but still no persona/voice fields');
       assert.ok(!JSON.stringify(json).includes('kavitha'), 'the chosen speaker never reaches the bridge response');
       assert.ok(!JSON.stringify(json).includes('0.85'), 'nor does the chosen pace');
     } finally {
