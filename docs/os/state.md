@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: dd93bec3166bbeb269dae747cf59cf1d2bdf2a53
-Verified-on: 2026-08-11
+Verified-at: 1b7be6c592404513f77bc65d2a764726ad2fea97
+Verified-on: 2026-08-12
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -66,15 +66,15 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Python worker suite: **57 passed / 0 failed** (`uv run pytest` in `voice-agent/`).
+- Python worker suite: **72 passed / 0 failed** (`uv run pytest` in `voice-agent/`).
   Not counted by `npm run os:check`, which measures the Node suite only — a red
   Python suite does **not** turn os:check red, so it has to be run deliberately.
   **Machine-independent since `1bb1e6d`** (V1a-R1): `voice-agent/tests/conftest.py`
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1081 tests / 178 suites / 0 fail** (`npm test`, raw: `# tests 1081 /
-  # pass 1081 / # fail 0 / # cancelled 0 / # skipped 0`)
+- Test suite: **1097 tests / 179 suites / 0 fail** (`npm test`, raw: `# tests 1097 /
+  # pass 1097 / # fail 0 / # cancelled 0 / # skipped 0`)
   ⚠️ **GREEN NOW MEANS THREE COUNTERS, NOT ONE.** `npm run os:check` refuses on
   `# fail`, `# cancelled` **and** `# skipped`, and on any of them being unparseable.
   Quoting `# fail 0` alone no longer establishes that a run was clean — see the
@@ -84,7 +84,12 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   (`portalFaqs.integration.test.js:465` did not resurface, and
   `portalKnowledgeSummary` produced no cancellations) — twelve consecutive clean
   runs for both across Sessions 3, 4A and 5.
-  Last moved by **V1c — the greeting is spoken on join**
+  Last moved by **Issue 38 — the greeting is synthesised in the language the
+  brain resolved** (+16 tests, +1 suite — `tests/config/configLang.unit.test.js`
+  at 7 in a new `speakableLang` suite, and 9 in the existing
+  `tests/voice/callStartGreeting.integration.test.js`; three consecutive full
+  runs at 1097/179/0/0/0; see the note below), before that by
+  **V1c — the greeting is spoken on join**
   (+38 tests, +5 suites — `tests/voice/callStartGreeting.integration.test.js`
   at 14, `tests/prompts/voiceGreetingSuppressed.unit.test.js` at 10 across two
   suites, `tests/config/configLang.unit.test.js` at 9 and
@@ -417,6 +422,84 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE GREETING IS NOW SPOKEN IN THE LANGUAGE IT IS WRITTEN IN — Issue 38,
+  built and CLOSED** (`1b7be6c`). `/internal/voice/call/start` returns `language`
+  beside `greeting`; `voice-agent/agent.py` synthesises with it. Node
+  **1097 / 179 suites / 0 fail / 0 cancelled / 0 skipped**; Python **57 → 72**.
+  V1c resolved the greeting's language correctly and told the worker nothing
+  about it, so the TEXT and the VOICE came from two unrelated sources — the
+  worker built its TTS from `language_prior or DEFAULT_LANGUAGE`, a dev-room
+  metadata hint or an env default.
+  **ONE NAMESPACE, NOT TWO, AND THE DIRECTION IS THE DECISION.** The greeting
+  resolves in the CONFIG namespace (`te`) and is synthesised in the SPEAKABLE one
+  (`te-IN`) — the form the SSE `done` event already emits (`internalVoice.js:510`)
+  and the form Sarvam TTS's `target_language_code` takes. The crossing is
+  `speakableLang`, the inverse of `configLang` and its **neighbour in
+  `src/modules/config/schema.js`**, because that file's claim to be the one place
+  that knows two namespaces exist is only true if the inverse is there too. The
+  brain emits the form its consumer needs; **Python receives a code and passes it
+  through, mapping nothing**. A reverse map in the worker was refused by name.
+  **PRECEDENCE IS ONE LINE AT ONE CALL SITE**:
+  `build_tts(started.get("language") or language_prior or DEFAULT_LANGUAGE)`.
+  Brain first — it wins even against a room prior that disagrees, since the text
+  is already written in it — then the prior, then the env default. A brain with no
+  `language` key (deploy skew) or a null one (no config row) collapses the
+  expression to the **pre-change behaviour exactly**.
+  ⚠️ **THE GUARD IS WHY `build_tts` EXISTS RATHER THAN AN INLINE CONSTRUCTOR
+  CALL, and the plugin's behaviour was MEASURED, not read.** `sarvam.TTS.__init__`
+  raises `ValueError` on `'   '` and `None`, and **`AttributeError`** on `123` or
+  a dict — it calls `.strip()` before anything else. Either lands at bridge time:
+  **a dropped call**, strictly worse than a wrong-language greeting, which
+  self-corrects from the first turn. A blank string is **truthy in Python** and
+  sails through the `or` chain, so the chain alone is not enough. What the plugin
+  does **not** check is membership — `LanguageCode`
+  (`livekit.agents.language`) is a permissive `str` subclass that accepts `'ta-IN'`
+  and `'banana'` alike — so a well-formed unsupported code is deliberately passed
+  through rather than second-guessed by a language table the worker must not own.
+  **THE STT PRIOR IS UNTOUCHED, evidenced three ways**: the diff (a separate
+  statement), a test pinning `language_prior or STT_AUTO_DETECT` against the
+  shipped source by AST, and `language-code=unknown` on all three live STT
+  sessions.
+  ⚠️ **`entrypoint()` HAS NO TEST THAT CAN CALL IT, so the wiring is pinned by
+  AST against its own source** — that `build_tts` is called exactly once with one
+  argument reading `started`'s `language`, that `sarvam.TTS` is **not** constructed
+  inline any more (a second site would bypass the guard), and that the STT line is
+  unchanged. The five precedence tests then **execute that extracted expression**
+  rather than a copy of it, so a mirror of the policy cannot drift from the policy.
+  **Red-checked by execution, both sides, each mutation verified APPLIED by grep
+  before the run** — last session a mutation silently failed to apply and the test
+  passed. Hardcoding the `agent.py` call site to `build_tts("te-IN")` reds **12 of
+  26**, including the `hi-IN` and `en-IN` cases and the wiring pin, with the
+  **`te-IN` case staying green** — the diagnostic, since `te-IN` is both the
+  hardcoded value and the old default. Hardcoding the Node `language` to `'te-IN'`
+  reds **exactly 3 of 23**: `hi-IN`, the en-default tenant, and the namespace test.
+  **RUNTIME EVIDENCE — real LiveKit dev rooms, the real registered worker, real
+  Sarvam TTS, the live dev DB, brain on `PORT=3001`.** The language is read from
+  the **plugin's own outbound wire config** (`Sending TTS config`, which carries
+  `target_language_code`), not from a log line of ours: `en-IN` caller →
+  `"target_language_code": "en-IN"` with the English transcript; `hi-IN` caller →
+  `"hi-IN"` with the Hindi transcript. Three calls bridged, three configs matching
+  the caller's stored language, and **zero `voice_worker_turn_metrics` lines** —
+  V1c's `add_to_chat_ctx=False` property still holds. `/call/start` against the
+  live dev DB: `en-IN`→`en-IN`, `hi-IN`→`hi-IN`, `te-IN`→`te-IN`, no stored
+  language→`te-IN` (tenant default), `ta-IN`→`te-IN` (**tenant default, not
+  English and not echoed back**).
+  ⚠️ **ONE PRE-EXISTING TEST WAS EDITED, and it is not the mid-call switch test.**
+  `tests/portal/portalReceptionist.integration.test.js:442` pins the `/call/start`
+  key set **exhaustively**, on purpose — that is how it detects a persona field
+  arriving — so it gained `'language'`. The gap it names is unchanged:
+  `voice_speaker` and `pace` still never reach the worker, so the greeting still
+  travels in the wrong voice, just no longer in the wrong language as well. The
+  mid-call language-switch assertion (`tts.updates ==
+  [{"target_language_code": "hi-IN"}]`) is **unmodified and green in all three
+  files that carry it**.
+  ⚠️ **ONE UNIDENTIFIED RED, RECORDED RATHER THAN CHASED.** A full Node run
+  mid-session reported `# fail 1`; its log was lost to a `tee` path error, so the
+  test cannot be named. It did **not** reproduce in the three consecutive full
+  runs that followed at the same tree (1097/179/0/0/0 each). Most likely one of
+  the three recorded intermittents (`auth.unit.test.js:43` at a diagnosed ~1.6%,
+  `traces.integration.test.js:247`, `portalLifecycle.integration.test.js:794`),
+  but that is a guess and is labelled as one.
 - **THE GREETING IS SPOKEN ON JOIN — Q3's transport, built** (`dd93bec`).
   `/internal/voice/call/start` returns `greeting` beside its four existing fields;
   `voice-agent/agent.py`'s `speak_greeting` says it the moment the worker joins;
@@ -494,14 +577,15 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   `voice_worker_turn_metrics` lines across three greeting-only calls. Against the
   live dev database: `te-IN` → Telugu, `hi-IN` → Hindi, `en-IN` → English,
   `ta-IN` → **tenant default (Telugu), not English**.
-  ⚠️ **FILED, NOT BUILT — Issue 37, Issue 38, A-010.** Issue 37: the writer at
+  ⚠️ **FILED, NOT BUILT — Issue 37, A-010. Issue 38 is now CLOSED at `1b7be6c`**
+  (see the entry above this one). Issue 37: the writer at
   `customerService.js:69-73` is unvalidated, so the column keeps accumulating values
   no schema admits and every future reader inherits the obligation to normalise.
-  Issue 38: the worker synthesises the greeting with
+  Issue 38 was: the worker synthesises the greeting with
   `target_language_code = language_prior or 'te-IN'`, **independent of the language
   the brain resolved the TEXT in** — measured this session as an English greeting
   spoken by a Telugu-configured voice, self-correcting from the first turn. Out of
-  scope (no TTS changes). A-010 records the assumption that broke.
+  scope then (no TTS changes). A-010 records the assumption that broke.
 - **THE WORKER NOW TIMES ITS OWN TURNS — Q6's missing wiring, built** (`7abec81`).
   `docs/audit/voice-latency/00-verification.md` §Q6 established that the framework
   computes every stage timing and the worker subscribes to none of them. `agent.py`
