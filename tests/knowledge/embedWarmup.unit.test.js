@@ -122,7 +122,11 @@ describe('the embedding path is warmed at boot, and never at the cost of boot', 
     assert.match(src, /require\('\.\/src\/modules\/knowledge\/embedWarmup'\)/,
       'server.js must require the warmup module');
 
-    const listenIdx = src.indexOf('app.listen(');
+    // `= app.listen(`, not `app.listen(`: Issue 39 put a comment block above the
+    // call that names `app.listen()` in prose, and a bare indexOf finds THAT —
+    // which is earlier than the call, so this assertion would keep passing while
+    // measuring a comment. The assignment only appears at the real call site.
+    const listenIdx = src.indexOf('= app.listen(');
     const warmIdx = src.indexOf('warmEmbeddings()');
     assert.ok(warmIdx > 0, 'server.js must call warmEmbeddings() in its boot path');
     assert.ok(listenIdx > 0 && warmIdx > listenIdx,

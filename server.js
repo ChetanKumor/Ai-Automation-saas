@@ -121,8 +121,48 @@ const PORT = process.env.PORT || 3000;
 // container over IPv4; relying on Node's default host risks binding IPv6-only on
 // some images. Explicit 0.0.0.0 is the platform-recommended conformance.
 const HOST = process.env.HOST || '0.0.0.0';
-const server = app.listen(PORT, HOST, () => {
+
+// ── NEVER PASS A CALLBACK TO app.listen(). IT IS NOT A SUCCESS CALLBACK. ─────
+// Express 5 registers the callback you hand it on BOTH outcomes
+// (node_modules/express/lib/application.js:598-606, express@5.2.1):
+//
+//     if (typeof args[args.length - 1] === 'function') {
+//       var done = args[args.length - 1] = once(args[args.length - 1])
+//       server.once('error', done)          // <-- the FAILURE path, same fn
+//     }
+//     return server.listen.apply(server, args)
+//
+// So `app.listen(PORT, HOST, () => logger.info('server started'))` logs a
+// successful boot when the bind FAILS — and because that `once('error')`
+// consumes the event, node's default unhandled-'error' throw never fires, so
+// the process does not exit either. Both halves measured at c222006 on win32,
+// a second `node server.js` against a held port:
+//   • {"host":"0.0.0.0","port":"58286","msg":"server started"} emitted, while
+//     the 'listening' event never fired at all;
+//   • still running after 45,015 ms — exit code null, no signal, EADDRINUSE
+//     absent from every line of its output;
+//   • netstat showed ONE listener, owned by the FIRST process, which answered
+//     every request. The new process held nothing and served nothing.
+// That is how a dev machine ends up serving pre-edit code from a stale process
+// that the new one just reported having replaced.
+//
+// Attaching the two listeners ourselves is the whole fix: it is what separates
+// the success path from the failure path again.
+const server = app.listen(PORT, HOST);
+
+server.on('listening', () => {
   logger.info({ host: HOST, port: PORT }, 'server started');
+});
+
+server.on('error', (err) => {
+  logger.error(
+    { err: err.message, code: err.code, host: HOST, port: PORT },
+    'server failed to bind — exiting'
+  );
+  // process.exit(1), not `process.exitCode = 1`. The crons below start
+  // unconditionally and their timers hold the event loop open, so an exit code
+  // alone would leave running exactly the zombie this exists to prevent.
+  process.exit(1);
 });
 
 // Open the embedding connection now, so the FIRST REQUEST does not.
