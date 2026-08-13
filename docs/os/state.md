@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 0eb67d2dfe14fdb90da6b4b8f79d4365db9c87ba
+Verified-at: 5ba2560c4f9e4204b95e71d069e2f2f1e946cb53
 Verified-on: 2026-08-13
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -66,7 +66,10 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
 ## Engineering
 
-- Python worker suite: **72 passed / 0 failed** (`uv run pytest` in `voice-agent/`).
+- Python worker suite: **97 passed / 0 failed** (`uv run pytest` in `voice-agent/`).
+  Last moved by **Issue 41 — Hindi replies segment incrementally on the danda**
+  (72 → 97: +15 in the new `tests/test_danda_tokenizer.py`, +10 in the new
+  `tests/test_tts_node.py`; see the note below).
   Not counted by `npm run os:check`, which measures the Node suite only — a red
   Python suite does **not** turn os:check red, so it has to be run deliberately.
   **Machine-independent since `1bb1e6d`** (V1a-R1): `voice-agent/tests/conftest.py`
@@ -517,6 +520,128 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   by building a **literally different JSON body** (`{amount:100}` →
   `{amount:999}`), statically distinct and incapable of being a no-op. **Nothing
   else was changed**, per scope.
+- **HINDI REPLIES SEGMENT INCREMENTALLY NOW — Issue 41 (V1b), built and CLOSED**
+  (`5ba2560`). `BrainAgent.tts_node` installs a sentence tokenizer whose
+  terminator set is `[.!?。！？।॥]` and delegates to `Agent.default.tts_node`.
+  Node **1103 / 180 / 0 / 0 / 0 — UNMOVED** (worker-only); Python **72 → 97**
+  (`tests/test_danda_tokenizer.py` 15, `tests/test_tts_node.py` 10).
+  **GEMINI PUNCTUATES HINDI WITH THE DANDA — THE FACT PHASE 0 COULD NOT GET FROM
+  THE REPOSITORY, NOW MEASURED.** Every Hindi string in the tree is
+  founder-authored config and the one recorded real-Gemini capture is Telugu, so
+  the repo evidenced the fixture register and nothing else. Three real turns this
+  session (live Gemini, live dev DB, real `/internal/voice/turn` SSE): **3 of 3
+  terminated sentences with `।` and 0 of 3 with an ASCII period.** The single
+  ASCII period that appeared was inside the abbreviation `डॉ.`, not a sentence
+  end. So the defect was production behaviour, not a fixture artefact.
+  ⚠️ **AT HEAD THE ONE HINDI REPLY THAT DID SEGMENT WAS SEGMENTED WRONG.** That
+  same `डॉ.` reply released `'जी हाँ, आप कल आ सकते हैं। डॉ.'` — the library found
+  its only "sentence end" at the abbreviation dot and sent *"…yes you can come
+  tomorrow. Dr."* to Bulbul as a complete sentence. With the danda in the set it
+  splits at the real boundaries and keeps `डॉ.` inside its own sentence. That
+  mis-split is pre-existing and is neither caused nor deliberately fixed here.
+  **RUNTIME EVIDENCE — TWO REAL DEV-ROOM CALLS, A/B, SAME ROOM AND SAME REPLY
+  TEXT.** Real LiveKit rooms, the registered worker, real Sarvam STT and TTS,
+  brain on `PORT=3001`. The caller's Hindi was synthesised with Sarvam REST and
+  published as microphone audio, so the worker's own STT produced the transcript
+  — the Issue 38 caller published silence, which elicits a greeting but never a
+  turn. The observable is the TTS WebSocket itself, instrumented from outside by
+  patching `aiohttp.ClientWebSocketResponse.send_str` (`scratchpad/issue41/probe_ws.py`,
+  the Python shape of Issue 39's `NODE_OPTIONS` probe) — the plugin logs its
+  `config` frame but not its `{"type":"text"}` frames, and those frames are the
+  segment boundaries.
+
+      FIX      TTS TEXT  'जी हाँ, हम रूट कैनल करते हैं।'
+               stream_turn_total_ms=3902.6          <- generation COMPLETE
+               TTS TEXT  '<the remaining 108 chars>'
+               TTS FLUSH
+      CONTROL  stream_turn_total_ms=3546.8          <- generation COMPLETE
+               TTS TEXT  '<the entire 137-char reply, one frame>'
+               TTS FLUSH
+
+  The first segment left **before** the brain finished generating, 844 ms ahead
+  of the second frame; the control — the same tree with the danda removed from
+  the terminator set — put **one** frame on the wire and only after generation
+  completed. The greeting split too: two frames instead of one.
+  ⚠️ **PHASE 0's "OFFSETS ARE FAITHFUL, 18 OF 18" WAS A PROPERTY OF TWELVE
+  FIXTURES, NOT OF THE LIBRARY, AND THE FIRST RULING WAS MADE ON IT.** Recovering
+  each token by slicing the original at the returned offsets is the natural
+  instinct — it looks obviously safer than substituting into the text — and it is
+  wrong. `split_sentences` returns `(token, start, end)` where the token is **not**
+  `text[start:end]`; the offsets are span markers and the library itself only uses
+  `end` to advance its buffer (`token_stream.py:62`). On **unmodified** text with
+  no substitution anywhere, **131 of 344 tokens violate**
+  `tok == text[start:end].strip()` at HEAD. Two mechanisms:
+  `_basic_sent.py:77` appends the **tail** token with `len(text) - 1`, one short,
+  so slicing drops the last character (`split_sentences("Yes. No. Ok.")` returns
+  `end=11` for 12 characters); and `_basic_sent.py:69`'s
+  `buff += pre_pad + sentence` re-joins merged sentences with exactly one space,
+  so the token is whitespace-normalised and no slice reproduces it when the
+  separator was `''`, `'  '`, `'\n'` or `'\t'`.
+  **It fails Telugu and English, not Hindi**: any reply whose final sentence is
+  ≤20 chars fires the tail branch, so `"…five thousand rupees. Thank you."` loses
+  its period and so does `"…రూపాయలు. ధన్యవాదాలు."`. Scored over one 234-input
+  corpus: offset-slicing **141/234** lossless and **60/139** identical on
+  danda-free input; the substitution that shipped is **234/234** and **139/139**,
+  tuples and offsets included. Those two numbers **are** the byte-unchanged claim
+  for Telugu and English and are asserted as such in
+  `tests/test_danda_tokenizer.py`.
+  **THE SUBSTITUTION'S ONE ASSUMPTION IS CHECKED, NOT ASSUMED.** `।`→`。`, `॥`→`！`
+  — both already in the library's class, both single characters so `str.translate`
+  is position-preserving — the library splits, the map is inverted per token. If
+  the input already contains a substitute the inversion would rewrite a character
+  the clinic typed, so that input takes `split_sentences` unmodified: **exactly
+  HEAD**. That failure direction is the whole reason this mechanism won — a
+  collision costs one reply its segmentation, where a bad slice puts corrupted
+  text on the wire in the two languages that already work.
+  ⚠️ **THE FIX ASSIGNS TO A PRIVATE PLUGIN ATTRIBUTE, AND THE GUARDS ARE THE
+  SAFETY ARGUMENT.** `SarvamTTSOptions` declares `word_tokenizer` (`tts.py:426`)
+  and `SynthesizeStream` reads it (`:1004-1008`), but `TTS.__init__` overwrites it
+  at `:549` and takes no argument for it — the seam is real, read at synthesis
+  time, and unreachable through the constructor. A dataclass accepts an unknown
+  attribute **silently**, so a plugin bump renaming the field would leave the
+  assignment writing to a name nothing reads, with every test green. Two guards,
+  both naming the measured-against version in their failure message: the field is
+  checked against the live dataclass before the write, and the assignment is
+  asserted to survive `update_options()` — the mid-call language switch, i.e.
+  exactly when a Hindi caller would otherwise lose it.
+  ⚠️ **THE INSTALL SITE WAS FORCED BY THE TESTS, NOT CHOSEN.**
+  `tests/test_greeting.py:102-118`'s `fake_tts` monkeypatches `sarvam.TTS` with a
+  recorder that has **no `_opts`**, and `tests/test_agent_stream.py:49-55`'s
+  `FakeTTS` goes straight into `BrainAgent.__init__`. Installing in `build_tts` or
+  in `__init__` raises `AttributeError` across nine greeting tests and the whole
+  stream suite. `tts_node` is reached only through a real `AgentSession`, and it
+  covers **both** synthesis paths — `say()` (`agent_activity.py:2506`, the V1c
+  greeting) and the reply pipeline (`:2753`). **Neither `test_greeting.py` nor
+  `test_agent_stream.py` was modified**; the mid-call language-switch assertion is
+  byte-unchanged.
+  **THE ACK PATH IS UNAFFECTED, AND IT IS NOT A SUBSTITUTE FOR THIS.**
+  `FlushSentinel` is consumed **upstream** of `tts_node`
+  (`agent_activity.py:2775-2777`), so each segment gets its own `tts_node` call and
+  its own `SynthesizeStream`, whose `end_input()` releases the buffer regardless of
+  punctuation. But only the *ack* is flushed that way: the deltas after it open a
+  second segment subject to all three gates again, which is the segment this
+  change fixes.
+  **Red-checked by execution, six mutations, each verified APPLIED by grep before
+  its run**, each reddening only what it should. **M1** (danda out of the
+  terminator set) reds **3, all Hindi**, with Telugu and English green — the DoD's
+  central requirement, measured. **M2** (the collision check never fires) reds the
+  3 collision tests and leaves `has_substitute_collision`'s own test green, the
+  diagnostic that the function works and simply is not consulted. **M3** (the field
+  constant names a field the plugin lacks) reds 5. **M4** (the existence check
+  removed — the silent-attribute-creation defect) reds **exactly 1**. **M5** (guard
+  B's survival check cannot fail) reds **exactly 1**, the control arm proving guard
+  B has teeth — guard B's real subject is plugin behaviour, which cannot be mutated
+  without patching `.venv`, so a simulated rebuilding plugin is the only honest
+  red-check available. **M6** (the install writes to a copy) reds 4 including both
+  guard B tests.
+  ⚠️ **Residues, stated rather than hidden.** `U+0965` appears **nowhere** in this
+  repository and in none of the three real replies; it is in the set because it is
+  a strict superset and costs nothing, not because it was observed. The realised
+  latency gain depends on how Gemini chunks its SSE deltas — on the three sampled
+  replies the first segment was released 300 ms early, 0 ms early (the whole reply
+  arrived in one final delta), and unchanged (HEAD had already mis-split at `डॉ.`).
+  The dev caller created for the room runs (`+919000077041`, `preferred_language
+  hi-IN`) was **deleted afterwards**, residue checked at 0 rows.
 - **STANDING — A SOURCE PIN SHIPS WITH ITS RED-CHECK OR IT DOES NOT SHIP.** A
   test that asserts something about the **text of a source file** — located by
   `indexOf`, a hand-written regex, or an AST walk — is **vacuous until an applied
@@ -646,7 +771,7 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   unreachable — and rewriting 30 test helpers is not this issue. The only other
   production-shaped call site is `spike/voice-retell/server.js:61`, a spike that
   is not deployed. Issue **40** was allocated from here and is closed above;
-  the next free issue number is **41**.
+  **Issue 41 is also closed above, and the next free issue number is 42.**
 - **THE GREETING IS NOW SPOKEN IN THE LANGUAGE IT IS WRITTEN IN — Issue 38,
   built and CLOSED** (`1b7be6c`). `/internal/voice/call/start` returns `language`
   beside `greeting`; `voice-agent/agent.py` synthesises with it. Node
