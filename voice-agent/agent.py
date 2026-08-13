@@ -43,6 +43,7 @@ from livekit.agents import Agent, AgentSession, FlushSentinel, JobContext, Worke
 from livekit.plugins import sarvam
 
 from brain_client import BrainClient, BrainError, aclose_shared_client
+from danda_tokenizer import DandaSentenceTokenizer
 from turn_context import latest_user_text
 
 logger = logging.getLogger("voice-agent")
@@ -248,6 +249,51 @@ def build_tts(language: Optional[str]):
     )
 
 
+# ── Incremental segmentation for Hindi (Issue 41) ─────────────────────────────
+# The plugin HAS a tokenizer seam and closes it: `SarvamTTSOptions` declares
+# `word_tokenizer` (sarvam/tts.py:426) and `SynthesizeStream` honours it
+# (:1004-1008, falling back to the basic tokenizer when None), but `TTS.__init__`
+# overwrites it unconditionally at :549 and accepts no `word_tokenizer` argument.
+# So the field is real, is read at synthesis time, and is unreachable through the
+# constructor. We reopen it. `.venv` is never patched and the plugin is not forked.
+#
+# THE ASSIGNMENT IS TO A PRIVATE ATTRIBUTE AND THAT IS THE COST OF THE FIX.
+# It is one attribute on one object, deleted in one line the day upstream adds a
+# `word_tokenizer` kwarg. What makes it safe is that it CANNOT FAIL SILENTLY: a
+# dataclass instance accepts an unknown attribute without complaint, so a plugin
+# bump that renamed the field would leave this assignment writing to a name
+# nothing reads and Hindi would quietly stop segmenting. The field is therefore
+# checked against the live dataclass BEFORE the write, and
+# tests/test_tts_node.py reddens on the plugin that would break either half —
+# the field disappearing, and the assignment ceasing to survive update_options().
+TOKENIZER_FIELD = "word_tokenizer"
+
+# Stateless (`_config` only), so one instance serves every call and every stream.
+DANDA_TOKENIZER = DandaSentenceTokenizer()
+
+
+def install_danda_tokenizer(tts) -> bool:
+    """Install the danda-aware sentence tokenizer on `tts`. True when installed.
+
+    Never raises. This runs at synthesis time, so an exception here is dead air
+    on a live call — strictly worse than the held-to-flush segmentation it
+    exists to fix. An unrecognised TTS object, or a plugin whose options no
+    longer carry the field, degrades to the plugin's own tokenizer, which is
+    exactly today's behaviour.
+
+    `setattr` with the constant rather than a literal `opts.word_tokenizer = …`
+    is deliberate: the checked name and the written name are then provably the
+    same name, and a mutation of the constant reddens the guard test.
+    """
+    opts = getattr(tts, "_opts", None)
+    if opts is None:
+        return False
+    if TOKENIZER_FIELD not in getattr(type(opts), "__dataclass_fields__", {}):
+        return False
+    setattr(opts, TOKENIZER_FIELD, DANDA_TOKENIZER)
+    return True
+
+
 def speak_greeting(session, started: dict):
     """Speak `/call/start`'s greeting on join, if it returned one (V1c).
 
@@ -372,6 +418,52 @@ class BrainAgent(Agent):
         self._sarvam_tts = tts
         self._on_end_call = on_end_call
         self._end_signaled = False
+        self._tokenizer_warned = False
+
+    async def tts_node(self, text, model_settings):
+        """Synthesis, with a sentence tokenizer that terminates on the danda.
+
+        `tts_node` is the framework's own seam for this — "override this node to
+        provide different text chunking behavior" (livekit/agents/voice/agent.py:
+        375-400, default at :493-525). But the default only inserts a tokenizer
+        when the TTS is NON-streaming (`StreamAdapter` at :506-511); Sarvam
+        declares `streaming=True` (sarvam/tts.py:486), so the adapter is skipped
+        and the tokenizer that actually segments is the plugin's internal one.
+        Forcing `StreamAdapter` is not the answer — it routes through
+        `TTS.synthesize()`, the batch HTTP POST, abandoning the WebSocket the
+        audio already streams over. So the node installs the tokenizer and then
+        delegates: the framework's body stays the framework's.
+
+        HERE RATHER THAN IN build_tts, AND THAT IS FORCED, NOT PREFERRED.
+        `tests/test_greeting.py`'s `fake_tts` monkeypatches `sarvam.TTS` with a
+        recorder that has no `_opts`, and `tests/test_agent_stream.py`'s
+        `FakeTTS` is handed straight to `BrainAgent.__init__`. Installing at
+        construction would raise `AttributeError` across both suites. `tts_node`
+        is reached only through a real `AgentSession`, and it covers BOTH
+        synthesis paths — `say()` (agent_activity.py:2506, the V1c greeting) and
+        the reply pipeline (:2753) both dispatch through `self._agent.tts_node`.
+
+        Installing per call rather than once is deliberate: it is an attribute
+        check and an assignment, and it makes "every synthesis this agent
+        performs uses this tokenizer" true by construction, with no flag to get
+        wrong. The warning is once per call, not once per segment.
+
+        The ack is unaffected either way. `llm_node` yields a `FlushSentinel`
+        after it, which `agent_activity.py:2775-2777` turns into a segment
+        boundary UPSTREAM of this node — each segment gets its own `tts_node`
+        invocation and its own `SynthesizeStream`, whose `end_input()` releases
+        the buffer regardless of punctuation. What this node changes is the
+        segment AFTER the ack, which is the reply itself.
+        """
+        if not install_danda_tokenizer(self._sarvam_tts) and not self._tokenizer_warned:
+            self._tokenizer_warned = True
+            logger.warning(
+                "danda sentence tokenizer not installed (%s carries no %r option) — "
+                "Hindi replies will be held to flush, as before Issue 41",
+                type(self._sarvam_tts).__name__, TOKENIZER_FIELD,
+            )
+        async for frame in Agent.default.tts_node(self, text, model_settings):
+            yield frame
 
     def _signal_end(self) -> None:
         """Idempotently mark the call as ending (brain end_call or failure)."""
