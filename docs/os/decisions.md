@@ -698,3 +698,83 @@ inventing one. Fixed by the founder on 2026-08-14, alongside D-014.
 **Nothing in this block was implemented.** S1/S2/S3 were not started. No legal page was
 touched — their placeholders stay blocked on **C-1** (`docs/os/clocks.md`), which is
 F-F003 and the `legalEntityName` guard exemption at `web/lib/siteConfig.ts:168-172`.
+
+---
+
+## D-015 — Three-tier launch pricing with COGS-derived usage caps
+
+Date: 2026-08-14
+Overrides: G-PAY — "do not generalise anything: plans, entitlements, roles,
+permissions" — by launching three priced tiers before any clinic has paid.
+Supersedes: the S0 block above ("S0 — FOUNDER INPUTS FOR THE `web/` COPY SESSIONS"),
+item 3 — "No public pricing", ₹4,999 not to be displayed, "No replacement price was
+assumed, because none was given". That record is **not edited**; this entry replaces
+it in force. A replacement price now exists and is the table below.
+Supersedes: ZYON_V2_SPEC.md Phase 10
+
+Decision:
+  Starter  ₹5,000/mo · 3,000 AI replies included · hard cap 6,000  · overage ₹0.75/reply
+  Growth   ₹10,000/mo · 8,000 AI replies included · hard cap 12,500 · overage ₹0.75/reply
+  Pro      ₹15,000/mo · 14,000 AI replies included · hard cap 18,500 · overage ₹0.75/reply
+  Setup    ₹10,000 listed, waived for the first ten clinics.
+  GST 18% on top: ₹5,900 / ₹11,800 / ₹17,700 inclusive.
+  Tiers differ by allowance only. No feature gating.
+  Voice is not sold on any tier.
+
+  Basis: gross-margin floor 60%, target 70%+ at normal usage. Caps solved backwards
+  from the floor at ₹0.2912 per AI reply (Gemini 2.5 Flash 4,000 in / 150 out at
+  ₹96/USD = ₹0.1512, plus Meta service message ₹0.14). Margin at cap: 60.9% /
+  60.4% / 60.9%. Margin at normal usage: 84.4% / 81.2% / 78.4%.
+
+  Metered dimension: AI replies, and only AI replies. Conversations are displayed,
+  not metered — cost scales with replies, so a conversation cap lets a 20-exchange
+  thread through at 3x the cost of a 6-exchange one. Tokens, RAG retrievals,
+  storage and workflow runs are derivatives of reply count and are not metered.
+  Communicated in conversations (~500 / ~1,333 / ~2,333 at 6 replies each), metered
+  in replies. Never two simultaneous caps.
+
+  Cap behaviour: 80% notice, 90% upgrade prompt, 100% overage begins, hard cap
+  disables AI replies only. Human handoff, the portal and staff replies remain
+  live at all times. Usage notices go to the clinic owner, never into a patient
+  conversation.
+
+  Build requirement: per-tenant reply counting must exist before any of this ships.
+  Without it there is no meter, no threshold, no cap and no invoice line.
+
+Reason: A-001 cannot be tested without a price, and a single unlimited plan has no
+mechanism to convert usage growth into revenue. Overage is deliberately priced at
+61% marginal margin — below the margin of an upgrade — so the incentive never
+favours keeping a clinic overspending on a cheaper tier.
+
+Falsifiable prediction: by 2027-02-14, with ≥10 paying clinics, at least two sit on
+Growth or Pro. If all ten are on Starter, the ladder converted nothing, the tier
+boundaries were placed against imagined usage, and the structure collapses to one
+plan plus overage.
+
+Review: 2027-02-14. Earlier trigger — 2026-09-01, when Meta publishes India's
+service-message rate. The caps sit ON the 60% floor by construction and have no
+slack; if the published rate exceeds ₹0.14 all three are re-derived, not patched.
+
+Note: the margin figures exclude support cost, which is opex, not COGS. At ₹5,000/mo
+support is the binding constraint on clinic count long before COGS is — two founder
+hours per clinic per month is a full-time job at fifty clinics. This is the reason
+Starter's cap is set at roughly 2x plausible entry-tier usage rather than tight to it.
+
+Scope of this session, stated so the next one does not assume more was recorded than
+was: **this entry only** was appended. The pricing source
+(`prantivo-pricing-decision-entries.md` §2–§3) also proposes two assumptions — voice
+as a paid add-on (₹3,000/mo, 300 minutes, ₹8/min overage, safety cap 400) and a
+multi-branch segment paying ₹40,000–₹60,000+/month — and two external clocks, C-4
+(Meta publishes India's service-message rate, 2026-09-01) and C-5 (WhatsApp service
+messages become billable, 2026-10-01). Neither file was written: `assumptions.md` was
+outside this session's brief, and `clocks.md` is founder-supplied by standing rule
+(`CLAUDE.md` — "Never write to clocks.md"). Both remain to be appended by whoever is
+authorised to. The voice figures are UNTESTED and must not be quoted to a prospect.
+
+⚠️ Unresolved against this entry: `docs/ZYON_V2_SPEC.md:320-327` (Phase 10) carries a
+different five-plan ladder metered on **voice minutes** — Starter ~500 min at
+"quote (~₹10–15k)", Growth ~2,000, Professional ~6,000, plus Free/Trial and
+Enterprise — feature-gated across channels, workflows, KB size, users, integrations,
+analytics and support, under the standing instruction "publish *structure* not numbers
+early — quote in the demo". That ladder and this entry cannot both be in force. This
+entry does not edit it; reconciling the two is a separate decision.
