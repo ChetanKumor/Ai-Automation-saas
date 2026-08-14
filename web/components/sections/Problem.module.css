@@ -120,6 +120,16 @@
   background: var(--border);
 }
 
+/* —— ARITHMETIC LINE —— */
+/* Its own block because .silenceNote is a flex row terminated by the .ln
+   hairline; a child would land on that row instead of under it. */
+.arithmetic {
+  margin-top: 26px;
+  max-width: 54ch;
+  color: var(--text-primary);
+  font-size: 1.0625rem;
+}
+
 /* —— RESPONSIVE —— */
 @media (max-width: 900px) {
   .enquiries { grid-template-columns: repeat(2, 1fr); }

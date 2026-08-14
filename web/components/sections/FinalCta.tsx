@@ -17,12 +17,12 @@ export function FinalCta() {
             </span>
           </div>
           <h2 className={styles.ctaH2}>
-            See Prantivo handle a live conversation
+            Open your clinic&rsquo;s WhatsApp. Count the unread messages.
           </h2>
           <p className={styles.ctaSub}>
-            Book a demo. We&apos;ll walk you through the AI receptionist, the
-            human handoff, and how it books appointments — on a real WhatsApp
-            chat, using an example clinic.
+            That&rsquo;s the number this is about. Fifteen minutes and
+            we&rsquo;ll show you what happens to it — in Telugu, on your own
+            number.
           </p>
           <div className={styles.ctaActions}>
             <Button

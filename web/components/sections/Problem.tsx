@@ -49,17 +49,18 @@ export function Problem() {
         <Reveal className={styles.problemHead}>
           <Eyebrow variant="bar">The status quo</Eyebrow>
           <h2 className={styles.h2}>
-            Your customers are on WhatsApp.
+            You already have the patients.
             <br />
             <span className={styles.muted}>
-              The front desk can&rsquo;t keep up.
+              You&rsquo;re losing them at the front desk.
             </span>
           </h2>
           <p className={styles.problemBody}>
             Enquiries arrive after hours and during appointments. Calls go to
-            voicemail. A new lead waits unread until someone has a free minute —
-            and by then they&rsquo;ve messaged another clinic. Your staff answer
-            the same questions all day instead of doing their actual work.
+            voicemail. A new patient waits unread until someone has a free
+            minute — and by then they&rsquo;ve messaged another clinic. Your
+            staff answer the same five questions all day instead of doing their
+            actual work.
           </p>
         </Reveal>
 
@@ -88,10 +89,19 @@ export function Problem() {
           style={{ transitionDelay: "0.3s" }}
         >
           <span>
-            No green. No replies. Every one of these is a customer who will
-            message someone else.
+            No green. No replies. Every one of these is a patient who will book
+            somewhere else.
           </span>
           <span className={styles.ln} />
+        </Reveal>
+
+        <Reveal
+          className={styles.arithmetic}
+          style={{ transitionDelay: "0.36s" }}
+        >
+          Open your clinic&rsquo;s WhatsApp right now. Count the messages with
+          no reply. Multiply by what one new patient is worth to you.
+          That&rsquo;s this month.
         </Reveal>
       </div>
     </section>

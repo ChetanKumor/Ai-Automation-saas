@@ -7,7 +7,7 @@ export const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Does Prantivo use my own WhatsApp number?",
     answer:
-      "Yes. Prantivo connects to your existing WhatsApp Business number through the official WhatsApp Business Platform. Your customers see the same number they already message.",
+      "Yes. Prantivo connects to your existing WhatsApp Business number through the official WhatsApp Business Platform. Your patients see the same number they already message.",
   },
   {
     question: "What happens when the AI isn’t sure?",
@@ -20,14 +20,14 @@ export const FAQ_ITEMS: FaqItem[] = [
       "Yes. The AI and your team share one inbox. When a person takes over, the AI stays silent until the chat is returned to it.",
   },
   {
-    question: "Who can see my conversations and customer data?",
+    question: "Who can see my conversations and patient data?",
     answer:
       "Only you. Each business is fully isolated on the platform. We don’t sell your data, and you can export or delete it on request.",
   },
   {
     question: "Which languages does it handle?",
     answer:
-      "It answers in Telugu, Hindi, and English, including the code-mixed speech common in everyday customer chats.",
+      "It answers in Telugu, Hindi, and English, including the code-mixed speech common in everyday patient conversations.",
   },
   {
     question: "Is this allowed by WhatsApp?",

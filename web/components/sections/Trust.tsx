@@ -41,7 +41,7 @@ export function Trust() {
           <p>
             Conversations run on the official WhatsApp Business Platform. Each
             business&apos;s data is isolated from every other. We don&apos;t sell
-            your data or your customers&apos; data. You can request an export or
+            your data or your patients&apos; data. You can request an export or
             deletion at any time.
           </p>
         </Reveal>
@@ -100,7 +100,7 @@ export function Trust() {
                 </svg>
                 <div className={styles.guarLabel}>Never sold</div>
                 <p className={styles.guarDetail}>
-                  We don&apos;t sell your data or your customers&apos; data. Ever.
+                  We don&apos;t sell your data or your patients&apos; data. Ever.
                 </p>
               </div>
               <div className={styles.guar}>
