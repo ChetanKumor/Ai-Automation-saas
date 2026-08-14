@@ -611,3 +611,90 @@ Review: when `turn_traces` holds retrieval rows from real patient turns — enou
   tag carrying sha256 of that same text, which makes non-occurrence a property of the output
   rather than a hope about what clinic staff type.
 Outcome: pending
+
+## D-014 — Clinic-agnostic core positioning ahead of G-TEN
+
+Date: 2026-08-14
+Overrides: G-TEN ("do not add a vertical or adopt platform positioning until ten
+paying clinics"), for the `web/` marketing surface only.
+
+Decision: core reusable website copy uses "clinic" and "patient", not "dental".
+Dental remains available as a campaign/example layer, isolated to the demo chat
+scenarios and swappable without restructuring the page.
+
+Reason: avoids re-architecting the prospect-facing surface when the second vertical
+arrives, at the cost of headline specificity for the first ten.
+
+Falsifiable prediction: by 2026-11-14, at least two of the first ten paying clinics
+are non-dental. If all ten are dental, breadth cost specificity for nothing and the
+primary landing page should re-narrow to the wedge that actually converted.
+
+Review: 2026-11-14
+
+Not changed here, and stated so the next session does not mistake the decision for the
+state: the site still contradicts this entry at HEAD. `siteConfig.defaultTitle` and
+`defaultDescription` (`web/lib/siteConfig.ts:68-69`) both read "Dental Clinics", and
+twelve files under `web/` contain the string "dental" — marketing sections, the four
+legal pages, `layout.tsx`, `README.md` and `siteConfig.ts` itself. Rewriting the
+prospect-facing ones is S1/S2/S3's work (the legal four are out of scope, see below) and was
+deliberately not started in this session. `docs/os/state.md`'s Product line ("Indian SMB
+dental clinics", "Wedge: Hyderabad-area dental clinics") is a *wedge* statement about who
+is being sold to first, not website copy, and is left as written.
+
+⚠️ Whether this needs to override G-TEN at all is arguable, and the argument is recorded
+rather than settled: `docs/architecture/ARCHITECTURE.md:17` already frames the product as
+"a vertical-depth AI receptionist for Indian SMB **clinics**", and what it gates on ten
+paying customers plus ninety days of transcripts is *strategic reframing* — the shelved
+"AI Operating System for Businesses" class of claim. On that reading "clinic" is the
+existing framing and "dental" was the narrowing. The Overrides line above is kept as the
+founder wrote it, on the conservative assumption that broadening the wedge in
+prospect-facing copy is a reframing; if a later session finds that reading too strict, it
+supersedes this entry rather than editing it.
+
+Outcome: pending
+
+---
+
+**S0 — FOUNDER INPUTS FOR THE `web/` COPY SESSIONS, RECORDED HERE.** Not numbered
+entries: none of the four overrides a gate or a prior decision, and each is spent by the
+session that uses it. They are recorded so S1/S2/S3 spend a decided value instead of
+inventing one. Fixed by the founder on 2026-08-14, alongside D-014.
+
+1. **Time to live (N) is UNKNOWN, and no numeric SLA is created.** Where the site asks
+   how long setup takes, the answer is exactly *"We'll give you a date before you sign,
+   not after."* No number of working days may be promised anywhere on the surface.
+   ⚠️ No such question exists on the site today — `web/components/sections/faqData.ts`
+   carries seven questions and setup time is not among them.
+2. **Risk reversal is a 30-day exit.** The answer to *"What if it doesn't work for my
+   clinic?"* is a clear 30-day exit and nothing further; no additional refund guarantee
+   is authorised. ⚠️ That question does not exist on the site today either, so this is
+   copy to be written, not copy to be corrected.
+3. **No public pricing.** ₹4,999/month is **not** to be displayed on the landing page,
+   and S3's public-price rewrite is not to be run as written. Pricing stays a
+   founder/sales decision with its own session. **Measured at this commit: the marketing
+   site displays no price at all** — `web/components/sections/Pricing.tsx` contains no
+   price string, and ₹4,999 appears nowhere under `web/` or `public/` — verified by an
+   unfiltered search of the whole tree, not only of git-tracked source. Its **six**
+   occurrences across **four** tracked files are all internal cost-modelling
+   (`docs/audit/rag-audit-workflow.md:72,548`; `docs/os/audits/rag/01-map.md:80,572`;
+   `docs/os/audits/rag/02-ingestion.md:844`; `Phase 1 — Map & DivergenceLedger.md:87`),
+   flagged for the pricing session and not changed here. **No replacement price was
+   assumed, because none was given.**
+   ⚠️ A grep for `₹4` during that session will also hit `₹4,500` in
+   `docs/design/portal-v2-spec.md:579`, `docs/design/prantivo-mockups-batch1.html`,
+   `scripts/portal/acceptance.js`, `tests/portal/portalPricing.integration.test.js` and
+   `tests/prompts/renderer.unit.test.js`. Those are a **tenant clinic's own service
+   prices** ("Root canal from ₹4,500") in fixtures and mockups — nothing to do with
+   Prantivo's subscription price, and not in scope for a pricing decision.
+4. **Founder block** — Chetan Kumor · +91 83091 77158 · chetankumor9@gmail.com. These
+   route through the existing configuration mechanism, never through component literals.
+   The phone already resolves via `siteConfig.demoWhatsApp` (`web/lib/siteConfig.ts:72`,
+   already `918309177158`) and the email via `NEXT_PUBLIC_CONTACT_EMAIL` →
+   `siteConfig.contactEmail` (`:77`, guarded as required in production, blank in
+   `web/.env.example` by design). ⚠️ The founder's **name** has no configuration home:
+   `siteConfig` carries no such field and the string appears nowhere under `web/`. A
+   session that needs to render it adds a field there rather than inlining it.
+
+**Nothing in this block was implemented.** S1/S2/S3 were not started. No legal page was
+touched — their placeholders stay blocked on **C-1** (`docs/os/clocks.md`), which is
+F-F003 and the `legalEntityName` guard exemption at `web/lib/siteConfig.ts:168-172`.
