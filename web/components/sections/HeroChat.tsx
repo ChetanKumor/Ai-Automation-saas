@@ -142,7 +142,7 @@ export function HeroChat() {
       <div
         className={styles.wa}
         role="img"
-        aria-label="An example WhatsApp conversation, in Telugu, where the Prantivo AI receptionist books a dental appointment for a customer. Each reply is shown in Telugu with an English translation beneath it."
+        aria-label="An example WhatsApp conversation, in Telugu, where Prantivo answers a patient and books the appointment for the clinic. Each reply is shown in Telugu with an English translation beneath it."
       >
         <div className={styles.waHead}>
           <div className={styles.waAvatar}>L</div>
@@ -182,7 +182,7 @@ export function HeroChat() {
         </div>
       </div>
       <p className={styles.waCaption}>
-        An example of the AI receptionist booking an appointment on WhatsApp,
+        An example of Prantivo booking a patient appointment on WhatsApp,
         here in Telugu — the replies are translated beneath. It also answers in
         Hindi and English, and a staff member can take over the chat at any
         point.

@@ -23,7 +23,7 @@ export const metadata: Metadata = {
         url: siteConfig.ogImage,
         width: 1200,
         height: 630,
-        alt: "Prantivo — the AI receptionist for dental clinics, on WhatsApp",
+        alt: "Prantivo — books patient appointments on your clinic's own WhatsApp number, in Telugu, Hindi and English",
       },
     ],
   },

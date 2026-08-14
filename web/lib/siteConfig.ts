@@ -65,8 +65,8 @@ export const siteConfig = {
   // Not environment-varying: there is one registered entity name, it simply
   // does not exist yet. Exempted from the guard below — see the note there.
   legalEntityName: "[REGISTERED ENTITY NAME]",
-  defaultTitle: `${BRAND} — AI Receptionist for Dental Clinics`,
-  defaultDescription: `${BRAND} is the AI receptionist for dental clinics — it answers enquiries and books appointments on WhatsApp, 24/7, in Telugu, Hindi, and English.`,
+  defaultTitle: `${BRAND} — the AI receptionist for clinics, on WhatsApp`,
+  defaultDescription: `${BRAND} is the AI receptionist for clinics — it answers patients in Telugu, Hindi or English, quotes your prices, and books the appointment on your clinic's own WhatsApp number.`,
   ogImage: "/og-image.png",
   // Founder's WhatsApp number in E.164 without the leading '+', used for the demo CTAs.
   demoWhatsApp: "918309177158",
@@ -79,8 +79,8 @@ export const siteConfig = {
 
 // Prefilled one-tap messages for the WhatsApp click-to-chat CTAs.
 export const waMessages = {
-  demo: `Hi, I'd like to book a demo of the ${BRAND} AI receptionist for my clinic.`,
-  talk: `Hi, I have a question about the ${BRAND} AI receptionist.`,
+  demo: `Hi, I'd like to see ${BRAND} book an appointment in Telugu for my clinic.`,
+  talk: `Hi, I have a question about ${BRAND} for my clinic.`,
 } as const;
 
 // Build a wa.me click-to-chat link with a prefilled message.

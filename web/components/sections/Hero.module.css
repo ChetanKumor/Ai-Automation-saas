@@ -64,6 +64,16 @@
   flex-wrap: wrap;
 }
 
+/* Microcopy under the CTAs. Tertiary and small on purpose — it is evidence for
+   the claim above it, not a third call to action. Same size and colour as
+   .waCaption, the only other microcopy in this stylesheet. */
+.heroMicro {
+  margin-top: 14px;
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+  line-height: 1.5;
+}
+
 /* —— CHAT CARD —— */
 .chatCol {}
 
@@ -286,8 +296,14 @@
   .heroCopy { order: 1; }
   .chatCol { order: 2; }
   .sub { max-width: 100%; }
-  .heroCta button { flex: 1; justify-content: center; min-width: 140px; }
-  .heroCta a { flex: 1; justify-content: center; min-width: 140px; }
+  /* white-space: normal overrides .btn's global `nowrap`, scoped to the hero.
+     `flex: 1` makes these buttons narrower than their own label at 360px, and a
+     nowrap label in a flex item does not shrink — it overflows and is clipped
+     by the button's border-radius, which is what the long primary CTA copy did
+     here. Wrapping is the only fix that keeps the copy intact; the global
+     nowrap stays put for every other button on the site. */
+  .heroCta button { flex: 1; justify-content: center; min-width: 140px; white-space: normal; text-align: center; }
+  .heroCta a { flex: 1; justify-content: center; min-width: 140px; white-space: normal; text-align: center; }
 }
 
 @media (max-width: 480px) {

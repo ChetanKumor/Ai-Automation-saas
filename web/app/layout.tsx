@@ -56,14 +56,14 @@ export const metadata: Metadata = {
     siteName: siteConfig.siteName,
     title: siteConfig.defaultTitle,
     description:
-      "The AI receptionist for dental clinics — answers enquiries and books appointments on WhatsApp, 24/7, in Telugu, Hindi, and English.",
+      "Patients message your clinic at 11 PM, during a procedure, on a Sunday. Prantivo answers in seconds — in Telugu, Hindi or English — quotes your prices, and books the appointment.",
     url: "/",
     images: [
       {
         url: siteConfig.ogImage,
         width: 1200,
         height: 630,
-        alt: `${siteConfig.siteName} — the AI receptionist for dental clinics, on WhatsApp`,
+        alt: `${siteConfig.siteName} — books patient appointments on your clinic's own WhatsApp number, in Telugu, Hindi and English`,
       },
     ],
     locale: "en_IN",
@@ -72,7 +72,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: siteConfig.defaultTitle,
     description:
-      "The AI receptionist for dental clinics — answers enquiries and books appointments on WhatsApp, 24/7.",
+      "Patients message. Prantivo answers in seconds, quotes your prices and books the appointment — in Telugu, Hindi or English, on your clinic's own WhatsApp number.",
     images: [siteConfig.ogImage],
   },
   icons: {
@@ -104,7 +104,7 @@ const organizationJsonLd = {
   url: siteConfig.siteUrl,
   logo: siteConfig.siteUrl + "/favicon.svg",
   description:
-    "The AI receptionist for dental clinics — it answers enquiries, books appointments, and hands off to staff on WhatsApp, in Telugu, Hindi, and English.",
+    "An AI receptionist for clinics — it answers patient enquiries, quotes prices, books appointments, and hands off to staff on WhatsApp, in Telugu, Hindi, and English.",
   // Both keys are omitted entirely rather than emitted empty: an empty
   // `sameAs` array or a blank support address is a claim about nothing.
   ...(sameAs.length > 0 ? { sameAs } : {}),

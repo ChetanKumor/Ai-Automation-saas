@@ -21,7 +21,8 @@ export function Footer() {
               Prantivo
             </Link>
             <p className={styles.footerTag}>
-              The AI receptionist for dental clinics, on WhatsApp.
+              Every patient answered and booked, on your clinic&rsquo;s own
+              WhatsApp number.
             </p>
           </div>
 

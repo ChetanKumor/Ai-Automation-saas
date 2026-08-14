@@ -25,12 +25,12 @@ const softwareApplicationJsonLd = {
   applicationCategory: "BusinessApplication",
   operatingSystem: "Web",
   description:
-    "An AI receptionist for dental clinics. It answers enquiries, books appointments, and hands off to staff on WhatsApp — in Telugu, Hindi, and English — on the official WhatsApp Business Platform.",
+    "An AI receptionist for clinics. It answers patient enquiries, quotes prices, books appointments, and hands off to staff on WhatsApp — in Telugu, Hindi, and English — on the official WhatsApp Business Platform.",
   offers: {
     "@type": "Offer",
     priceCurrency: "INR",
     description:
-      "One-time setup fee plus a monthly subscription. Book a demo for a tailored quote.",
+      "One-time setup fee plus a monthly subscription. Message us for a quote for your clinic.",
   },
   publisher: { "@type": "Organization", name: siteConfig.siteName },
 };
