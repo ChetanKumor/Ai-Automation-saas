@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 05fdf41f590c2b153fab498d29ebe4780b2626b6
-Verified-on: 2026-08-14
+Verified-at: 9a024ccd12cc3e95f7e9a15656211b24eb34b179
+Verified-on: 2026-08-15
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -77,7 +77,12 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
 - Test suite: **1103 tests / 180 suites / 0 fail** (`npm test`, raw: `# tests 1103 /
-  # pass 1103 / # fail 0 / # cancelled 0 / # skipped 0`)
+  # pass 1103 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  Measured twice at `9a024cc` (Phase 1b), both runs identical on all seven
+  counters. The number carried here before this refresh was recorded against
+  `05fdf41` while HEAD was `9b95225` and was therefore formally unverified; it
+  has now been re-measured rather than carried forward. Phase 1b added no
+  `test()` block, so the delta is zero by intent.
   ⚠️ **GREEN NOW MEANS THREE COUNTERS, NOT ONE.** `npm run os:check` refuses on
   `# fail`, `# cancelled` **and** `# skipped`, and on any of them being unparseable.
   Quoting `# fail 0` alone no longer establishes that a run was clean — see the
