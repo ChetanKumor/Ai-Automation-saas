@@ -76,7 +76,7 @@ just as loudly as an undocumented change.
 |---|---|---|---|
 | `--bg` | demo/shared | `#eef2f6` | The portal's ground is a hair lighter so its white sidebar and cards read as calm rather than boxed-in. Documented at `tokens.css:19-20` since PORTAL-P1-S2. |
 | `--bg` | demo/styles | `#eef2f6` | Same as above — the demo pair share a ground. |
-| `--accent` | web | `#14b8a6` | **F-F008, open.** `#14b8a6` is `--teal-500`, the correct accent on an *ink* ground; `web/` is dark, the portal is light. It is a named step of the same ramp, not a second hue. Closing the finding means repointing `web/` and is a separate session (plan §0.2). |
+| `--accent` | web | `#14b8a6` | **F-F008, open.** `#14b8a6` is `--teal-500`, the correct accent on an *ink* ground; `web/` is dark, the portal is light. It is a named step of the same ramp, not a second hue. Closing the finding means repointing `web/`, which happens at **Phase 2**, when the ground flips to Warm Paper. It cannot happen earlier: on the current near-black `--ink-900` the portal's `#0f766e` measures 3.58:1, so repointing today would ship a live AA failure across the fifteen `--accent` consumers on the four legal pages. Phase 1b therefore adds `--accent-on-ground` (`#0f766e`, 5.16:1 on the paper ground) dormant beside it rather than repointing early. |
 | `--teal-700` | demo/shared | `#0f5f59` | The demo still uses the pre-v2 convention where `--teal-600`/`--teal-700` are darker steps *below* the base `--teal`. The portal adopted the standard 50–900 ramp in D1, where `--teal-700` **is** the base (spec §2.1, plan §0.1). Same name, two conventions — which is exactly why the portal's consumers were migrated to `--teal-hover`/`--teal-press` rather than being left to resolve differently. |
 | `--sans` | demo/shared | `system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif` | The portal self-hosts Noto Sans Latin (D1) so Latin, Telugu and Devanagari are one family on one baseline grid. The demo has no Latin face and correctly falls through to the system stack rather than declaring a font it does not ship — which is the untruth D1 removed from the portal. |
 | `--sans` | demo/styles | `system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif` | Same reason as `demo/shared`: the demo pair share one type stack and ship no Latin face, so they fall through to the system stack. |
@@ -90,9 +90,9 @@ just as loudly as an undocumented change.
 | `--radius-sm` | demo/styles | `10px` | Same reason as `--radius`: the v2 control radius tightened to 6px and the demo was not migrated. |
 | `--shadow` | demo/shared | `0 1px 2px rgba(15, 23, 42, .04), 0 6px 16px rgba(15, 23, 42, .06)` | v2 restructured elevation into sm/md/lg and removed the card shadow (spec §2.5); the demo keeps the pre-v2 float. |
 | `--shadow` | demo/styles | `0 1px 2px rgba(15, 23, 42, .04), 0 6px 16px rgba(15, 23, 42, .06)` | Same reason as `demo/shared`: the demo keeps the pre-v2 float and its cards still cast. |
-| `--r-sm` | web | `4px` | `web/` has its own radius scale predating the v2 spec (4/8/12 against the portal's 6/10/14). The names collide; the values are each correct for their surface. Reconciling is not scheduled. |
-| `--r-md` | web | `8px` | Same reason as `--r-sm`: `web/`'s radius scale is 4/8/12 and predates the v2 spec. |
-| `--r-lg` | web | `12px` | Same reason as `--r-sm`: `web/`'s radius scale is 4/8/12 and predates the v2 spec. |
+| `--r-sm` | web | `4px` | `web/` has its own radius scale predating the v2 spec (4/8/12 against the portal's 6/10/14). The names collide; the values are each correct for their surface. Phase 1b adds a parallel `--rad-sm`/`--rad-md`/`--rad-lg` (2/6/10) dormant beside this scale rather than repointing it, precisely so that no existing consumer moves; the collision resolves at **Phase 2**, when `web/`'s components move onto the new scale and these three rows retire. |
+| `--r-md` | web | `8px` | Same reason as `--r-sm`: `web/`'s radius scale is 4/8/12 and predates the v2 spec. Superseded by the dormant `--rad-md` (6px) at **Phase 2**. |
+| `--r-lg` | web | `12px` | Same reason as `--r-sm`: `web/`'s radius scale is 4/8/12 and predates the v2 spec. Superseded by the dormant `--rad-lg` (10px) at **Phase 2**. |
 
 ---
 

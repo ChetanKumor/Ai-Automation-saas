@@ -87,9 +87,39 @@ test('design tokens do not drift between the four surfaces', () => {
     const file = path.join(ROOT, rel);
     assert.ok(fs.existsSync(file), `${rel} is missing — update SURFACES or restore the file`);
     maps[key] = declarations(fs.readFileSync(file, 'utf8'));
+    // A FLOOR, not a count. An exact count would red the suite every time anyone
+    // adds a token, and a check that fires on ordinary work gets deleted rather
+    // than maintained. The smallest real surface declares 21, so 15 leaves room
+    // to grow or shed one without a false red.
+    //
+    // What it guards: rootBlock()'s /:root\s*{([\s\S]*?)\n}/ stops at the FIRST
+    // line-initial `}`, so a `}` at column zero anywhere inside :root — in code
+    // or inside a comment — silently truncates the map.
+    //
+    // What it is NOT, measured rather than assumed. Both cases were run:
+    //
+    //   brace ABOVE the shared tokens (2 survive) — already failed before this
+    //     floor existed, because dropping --accent/--ease-out/--r-* trips the
+    //     stale-canonical-row and stale-divergence-row checks at the bottom of
+    //     this file. The floor adds no detection there. What it adds is the
+    //     diagnosis: one line naming truncation, instead of nine "stale row"
+    //     messages that read as though brand-values.md were wrong when in fact
+    //     the stylesheet is malformed.
+    //
+    //   brace BELOW the shared tokens (36 survive) — GREEN before this floor and
+    //     GREEN after it, because 36 >= 15. This blind spot is still open. A
+    //     count-based floor cannot close it; closing it needs the parser to
+    //     verify that :root's closing brace is the last one in the block rather
+    //     than the first line-initial `}` it meets.
+    //
+    // So: this catches a severe truncation and explains it. It does not catch
+    // every truncation, and the comment saying otherwise would be a lie the
+    // suite is not able to contradict.
     assert.ok(
-      Object.keys(maps[key]).length > 0,
-      `${rel} declares no custom properties — the :root regex probably stopped matching`
+      Object.keys(maps[key]).length >= 15,
+      `${rel} declares only ${Object.keys(maps[key]).length} custom properties — ` +
+      'expected at least 15. The :root regex probably stopped early at a `}` in ' +
+      'column zero inside the block (a comment line counts).'
     );
   }
 

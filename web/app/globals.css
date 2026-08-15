@@ -84,6 +84,84 @@
      coverage on Windows and would tofu, and there is no better vanilla option —
      the same trade-off C-1 records for the demo and portal surfaces. */
   --font-te: var(--font-telugu, 'Noto Sans Telugu', system-ui, sans-serif);
+
+  /* ═══ WARM PAPER — Phase 1b, DORMANT ═════════════════════════════════════
+     Twenty-one tokens with NO consumer on any shipping route. The only page
+     that reads them is /specimen, which exists so that dormancy is visible
+     rather than asserted. Nothing below repaints anything: `body` still takes
+     --ink-900, every token above keeps its value, and a full-page diff of any
+     live route is pixel-identical across this change. Phase 2 flips the ground
+     and gives these consumers.
+
+     Ratios are quoted ground / sunk / raised — #FAF8F5 / #F2EEE8 / #FFFFFF.
+     Each was computed twice before being written down.
+
+     --ink-faint is NON-TEXT ONLY. That is a contract, not a preference. At
+     2.41:1 it fails AA for text (4.5:1) and ALSO fails 1.4.11's 3:1 floor for
+     a meaningful graphical object, so it is left with only two legitimate
+     uses: a hairline, and an undrawn state. It may never paint a glyph. The
+     consequence is recorded here, at the point where the token is defined,
+     because it constrains a surface this file does not yet draw: speaker
+     labels, timestamps and the recency floor all take --ink-soft (7.31:1).
+     Speaker identity rides on the LABEL (text, passing) and on the INDENT
+     (position) — two channels, neither of them colour. The hairline beside
+     Prantivo's turns therefore carries nothing required, which is what makes
+     it legitimately decorative at --rule (1.18:1) rather than a 1.4.11
+     failure.
+
+     --answered is #166534 and not the portal's green-700 #15803d. #15803d
+     measures 4.34:1 on --ground-sunk and fails AA on the very surface a
+     resolved state is most likely to sit on; #166534 measures 6.17:1 there.
+
+     --accent-on-ground is a SECOND token rather than a repoint of --accent.
+     #0f766e on the current near-black --ink-900 measures 3.58:1, which fails
+     AA for text — and --accent IS text on this site: legal.module.css:221 and
+     :288 paint every inline link with it, fifteen consumers across the four
+     legal pages. Repointing today would ship a live accessibility failure in
+     order to tidy a layer nothing renders. F-F008 stays open by decision and
+     closes at Phase 2, when the ground flips and #0f766e becomes the step
+     that suits it.
+
+     Radii are --rad-*, deliberately not --r-*. The existing 4/8/12 scale
+     above keeps its names, its values and its three divergence rows; a
+     dormant layer does not get to redefine a token that has consumers.
+     ═══════════════════════════════════════════════════════════════════════ */
+
+  /* —— Grounds —— */
+  --ground: #FAF8F5;
+  --ground-sunk: #F2EEE8;
+  --ground-raised: #FFFFFF;
+
+  /* —— Ink —— */
+  --ink-strong: #17150F;          /* 17.22 / 15.79 / 18.25   TEXT */
+  --ink-soft: #57524A;            /*  7.31 /  6.70 /  7.75   TEXT */
+  --ink-faint: #A8A199;           /*  2.41 /  2.21 /  2.55   NON-TEXT ONLY */
+  --rule: rgba(23, 21, 15, 0.08); /*  1.18 on --ground — decorative hairline */
+
+  /* —— Functional colour on a paper ground —— */
+  --accent-on-ground: #0F766E;    /*  5.16 /  4.74 /  5.47   TEXT */
+  --answered: #166534;            /*  6.73 /  6.17 /  7.13   TEXT */
+
+  /* —— Radius —— */
+  --rad-sm: 2px;
+  --rad-md: 6px;
+  --rad-lg: 10px;
+
+  /* —— Type scale —— */
+  --type-display: clamp(2rem, 4.2vw, 3.75rem);
+  --type-lede: clamp(1rem, 1.4vw, 1.1875rem);
+  --type-body: clamp(1.0625rem, 1.5vw, 1.375rem);
+  --type-meta: 0.75rem;
+
+  /* —— Tracking and measure —— */
+  --track-display: -0.02em;
+  --track-lede: -0.01em;
+  --measure: 66ch;
+
+  /* —— Motion. One duration, one curve. docs/design/motion.md records why
+        this is an easing curve and not a spring, and what that costs. —— */
+  --dur-emerge: 180ms;
+  --ease-emerge: cubic-bezier(0.2, 0, 0, 1);
 }
 
 /* —— Base reset —— */

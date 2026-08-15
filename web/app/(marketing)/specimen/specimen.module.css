@@ -1,0 +1,556 @@
+/* ============================================================================
+ * Phase 1b specimen. The ONLY consumer of the Warm Paper tokens.
+ *
+ * This file exists so that "dormant" is a thing you can look at rather than a
+ * claim in a commit message. It sits inside the (marketing) route group on
+ * purpose, so Nav and Footer render from the OLD dark tokens directly above and
+ * below this light sheet — two token systems on one page, neither touching the
+ * other.
+ *
+ * Nothing here is imported by any other stylesheet, and nothing else imports
+ * these tokens. Deleting this route would return the token layer to zero
+ * consumers.
+ * ========================================================================== */
+
+.page {
+  background: var(--ground);
+  color: var(--ink-strong);
+  padding: 64px 24px 96px;
+  /* Not --font-sans: the specimen should show the same face the site ships. */
+  font-family: var(--font-sans);
+}
+
+.inner {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+/* —— Header —————————————————————————————————————————————————————————— */
+
+.kicker {
+  font-size: var(--type-meta);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 12px;
+}
+
+.title {
+  font-size: var(--type-display);
+  letter-spacing: var(--track-display);
+  line-height: 1.05;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.lede {
+  font-size: var(--type-lede);
+  letter-spacing: var(--track-lede);
+  color: var(--ink-soft);
+  max-width: var(--measure);
+  line-height: 1.55;
+}
+
+.section {
+  margin-top: 72px;
+}
+
+.h2 {
+  font-size: 1.5rem;
+  letter-spacing: var(--track-lede);
+  font-weight: 600;
+  margin-bottom: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.sectionNote {
+  font-size: var(--type-meta);
+  color: var(--ink-soft);
+  max-width: var(--measure);
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+/* —— Palette table ——————————————————————————————————————————————————— */
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  min-width: 720px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+
+.table th {
+  font-size: var(--type-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.swatchCell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  white-space: nowrap;
+}
+
+/* The swatch is painted by an inline `background: var(--token)`. It cannot
+   physically show a colour the stylesheet does not hold. */
+.swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--rad-md);
+  border: 1px solid var(--rule);
+  flex: none;
+}
+
+.tokenName {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+.tokenValue {
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  color: var(--ink-soft);
+}
+
+.ratio {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  display: block;
+}
+
+.verdict {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: var(--rad-sm);
+  border: 1px solid var(--rule);
+  white-space: nowrap;
+}
+
+.vText {
+  color: var(--answered);
+  border-color: var(--answered);
+}
+
+.vLarge {
+  color: var(--ink-soft);
+}
+
+/* NON-TEXT ONLY is drawn in --ink-strong, deliberately. Rendering the label
+   in the colour it describes would make the warning itself unreadable — which
+   is the exact failure the label is warning about. */
+.vNone {
+  color: var(--ink-strong);
+  border-color: var(--ink-strong);
+  font-weight: 600;
+}
+
+.rowNote {
+  font-size: var(--type-meta);
+  color: var(--ink-soft);
+  line-height: 1.55;
+  max-width: 44ch;
+  white-space: normal;
+}
+
+/* —— The --ink-faint callout ————————————————————————————————————————— */
+
+.callout {
+  margin-top: 32px;
+  background: var(--ground-raised);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink-strong);
+  border-radius: var(--rad-lg);
+  padding: 24px 28px;
+}
+
+.calloutHead {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.calloutToken {
+  font-family: var(--font-mono);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.calloutBadge {
+  font-size: var(--type-meta);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 4px 10px;
+  border-radius: var(--rad-sm);
+  border: 2px solid var(--ink-strong);
+  color: var(--ink-strong);
+}
+
+.calloutRatio {
+  font-family: var(--font-mono);
+  font-size: 1.125rem;
+  color: var(--ink-soft);
+}
+
+.calloutBody {
+  color: var(--ink-soft);
+  max-width: var(--measure);
+  line-height: 1.65;
+  font-size: 0.9375rem;
+}
+
+.calloutBody p + p {
+  margin-top: 12px;
+}
+
+/* The demonstration: the same string in --ink-faint and in --ink-soft. */
+.faintDemo {
+  margin-top: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.faintBad,
+.faintGood {
+  padding: 10px 14px;
+  border-radius: var(--rad-md);
+  background: var(--ground-sunk);
+  font-size: 0.9375rem;
+}
+
+.faintBad {
+  color: var(--ink-faint);
+}
+
+.faintGood {
+  color: var(--ink-soft);
+}
+
+.demoTag {
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  color: var(--ink-strong);
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* —— The non-token note ————————————————————————————————————————————— */
+
+.markNote {
+  margin-top: 24px;
+  padding: 20px 24px;
+  border: 1px dashed var(--ink-soft);
+  border-radius: var(--rad-md);
+  max-width: var(--measure);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+
+.markNoteLabel {
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  display: block;
+  margin-bottom: 8px;
+}
+
+.markSwatch {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  border-radius: var(--rad-sm);
+  background: #8a8479;
+  vertical-align: baseline;
+  margin: 0 0.15em -0.05em;
+  border: 1px solid var(--rule);
+}
+
+/* —— Speaker identity ruling ————————————————————————————————————————— */
+
+.ruling {
+  margin-top: 24px;
+  max-width: var(--measure);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+
+.ruling li {
+  margin-top: 8px;
+}
+
+.ruling strong {
+  color: var(--ink-strong);
+}
+
+/* A two-channel speaker demonstration: LABEL (text, passing) and INDENT
+   (position). Neither channel is colour. */
+.turns {
+  margin-top: 20px;
+  background: var(--ground-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--rad-lg);
+  padding: 20px;
+  max-width: 46ch;
+}
+
+.turn {
+  padding: 8px 0;
+}
+
+.turnAgent {
+  padding-left: 28px;
+  border-left: 1px solid var(--rule);
+}
+
+.turnLabel {
+  font-size: var(--type-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  display: block;
+  margin-bottom: 3px;
+}
+
+.turnBody {
+  color: var(--ink-strong);
+  font-size: 0.9375rem;
+}
+
+.turnTime {
+  font-size: var(--type-meta);
+  color: var(--ink-soft);
+}
+
+/* —— Type scale —————————————————————————————————————————————————————— */
+
+.typeRow {
+  padding: 24px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.typeMeta {
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  color: var(--ink-soft);
+  margin-bottom: 10px;
+}
+
+.typeSpecimen {
+  max-width: var(--measure);
+}
+
+.scriptTag {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  display: block;
+  margin: 12px 0 2px;
+}
+
+.te {
+  font-family: var(--font-te);
+}
+
+.sDisplay {
+  font-size: var(--type-display);
+  letter-spacing: var(--track-display);
+  line-height: 1.05;
+  font-weight: 600;
+}
+
+.sLede {
+  font-size: var(--type-lede);
+  letter-spacing: var(--track-lede);
+  line-height: 1.5;
+}
+
+.sBody {
+  font-size: var(--type-body);
+  line-height: 1.6;
+}
+
+.sMeta {
+  font-size: var(--type-meta);
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+/* Telugu wants looser leading than Latin at the same size: matras stack above
+   and below the baseline and get cramped at a Latin-tuned line-height. Same
+   adjustment public/demo/styles.css:269-274 makes. */
+.te.sDisplay { line-height: 1.25; }
+.te.sLede,
+.te.sBody { line-height: 1.75; }
+
+/* —— Surfaces ———————————————————————————————————————————————————————— */
+
+.surfaces {
+  display: grid;
+  gap: 0;
+  max-width: 640px;
+}
+
+.surfaceSunk {
+  background: var(--ground-sunk);
+  border-radius: var(--rad-lg);
+  padding: 28px;
+}
+
+.surfaceGround {
+  background: var(--ground);
+  border-radius: var(--rad-md);
+  padding: 24px;
+  margin-top: 20px;
+}
+
+.surfaceRaised {
+  background: var(--ground-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--rad-sm);
+  padding: 20px;
+  margin-top: 20px;
+}
+
+.surfaceLabel {
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  color: var(--ink-soft);
+}
+
+.surfaceText {
+  margin-top: 6px;
+  font-size: 0.9375rem;
+}
+
+/* —— Radii ——————————————————————————————————————————————————————————— */
+
+.radii {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.radiusItem {
+  text-align: center;
+}
+
+.radiusBox {
+  width: 104px;
+  height: 104px;
+  background: var(--ground-raised);
+  border: 1px solid var(--ink-soft);
+}
+
+.rSm { border-radius: var(--rad-sm); }
+.rMd { border-radius: var(--rad-md); }
+.rLg { border-radius: var(--rad-lg); }
+
+.radiusLabel {
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  color: var(--ink-soft);
+  margin-top: 10px;
+}
+
+/* —— Motion —————————————————————————————————————————————————————————— */
+
+.motionRow {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.motionCard {
+  background: var(--ground-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--rad-lg);
+  padding: 22px;
+  min-width: 240px;
+}
+
+/* CSS-only, no client island: the keyframe runs on load and the hover example
+   needs no JS. That is the whole budget this page has — see docs/design/motion.md
+   §8 for why anything a finger drags would need a dependency web/ does not
+   carry. */
+@keyframes emerge {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.emergeDemo {
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: var(--ground-sunk);
+  border-radius: var(--rad-md);
+  font-size: 0.9375rem;
+  animation: emerge var(--dur-emerge) var(--ease-emerge) both;
+}
+
+.hoverDemo {
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: var(--ground-sunk);
+  border-radius: var(--rad-md);
+  font-size: 0.9375rem;
+  transition: background var(--dur-emerge) var(--ease-emerge),
+              color var(--dur-emerge) var(--ease-emerge);
+}
+
+.hoverDemo:hover {
+  background: var(--accent-on-ground);
+  color: var(--ground-raised);
+}
+
+.motionCaption {
+  font-family: var(--font-mono);
+  font-size: var(--type-meta);
+  color: var(--ink-soft);
+  margin-top: 10px;
+  line-height: 1.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .emergeDemo {
+    animation: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .page {
+    padding: 40px 16px 64px;
+  }
+}
