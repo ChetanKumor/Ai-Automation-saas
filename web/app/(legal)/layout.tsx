@@ -7,7 +7,24 @@ export default function LegalLayout({
   children: React.ReactNode;
 }) {
   return (
-    <>
+    // The Warm Paper ground for this route group, applied HERE rather than on
+    // `body`. `body` is shared with the marketing group, which is still dark;
+    // moving it would repaint the whole site in a session whose control arm is
+    // marketing at zero differing pixels.
+    //
+    // min-height:100vh keeps body's --ink-900 from showing below the footer on
+    // a page shorter than the viewport. It is DEFENSIVE, not currently
+    // load-bearing, and the difference is worth stating: the shortest page in
+    // this group is /data-deletion at 1866px CSS (1440 wide), so no viewport
+    // any capture used comes close to exposing the gap. It guards a future
+    // short page — an error state, a stub policy — rather than a present one.
+    //
+    // KNOWN RESIDUE, accepted: `body` still paints the overscroll rubber-band
+    // area on iOS and macOS, so a paper page inside a dark body flashes
+    // near-black when overscrolled. Fixing it means touching body or html,
+    // which is the one atomic change this session exists to avoid. It goes away
+    // at S2 when the ground flips site-wide.
+    <div className={styles.paper}>
       <div className={styles.topbar}>
         <div className={styles.topbarInner}>
           <Link href="/" className={styles.brand}>
@@ -42,6 +59,6 @@ export default function LegalLayout({
           <div className={styles.copy}>&copy; 2026 Prantivo &middot; India</div>
         </div>
       </footer>
-    </>
+    </div>
   );
 }

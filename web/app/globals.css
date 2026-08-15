@@ -125,6 +125,18 @@
      Radii are --rad-*, deliberately not --r-*. The existing 4/8/12 scale
      above keeps its names, its values and its three divergence rows; a
      dormant layer does not get to redefine a token that has consumers.
+
+     ─── SUPERSEDED IN PART · Phase 2 S1 ───────────────────────────────────
+     The dormancy described above is now history, and is left standing as the
+     record of what Phase 1b shipped rather than rewritten. As of S1 the four
+     (legal) routes consume these tokens through a --ground wrapper inside
+     app/(legal)/layout.tsx, so "no consumer on any shipping route" and "the
+     only page that reads them is /specimen" are both false from here on.
+     What is still true and still load-bearing: `body` keeps --ink-900, every
+     token above keeps its value, and the marketing group is unchanged to the
+     pixel. --accent is NOT repointed — F-F008 stays open until S2 flips the
+     ground under it. The count is twenty-two: --rule-strong was added here,
+     unique to this file and therefore correctly absent from brand-values.md.
      ═══════════════════════════════════════════════════════════════════════ */
 
   /* —— Grounds —— */
@@ -137,6 +149,15 @@
   --ink-soft: #57524A;            /*  7.31 /  6.70 /  7.75   TEXT */
   --ink-faint: #A8A199;           /*  2.41 /  2.21 /  2.55   NON-TEXT ONLY */
   --rule: rgba(23, 21, 15, 0.08); /*  1.18 on --ground — decorative hairline */
+  /* The paper counterpart to --border-strong, matched on perceptual weight
+     rather than on alpha: 0.14 white over --ink-900 measures 1.4397:1, this
+     measures 1.4375:1 over --ground, and the hairline pair is already symmetric
+     at 1.1750 vs --border's 1.1892. --text-tertiary deliberately gets NO
+     counterpart — it is 3.89:1 on --ink-900 and so already fails AA today, and
+     carrying a failing distinction into a new system preserves a defect; it
+     collapses to --ink-soft. --ink-faint is not an alternative for it: the
+     NON-TEXT ONLY contract above is binding. */
+  --rule-strong: rgba(23, 21, 15, 0.17);
 
   /* —— Functional colour on a paper ground —— */
   --accent-on-ground: #0F766E;    /*  5.16 /  4.74 /  5.47   TEXT */

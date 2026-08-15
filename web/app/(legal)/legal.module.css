@@ -1,16 +1,41 @@
 /* ═══════════════════════════════════════════════════════
    Legal pages — shared chrome + content styles
-   Ported verbatim from design-reference/zyon-legal-*.html
+   Originally ported verbatim from design-reference/zyon-legal-*.html.
+   Converted to the Warm Paper token layer in Phase 2 S1: this is the first
+   route group on the paper ground, and the only one until S2. The dark tokens
+   (--ink-900, --surface-*, --text-*, --border*, --accent, --r-*) are gone from
+   this file entirely — a half-converted stylesheet reads as a bug, not a phase.
    ═══════════════════════════════════════════════════════ */
+
+/* ─── The paper ground for the whole group ───
+   Applied here rather than on `body`, which is shared with the still-dark
+   marketing group. See the comment in layout.tsx for the residue this leaves. */
+.paper {
+  background: var(--ground);
+  color: var(--ink-strong);
+  min-height: 100vh;
+}
 
 /* ─── Top bar ─── */
 .topbar {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: rgba(11, 12, 14, 0.78);
+  /* Was rgba(11, 12, 14, 0.78) — --ink-900 at 0.78, a translucent dark slab
+     over a dark page. The paper equivalent is --ground at high alpha with the
+     blur retained, but NOT at the same 0.78: on dark, the bar and the content
+     scrolling under it are close in luminance, so 0.22 of passthrough is a
+     faint smudge. On paper the passthrough is --ink-strong glyphs at 17.22:1
+     against the bar, and 0.22 of those reads as legible ghost text rather than
+     as texture. 0.86 is the value that keeps the bar's own purpose — you can
+     still see something move under it — while pushing a full-strength
+     --ink-strong glyph below the threshold where it reads as type.
+     Worst case, over solid --ink-strong, the bar composites to #DAD8D5, where
+     .brand measures 12.86:1 and .back 5.46:1; at rest they are 17.22 and 7.31.
+     Measured from the live DOM by the S1 probe, not asserted here. */
+  background: rgba(250, 248, 245, 0.86);
   backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--rule);
 }
 
 .topbarInner {
@@ -29,13 +54,22 @@
   font-weight: 600;
   font-size: 1.0625rem;
   letter-spacing: -0.02em;
-  color: var(--text-primary);
+  color: var(--ink-strong);
 }
 
+/* BOTH rings move, and that is the whole point. The inner ring was
+   `var(--ink-900)` — not a colour choice but the page ground, painted as a
+   token reference so the outer ring reads as a detached halo rather than as a
+   fattened border. Leaving it while the ground flips would pin an 18.46:1
+   near-black disc around every focused control on a paper page. So: inner
+   follows the ground to --ground, outer takes --ink-strong (17.22:1 on
+   --ground, against SC 1.4.11's 3:1 floor). The outer ring is deliberately NOT
+   --accent-on-ground: a focus indicator's job is to be found, and #0F766E
+   would give 5.16:1 where ink gives 17.22:1 for no gain in meaning. */
 .brand:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--ink-900), 0 0 0 4px var(--accent);
-  border-radius: var(--r-sm);
+  box-shadow: 0 0 0 2px var(--ground), 0 0 0 4px var(--ink-strong);
+  border-radius: var(--rad-sm);
 }
 
 .mark {
@@ -45,17 +79,17 @@
 
 .mark rect {
   fill: none;
-  stroke: var(--text-primary);
+  stroke: var(--ink-strong);
   stroke-width: 1.6;
 }
 
 .mark circle {
-  fill: var(--text-primary);
+  fill: var(--ink-strong);
 }
 
 .back {
   font-size: 0.875rem;
-  color: var(--text-secondary);
+  color: var(--ink-soft);
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -63,14 +97,14 @@
 }
 
 .back:hover {
-  color: var(--text-primary);
+  color: var(--ink-strong);
   opacity: 1;
 }
 
 .back:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--ink-900), 0 0 0 4px var(--accent);
-  border-radius: var(--r-sm);
+  box-shadow: 0 0 0 2px var(--ground), 0 0 0 4px var(--ink-strong);
+  border-radius: var(--rad-sm);
 }
 
 /* ─── Container ─── */
@@ -83,16 +117,23 @@
 /* ─── Document header ─── */
 .docHead {
   padding: 64px 0 40px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--rule);
 }
 
+/* --text-tertiary → --ink-soft, NOT a new dim paper token. --text-tertiary is
+   3.89:1 on --ink-900 and already fails AA today; the four consumers in this
+   file (.eyebrow, .metaLine, .tocTitle, .copy) are all text, so the flip is
+   where that defect gets closed rather than re-created one shade lighter.
+   --ink-faint is not available for them: NON-TEXT ONLY, by the contract at
+   globals.css. The distinction it carried — "this line is metadata" — is
+   already carried by the mono family, the size and the tracking. */
 .eyebrow {
   font-family: var(--font-mono);
   font-size: 0.72rem;
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--text-tertiary);
+  color: var(--ink-soft);
 }
 
 .docHead h1 {
@@ -106,13 +147,13 @@
 .metaLine {
   font-family: var(--font-mono);
   font-size: 0.78rem;
-  color: var(--text-tertiary);
+  color: var(--ink-soft);
   margin-bottom: 22px;
 }
 
 .docIntro {
   font-size: 1.0625rem;
-  color: var(--text-secondary);
+  color: var(--ink-soft);
   line-height: 1.65;
   max-width: 64ch;
 }
@@ -137,34 +178,34 @@
   font-size: 0.66rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-tertiary);
+  color: var(--ink-soft);
   margin-bottom: 14px;
 }
 
 .toc a {
   display: block;
   font-size: 0.84rem;
-  color: var(--text-secondary);
+  color: var(--ink-soft);
   padding: 5px 0;
   line-height: 1.4;
-  border-left: 1px solid var(--border);
+  border-left: 1px solid var(--rule);
   padding-left: 14px;
   margin-left: -1px;
   transition: color 0.2s, border-color 0.2s;
 }
 
 .toc a:hover {
-  color: var(--text-primary);
-  border-color: var(--border-strong);
+  color: var(--ink-strong);
+  border-color: var(--rule-strong);
   opacity: 1;
 }
 
 .toc a:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--ink-900), 0 0 0 4px var(--accent);
-  border-radius: var(--r-sm);
-  color: var(--accent);
-  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--ground), 0 0 0 4px var(--ink-strong);
+  border-radius: var(--rad-sm);
+  color: var(--accent-on-ground);
+  border-color: var(--accent-on-ground);
 }
 
 /* ─── Content column (inside grid) ─── */
@@ -177,7 +218,7 @@
   font-size: 1.375rem;
   font-weight: 600;
   letter-spacing: -0.015em;
-  color: var(--text-primary);
+  color: var(--ink-strong);
   margin: 44px 0 14px;
   scroll-margin-top: 90px;
   padding-top: 8px;
@@ -190,13 +231,13 @@
 .content h3 {
   font-size: 1.05rem;
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--ink-strong);
   margin: 26px 0 10px;
 }
 
 .content p {
   font-size: 0.975rem;
-  color: var(--text-secondary);
+  color: var(--ink-soft);
   line-height: 1.7;
   margin-bottom: 16px;
 }
@@ -209,18 +250,18 @@
 
 .content li {
   font-size: 0.975rem;
-  color: var(--text-secondary);
+  color: var(--ink-soft);
   line-height: 1.7;
   margin-bottom: 8px;
 }
 
 .content strong {
-  color: var(--text-primary);
+  color: var(--ink-strong);
   font-weight: 500;
 }
 
 .content a {
-  color: var(--accent);
+  color: var(--accent-on-ground);
   text-decoration: none;
   transition: opacity 0.2s var(--ease-out);
 }
@@ -229,10 +270,16 @@
   opacity: 0.8;
 }
 
+/* Was `0 0 0 3px var(--accent-glow)` — a second, weaker focus idiom that
+   composites to 1.36:1 on --ground and fails SC 1.4.11 outright. It is already
+   failing today at 1.89:1 on --ink-900, measured; the flip surfaces that defect
+   rather than introducing it. Rather than invent a paper glow token to carry a
+   ring that never worked, this adopts the same two-ring idiom as the chrome
+   above, so the group now has ONE focus indicator instead of two. */
 .content a:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px var(--accent-glow);
-  border-radius: var(--r-sm);
+  box-shadow: 0 0 0 2px var(--ground), 0 0 0 4px var(--ink-strong);
+  border-radius: var(--rad-sm);
 }
 
 /* ─── Single-column content (Data Deletion, Acceptable Use) ─── */
@@ -245,7 +292,7 @@
   font-size: 1.375rem;
   font-weight: 600;
   letter-spacing: -0.015em;
-  color: var(--text-primary);
+  color: var(--ink-strong);
   margin: 40px 0 14px;
   scroll-margin-top: 90px;
 }
@@ -257,13 +304,13 @@
 .contentSingle h3 {
   font-size: 1.05rem;
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--ink-strong);
   margin: 24px 0 10px;
 }
 
 .contentSingle p {
   font-size: 0.975rem;
-  color: var(--text-secondary);
+  color: var(--ink-soft);
   line-height: 1.7;
   margin-bottom: 16px;
 }
@@ -276,18 +323,18 @@
 
 .contentSingle li {
   font-size: 0.975rem;
-  color: var(--text-secondary);
+  color: var(--ink-soft);
   line-height: 1.7;
   margin-bottom: 8px;
 }
 
 .contentSingle strong {
-  color: var(--text-primary);
+  color: var(--ink-strong);
   font-weight: 500;
 }
 
 .contentSingle a {
-  color: var(--accent);
+  color: var(--accent-on-ground);
   text-decoration: none;
   transition: opacity 0.2s var(--ease-out);
 }
@@ -296,18 +343,25 @@
   opacity: 0.8;
 }
 
+/* Same glow-ring replacement as .content a above, same reason. */
 .contentSingle a:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px var(--accent-glow);
-  border-radius: var(--r-sm);
+  box-shadow: 0 0 0 2px var(--ground), 0 0 0 4px var(--ink-strong);
+  border-radius: var(--rad-sm);
 }
 
-/* ─── Callout box ─── */
+/* ─── Callout box ───
+   --surface-1 splits by ROLE rather than mapping to one paper token: a callout
+   is an inset aside in the text flow, so it goes DOWN to --ground-sunk, while
+   .stepsCard below is a lifted panel and goes UP to --ground-raised. On dark
+   both were the same single step off the page; on paper the page is no longer
+   the darkest thing in the stack, so "recessed" and "raised" are finally two
+   different directions instead of one. */
 .callout {
-  border: 1px solid var(--border);
-  border-left: 2px solid var(--accent);
-  border-radius: var(--r-md);
-  background: var(--surface-1);
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--accent-on-ground);
+  border-radius: var(--rad-md);
+  background: var(--ground-sunk);
   padding: 16px 20px;
   margin: 20px 0;
 }
@@ -317,27 +371,50 @@
   font-size: 0.925rem;
 }
 
-/* ─── Placeholder highlight ─── */
+/* ─── Placeholder highlight ───
+   The 24 bracketed placeholders these wrap are blocked on external clock C-1
+   and are RESTYLED here, never filled — a session that supplies a legal entity
+   name has invented one.
+
+   Straight substitution would have kept --accent-on-ground text on a paper
+   --accent-glow fill, which measures 3.80:1 and fails AA. Measured before the
+   flip, the dark original was failing too: 4.15:1 on the page ground and
+   3.87:1 inside a .callout, where the glow composites over a lighter backdrop.
+   So the fill drops to --ground-sunk (4.74:1, passing) and the identity the
+   glow was carrying moves to a --rule outline. A chip that is legible is worth
+   more than a chip that is teal. No new token. */
 .ph {
   font-family: var(--font-mono);
   font-size: 0.85em;
-  color: var(--accent);
-  background: var(--accent-glow);
+  color: var(--accent-on-ground);
+  background: var(--ground-sunk);
+  border: 1px solid var(--rule);
   padding: 1px 6px;
-  border-radius: var(--r-sm);
+  border-radius: var(--rad-sm);
 }
 
 /* ─── Steps card (Data Deletion) ─── */
 .stepsCard {
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-lg);
-  background: var(--surface-1);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--rad-lg);
+  background: var(--ground-raised);
   padding: 26px 28px;
   margin: 8px 0 24px;
   position: relative;
   overflow: hidden;
 }
 
+/* Was `linear-gradient(90deg, transparent, var(--accent), transparent)` at
+   opacity .5 — a dark-ground device, light emerging from black. Paper has no
+   equivalent: the gradient inverts to a dim smudge across the card's top edge,
+   because a hairline on paper reads by being DARKER than its ground, and
+   darkness does not fade to "transparent" convincingly. Re-derived as a plain
+   --rule hairline, per the brief.
+   NOTE, and it is a real one: this now sits directly under the card's own 1px
+   --rule-strong top border, so two hairlines stack and the lighter one carries
+   no information. It is cosmetic, not a defect — flagged for S2 rather than
+   solved here by inventing a paper accent hairline this session has no mandate
+   to design. */
 .stepsCard::before {
   content: "";
   position: absolute;
@@ -345,8 +422,7 @@
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  opacity: 0.5;
+  background: var(--rule);
 }
 
 .stepsCard h3 {
@@ -355,7 +431,7 @@
 
 /* ─── Legal footer ─── */
 .legalFoot {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--rule);
   padding: 28px 0;
 }
 
@@ -378,25 +454,25 @@
 
 .legalLinks a {
   font-size: 0.84rem;
-  color: var(--text-secondary);
+  color: var(--ink-soft);
   transition: color 0.2s var(--ease-out);
 }
 
 .legalLinks a:hover {
-  color: var(--text-primary);
+  color: var(--ink-strong);
   opacity: 1;
 }
 
 .legalLinks a:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--ink-900), 0 0 0 4px var(--accent);
-  border-radius: var(--r-sm);
-  color: var(--accent);
+  box-shadow: 0 0 0 2px var(--ground), 0 0 0 4px var(--ink-strong);
+  border-radius: var(--rad-sm);
+  color: var(--accent-on-ground);
 }
 
 .copy {
   font-size: 0.8rem;
-  color: var(--text-tertiary);
+  color: var(--ink-soft);
 }
 
 /* ─── Responsive ─── */
