@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 9a024ccd12cc3e95f7e9a15656211b24eb34b179
-Verified-on: 2026-08-15
+Verified-at: c7bcecf8fc0167eacaeb53b452216bb246017f6e
+Verified-on: 2026-08-16
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -78,11 +78,25 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   set the verdict — see the V1a note below for the mechanism and the red-check.
 - Test suite: **1103 tests / 180 suites / 0 fail** (`npm test`, raw: `# tests 1103 /
   # pass 1103 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  Measured twice at `9a024cc` (Phase 1b), both runs identical on all seven
-  counters. The number carried here before this refresh was recorded against
-  `05fdf41` while HEAD was `9b95225` and was therefore formally unverified; it
-  has now been re-measured rather than carried forward. Phase 1b added no
-  `test()` block, so the delta is zero by intent.
+  Re-measured at `c7bcecf` (**Phase 2 S1** — the legal route group on Warm
+  Paper): `# tests 1103 / # suites 180 / # pass 1103 / # fail 0 /
+  # cancelled 0 / # skipped 0 / # todo 0`, all seven counters identical to the
+  two runs at `9a024cc` (Phase 1b). The number carried here before that refresh
+  was recorded against `05fdf41` while HEAD was `9b95225` and was therefore
+  formally unverified; it has been re-measured at each refresh since rather
+  than carried forward. Neither Phase 1b nor S1 added a `test()` block, so the
+  delta is zero by intent in both.
+  ⚠️ **THE NODE SUITE IS NOT THE INSTRUMENT FOR S1 AND CANNOT BE.** It does not
+  build, render or import anything under `web/` — `web/` has its own Next
+  toolchain and zero tests, which is the standing gap recorded under *Stack
+  (frozen)*. An unmoved 1103 says S1 broke nothing it can see; it says nothing
+  whatever about whether the conversion landed. The one Node test with any
+  purchase on this change is `tests/design/tokenDrift.test.js`, which parses
+  `web/app/globals.css` as one of its four surfaces — so it is load-bearing for
+  the added token and inert for everything else in the commit. What actually
+  gated S1 was a build-id-interlocked pixel diff (`/` at 0 differing pixels
+  across 3 widths), a live-DOM token witness and a live-DOM contrast sweep; see
+  the Phase 2 S1 entry below.
   ⚠️ **GREEN NOW MEANS THREE COUNTERS, NOT ONE.** `npm run os:check` refuses on
   `# fail`, `# cancelled` **and** `# skipped`, and on any of them being unparseable.
   Quoting `# fail 0` alone no longer establishes that a run was clean — see the
@@ -444,6 +458,81 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE LEGAL ROUTE GROUP RENDERS WARM PAPER — Phase 2 S1, built** (`c7bcecf`).
+  `/privacy`, `/terms`, `/data-deletion` and `/acceptable-use` are the first
+  shipping consumers of the Phase 1b token layer. Three files:
+  `web/app/globals.css` (one added token), `web/app/(legal)/layout.tsx` (the
+  ground wrapper) and `web/app/(legal)/legal.module.css`. Node
+  **1103 / 180 / 0 / 0 / 0 — UNMOVED**, measured at this commit.
+  ⚠️ The Python worker suite was **not re-run** this session and its **97** is
+  carried forward, not verified. S1 touches three files under `web/` and
+  nothing under `voice-agent/`, so it is unmoved by construction — but that is
+  an argument, not a measurement, and the distinction is the point of this file.
+  **`body` IS UNTOUCHED, AND THAT IS THE POINT.**
+  `body { background: var(--ink-900) }` is shared with the still-dark marketing
+  group, so the ground comes from a wrapper inside the route group instead.
+  Witnessed on the live DOM rather than asserted from source: on all four legal
+  routes `body` is still `rgb(11, 12, 14)` and the wrapper is
+  `rgb(250, 248, 245)`; on `/` `body` is still `rgb(11, 12, 14)`.
+  ⚠️ **THE CONTROL ARM'S PASS CONDITION IS THE ONE A STALE SERVER CAN FAKE, SO
+  THE DIFF REFUSES RATHER THAN REPORTS.** `/` at **0 differing pixels** across
+  360/768/1440 is exactly the result a surviving `next start` serving the
+  pre-change build would produce — 15/15 identical, confirming the conclusion
+  the session wanted. Both capture runs therefore record the Next build id read
+  **off the live page**, and the diff exits 2 when they match. Reading
+  `.next/BUILD_ID` would have described the build in the working tree, not the
+  one the process under test was serving, which is the whole failure mode. The
+  hazard is real and was observed: the harness reaps `next start` with
+  `taskkill`, **which is not on PATH in this environment**, so the fallback
+  `server.kill()` ran and one server survived a run. Runs compared:
+  `mmX2KZYhpG8S3YnSu1z0P` → `RJ8A3hxAS5PqeY_87SCEB`.
+  ⚠️ **THE BUILD ID IS NOT WHERE THE BRIEF SAID IT WAS.** `/_next/static/<id>/`
+  is a pages-router artefact; this app is app-router and its HTML carries no
+  such href (checked against `.next/server/app/privacy.html` — the only
+  `/_next/static/` prefixes are `chunks/` and `css/`). The id is on the page in
+  the RSC flight payload as `"b":"<id>"`, and is cross-checked against the
+  stylesheet hrefs, which are content hashes.
+  **CONTRAST WAS MEASURED FROM THE LIVE DOM ON BOTH SIDES, NOT ASSERTED.**
+  Every text colour and every focus indicator against its actual composited
+  backdrop, before and after: **5–6 failures per route → 0**. The pre-existing
+  failures the flip closes are `--text-tertiary` at **3.89:1** on its four
+  consumers here, the `--accent-glow` focus ring at **1.89:1**, and the `.ph`
+  chip at **4.15:1** on the page ground and **3.87:1** inside a `.callout`
+  (its fill was translucent, so its ratio varied with what was behind it; the
+  paper chip is opaque and is a flat 4.74:1 everywhere).
+  ⚠️ **A PROBE THAT READS A FOCUS RING TOO EAGERLY MEASURES THE WRONG THING.**
+  The first sweep scored `.brand`'s ring **1:1 FAIL** on every route. It was an
+  artefact: under `--force-prefers-reduced-motion=reduce` the reduced-motion
+  block sets `transition-duration: 0.01ms !important` on `*`, and
+  `transition-property` defaults to `all`, so `box-shadow` transitions on every
+  element that does **not** declare its own `transition` shorthand. `.back`,
+  `.toc a`, `.legalLinks a` and `.content a` all declare one and reset the
+  property list; `.brand` declares none and was read at the interpolation
+  start, `rgba(0,0,0,0) 0px 0px 0px 0px` twice over. The ring must be allowed
+  to settle after `CSS.forcePseudoState` before it is read.
+  **--rule-strong NEEDS NO `brand-values.md` ROW, AND THAT WAS VERIFIED WITH
+  THAT FILE'S OWN PARSER.** `tokenDrift` demands a canonical row only for
+  tokens declared by more than one of its four surfaces, and would flag a row
+  for a single-surface token as **stale**. Checked by running its `rootBlock` +
+  `declarations` functions verbatim against all four: `--rule-strong` is
+  declared by `web` alone. `web/app/globals.css` parses at **58** custom
+  properties, one more than before, and its first column-zero `}` is still
+  `:root`'s own closing brace.
+  ⚠️ **THE 24 PLACEHOLDERS WERE RESTYLED, NOT FILLED — F-F003 IS UNCHANGED.**
+  `git diff` on the four `(legal)/*/page.tsx` is empty; the count is still
+  2 + 5 + 10 + 7. They remain blocked on **C-1**, and a session that supplies a
+  legal entity name has invented one.
+  ⚠️ **KNOWN RESIDUE, ACCEPTED.** `body` still paints the overscroll
+  rubber-band area, so a paper page inside a dark body flashes near-black on
+  overscroll in iOS and macOS. Fixing it means touching `body` or `html`, which
+  is the atomic change S1 exists to avoid; it goes away at S2. Second residue:
+  `.stepsCard::before` is now a `--rule` hairline sitting directly under the
+  card's own `--rule-strong` top border, so it carries no information —
+  cosmetic, flagged for S2 rather than solved by inventing a paper accent
+  hairline S1 had no mandate to design.
+  **--accent is NOT repointed and F-F008 stays open.** It remains `#14b8a6` for
+  the marketing group; `legal.module.css` uses `--accent-on-ground` instead.
+  F-F008 closes at S2, when the ground flips under it.
 - **THE TAMPERED-HASH TEST NOW ASSERTS THAT IT TAMPERED — Issue 40, built and
   CLOSED** (`0eb67d2`). `tests/portal/auth.unit.test.js:43` flips the FIRST
   character of the hash segment — the character it inspects — and asserts the
