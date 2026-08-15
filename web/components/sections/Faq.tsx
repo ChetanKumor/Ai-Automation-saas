@@ -31,8 +31,8 @@ export function Faq() {
             <Eyebrow variant="bar">FAQ</Eyebrow>
             <h2>Frequently asked questions</h2>
             <p>
-              Short answers to what clinics and businesses ask most. Still
-              unsure? Ask us directly.
+              The questions clinics actually ask before they sign. Still unsure?
+              Ask us directly.
             </p>
             <div className={styles.faqCta}>
               <Button

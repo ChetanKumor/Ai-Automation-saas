@@ -14,6 +14,7 @@
   letter-spacing: -0.025em;
   line-height: 1.1;
   margin: 20px 0 22px;
+  text-wrap: pretty;
 }
 
 .muted {

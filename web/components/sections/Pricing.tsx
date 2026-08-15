@@ -4,19 +4,79 @@ import { Button } from "@/components/ui/Button";
 import { waLink, waMessages } from "@/lib/siteConfig";
 import styles from "./Pricing.module.css";
 
+interface Plan {
+  name: string;
+  price: string;
+  gst: string;
+  conversations: string;
+  forWhom: string;
+}
+
+const PLANS: Plan[] = [
+  {
+    name: "Starter",
+    price: "₹5,000",
+    gst: "₹5,900",
+    conversations: "500",
+    forWhom: "For a one- or two-chair clinic.",
+  },
+  {
+    name: "Growth",
+    price: "₹10,000",
+    gst: "₹11,800",
+    conversations: "1,300",
+    forWhom: "For a three- to five-chair clinic with front-desk staff.",
+  },
+  {
+    name: "Pro",
+    price: "₹15,000",
+    gst: "₹17,700",
+    conversations: "2,300",
+    forWhom: "For multi-doctor or multi-branch clinics.",
+  },
+];
+
 export function Pricing() {
   return (
     <section id="pricing" className={styles.pricing}>
       <div className="wrap">
         <Reveal className={styles.pricingHead}>
           <Eyebrow variant="bar">Pricing</Eyebrow>
-          <h2>Simple pricing: a setup fee, then monthly</h2>
+          <h2>Three plans. Every price on this page.</h2>
           <p>
-            A one-time setup fee to configure Prantivo for your clinic, then a flat
-            monthly subscription. Meta&apos;s standard WhatsApp messaging charges
-            are billed by Meta, separately — so there are no hidden per-message
-            markups from us.
+            Pick the plan that matches how much your clinic actually messages.
+            Meta&apos;s WhatsApp charges are billed by Meta, directly, at their
+            published rates — we add nothing to them.
           </p>
+        </Reveal>
+
+        <div className={styles.plans}>
+          {PLANS.map((plan, i) => (
+            <Reveal
+              key={plan.name}
+              className={styles.part}
+              style={i ? { transitionDelay: `${i * 0.08}s` } : undefined}
+            >
+              <div className={styles.partName}>{plan.name}</div>
+              <div className={styles.planPrice}>
+                {plan.price}
+                <span className={styles.planPer}>/month</span>
+              </div>
+              <div className={styles.planGst}>{plan.gst} incl. GST</div>
+              <p className={styles.partDesc}>
+                About {plan.conversations} patient conversations a month.
+              </p>
+              <div className={styles.partMeta}>{plan.forWhom}</div>
+            </Reveal>
+          ))}
+        </div>
+
+        <Reveal className={styles.note} style={{ transitionDelay: ".24s" }}>
+          <span>
+            <b>Every plan includes everything:</b> Telugu, Hindi and English,
+            booking, human handoff, and the portal. Plans differ by how much you
+            use, not by what you get.
+          </span>
         </Reveal>
 
         <div className={styles.anatomy}>
@@ -39,8 +99,9 @@ export function Pricing() {
             </div>
             <div className={styles.partName}>Setup</div>
             <p className={styles.partDesc}>
-              We configure Prantivo to your clinic — your prompts, booking
-              rules, and your WhatsApp number connected and live.
+              ₹10,000 to configure Prantivo for your clinic — your prompts,
+              booking rules, and your WhatsApp number connected and live.
+              Waived for the first ten clinics.
             </p>
             <div className={styles.partMeta}>Paid once</div>
           </Reveal>
@@ -69,7 +130,7 @@ export function Pricing() {
             <div className={styles.partName}>Subscription</div>
             <p className={styles.partDesc}>
               A flat monthly fee for your receptionist and everything it
-              handles. Scales with the size of your clinic.
+              handles.
             </p>
             <div className={styles.partMeta}>Billed monthly</div>
           </Reveal>
@@ -125,10 +186,11 @@ export function Pricing() {
 
         <Reveal className={styles.quote} style={{ transitionDelay: ".15s" }}>
           <div className={styles.quoteCopy}>
-            <h3>Every clinic is a little different</h3>
+            <h3>Compare it to one treatment you didn&apos;t book this month.</h3>
             <p>
-              Book a demo and we&apos;ll scope your setup, walk you through your
-              receptionist, and give you a clear quote tailored to your clinic.
+              Book a demo and we&apos;ll walk you through your receptionist on
+              your own clinic&apos;s questions. Every price we charge is on this
+              page — there is nothing else to quote.
             </p>
           </div>
           <div className={styles.quoteCta}>

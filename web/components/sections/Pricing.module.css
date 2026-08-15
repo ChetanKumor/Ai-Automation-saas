@@ -16,6 +16,7 @@
   letter-spacing: -0.025em;
   line-height: 1.1;
   margin: 20px 0 18px;
+  text-wrap: balance;
 }
 
 .pricingHead p {
@@ -25,12 +26,45 @@
   max-width: 58ch;
 }
 
+/* ——— PLAN LADDER ———
+   The three plan cards reuse .part wholesale — same surface, border, radius,
+   padding, column flex and hover. Only the price typography is new. .partDesc
+   keeps flex:1, so each card's .partMeta qualifier pins to the bottom and the
+   three align across the row. */
+.plans {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.planPrice {
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+
+.planPer {
+  font-size: 0.95rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--text-secondary);
+}
+
+.planGst {
+  margin: 4px 0 14px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+}
+
 /* ——— PRICING ANATOMY ——— */
 .anatomy {
   display: grid;
   grid-template-columns: 1fr auto 1fr auto 1fr;
   align-items: stretch;
   gap: 0;
+  margin-top: 40px;
 }
 
 .part {
@@ -184,6 +218,10 @@
 }
 
 @media (max-width: 860px) {
+  .plans {
+    grid-template-columns: 1fr;
+  }
+
   .anatomy {
     grid-template-columns: 1fr;
     gap: 12px;

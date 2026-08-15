@@ -27,10 +27,13 @@ const softwareApplicationJsonLd = {
   description:
     "An AI receptionist for clinics. It answers patient enquiries, quotes prices, books appointments, and hands off to staff on WhatsApp — in Telugu, Hindi, and English — on the official WhatsApp Business Platform.",
   offers: {
-    "@type": "Offer",
+    "@type": "AggregateOffer",
     priceCurrency: "INR",
+    lowPrice: 5000,
+    highPrice: 15000,
+    offerCount: 3,
     description:
-      "One-time setup fee plus a monthly subscription. Message us for a quote for your clinic.",
+      "Three monthly plans — ₹5,000, ₹10,000 and ₹15,000 per month, plus 18% GST — differing only by included usage, not by features. A one-time setup fee of ₹10,000 is waived for the first ten clinics. Meta's WhatsApp messaging charges are billed by Meta directly at their published rates.",
   },
   publisher: { "@type": "Organization", name: siteConfig.siteName },
 };
