@@ -71,9 +71,12 @@
   color: var(--accent);
 }
 
+/* Was the --accent-glow ring, 1.36:1 on paper and already an SC 1.4.11 failure
+   at 1.89:1 on the dark ground. Converged onto the site's one focus indicator;
+   derivation at Nav.module.css .navLinks a:focus-visible. */
 .faqQ:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  box-shadow: 0 0 0 2px var(--ground), 0 0 0 4px var(--ink-strong);
   border-radius: var(--r-sm);
 }
 

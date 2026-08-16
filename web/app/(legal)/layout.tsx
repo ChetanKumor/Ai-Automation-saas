@@ -24,6 +24,14 @@ export default function LegalLayout({
     // near-black when overscrolled. Fixing it means touching body or html,
     // which is the one atomic change this session exists to avoid. It goes away
     // at S2 when the ground flips site-wide.
+    //
+    // SUPERSEDED · Phase 2 S2. `body` is --ground now, so the two paragraphs
+    // above describe history: the marketing group is no longer dark, the
+    // overscroll residue is gone, and this wrapper's background is a repeat of
+    // the ground rather than the only thing painting it. It is kept, not
+    // deleted — the group declaring its own ground is what makes it survivable
+    // for a legal page to be lifted out of this app — but it is now defensive
+    // twice over, alongside the min-height. S3 decides whether either stays.
     <div className={styles.paper}>
       <div className={styles.topbar}>
         <div className={styles.topbarInner}>

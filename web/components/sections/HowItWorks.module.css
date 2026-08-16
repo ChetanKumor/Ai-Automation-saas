@@ -104,6 +104,17 @@
   position: relative;
 }
 
+/* KEPT as an accent gradient, and it is the one of the five "accent hairline
+   gradients" that is not the same device. The other four are
+   `transparent → accent → transparent`, 1px, spanning a card's top edge: chrome,
+   light emerging from black, with no paper equivalent — all four are deleted.
+   This one is `accent → transparent`, 2px tall and 70% wide, sitting inside the
+   micro-visual as the AI reading the message. It is content, not chrome, and it
+   survives the flip on its own terms: at 0.7 over --ground the repointed
+   #0f766e composites to rgb(86, 157, 151), plainly visible. Replacing it with a
+   --rule hairline, which is what the other four would have become, would have
+   left a 1.18:1 grey smear where the scan used to be and quietly deleted the
+   only thing this micro-visual depicts. */
 .mvScan {
   height: 2px;
   background: linear-gradient(90deg, var(--accent), transparent);
@@ -162,17 +173,31 @@
   color: var(--text-tertiary);
 }
 
+/* THE ONE PLACE --surface-3 COULD NOT BE ALIASED. Its three consumers agreed on
+   dark and split on paper. Why .mpPillSolid and Why .toggle pair the surface
+   with --text-primary, which the alias layer flips to --ink-strong, so both
+   need a LIGHT fill — --surface-3 takes --ground-sunk for them. This pill pairs
+   it with --wa-text (#E9EDEF), which does not flip and must not: the --wa-*
+   palette is WhatsApp's own and survives S2 untouched, all twenty-four
+   references. Near-white on --ground-sunk would have been 1.06:1 — the label
+   would have vanished.
+   So the fill is named directly instead. --ink-strong under #E9EDEF measures
+   15.49:1, and the pair keeps its meaning: .mvPillAi beside it is an outlined,
+   quiet --ink-soft pill, and "YOU" is the solid one that takes over. */
 .mvPillYou {
   composes: mvPill;
   color: var(--wa-text);
-  background: var(--surface-3);
-  border-color: var(--surface-3);
+  background: var(--ink-strong);
+  border-color: var(--ink-strong);
 }
 
 .mvArrow {
   color: var(--text-tertiary);
 }
 
+/* Left unchanged; the decision and its measurements are at FinalCta .lpAvatar.
+   Unlike the other two this one is not inside a --wa-header pill — after the
+   flip it is a dark 22px disc on a paper micro-visual, at 11.24:1. */
 .mvAv {
   width: 22px;
   height: 22px;

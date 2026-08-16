@@ -77,9 +77,14 @@
   border-color: var(--border-strong);
 }
 
+/* Was `0 0 0 3px var(--accent-glow)` — the weaker of the two idioms, 1.36:1 on
+   paper and already failing SC 1.4.11 at 1.89:1 on the dark ground. Converged
+   onto the site's one focus indicator; the full derivation is at
+   Nav.module.css .navLinks a:focus-visible. No border-radius is declared here
+   because a box-shadow ring already follows .social's own --r-md corners. */
 .social:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  box-shadow: 0 0 0 2px var(--ground), 0 0 0 4px var(--ink-strong);
 }
 
 .footerCols {
@@ -110,9 +115,11 @@
   color: var(--text-primary);
 }
 
+/* Same indicator as .social above and as Nav. The focused colour stays --accent:
+   #0f766e on --ground is 5.16:1. */
 .fcol a:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--ink-900), 0 0 0 4px var(--accent);
+  box-shadow: 0 0 0 2px var(--ground), 0 0 0 4px var(--ink-strong);
   border-radius: var(--r-sm);
   color: var(--accent);
 }

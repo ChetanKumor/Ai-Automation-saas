@@ -16,16 +16,11 @@
   overflow: hidden;
 }
 
-.frame::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  opacity: 0.55;
-}
+/* The accent hairline across .frame's top edge is DELETED, not re-derived —
+   same device and same reasoning as Platform .base::before, which carries the
+   full note. .frame already declares `border: 1px solid var(--border-strong)`,
+   so a --rule replacement would stack a lighter line under a darker one and say
+   nothing. */
 
 /* live callback pill */
 .livePill {
@@ -38,6 +33,17 @@
   margin-bottom: 30px;
 }
 
+/* THE AVATAR CHIPS ARE LEFT UNCHANGED — all three gradients (here, Hero
+   .waAvatar, HowItWorks .mvAv) and both #8FA3AD initials (here and Hero). This
+   is a decision, not an omission, and it is measured: #2A3942 is 11.24:1
+   against --ground, and #8FA3AD on #2A3942 is 4.55:1, so both pass where they
+   sit. Two of the three are inside a --wa-header pill that stays dark by S2's
+   rule, and re-deriving the avatar inside a WhatsApp chrome bar to a paper tone
+   would break the mockup's identity to solve nothing. The third, HowItWorks
+   .mvAv, does end up a dark disc on a paper micro-visual — which is what an
+   avatar is. Whether the mockups should move to WhatsApp's light theme wholesale
+   is an S4 design call and takes the --wa-* tokens with it; it is not a colour
+   fix to be smuggled in here one hex at a time. */
 .lpAvatar {
   width: 26px;
   height: 26px;

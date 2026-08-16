@@ -83,11 +83,13 @@ export default function SpecimenPage() {
         <p className={styles.kicker}>Phase 1b · Internal · Not indexed</p>
         <h1 className={styles.title}>Warm Paper — token specimen</h1>
         <p className={styles.lede}>
-          Twenty-one tokens, dormant. Nothing on any shipping route consumes
-          them; this page is their only reader, which is why the navigation
-          above and the footer below are still painted from the old dark
-          system. Every swatch, surface and radius here is drawn with{" "}
-          <code>var(--token)</code> and captioned from a single table, so
+          Twenty-one tokens, live. They were dormant when this page was built —
+          no consumer on any shipping route, this page their only reader, and
+          the navigation above and footer below still painted from the old dark
+          system. Phase 2 S1 gave them the legal routes and S2 gave them the
+          rest, so the chrome around this page is now drawn from the same table
+          the page documents. Every swatch, surface and radius here is drawn
+          with <code>var(--token)</code> and captioned from a single table, so
           nothing on this page can show a value the stylesheet does not hold.
         </p>
 

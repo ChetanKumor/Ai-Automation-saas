@@ -40,8 +40,11 @@ const notoSansTelugu = Noto_Sans_Telugu({
   display: "swap",
 });
 
+// --ground, matching `body` in globals.css. This paints the mobile browser's
+// own chrome, so a stale value here is the most visible single miss available
+// on the flip: paper page, near-black address bar.
 export const viewport: Viewport = {
-  themeColor: "#0B0C0E",
+  themeColor: "#FAF8F5",
 };
 
 export const metadata: Metadata = {

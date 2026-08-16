@@ -35,12 +35,32 @@
   margin-top: 52px;
 }
 
+/* NOT IN THE S2 BRIEF — found by the contrast sweep and fixed here, because the
+   flip is what breaks it. `opacity` on this card composites its whole subtree,
+   text included, and the direction it composites TOWARD is the page. On the
+   near-black ground .62 pulled the copy toward black: --text-secondary
+   (#A2A6AD) landed on rgb(105,107,113) over a rgb(15,16,20) card, 3.57:1 —
+   already below AA, and a defect that predates this session. On paper it pulls
+   toward white instead: --ink-soft on a --ground-raised card lands on
+   rgb(149,145,139) over rgb(253,252,251), 3.06:1. Same declaration, worse
+   result, and this session caused the change.
+
+   .82 is the measured floor plus a margin, not a guess: .78 gives 4.42:1 and
+   still fails, .80 gives 4.64:1 and clears by three per cent, .82 gives 4.88:1.
+   Every one of the four dimmed strings shares the colour, so one value fixes
+   .enqTime, .enqTag, .enqMsg and .enqFoot together. Going to 1 would clear at
+   7.75:1 and would also delete the point of the section — these cards are
+   drawn faded because they are the enquiries nobody answered — so the dimming
+   is kept at the strongest setting that stays legible.
+
+   The 480px breakpoint below already sets opacity 1 and predates all of this;
+   it is left alone. */
 .enq {
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   padding: 18px 16px 15px;
-  opacity: .62;
+  opacity: .82;
   transition: opacity var(--ease-out) .25s, transform var(--ease-out) .25s, border-color var(--ease-out) .25s;
   display: flex;
   flex-direction: column;

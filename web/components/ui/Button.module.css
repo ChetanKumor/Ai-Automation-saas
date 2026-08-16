@@ -16,9 +16,15 @@
   white-space: nowrap;
 }
 
+/* Written in paper tokens rather than left to the alias layer, alone among the
+   ~140 alias consumers on the site — because this is the one declaration the
+   aliases render CORRECTLY and DESCRIBE BACKWARDS. `background: --text-primary;
+   color: --ink-900` self-inverts to a near-black button with paper text, which
+   is exactly right for a paper site's primary action, and a reader who has not
+   memorised the alias table would predict the opposite. 17.22:1. */
 .primary {
-  background: var(--text-primary);
-  color: var(--ink-900);
+  background: var(--ink-strong);
+  color: var(--ground);
 }
 
 .primary:hover {
@@ -60,9 +66,11 @@
   box-shadow: var(--elev-2);
 }
 
+/* Same indicator as Nav and Footer; derivation at Nav.module.css. The ring
+   follows .btn's own --r-md corners, so no radius is declared. */
 .btn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--ink-900), 0 0 0 4px var(--accent);
+  box-shadow: 0 0 0 2px var(--ground), 0 0 0 4px var(--ink-strong);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -9,8 +9,19 @@
   transition: background var(--ease-out) .3s, border-color var(--ease-out) .3s, backdrop-filter .3s;
 }
 
+/* Was rgba(11, 12, 14, 0.72) — --ink-900 at 0.72, a translucent dark slab over
+   a dark page. The paper equivalent keeps the blur but NOT the alpha, and the
+   reason is measurable rather than aesthetic. On dark, the bar and whatever
+   scrolled beneath it were close in luminance, so 0.28 of passthrough was a
+   faint texture. On paper the passthrough is --ink-strong glyphs at 17.22:1.
+   At 0.72 the bar composites, over solid --ink-strong, to rgb(186, 184, 181),
+   where .navLinks a (--ink-soft) measures 3.91:1 and FAILS AA. At 0.86 it
+   composites to #DAD8D5, where the live DOM reads .navLinks a at 5.46:1 and
+   .brand at 12.86:1; at rest they are 7.31 and 17.22. 0.86 is also the value S1
+   derived for the legal topbar, so the site now has one translucent-bar
+   treatment. */
 .scrolled {
-  background: rgba(11, 12, 14, 0.72);
+  background: rgba(250, 248, 245, 0.86);
   backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border);
 }
@@ -65,9 +76,32 @@
   color: var(--text-primary);
 }
 
+/* THE SITE'S FOCUS INDICATOR, converged here and repeated verbatim at the seven
+   other focus-visible sites in web/. Two idioms existed before this commit and
+   neither survives the flip intact:
+
+     0 0 0 2px var(--ink-900), 0 0 0 4px var(--accent)   — five sites
+       The inner ring was never a colour choice, it was the page ground painted
+       as a token so the outer ring reads as a detached halo rather than as a
+       fattened border. It has to follow the ground, so it becomes --ground. The
+       outer then takes --ink-strong (17.22:1) rather than --accent-on-ground
+       (5.16:1): a focus indicator's job is to be found, and ink gives three
+       times the separation for no loss of meaning.
+
+     0 0 0 3px var(--accent-glow)                        — three sites
+       A second, weaker indicator that composites to 1.36:1 on --ground and
+       fails SC 1.4.11's 3:1 floor outright. It was already failing at 1.89:1 on
+       the dark ground — the flip surfaces that defect rather than creating it.
+       Rather than invent a paper glow to keep a ring that never worked, those
+       three adopt the same two-ring treatment.
+
+   S1 converged the four legal routes onto exactly this pair. With these eight,
+   the whole site has ONE focus indicator. (The radius stays on the --r-* scale
+   here; migrating web/'s consumers to --rad-* is S3's job, not this session's,
+   so legal/ and marketing/ differ by 2px on focus corners until then.) */
 .navLinks a:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--ink-900), 0 0 0 4px var(--accent);
+  box-shadow: 0 0 0 2px var(--ground), 0 0 0 4px var(--ink-strong);
   border-radius: var(--r-sm);
 }
 
@@ -92,19 +126,28 @@
   display: block;
 }
 
+/* Same indicator as .navLinks a above, same reason. */
 .menuBtn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--ink-900), 0 0 0 4px var(--accent);
+  box-shadow: 0 0 0 2px var(--ground), 0 0 0 4px var(--ink-strong);
   border-radius: var(--r-sm);
 }
 
+/* The mobile menu keeps its 0.95 where .scrolled above had to move, and the
+   difference is the whole reason the two are not one value. .scrolled failed at
+   its old alpha because 0.28 passthrough of --ink-strong dragged the composited
+   bar down to 3.91:1. Here the passthrough is 0.05: over solid --ink-strong the
+   panel composites to rgb(239, 237, 234), where the drawer's four links — the
+   only text it contains — read 6.61:1 on the live DOM, against 7.31 at rest. An
+   alpha that was already near-opaque needed re-basing to paper, not
+   re-choosing. */
 .mobileMenu {
   display: none;
   flex-direction: column;
   gap: 4px;
   padding: 8px 24px 20px;
   border-bottom: 1px solid var(--border);
-  background: rgba(11, 12, 14, 0.95);
+  background: rgba(250, 248, 245, 0.95);
   backdrop-filter: blur(14px);
 }
 
@@ -127,9 +170,12 @@
   color: var(--text-primary);
 }
 
+/* Same indicator again. The `color: var(--accent)` stays: on the composited
+   menu panel rgb(239, 237, 234) the repointed #0f766e measures 4.68:1, which
+   still passes AA — the ring changed, the focused link's colour did not. */
 .mobileMenu a:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--ink-900), 0 0 0 4px var(--accent);
+  box-shadow: 0 0 0 2px var(--ground), 0 0 0 4px var(--ink-strong);
   border-radius: var(--r-sm);
   color: var(--accent);
 }

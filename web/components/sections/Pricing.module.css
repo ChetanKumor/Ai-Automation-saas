@@ -185,16 +185,9 @@
   overflow: hidden;
 }
 
-.quote::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  opacity: 0.5;
-}
+/* The accent hairline across .quote's top edge is DELETED, not re-derived —
+   same device and same reasoning as Platform .base::before, which carries the
+   full note. .quote already declares `border: 1px solid var(--border-strong)`. */
 
 .quoteCopy h3 {
   font-size: 1.375rem;

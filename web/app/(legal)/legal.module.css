@@ -404,26 +404,15 @@
   overflow: hidden;
 }
 
-/* Was `linear-gradient(90deg, transparent, var(--accent), transparent)` at
-   opacity .5 — a dark-ground device, light emerging from black. Paper has no
-   equivalent: the gradient inverts to a dim smudge across the card's top edge,
-   because a hairline on paper reads by being DARKER than its ground, and
-   darkness does not fade to "transparent" convincingly. Re-derived as a plain
-   --rule hairline, per the brief.
-   NOTE, and it is a real one: this now sits directly under the card's own 1px
-   --rule-strong top border, so two hairlines stack and the lighter one carries
-   no information. It is cosmetic, not a defect — flagged for S2 rather than
-   solved here by inventing a paper accent hairline this session has no mandate
-   to design. */
-.stepsCard::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: var(--rule);
-}
+/* This card carried an accent hairline across its top edge —
+   `linear-gradient(90deg, transparent, var(--accent), transparent)` at opacity
+   .5, a dark-ground device that has no paper equivalent. S1 re-derived it as a
+   plain --rule hairline and then flagged the result: it sat directly under the
+   card's own 1px --rule-strong top border, two hairlines stacked with the
+   lighter one carrying nothing. S2 DELETES it, and applies the same finding to
+   the three surviving instances in the marketing group (Platform .base,
+   FinalCta .frame, Pricing .quote), each of which was redundant for the same
+   reason. .stepsCard keeps position:relative and overflow:hidden. */
 
 .stepsCard h3 {
   margin-top: 0;

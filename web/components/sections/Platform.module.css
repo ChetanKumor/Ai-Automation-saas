@@ -32,7 +32,13 @@
   border-radius: var(--r-lg) var(--r-lg) 0 0;
   border-bottom: none;
   padding: 14px;
-  background: rgba(255, 255, 255, 0.012);
+  /* Was rgba(255, 255, 255, 0.012) — 1.2 per cent of white, a whisper of lift
+     under the module tiles on a near-black page. Inverted to the same ink the
+     paper hairlines use, at the same alpha, so it stays a whisper in the other
+     direction: rgb(247, 245, 242) against --ground's rgb(250, 248, 245). Not
+     --ground-sunk, which is a real step and would box the grid; the point of
+     the declaration is that it is barely there. */
+  background: rgba(23, 21, 15, 0.012);
 }
 
 .mod {
@@ -147,17 +153,20 @@
   overflow: hidden;
 }
 
-.base::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  opacity: .5;
-}
-
+/* The accent hairline that sat here — `linear-gradient(90deg, transparent,
+   var(--accent), transparent)` at opacity .5 across the top edge — is DELETED
+   rather than re-derived. It is a dark-ground device: light emerging from
+   black. Paper has no equivalent, because a hairline on paper reads by being
+   darker than its ground and darkness does not fade convincingly to
+   "transparent". S1 replaced the one instance it met with a plain --rule and
+   then found the result redundant, sitting directly under the card's own
+   border. All three surviving instances (here, FinalCta .frame, Pricing .quote)
+   are that same case: each host already declares `border: 1px solid
+   var(--border-strong)`, so a --rule hairline underneath it would be a second,
+   lighter line carrying no information. Checked per site before adding one, as
+   the brief requires; none of the three earned one.
+   .base keeps position:relative and overflow:hidden — .modules above it has
+   `border-bottom: none` and butts flush, so the clip still matters. */
 .baseInner {
   display: flex;
   align-items: center;

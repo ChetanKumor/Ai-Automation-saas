@@ -4,41 +4,132 @@
    ═══════════════════════════════════════════════════════ */
 
 :root {
-  /* —— Ink / surface scale —— */
-  --ink-900: #0B0C0E;
-  --ink-850: #0F1013;
-  --surface-1: #121317;
-  --surface-2: #181A1F;
-  --surface-3: #202329;
+  /* The site renders light, said out loud. `color-scheme` is what selects the
+     UA rendering of form controls, scrollbars and the default focus ring, and
+     web/ has never declared it at any point — so on the dark ground those were
+     drawing their light-theme selves against a near-black page. Nothing on
+     these routes paints a native control, which is why it was never seen. After
+     the flip the omission is accidentally correct; this line is what makes it
+     deliberately correct. */
+  color-scheme: light;
+
+  /* ═══ THE ALIAS LAYER — Phase 2 S2 ═══════════════════════════════════════
+     Every token in this block held a dark hex until this commit. Each now
+     points at the Warm Paper token that plays its role. They are ALIASES, not
+     copies: the paper values are declared once, near the bottom of this rule,
+     and nothing up here repeats a hex.
+
+     That shape is deliberate and it buys two things:
+       · the 166 declaration-level references to these nine tokens, across
+         fourteen component stylesheets, did not move — so this is a colour
+         change and not a rename. Counted with comments stripped rather than
+         estimated: --text-tertiary 41, --border 37, --text-secondary 35,
+         --text-primary 21, --border-strong 14, --surface-1 9, --ink-900 4,
+         --surface-3 3, --surface-2 2;
+       · S3 becomes mechanical — delete this block, point each consumer at the
+         token it already resolves to — and it can be gated on PIXEL EQUALITY,
+         which is precisely the gate this session gives up.
+
+     Forward references are legal. Custom properties are substituted at
+     computed-value time, so `--ink-900: var(--ground)` resolves even though
+     --ground is declared further down. Only cycles are invalid.
+
+     THE MAPPING IS BY ROLE, NOT BY NUMBER. On a dark ground a higher surface
+     number is lighter and lighter reads as raised. On paper the page is no
+     longer the darkest thing in the stack, so raised goes UP toward white and
+     recessed goes DOWN toward the sunk tone — one dark step can legitimately
+     land in either direction. Each is decided below against its real consumers.
+
+     ZERO-CONSUMER TOKENS ARE DELETED, not aliased: --ink-850, --accent-hover
+     and --elev-1 are gone. Giving a paper value to something nothing renders
+     would be inventing a colour under cover of a migration.
+     ═══════════════════════════════════════════════════════════════════════ */
+
+  /* —— Ink / surface scale ——
+     --ink-900 was the page. It stays the page, so it takes --ground, and its
+     four surviving consumers keep meaning "the page tone": HowItWorks .mv,
+     Platform .chip and Trust .legal are all recesses inside a --surface-1 card,
+     and --ground inside --ground-raised is exactly a recess. The fourth,
+     Platform .modTag, is an inverted pill and reads it as the text colour.
+
+     --surface-1 is the card: nine consumers, every one a panel lifted off the
+     page (.frame, .step, .mod, .base, .part, .note, .quote, .enq, .panel).
+     Raised → --ground-raised.
+
+     --surface-2 is a HOVER fill, two consumers, and it goes to --ground-sunk
+     rather than to --ground because Button .secondary is transparent on the
+     page — a hover that resolves to the page tone is not a hover. The cost is
+     that Platform .mod, --ground-raised at rest, now darkens by two steps on
+     hover instead of lightening by one. Darkening is the right direction on
+     paper (a paper surface answers by taking ink, not by glowing), but it is a
+     firmer hover than the dark original and it is a change, not an equivalence.
+
+     --surface-3 is the solid chip and the toggle track — Why .mpPillSolid, Why
+     .toggle, HowItWorks .mvPillYou. On dark it was the lightest surface, which
+     is to say the most present; on paper presence is darkness, so it also takes
+     --ground-sunk. .mvPillYou could not follow it and says why in place. */
+  --ink-900: var(--ground);
+  --surface-1: var(--ground-raised);
+  --surface-2: var(--ground-sunk);
+  --surface-3: var(--ground-sunk);
 
   /* —— Hairline borders —— */
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.14);
+  --border: var(--rule);
+  --border-strong: var(--rule-strong);
 
-  /* —— Text —— */
-  --text-primary: #F5F6F7;
-  --text-secondary: #A2A6AD;
-  --text-tertiary: #6C6F77;
+  /* —— Text ——
+     --text-tertiary COLLAPSES onto --ink-soft instead of gaining a third,
+     dimmer paper tone. Forty-one references, thirty-eight of them `color`
+     (the other three are Why's text-decoration-color, Button .secondary's
+     hover border and Eyebrow .bar's 1px fill); it measures 3.89:1 on the old
+     --ink-900 and has therefore been failing AA for as long as the site has
+     existed. Carrying a failing distinction into a new
+     system preserves a defect. --ink-faint is not the alternative — NON-TEXT
+     ONLY is a contract, stated where that token is declared.
+
+     What the collapse costs, stated because it is visible and is not a bug:
+     .heroMicro and .waCaption were tertiary and now paint the same colour as
+     .sub, which is secondary. Their hierarchy is carried by size, family and
+     tracking alone from here. Hero.module.css:67-69 already describes the two
+     tertiary lines as "same size and colour as .waCaption"; after this they
+     also match the lede above them. Reported rather than solved: inventing a
+     fourth ink to restore a step that was illegible on the ground it was drawn
+     for is designing, and this session's mandate is to move the ground. */
+  --text-primary: var(--ink-strong);
+  --text-secondary: var(--ink-soft);
+  --text-tertiary: var(--ink-soft);
 
   /* —— Functional accent (links / focus / live dot only) ——
-     The brand accent is teal, the value the owner portal has carried since
-     portal v1 S2. It was periwinkle #5C8DF0 here, so a prospect met a blue
-     site and then logged in to a teal tool and saw two vendors (F-F008).
-     The site moved, not the portal: the portal's tokens are consumed across
-     seven-plus pages and covered by the root suite, this file is not.
+     REPOINTED at Phase 2 S2. F-F008 CLOSES HERE. The value is the portal's
+     #0f766e verbatim, so the canonical row in docs/design/brand-values.md now
+     describes both surfaces, and the divergence row that recorded the split is
+     deleted in this same commit — tokenDrift asserts a recorded divergence as
+     strictly as it asserts the canonical value, so leaving it would fail.
 
-     The hex is NOT the portal's #0f766e, and that is deliberate — recorded
-     here at the point of divergence, the same way tokens.css:19 records why
-     the portal's --bg differs from the demo's. #0f766e is the teal-700 step,
-     drawn for the portal's near-white #f6f8fa ground. On this file's
-     near-black --ink-900 it measures 3.58:1, which fails WCAG AA for text,
-     and --accent IS text here: legal.module.css:221 and :288 paint every
-     inline link with it. #14b8a6 is the same ramp two steps lighter and
-     measures 7.86:1 — better than the 6.08:1 the blue gave. Same brand,
-     the step that suits an inverted ground. */
-  --accent: #14b8a6;
-  --accent-hover: #2DD4BF;
-  --accent-glow: rgba(20, 184, 166, 0.35);
+     The reason for the split is gone rather than overruled. #0f766e is the
+     teal-700 step, drawn for a light ground; on the old near-black --ink-900 it
+     measured 3.58:1, and --accent IS text here (legal.module.css paints every
+     inline link with it), so repointing before the ground moved would have
+     shipped a live AA failure across fifteen consumers. Against the paper
+     grounds it measures 5.16:1 on --ground, 5.47:1 on --ground-raised and
+     4.74:1 on --ground-sunk — passing on all three.
+
+     --accent-glow is RE-DERIVED rather than left alone. It was never an
+     independent colour: every design-reference file defines it as --accent at
+     0.35 alpha. Moving --accent without it would leave a #14b8a6 halo around
+     four #0f766e dots — the same silent hue split F-F008 is named for, one
+     indirection deeper. Its three focus-ring consumers are gone (the ring it
+     drew composites to 1.36:1 on paper and failed SC 1.4.11 outright, as it
+     already did at 1.89:1 on the dark ground). The four that remain are
+     decorative haloes on 6-8px dots — Eyebrow .dot, Proof .accentDot, Platform
+     .live and .core — where it composites to rgb(168, 203, 198), 1.65:1 on
+     --ground. The dot itself carries the meaning at 5.16:1, so the halo is
+     under no 1.4.11 obligation.
+
+     --accent-hover (#2DD4BF, teal-400) is DELETED: zero consumers, and it is a
+     step drawn to lift off a dark ground. On paper a hover darkens. */
+  --accent: #0f766e;
+  --accent-glow: rgba(15, 118, 110, 0.35);
 
   /* —— WhatsApp authentic palette — MOCKUP ONLY —— */
   --wa-bg: #0B141A;
@@ -61,9 +152,19 @@
   --r-lg: 12px;
   --r-pill: 999px;
 
-  /* —— Elevation —— */
-  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.45);
-  --elev-2: 0 12px 32px rgba(0, 0, 0, 0.45);
+  /* —— Elevation ——
+     Shadows do not fade on paper; they arrive. `rgba(0, 0, 0, 0.45)` measured
+     1.03:1 against the old --ink-900 — a shadow nobody could see, which is
+     exactly why nobody noticed it was black at 45 per cent. The identical
+     declaration measures 3.33:1 against --ground: a hard grey smudge under the
+     hero phone card and under both button hovers. Re-derived onto the same ink
+     the rest of the paper layer uses, at the alpha that reads as lift rather
+     than as dirt — 0.06 composites to rgb(236, 234, 231), 1.13:1 on --ground.
+     Offset and blur are unchanged; only the colour was wrong.
+
+     --elev-1 is DELETED. Zero consumers, and choosing an alpha for a shadow
+     nothing casts would be inventing a value, not migrating one. */
+  --elev-2: 0 12px 32px rgba(23, 21, 15, 0.06);
 
   /* —— Motion —— */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -137,6 +238,20 @@
      pixel. --accent is NOT repointed — F-F008 stays open until S2 flips the
      ground under it. The count is twenty-two: --rule-strong was added here,
      unique to this file and therefore correctly absent from brand-values.md.
+
+     ─── SUPERSEDED IN FULL · Phase 2 S2 ──────────────────────────────────
+     Nothing below is dormant any more. `body` takes --ground, the alias layer
+     at the top of this rule points every dark token at a paper one, and every
+     route on the site — marketing, /specimen and legal — renders on these
+     values. Both survivals S1 recorded are spent: --accent IS repointed, to
+     #0f766e, and F-F008 is closed; and the marketing group is emphatically not
+     unchanged to the pixel. Pixel equality was retired as a gate for S2 by
+     design. It returns at S3, where the alias layer is deleted and its
+     consumers renamed — a rename that must move nothing.
+
+     The one Phase 1b contract that does NOT lapse: --ink-faint is NON-TEXT
+     ONLY, and after the flip it is still consumed by nothing that paints a
+     glyph. That is asserted per route by the S2 contrast sweep, not assumed.
      ═══════════════════════════════════════════════════════════════════════ */
 
   /* —— Grounds —— */
@@ -198,9 +313,13 @@ html {
   scroll-behavior: smooth;
 }
 
+/* THE GROUND. Named directly rather than through --ink-900, which aliases to
+   the same value: everywhere else the alias layer exists so consumers need not
+   move, but `body` is not a consumer of the ground — it IS the ground, and the
+   one declaration on the site that should read as the paper it paints. */
 body {
-  background: var(--ink-900);
-  color: var(--text-primary);
+  background: var(--ground);
+  color: var(--ink-strong);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

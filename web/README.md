@@ -118,14 +118,29 @@ web/
 
 All design tokens live in `app/globals.css` — colors, spacing, radii, motion curves, type scales. To change a token, edit it there; every component references these variables via `var(--token-name)`.
 
+The site renders on **Warm Paper** as of Phase 2 S2. The tokens below are the
+dark scale the site was built on; every one of them is now an *alias* pointing
+at a paper token declared lower in the same `:root`, so the component
+stylesheets did not have to move. Phase 3 S3 deletes the alias layer and renames
+the consumers.
+
 Key token groups:
-- `--ink-*` / `--surface-*` — background scale (near-black)
-- `--text-primary` / `--text-secondary` / `--text-tertiary` — text hierarchy
-- `--accent` / `--accent-hover` / `--accent-glow` — functional blue (links, focus rings, live dots)
-- `--border` / `--border-strong` — hairline separators
-- `--wa-*` — WhatsApp-authentic palette (hero chat mockup only)
-- `--r-*` — border radii
+- `--ground` / `--ground-sunk` / `--ground-raised` — the paper scale (`#FAF8F5` / `#F2EEE8` / `#FFFFFF`)
+- `--ink-strong` / `--ink-soft` / `--ink-faint` — the ink scale. `--ink-faint` is **NON-TEXT ONLY** (2.41:1); it may never paint a glyph
+- `--rule` / `--rule-strong` — paper hairlines
+- `--ink-900` / `--surface-*` — **aliases** onto the paper scale, mapped by role (a raised card goes up to `--ground-raised`, a recess goes down)
+- `--text-primary` / `--text-secondary` / `--text-tertiary` — **aliases** onto the ink scale. Note `--text-tertiary` collapses onto `--ink-soft`: it failed AA on the old ground and does not get a paper counterpart
+- `--border` / `--border-strong` — **aliases** onto `--rule` / `--rule-strong`
+- `--accent` / `--accent-glow` — functional teal `#0f766e`, the portal's value (links, focus colour, live dots). `--accent-glow` is that colour at 0.35 alpha and is decorative only
+- `--accent-on-ground` / `--answered` — functional colour on paper, consumed by the legal group and `/specimen`
+- `--wa-*` — WhatsApp-authentic palette, deliberately still dark (hero chat + micro-visual mockups only)
+- `--r-*` — border radii, the pre-v2 4/8/12 scale. `--rad-*` (2/6/10) is the v2 scale; the legal group and `/specimen` use it, marketing has not migrated yet
+- `--elev-2` — the one shadow; re-derived for paper at `rgba(23, 21, 15, 0.06)`
 - `--ease-*` / `--dur-*` — motion
+
+`docs/design/brand-values.md` records which of these are shared with the portal
+and the demo surfaces, and `tests/design/tokenDrift.test.js` makes that record
+binding.
 
 All animations respect `prefers-reduced-motion: reduce` — a global rule in `globals.css` kills all durations, and component-level overrides ensure immediate-show fallbacks.
 

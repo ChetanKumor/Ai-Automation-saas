@@ -13,8 +13,10 @@
  * exists to cure, and it would be an odd way to document a design system to
  * introduce one more place for the same value to be wrong.
  *
- * Everything below is dormant: Phase 1b adds these tokens with no consumer on
- * any shipping route. This page is the only reader.
+ * Everything below WAS dormant: Phase 1b added these tokens with no consumer on
+ * any shipping route, and this page was the only reader. Phase 2 S1 gave them
+ * the four legal routes and S2 gave them the whole site, so they are live and
+ * the sentence is kept as the record of where they came from.
  * ========================================================================== */
 
 export type Group =
@@ -75,9 +77,11 @@ export const TOKENS: readonly TokenRow[] = [
     group: "functional",
     ratios: [5.16, 4.74, 5.47],
     note:
-      "A second token, not a repoint of --accent. On the current near-black " +
-      "--ink-900 this same hex measures 3.58:1 and would fail AA for the " +
-      "fifteen --accent consumers on the legal pages.",
+      "Added as a second token rather than a repoint of --accent, because on " +
+      "the near-black --ink-900 this hex measured 3.58:1 and would have failed " +
+      "AA for the fifteen --accent consumers on the legal pages. Phase 2 S2 " +
+      "flipped that ground and repointed --accent to the same #0F766E, closing " +
+      "F-F008; the two now hold one value and merging them is an S3 job.",
   },
   {
     name: "--answered",
