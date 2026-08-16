@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: c7bcecf8fc0167eacaeb53b452216bb246017f6e
+Verified-at: c47cd98bbf91e2235885166103281334230be546
 Verified-on: 2026-08-16
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -78,25 +78,28 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   set the verdict — see the V1a note below for the mechanism and the red-check.
 - Test suite: **1103 tests / 180 suites / 0 fail** (`npm test`, raw: `# tests 1103 /
   # pass 1103 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  Re-measured at `c7bcecf` (**Phase 2 S1** — the legal route group on Warm
-  Paper): `# tests 1103 / # suites 180 / # pass 1103 / # fail 0 /
-  # cancelled 0 / # skipped 0 / # todo 0`, all seven counters identical to the
-  two runs at `9a024cc` (Phase 1b). The number carried here before that refresh
-  was recorded against `05fdf41` while HEAD was `9b95225` and was therefore
-  formally unverified; it has been re-measured at each refresh since rather
-  than carried forward. Neither Phase 1b nor S1 added a `test()` block, so the
-  delta is zero by intent in both.
-  ⚠️ **THE NODE SUITE IS NOT THE INSTRUMENT FOR S1 AND CANNOT BE.** It does not
-  build, render or import anything under `web/` — `web/` has its own Next
+  Re-measured at **Phase 2 S2** (the whole site on Warm Paper):
+  `# tests 1103 / # suites 180 / # pass 1103 / # fail 0 / # cancelled 0 /
+  # skipped 0 / # todo 0`, all seven counters identical to the runs at
+  `c7bcecf` (S1) and `9a024cc` (Phase 1b). The number carried here before those
+  refreshes was recorded against `05fdf41` while HEAD was `9b95225` and was
+  therefore formally unverified; it has been re-measured at each refresh since
+  rather than carried forward. None of Phase 1b, S1 or S2 added a `test()`
+  block, so the delta is zero by intent in all three.
+  ⚠️ **THE NODE SUITE IS NOT THE INSTRUMENT FOR S1 OR S2 AND CANNOT BE.** It does
+  not build, render or import anything under `web/` — `web/` has its own Next
   toolchain and zero tests, which is the standing gap recorded under *Stack
-  (frozen)*. An unmoved 1103 says S1 broke nothing it can see; it says nothing
-  whatever about whether the conversion landed. The one Node test with any
-  purchase on this change is `tests/design/tokenDrift.test.js`, which parses
-  `web/app/globals.css` as one of its four surfaces — so it is load-bearing for
-  the added token and inert for everything else in the commit. What actually
-  gated S1 was a build-id-interlocked pixel diff (`/` at 0 differing pixels
-  across 3 widths), a live-DOM token witness and a live-DOM contrast sweep; see
-  the Phase 2 S1 entry below.
+  (frozen)*. An unmoved 1103 says the change broke nothing it can see; it says
+  nothing whatever about whether the conversion landed. The one Node test with
+  any purchase here is `tests/design/tokenDrift.test.js`, which parses
+  `web/app/globals.css` as one of its four surfaces — and at S2 it is genuinely
+  load-bearing rather than incidentally so: repointing `--accent` to `#0f766e`
+  makes actual equal canonical, which **fails** unless the `--accent` @ `web`
+  divergence row is deleted in the same commit. It stays inert for everything
+  else. What actually gated S1 was a build-id-interlocked pixel diff (`/` at 0
+  differing pixels across 3 widths); S2 gives that up — it repaints every route
+  — and replaces it with a live-DOM token witness and a live-DOM contrast sweep
+  across six routes × three widths. See the Phase 2 S1 and S2 entries below.
   ⚠️ **GREEN NOW MEANS THREE COUNTERS, NOT ONE.** `npm run os:check` refuses on
   `# fail`, `# cancelled` **and** `# skipped`, and on any of them being unparseable.
   Quoting `# fail 0` alone no longer establishes that a run was clean — see the
@@ -458,6 +461,174 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE WHOLE SITE RENDERS WARM PAPER — Phase 2 S2, built** (`c47cd98`).
+  `body` takes `--ground`. Every route in `web/` — `/`, `/specimen` and the four
+  legal pages — is on the paper layer. The change is **atomic by construction**:
+  every section in `web/` is transparent and inherits `body`, so there is no
+  coherent intermediate state and no half-flipped site to review. Eighteen files.
+  Node **1103 tests / 180 suites / 1103 pass / 0 fail / 0 cancelled / 0 skipped /
+  0 todo — UNMOVED**, measured at this commit.
+  ⚠️ The Python worker suite was **not re-run** and its **97** is carried
+  forward, not verified. Nothing under `voice-agent/` is touched, so it is
+  unmoved by construction — an argument, not a measurement.
+  **THE MECHANISM IS ALIASES, NOT COPIED HEXES.** No paper hex was written into
+  a dark token name. Nine tokens now point at the paper layer, which stays the
+  single source of the values:
+  `--ink-900`→`--ground`, `--surface-1`→`--ground-raised`,
+  `--surface-2`/`--surface-3`→`--ground-sunk`, `--border`→`--rule`,
+  `--border-strong`→`--rule-strong`, `--text-primary`→`--ink-strong`,
+  `--text-secondary`/`--text-tertiary`→`--ink-soft`. Forward references are
+  legal — custom properties substitute at computed-value time — so the alias
+  block sits where the dark hexes sat and reads down to the paper block below
+  it. Consequence, and the reason for the shape: the **166** declaration-level
+  references to those nine tokens, across **fourteen** component stylesheets,
+  **did not move** — counted with comments stripped rather than estimated
+  (`--text-tertiary` 41, `--border` 37, `--text-secondary` 35, `--text-primary`
+  21, `--border-strong` 14, `--surface-1` 9, `--ink-900` 4, `--surface-3` 3,
+  `--surface-2` 2). So this is a colour change and not a rename, and S3 (delete
+  the aliases, rename the consumers) can be gated on **pixel equality** — which
+  S2 gives up and S3 gets back.
+  **THE MAPPING IS BY ROLE, NOT BY NUMBER, AND ONE CONSUMER BROKE THE RULE.**
+  `--surface-3` had three consumers that agreed on a dark ground and split on
+  paper: `Why .mpPillSolid` and `Why .toggle` pair it with `--text-primary`,
+  which the alias flips to ink, so both need a LIGHT fill; `HowItWorks
+  .mvPillYou` pairs it with `--wa-text` (`#E9EDEF`), which does **not** flip
+  because `--wa-*` survives S2 untouched. Near-white on `--ground-sunk` is
+  1.06:1 — the "YOU" label would have vanished. So `--surface-3` takes
+  `--ground-sunk` for the two, and `.mvPillYou` names `--ink-strong` directly
+  (15.49:1 under `#E9EDEF`). This is the only alias a consumer could not follow.
+  **F-F008 IS CLOSED.** `--accent` is `#0f766e`, the portal's value, and the
+  `--accent` @ `web` divergence row is **deleted from `brand-values.md` in the
+  same commit** — `tokenDrift` asserts a recorded divergence as strictly as a
+  canonical value, so leaving the row would have failed the suite. `--accent-glow`
+  is re-derived to `rgba(15, 118, 110, 0.35)` rather than left: it was never an
+  independent colour (every design-reference file defines it as `--accent` at
+  0.35 alpha), and moving one without the other would have left a `#14b8a6` halo
+  around four `#0f766e` dots — the same silent hue split F-F008 names, one
+  indirection deeper.
+  ⚠️ **PIXEL EQUALITY IS GONE AS A GATE AND CANNOT COME BACK THIS SESSION.**
+  S1 had `/` as a control arm at 0 differing pixels; S2 repaints every route, so
+  there is nothing to hold still. What replaced it was measured on the live DOM
+  at **six routes × three widths = 18 pairs**: `body` is `rgb(250, 248, 245)` on
+  all eighteen, the alias layer resolves identically on all eighteen, and the
+  contrast sweep covered **532 distinct colour/backdrop pairs** at
+  **0 failures** — text, focus indicators and both translucent bars.
+  `--ink-faint` paints no text node anywhere except `/specimen .faintBad`, which
+  exists to render the prohibition and is exempted by name below. (Commit
+  `c47cd98`'s message states that gate as "paints no text node on any shipping
+  surface", which is the summary line; the exemption is named five lines under
+  it. This sentence is the exact form.)
+  ⚠️ **THE BUILD-ID INTERLOCK CHANGED SHAPE, AND S1'S ROOT CAUSE IS FIXED.**
+  With no before/after pair to protect, comparing two runs proves nothing. The
+  probe and the capture now each compare the id read **off the live page**
+  against `.next/BUILD_ID` **on disk** — the build `npm run build` just made —
+  which catches a stale server on a *single* run. S1 recorded that `taskkill` is
+  not on PATH here; that was the mechanism, because `execFileSync('taskkill',…)`
+  threw ENOENT every time and fell through to `server.kill()`. It is now invoked
+  as `C:/Windows/System32/taskkill.exe`, and both ends are asserted: the port
+  must be free **before** the server is spawned and free again **after** it is
+  reaped, or the run fails loudly. It passed on all eight harness runs this
+  session, spanning four builds — `weFtGLedeOdSxESfE9cmQ`,
+  `d02dJ3QzHwkjWsPj4SqlQ`, `l5WpLFW56qhtEjPISloSV` and `d_vGR70QWue55Qwg5MyJv`.
+  The gated numbers and the review captures in `scratchpad/s2-review/` are from
+  the last of those, which is the committed tree.
+  ⚠️ **THE SWEEP FOUND A REGRESSION THE BRIEF DID NOT ANTICIPATE, IN A FILE THE
+  BRIEF DID NOT NAME.** `Problem .enq` carries `opacity: .62`, which composites
+  its whole subtree — text included — **toward the page**. On the near-black
+  ground that pulled the copy toward black and landed at **3.57:1**, already
+  below AA and predating this session. On paper it pulls toward white:
+  **3.06:1**. Same declaration, worse result, caused by the flip. Raised to
+  `.82`, which is the measured floor plus margin and not a guess — `.78` gives
+  4.42:1 and still fails, `.80` gives 4.64:1, `.82` gives **4.88:1**, and `1`
+  would give 7.75:1 while deleting the point of the section (the cards are drawn
+  faded because they are the enquiries nobody answered). All four dimmed strings
+  share the colour, so one value fixes `.enqTime`, `.enqTag`, `.enqMsg` and
+  `.enqFoot`. The 480px breakpoint already set `opacity: 1` and is untouched.
+  **TWO SWEEP FINDINGS ARE EXEMPT, NAMED IN THE HARNESS AND STILL PRINTED.**
+  (1) `/specimen .faintBad` at 2.21:1 is a **labelled counter-example** — the
+  element renders the string `--ink-faint · 2.21:1 on sunk · WRONG` beside a
+  `CORRECT` twin, to teach the NON-TEXT ONLY contract. (2) `--wa-meta` on
+  `--wa-out` at **2.61:1** is the timestamp inside an outgoing bubble of the hero
+  mockup; both tokens are `--wa-*`, `Hero.module.css` is unmodified in this
+  commit, so the pair is byte-identical to HEAD, and `globals.css` already
+  records it at the `--wa-gloss` declaration. Pre-existing, fenced, **an S4
+  decision**. Neither is suppressed by narrowing a selector; both are printed
+  with the reason attached.
+  **FOUR ACCENT HAIRLINES DELETED, NOT RE-DERIVED — INCLUDING S1'S.**
+  `linear-gradient(90deg, transparent, var(--accent), transparent)` across a
+  card's top edge is a dark-ground device; on paper a hairline reads by being
+  darker than its ground, and darkness does not fade to "transparent". S1
+  replaced its one instance with a plain `--rule` and flagged the result as
+  redundant under the card's own border. Checked per site, as the brief
+  requires: `Platform .base`, `FinalCta .frame` and `Pricing .quote` each
+  declare `border: 1px solid var(--border-strong)`, so all three are the same
+  case. All four removed, S1's `.stepsCard::before` included.
+  ⚠️ **THE BRIEF'S FIFTH HAIRLINE WAS NOT ONE.** `HowItWorks .mvScan` is
+  `accent → transparent`, 2px tall and 70% wide, *inside* the micro-visual as
+  the AI reading the message — content, not chrome. It survives the flip on its
+  own terms: at 0.7 over `--ground` the repointed `#0f766e` composites to
+  `rgb(86, 157, 151)`, plainly visible. Replacing it with a `--rule` hairline
+  would have left a 1.18:1 smear and deleted the only thing that panel depicts.
+  **THREE ZERO-CONSUMER TOKENS DELETED RATHER THAN ALIASED:** `--ink-850`,
+  `--accent-hover` (`#2DD4BF`) and `--elev-1`. Choosing a paper value for
+  something nothing renders is inventing a colour under cover of a migration.
+  `--elev-2` **is** re-derived, because it has three: `rgba(0, 0, 0, 0.45)`
+  measured 1.03:1 on the dark ground (invisible, which is why nobody noticed it
+  was black at 45%) and **3.33:1** on paper (a grey smudge). Now
+  `rgba(23, 21, 15, 0.06)` → 1.13:1. Geometry unchanged; only the colour was wrong.
+  **ONE FOCUS INDICATOR FOR THE WHOLE SITE.** The remaining eight sites — five
+  on the `0 0 0 2px var(--ink-900), 0 0 0 4px var(--accent)` idiom and three on
+  the `0 0 0 3px var(--accent-glow)` idiom — converge on S1's pair,
+  `0 0 0 2px var(--ground), 0 0 0 4px var(--ink-strong)`. All eight measure
+  **17.22:1** outer-vs-backdrop on the live DOM. The glow ring composited to
+  1.36:1 on paper and failed SC 1.4.11 outright; it was already failing at
+  1.89:1 on the dark ground, so the flip surfaces that defect rather than
+  introducing it.
+  ⚠️ **HERO'S FOUR-LINE BUDGET WAS NOT SPENT, DELIBERATELY.** The brief allotted
+  `Hero.module.css` lines 55, 73, 109 and 277. Under the aliasing the same brief
+  mandates, all four already resolve correctly — 55/73/277 to `--ink-soft`
+  (7.31:1) and 109 to the re-derived `--elev-2` — so editing them would have
+  half-converted one stylesheet while thirteen others stay aliased, for no
+  rendered difference. `Hero.module.css` is **unmodified**. Verified on the live
+  DOM, not argued: `.sub`, `.heroMicro` and `.waCaption` all pass, and the
+  phone card casts the paper shadow.
+  **THE AVATAR CHIPS ARE LEFT DARK, ON PURPOSE.** Three
+  `linear-gradient(135deg, #2A3942, #3B4A54)` and two `#8FA3AD` initials.
+  `#2A3942` is 11.24:1 against `--ground` and `#8FA3AD` on it is 4.55:1, so both
+  pass where they sit; two of the three are inside a `--wa-header` pill that
+  stays dark by S2's rule. Whether the mockups move to WhatsApp's light theme is
+  an **S4** call that takes the `--wa-*` tokens with it.
+  **`color-scheme: light` IS NOW DECLARED**, on `:root`, where `web/` had never
+  declared it at all. It selects the UA rendering of form controls, scrollbars
+  and the default focus ring — which is load-bearing for one control: `Nav
+  .brand` and `Footer .brand` declare **no** author `:focus-visible` rule and
+  therefore fall to the UA outline, measured on the live DOM as
+  `auto 1px rgb(16, 16, 16) offset 1px`. Indicated, at high contrast, but by a
+  different mechanism from their eight siblings. **Filed as residue, not fixed.**
+  ⚠️ **`/specimen`'s OWN COPY HAD TO BE CORRECTED — IT CONTRADICTED ITS OWN
+  RENDERING.** The lede read "this page is their only reader, which is why the
+  navigation above and the footer below are still painted from the old dark
+  system", which was **true before this commit and false after it**, in the same
+  viewport as the paper nav. Likewise `tokens.ts`'s `--accent-on-ground` note,
+  which described `--ink-900` as near-black and `--accent` as a different hex.
+  Both corrected. The dormancy claim was already stale from S1 and is now
+  written as history rather than as fact. Note `--accent-on-ground` and
+  `--accent` now hold the **same value**; merging them is an S3 job.
+  **G10, the bundle interlock: `/` is 7.42 kB / 113 kB First Load JS before and
+  after**, unchanged, as a colour change must be. Any movement would have meant
+  something structural changed.
+  **RESIDUES CARRIED TO S3/S4**, each measured, none blocking:
+  (a) the legal group's `.paper` wrapper now repeats a ground `body` already
+  paints — benign (same value, witnessed) and kept so the group can still be
+  lifted out of this app; (b) `--r-*` (4/8/12) still serves marketing while the
+  legal group and `/specimen` use `--rad-*` (2/6/10), so focus corners differ by
+  2px between route groups until S3 migrates them — the three `--r-*` divergence
+  rows in `brand-values.md` stay until then, by the brief; (c) `Platform .mod`
+  is `--ground-raised` at rest and now darkens two steps on hover instead of
+  lightening one — the right direction on paper, but a firmer hover than the
+  dark original; (d) `Footer .social:focus-visible` was converted but has **zero
+  DOM consumers** — `Footer.tsx` renders no socials, so the `.social`/`.socials`
+  rules are dead CSS from the design reference.
 - **THE LEGAL ROUTE GROUP RENDERS WARM PAPER — Phase 2 S1, built** (`c7bcecf`).
   `/privacy`, `/terms`, `/data-deletion` and `/acceptable-use` are the first
   shipping consumers of the Phase 1b token layer. Three files:
@@ -533,6 +704,9 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   **--accent is NOT repointed and F-F008 stays open.** It remains `#14b8a6` for
   the marketing group; `legal.module.css` uses `--accent-on-ground` instead.
   F-F008 closes at S2, when the ground flips under it.
+  **SUPERSEDED at S2** — it did. See the S2 entry above: `--accent` is
+  `#0f766e`, the divergence row is deleted from `brand-values.md`, and every
+  other statement in this entry that begins "at S2" has been discharged.
 - **THE TAMPERED-HASH TEST NOW ASSERTS THAT IT TAMPERED — Issue 40, built and
   CLOSED** (`0eb67d2`). `tests/portal/auth.unit.test.js:43` flips the FIRST
   character of the hash segment — the character it inspects — and asserts the
@@ -2277,6 +2451,7 @@ about it.
 | F-F006 | S-A | Mobile nav drawer closes on link tap and on Escape; focus returns to the toggle | `e50d7ba` |
 | F-F007 | S-A | Collapsed FAQ answers carry `inert` + `visibility: hidden` — out of the a11y tree, out of Ctrl+F, out of the tab order | `e50d7ba` |
 | F-F008 | S-A/S-B | `web/` adopts the portal's teal brand accent. The site moved, not the portal | `e50d7ba` |
+| F-F008 · drift half | Phase 2 S2 | `e50d7ba` closed the *hue* (periwinkle → teal) but left `web/` on `#14b8a6` against the portal's `#0f766e`, recorded as a divergence row in `brand-values.md`. `#0f766e` measured 3.58:1 on the near-black ground and could not be adopted while `--accent` painted link text there. S2 flipped the ground, repointed `--accent` to `#0f766e` (5.16 / 4.74 / 5.47 on the three paper surfaces) and **deleted the divergence row**, so `tokenDrift` now enforces one value across both surfaces | `c47cd98` |
 | F-F009 | S-A | Four colour-only focus indicators gained the existing 2px/4px ring | `e50d7ba` |
 
 **Open, and why**
