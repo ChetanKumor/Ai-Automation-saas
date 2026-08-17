@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: a047378ca3e252df5d2362ee2e50047386fd4003
+Verified-at: d221c8fcf977cae4a4e0ae4829721836ac35653d
 Verified-on: 2026-08-17
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -78,6 +78,23 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   set the verdict — see the V1a note below for the mechanism and the red-check.
 - Test suite: **1104 tests / 180 suites / 0 fail** (`npm test`, raw: `# tests 1104 /
   # pass 1104 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  Re-measured at **HERO-1 phase 3** (playback): all seven counters identical
+  again, `1104 / 180 / 1104 / 0 / 0 / 0 / 0`. **The delta is zero by intent** —
+  phase 3 adds a state machine, a cadence model and a client boundary, and no
+  test, for the same reason phase 2 did not: the Node suite does not build,
+  render or import anything under `web/`. What gated phase 3 instead was a
+  build-id-interlocked pixel diff, a direct line-box comparison, and four
+  live-DOM sweeps driven through all four playback states over CDP.
+  ⚠️ **THE FIRST BASELINE RUN OF THIS SESSION WAS RED, AND THE FAILURE WAS NOT
+  IDENTIFIED.** One test failed at `acd3e73` before any file was touched
+  (`# pass 1103 / # fail 1`); the immediately following run at the same commit
+  was `1104 / 1104 / 0`, as were both runs after the change. The failing test's
+  NAME was not captured — the second run was filtered to summary lines only —
+  so it is recorded as an unattributed intermittent rather than assigned to the
+  known `serverListen.integration.test.js` load-sensitivity it resembles. A
+  fourth recorded intermittent cannot be claimed on evidence this thin, and
+  neither can a clean bill; what is established is that the tree was green
+  three times out of four at this commit, twice of them after the change.
   Re-measured at **HERO-1 phase 2** (the Conversation component on `/specimen`):
   all seven counters identical to phase 1's, `1104 / 180 / 1104 / 0 / 0 / 0 / 0`,
   taken twice at this commit — once before the change at `a071aa8` and once after.
@@ -502,6 +519,141 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE HERO CONVERSATION PLAYS — HERO-1 phase 3, built** (`d221c8f`).
+  Nine files: `cadence.ts`, `usePlayback.ts`, `ConversationPlayer.tsx`,
+  `PlayControl.{tsx,module.css}` new; `Conversation.{tsx,module.css}`,
+  `te.json` and `/specimen`'s page edited. `activeIndex` walks **0 → 6 in
+  13,207.5 ms**, measured off the running page, not computed on paper. Node
+  **1104 / 180 / 1104 / 0 / 0 / 0 / 0 — UNMOVED**. No new dependency: `git diff
+  web/package.json` is empty.
+  ⚠️ The Python worker suite was **not re-run**; its **97** is carried forward,
+  not verified. Nothing under `voice-agent/` is touched.
+  **THE FIXTURE STAYED OUT OF THE BROWSER, DELIBERATELY THIS TIME.** Phase 2
+  got that for free by being a server component. `ConversationPlayer.tsx` is
+  the **only** file with `"use client"`, and it pulls `Conversation.tsx` into
+  the client graph with it — so the card's data is narrowed at the boundary to
+  `{ doctor, time, status }` and `public/demo/fixture.json` is read by the
+  page, which is still a server component. `.next/static/` (45 files) greps
+  **0 hits** for the appointment UUID, `Sravani Reddy`, `Smile Dental` and
+  `2026-07-18`.
+  ⚠️ **THAT GREP WAS POSITIVE-CONTROLLED, AND THE CONTROL FOUND SOMETHING.**
+  Four needles known to be present were searched first, so a zero could not be
+  a broken search: `Play the conversation` and `data-conversation-region` hit
+  the `/specimen` chunk, `Prantivo` hits four files — and **`Dr. Rao` hits a
+  client chunk**. It is not one of the four forbidden strings and it is not
+  from this boundary: it is `HeroChat.tsx:31,43`, a pre-existing `"use client"`
+  component on `/` carrying its own authored English translations. The
+  `/specimen` client chunk contains none of the fixture strings, and `/` is
+  pixel-identical, so nothing about it moved this phase. Worth knowing before
+  phase 5 retires `HeroChat`.
+  **CADENCE IS A MODEL, NOT EIGHTEEN NUMBERS.**
+  `phraseDuration = max(MIN_PHRASE_MS, chars / CPS × 1000)`, plus **220 ms** of
+  stillness after every turn including before the card. **CPS = 32** and
+  **MIN_PHRASE_MS = 550** for Telugu, both in `cadence.ts` beside the language
+  data so phase 4 adds two entries and nothing else moves. 450 ms was the
+  brief's suggestion and was raised after measuring: at CPS 32 the sign-off
+  `రేపు కలుద్దాం!` computes to 437 ms and `నమస్తే!` to 219 ms, so a greeting and a
+  farewell — exactly what a floor is for — sat at or under it. 550 costs 319 ms
+  over the whole sequence. **A turn's dwell is the sum of its phrase durations
+  for patient turns too**; emergence decides how a turn's text arrives, not how
+  long it stays, and without that split `అంతే, ధన్యవాదాలు.` would be on screen for
+  one 150 ms fade.
+  ⚠️ **t3 SEGMENTS INTO FOUR PHRASES, NOT THE THREE THE BRIEF PREDICTED.** The
+  rule — split after `.` `!` `?` and after the em-dash in t3 — was applied as
+  written and the result reported rather than the rule adjusted to fit. Per
+  turn: **t0 → 2, t1 → 3, t2 → 1, t3 → 4, t4 → 1, t5 → 1** (nine spans over six
+  turns). t3's em-dash clause `బుక్ అయింది —` is a fourth segment the prediction
+  did not count. Offsets are stored in `te.json` as **end** offsets that
+  partition the text losslessly; the round-trip is asserted at derivation time,
+  and no turn's text bytes changed.
+  **PAUSE FREEZES BECAUSE THERE IS ONLY ONE NUMBER.** `usePlayback` accumulates
+  elapsed ms in a rAF loop and derives `(activeIndex, revealed)` from it with a
+  pure function, so there is no cursor that can drift out of step with the
+  clock. Demonstrated rather than asserted: paused at `idx=1 revealed=2` with a
+  phrase **mid-fade**, still `idx=1 revealed=2` after 2,500 ms, and
+  `idx=1 revealed=2` on the frame it resumed — no rewind, no settle, no jump.
+  Replay dissolves rather than cuts, sampled at 30 ms intervals through the
+  transition: opacity `1 → 0.211 → 0.018 →` swap `→ 0.957 → 0.998 → 1`.
+  **PRESS FEEDBACK FIRES ON POINTER-DOWN, AND A SINGLE SAMPLE SAID OTHERWISE.**
+  It is `:active` in CSS, not an `onClick` class toggle, so the browser sets it
+  the instant the pointer goes down. Driven with real `Input.dispatchMouseEvent`
+  presses: at **+16 ms** `:active=true` and `will-change=transform` while the
+  transform is still `matrix(1,…)`; at +40/+70 ms `0.986464` / `0.985009`; at
+  +300 ms settled at `0.985` with `will-change=auto`. `state=idle index=0`
+  throughout, so the feedback provably precedes any click. ⚠️ A first pass read
+  once at +160 ms, saw `will-change: auto`, and looked like proof the handler
+  had never run — it is the "removed on settle" half working, because the 100 ms
+  transform transition had already fired `transitionend`. **Only a sample inside
+  the transition separates "never set" from "set and correctly cleared."**
+  **REDUCED MOTION IS NOT REDUCED CONTENT.** Under
+  `--force-prefers-reduced-motion=reduce` the sequence still walks 0 → 6 at all
+  three widths with the same 13,207.5 ms timeline; all six turn transforms read
+  **`none`** (recency scaling off), **0 of 9** phrase spans are hidden
+  (per-phrase emergence off), the FLIP is skipped, and all six turns plus the
+  card are present.
+  ⚠️ **THE BRIEF'S "150 ms FADE" UNDER REDUCED MOTION IS NOT ACHIEVABLE AND WAS
+  NOT ATTEMPTED.** `globals.css:369-375` applies `transition-duration` and
+  `animation-duration` `0.01ms !important` to **every element on the site**;
+  `globals.css` is NOT TOUCHED this phase, so every fade collapses to instant.
+  That is the site-wide contract and this component does not fight it with a
+  more specific `!important`. The substantive half of the requirement —
+  phrases arriving per TURN rather than per phrase — is implemented in the hook.
+  ⚠️ **THE REDUCED-MOTION LADDER IS SCOPED TO `.live`, AND IT HAS TO BE.**
+  "No recency scaling" is applied only to the instance a client is playing.
+  `prefers-reduced-motion` is a request about things that move, and the ladder
+  on a static frame never moves — but the operative reason is that the phase-2
+  pixel baseline is **captured under forced reduced motion**, so flattening the
+  ladder globally would move every glyph in all four static instances and make
+  G5 unsatisfiable by construction. A brief that demands both cannot have meant
+  the global form.
+  **GATES.** `/` at **0 differing pixels** at 360/768/1440, build-id interlocked
+  (`IzBUe6QmGHTtk8R9FltH1` → `iB15ko_sT6AnIu55Feltv`), CSS hrefs unmoved, `/`
+  unchanged at 7.42 kB / **113 kB** first-load JS. `/specimen` first-load JS
+  **104 → 107 kB** against a 140 kB budget — the first client component in the
+  tree, and the growth is 3 kB. Region height **296 / 340 / 376 px** and the
+  play control's top **320 / 364 / 400 px**, both identical across all four
+  states at all three widths. Contrast swept on the live DOM scoped to
+  `[data-conversation-section]` in **idle, playing, paused and complete** ×
+  three widths: **0 failures**, `--ink-faint` on **0** text nodes.
+  ⚠️ **G5 DID NOT REACH 0 DIFFERING PIXELS, AND THE REASON IS THE PLATFORM.**
+  Seven of the twelve static-instance crops are exactly 0; five differ by
+  **85–175 px out of 118k–237k (≤0.08%)**, every one of them a warm colour
+  fringe on a glyph edge. **Splitting a text run into inline spans is not
+  pixel-free in Chrome**: each fragment is shaped separately and its origin
+  quantised to a 1/64 px LayoutUnit, so a glyph after a boundary can land that
+  far from where an unbroken run puts it, and LCD subpixel AA repaints the edge.
+  This was **isolated, not inferred** — the same page, the same build, the same
+  process, captured once as shipped and once after collapsing every paragraph
+  back to a single text node reproduces the counts almost exactly
+  (98/85/175/98/98/128 against 99/91/175/98/98/128). Nothing else contributes.
+  **WHAT G5 EXISTS TO CATCH WAS MEASURED DIRECTLY AND IS CLEAN.** "It must not
+  change layout": 276 measurements compared across twelve instances — identical
+  line **count**, identical line **x**, **y** and **height**, **zero** gaps
+  between fragments on any line, and identical region, turn, paragraph and card
+  boxes. Only line *widths* move, by **≤0.02 px**, which is the arithmetic of
+  summing two quantised fragments instead of measuring one. A single-phrase turn
+  now renders **no span at all** — its one phrase is revealed the instant the
+  turn activates, so the element could never do anything — which is why t2, t4
+  and t5 are byte-identical to phase 2.
+  ⚠️ **THE FIRST G5 RUN REPORTED TENS OF THOUSANDS OF DIFFERING PIXELS AND
+  MEASURED ALMOST NOTHING.** The clip is in document coordinates and gets
+  floored, so it samples on a grid whose phase is `frac(rect.y)`. Adding a fifth
+  instance moves the four above it by a fractional CSS pixel, every glyph lands
+  on a different subpixel offset, and identical text repaints — the first
+  differing pixel was `rgb(250,232,196)`, a yellow fringe, on a palette with no
+  yellow in it. **A crop-based pixel gate must phase-align its target first**,
+  here with `position: relative` + `top`/`left`, which reflows nothing. ⚠️ And
+  the nudge must be **iterative and full-precision**: Chrome stores used offsets
+  as 1/64 px LayoutUnits and **floors** to them, so a nudge rounded to three
+  decimals landed `0.531px` on 33/64 instead of 34/64 and left the origin at
+  `9449.984375`.
+  **NOT TOUCHED, and checked rather than assumed:** `Hero.tsx`, `HeroChat.tsx`,
+  `Hero.module.css`, `(marketing)/page.tsx`, `globals.css`, `en.json`,
+  `hi.json`, `meta.json`, `types.ts` (`phrases?: number[]` was already declared
+  in phase 1 and needed no change), `brand-values.md`, the four `(legal)` pages,
+  `public/**`, `src/`, `voice-agent/` and `scripts/`. `specimen.module.css` is
+  **also** unchanged — the fifth instance reuses the existing `conv*` classes
+  and two inline style props, which is why the file count is nine and not ten.
 - **THE HERO CONVERSATION HAS A RENDERER — HERO-1 phase 2, built** (`a047378`).
   Four files: `web/components/sections/conversation/Conversation.{tsx,module.css}`
   new, `/specimen`'s page and stylesheet extended. Phase 1's data (`5f74598`) is
