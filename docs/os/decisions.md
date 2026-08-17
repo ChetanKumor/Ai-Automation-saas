@@ -778,3 +778,30 @@ Enterprise — feature-gated across channels, workflows, KB size, users, integra
 analytics and support, under the standing instruction "publish *structure* not numbers
 early — quote in the demo". That ladder and this entry cannot both be in force. This
 entry does not edit it; reconciling the two is a separate decision.
+
+## D-016 — Warm Paper: light visual system for web/
+
+Date: 2026-08-16
+Supersedes: the near-black system in web/app/globals.css, shipped since portal v1.
+Resolves: F-F008 — web and the portal now share one teal, #0f766e.
+
+Decision: web/ renders on a warm paper ground (#FAF8F5) with warm near-black ink,
+selected over cool-clinical and tinted-neutral after a three-direction comparison
+with computed contrast. Two consequences that are not obvious from the palette:
+
+  1. TWO text steps, not three. --text-tertiary measured 3.89:1 on the dark ground
+     it was drawn for — already failing AA — and the legible band on paper is too
+     narrow to carry a third step anyone could see on a phone in daylight. Its 45
+     references collapse to --ink-soft (7.31:1).
+  2. --ink-faint (#A8A199, 2.41:1) is NON-TEXT ONLY, by written contract. It fails
+     AA for text and fails 1.4.11's 3:1 floor for meaningful non-text marks. It is
+     for decorative hairlines and undrawn states. Never a glyph.
+
+Landed across three commits: dormant token layer, the legal route group, the
+ground flip. 532 colour/backdrop pairs measured on the live DOM, zero failures.
+
+Falsifiable prediction: by 2027-02-16, no session has needed to add a third text
+token. If one does, the two-step collapse was too aggressive and the hierarchy was
+carrying information that size and weight could not.
+
+Review: 2027-02-16
