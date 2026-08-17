@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: c47cd98bbf91e2235885166103281334230be546
-Verified-on: 2026-08-16
+Verified-at: 5f745985add8d06df1fabd5943878a95fc6f1c6d
+Verified-on: 2026-08-17
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -76,8 +76,30 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1103 tests / 180 suites / 0 fail** (`npm test`, raw: `# tests 1103 /
-  # pass 1103 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+- Test suite: **1104 tests / 180 suites / 0 fail** (`npm test`, raw: `# tests 1104 /
+  # pass 1104 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  Measured at **HERO-1 phase 1** (the hero conversation data model), which is the
+  first session since Phase 1b to move the number at all. The baseline immediately
+  before it, at `c2d94df`, was measured twice — once directly and once through
+  `os:check` — at `# tests 1103 / # suites 180 / # pass 1103 / # fail 0 /
+  # cancelled 0 / # skipped 0 / # todo 0`.
+  ⚠️ **`# suites` did NOT move, and that is the correct result, not a miscount.**
+  `tests/design/conversationProvenance.test.js` is a single bare `test()` call —
+  the shape `tokenDrift.test.js` uses, for the reason stated in its header: the
+  suite total is a tracked number, and a per-assertion block would move it every
+  time a turn or a language is added. **A bare `test()` registers a test but no
+  suite**; run alone, `tokenDrift.test.js` reports `# tests 1 / # suites 0`. A
+  +1/+1 delta here would have meant a `describe()` wrapper added for no reason
+  other than to move a counter.
+  ⚠️ **THE FIRST RUN OF THE BASELINE WAS RED AND WAS NOT A DEFECT.** Three tests
+  in `tests/infra/serverListen.integration.test.js` (`:222`, `:230`, `:243`)
+  failed under CPU contention from two force-killed background runs: the suite
+  spawns a child server with a 30 s boot timeout, and under load the child never
+  reaches `app.listen`, so its captured stdout is the dotenv line and nothing
+  else. 6/6 green in isolation and in two subsequent full runs. This is a **third**
+  recorded intermittent, alongside `traces.integration.test.js:247` and
+  TEST-FLAKE-03 — and unlike those two it is load-induced, so it is provoked by
+  running anything heavy beside the suite rather than by a date or an ordering.
   Re-measured at **Phase 2 S2** (the whole site on Warm Paper):
   `# tests 1103 / # suites 180 / # pass 1103 / # fail 0 / # cancelled 0 /
   # skipped 0 / # todo 0`, all seven counters identical to the runs at
@@ -90,8 +112,14 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   not build, render or import anything under `web/` — `web/` has its own Next
   toolchain and zero tests, which is the standing gap recorded under *Stack
   (frozen)*. An unmoved 1103 says the change broke nothing it can see; it says
-  nothing whatever about whether the conversion landed. The one Node test with
-  any purchase here is `tests/design/tokenDrift.test.js`, which parses
+  nothing whatever about whether the conversion landed. **As of HERO-1 phase 1
+  there are TWO** Node tests that reach into `web/`, not one:
+  `tests/design/conversationProvenance.test.js` reads
+  `web/components/sections/conversation/{meta,te}.json` and compares the two
+  captured turns byte-for-byte against `public/demo/fixture.json`. It has real
+  purchase over `web/` content but none over rendering — the data it guards is
+  imported by nothing until phase 5. The other is
+  `tests/design/tokenDrift.test.js`, which parses
   `web/app/globals.css` as one of its four surfaces — and at S2 it is genuinely
   load-bearing rather than incidentally so: repointing `--accent` to `#0f766e`
   makes actual equal canonical, which **fails** unless the `--accent` @ `web`
@@ -109,7 +137,10 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   (`portalFaqs.integration.test.js:465` did not resurface, and
   `portalKnowledgeSummary` produced no cancellations) — twelve consecutive clean
   runs for both across Sessions 3, 4A and 5.
-  Last moved by **Issue 39 — a listen failure is loud, not a successful boot**
+  Last moved by **HERO-1 phase 1 — the hero conversation data model** (+1 test,
+  **+0 suites** — `tests/design/conversationProvenance.test.js`; see the note
+  above on why the suite count is right to stay still), before that by
+  **Issue 39 — a listen failure is loud, not a successful boot**
   (+6 tests, +1 suite — `tests/infra/serverListen.integration.test.js`; three
   consecutive full runs at 1103/180/0/0/0; see the note below), before that by
   **Issue 38 — the greeting is synthesised in the language the
