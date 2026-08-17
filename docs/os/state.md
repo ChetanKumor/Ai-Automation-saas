@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 5f745985add8d06df1fabd5943878a95fc6f1c6d
+Verified-at: a047378ca3e252df5d2362ee2e50047386fd4003
 Verified-on: 2026-08-17
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -78,7 +78,13 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   set the verdict — see the V1a note below for the mechanism and the red-check.
 - Test suite: **1104 tests / 180 suites / 0 fail** (`npm test`, raw: `# tests 1104 /
   # pass 1104 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  Measured at **HERO-1 phase 1** (the hero conversation data model), which is the
+  Re-measured at **HERO-1 phase 2** (the Conversation component on `/specimen`):
+  all seven counters identical to phase 1's, `1104 / 180 / 1104 / 0 / 0 / 0 / 0`,
+  taken twice at this commit — once before the change at `a071aa8` and once after.
+  **The delta is zero by intent**: phase 2 adds a renderer and no test. It also
+  cannot be otherwise — see the paragraph below on why the Node suite has no
+  purchase over rendering.
+  Last moved at **HERO-1 phase 1** (the hero conversation data model), which is the
   first session since Phase 1b to move the number at all. The baseline immediately
   before it, at `c2d94df`, was measured twice — once directly and once through
   `os:check` — at `# tests 1103 / # suites 180 / # pass 1103 / # fail 0 /
@@ -117,8 +123,12 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   `tests/design/conversationProvenance.test.js` reads
   `web/components/sections/conversation/{meta,te}.json` and compares the two
   captured turns byte-for-byte against `public/demo/fixture.json`. It has real
-  purchase over `web/` content but none over rendering — the data it guards is
-  imported by nothing until phase 5. The other is
+  purchase over `web/` content but none over rendering. **As of HERO-1 phase 2
+  that data IS imported** — `/specimen` renders it through `Conversation` — so
+  the test now guards strings that appear on a built page rather than strings
+  that appear nowhere; what it still cannot see is whether they are laid out,
+  coloured or scaled correctly, which is what the phase 2 gates measured on the
+  live DOM instead. The other is
   `tests/design/tokenDrift.test.js`, which parses
   `web/app/globals.css` as one of its four surfaces — and at S2 it is genuinely
   load-bearing rather than incidentally so: repointing `--accent` to `#0f766e`
@@ -492,6 +502,115 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE HERO CONVERSATION HAS A RENDERER — HERO-1 phase 2, built** (`a047378`).
+  Four files: `web/components/sections/conversation/Conversation.{tsx,module.css}`
+  new, `/specimen`'s page and stylesheet extended. Phase 1's data (`5f74598`) is
+  consumed unedited. Node **1104 / 180 / 1104 / 0 / 0 / 0 / 0 — UNMOVED**,
+  measured before and after at this commit. No new dependency: `git diff
+  web/package.json` and `web/package-lock.json` are both empty.
+  ⚠️ The Python worker suite was **not re-run**; its **97** is carried forward,
+  not verified. Nothing under `voice-agent/` is touched.
+  **IT IS A SERVER COMPONENT, AND THAT IS THE POINT.** `<Conversation turns
+  activeIndex />` has no `"use client"`, no hook and no timer — "stateless" is
+  structural here rather than promised, and the browser receives HTML. Two
+  consequences worth knowing before phase 3: `/specimen`'s first-load JS did
+  **not** move (104 kB; only its page size did, 1.07 → 1.43 kB), and
+  `public/demo/fixture.json` never enters a client chunk — grepping
+  `.next/static/` for `Sravani Reddy`, the dev tenant name and the appointment
+  UUID returns nothing, so the synthetic and dev-tenant fields the card
+  deliberately does not render are not shipped either. **Phase 3 will have to
+  add a client boundary** to drive `activeIndex` over time, and that flip is
+  what will put this module into a route chunk for the first time.
+  **THE CARD IS THE TERMINAL VALUE OF `activeIndex`, NOT A SECOND PROP.**
+  `activeIndex === turns.length` (6) is the only state that renders the
+  confirmation record; `0 … 5` render turns `0…activeIndex` and nothing after.
+  A `showCard` boolean would let a caller express states the thread cannot
+  reach — a record at turn 2, a last turn with no record — so phase 3 has
+  exactly one scalar to walk, `0 → 6`.
+  **THE REGION IS BOTTOM-ANCHORED, NOT SCROLLED.** Fixed height,
+  `justify-content: flex-end`, `overflow: hidden`; content overflows *upward*
+  and clips. No JS, no scroll container, DOM order preserved for a screen
+  reader, and turns that leave view stay in the DOM. Measured at
+  **296 / 340 / 376 px** (<768 / ≥768 / ≥1180) and **identical across all four
+  `activeIndex` values at all three widths** — the region does not grow with
+  content, so nothing below it shifts as turns arrive.
+  ⚠️ **`scrollHeight === clientHeight` on that region even when content
+  overflows**, at every instance. Overflow past the *start* edge of a flex
+  column is not counted by `scrollHeight`, so that pair is **not** evidence of
+  clipping and must not be used as one; the evidence is the captures in
+  `scratchpad/hero1p2-review/`, where the top turn is visibly cut mid-line.
+  **RECENCY IS 1.000 / 0.955 / 0.930, FLOORED**, `transform-origin: left
+  center`. The floor is load-bearing: without it six turns compound to ~0.70 and
+  the thread ends unreadable at the top. Colour carries **one** step and only
+  for Prantivo — an *active patient* turn stays `--ink-soft`, so at
+  `activeIndex = 2` nothing on screen is `--ink-strong`, which is correct and
+  looks like an omission if you do not know the rule. `--ink-faint` paints no
+  glyph at any recency position (D-016), verified on the live DOM: 0 of 15
+  distinct colour/backdrop pairs in the section, worst 6.70:1 against a floor
+  of 4.5.
+  ⚠️ **A CONTRAST SWEEP OF THE WHOLE `/specimen` PAGE WILL ALWAYS REPORT ONE
+  FAILURE, AND IT IS NOT A DEFECT.** `.faintBad` (2.21:1, `#A8A199` on
+  `--ground-sunk`) is Phase 1b's *deliberate* demonstration of the wrong
+  colour, labelled `--ink-faint · 2.21:1 on sunk · WRONG` on the page itself.
+  It is pre-existing and untouched. Scope a `/specimen` gate to
+  `[data-conversation-section]` or it fails on a paragraph whose job is to fail.
+  ⚠️ **`transform: scale()` DOES NOT MOVE COMPUTED `font-size`.** A probe that
+  dedups text nodes on computed size cannot see that a floored turn rasterises
+  at 0.930 — 23px reads as 21.39px at 1440. WCAG's large-text threshold is about
+  rendered size, so the phase 2 sweep multiplies the ancestor scales itself.
+  Same shape as the ancestor-*opacity* accumulation S2 needed, and for the same
+  reason: the composited result is in no single element's computed style.
+  **THE CARD SAYS "booked", NOT "confirmed", AND MUST NOT BE "FIXED".** The
+  phase 2 brief graded the word *confirmed* REAL and attributed it to
+  `fixture.appointment.status`; that field holds **`"booked"`**. Rendering
+  *confirmed* while citing the field would be a provenance claim with nothing
+  behind it — the exact failure the read-from-fixture rule exists to prevent —
+  and *booked* also reads truer against t3, `బుక్ అయింది`. `doctor_name`
+  (`Dr. Rao`) and `time` (`09:00`, rendered `9:00 AM` by pure string arithmetic,
+  never `Date`/`Intl`, so the build machine's zone cannot reach it) come from
+  the same block. `Tomorrow` is AUTHORED. `date` is **deliberately not
+  rendered**: it is `2026-07-18`, four weeks stale, and "Saturday, 18 July"
+  beside a thread saying *tomorrow* is incoherent — the incoherence is the
+  data's age, not the copy's.
+  **GATES.** `/` at **0 differing pixels** at 360/768/1440 (raw RGBA, build-id
+  interlocked `XOO2GYNJO-3rJgzo1aFAV` → `UqOF5VfVnHesQbcV9wpzK`), with `/`'s
+  three CSS hrefs **unmoved** — the new stylesheet is a CSS module only
+  `/specimen` imports, so `/`'s chunks had no reason to move and did not.
+  `/` unchanged at 7.42 kB / 113 kB first-load JS. No horizontal overflow at 360
+  on **12 named elements** per width (`scrollWidth === clientWidth`, each
+  printed with its tag and resolved class — an earlier session shipped a check
+  that compared `undefined` to `undefined` and printed ok). Telugu resolves to
+  **Noto Sans Telugu** with no tofu, proven by canvas width against the same
+  string set in U+E000 rather than by reading the family name, which a stack
+  whose face never loaded would also report.
+  ⚠️ **`letter-spacing: 0` SERIALISES AS `normal`** in Chrome's computed style,
+  so a probe asserting the literal string `0px` on the Telugu rule reads a false
+  negative. The rule demonstrably applies — the same node reports Noto Sans
+  Telugu and the Telugu clamp's floor of 18px, neither of which the base `.text`
+  would give it.
+  ⚠️ **A REVIEW HARNESS MUST RE-MEASURE BEFORE EVERY SHOT.** The first pass
+  measured all five clip rects up front and then took five screenshots;
+  the first two landed and the rest were offset by roughly two instance heights
+  — the capture labelled `i2` photographed the tail of `i5`.
+  `captureBeyondViewport` resizes the viewport to the content box and does not
+  restore the scroll offset, so a document-coordinate clip is stale by the third
+  shot. The harness now scrolls to origin, measures, captures, re-measures, and
+  **throws** if the rect moved: a mislabelled capture is worse than no capture,
+  because it looks like a review.
+  **NOT TOUCHED, and checked rather than assumed:** `Hero.tsx`, `HeroChat.tsx`
+  and `Hero.module.css` still render `/` unchanged; `globals.css`,
+  `brand-values.md`, the four `(legal)` pages, `public/**`, `src/`,
+  `voice-agent/`, `scripts/` (bar the gitignored `scripts/out/` the brief itself
+  writes to) and phase 1's `types.ts`/`index.ts`/`meta.json`/`te.json` are
+  byte-unchanged. `/specimen` keeps `robots: noindex, nofollow` (read off the
+  built HTML **and** the live DOM), is absent from the built `sitemap.xml`
+  (5 URLs, none of them it), and `a[href*="specimen"]` counts **0** on the live
+  page — which includes Nav and Footer, since `/specimen` sits inside the
+  `(marketing)` group.
+  ⚠️ **A PRE-EXISTING STALE LINE ON `/specimen`, left alone:** its footer still
+  reads "Consumers on shipping routes: zero", which Phase 2 S2 falsified when
+  the whole site took the paper layer. Phase 2's brief forbids disturbing the
+  token specimen, so it is recorded here rather than edited.
 - **THE WHOLE SITE RENDERS WARM PAPER — Phase 2 S2, built** (`c47cd98`).
   `body` takes `--ground`. Every route in `web/` — `/`, `/specimen` and the four
   legal pages — is on the paper layer. The change is **atomic by construction**:
