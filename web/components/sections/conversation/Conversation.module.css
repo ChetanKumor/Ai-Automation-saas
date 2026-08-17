@@ -1,0 +1,215 @@
+/* ============================================================================
+ * The hero conversation. Every value here is a Warm Paper token or a number the
+ * HERO-1 phase 2 brief fixes; nothing invents a colour.
+ *
+ * Three things in this file are load-bearing and easy to undo by accident:
+ *
+ *   1. THE REGION HAS A FIXED HEIGHT. It is the whole bottom-anchoring
+ *      mechanism — `justify-content: flex-end` on a column overflows at the TOP
+ *      and `overflow: hidden` clips it there, which is a scroll-to-bottom chat
+ *      without a line of JavaScript, without a scroll container, and without
+ *      reordering the DOM away from what a screen reader should hear. Give the
+ *      region `height: auto` and it silently becomes a list that grows and
+ *      pushes the page around.
+ *
+ *   2. `transform: scale()` DOES NOT AFFECT LAYOUT. A receded turn still
+ *      occupies its full box; only the glyphs shrink, from
+ *      `transform-origin: left center` so the left edge stays a straight column.
+ *      That is why the region's height is a constant and not a function of
+ *      `activeIndex`, and it is also why a contrast probe has to multiply the
+ *      ancestor scales itself — computed font-size never moves.
+ *
+ *   3. --ink-faint PAINTS NO GLYPH, at any recency position. The floor of the
+ *      ladder is --ink-soft (7.31:1 on --ground, 6.70:1 on --ground-sunk) and
+ *      the step below it is not a colour, it is 0.930. See the NON-TEXT ONLY
+ *      contract in globals.css and D-016.
+ * ========================================================================== */
+
+.region {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  height: 296px;
+  gap: 24px;
+}
+
+/* —— A turn ——————————————————————————————————————————————————————————— */
+
+.turn {
+  position: relative;
+  flex: none;
+  /* left, so every turn shares one left edge as it recedes; center, so a turn
+     shrinks toward its own middle rather than lifting off the line below it. */
+  transform-origin: left center;
+  /* The measure. Without it the timestamp — pushed to the inline end — walks
+     off to the far right of a 1440px column and stops reading as part of the
+     turn it belongs to. */
+  max-width: 34rem;
+}
+
+/* Prantivo turns are inset far enough to clear the hairline. Patients are not:
+   INDENT is the second speaker channel, and it needs no contrast ratio. */
+.turnPrantivo {
+  padding-left: 16px;
+}
+
+.turnPatient {
+  padding-left: 0;
+}
+
+/* Decoration, and only decoration — the LABEL carries speaker identity as text.
+   That is what makes --rule legitimate here at 1.18:1 rather than a 1.4.11
+   failure: losing this line loses nothing. */
+.hair {
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  width: 1px;
+  background: var(--rule);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* The only Geist Mono on this component. Tabular by nature: a column of times
+   that jitters is a column of times you read instead of skim. */
+.time {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+  margin-inline-start: auto;
+}
+
+.text {
+  font-size: var(--type-body);
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  /* Long Telugu compounds have few break opportunities; without this a single
+     unbreakable run at 360px pushes the region wider than the page. */
+  overflow-wrap: break-word;
+}
+
+.inkStrong {
+  color: var(--ink-strong);
+}
+
+/* —— Telugu ————————————————————————————————————————————————————————————
+   Its own optical scale, because Telugu set at a Latin-tuned size reads a step
+   smaller: the conjuncts stack vertically and the effective x-height is lower.
+   The floor is 1.125rem — above 1rem at every width, INCLUDING 360px where the
+   Latin clamp is already at its own floor.
+
+   TRACKING 0, explicitly. Negative tracking is what --track-lede and
+   --track-display carry for Latin, and it collides Telugu conjunct stacks; the
+   declaration is here so that a future letter-spacing on an ancestor cannot
+   inherit into a script that must not have one.
+
+   Leading is looser than Latin's for the same reason public/demo/styles.css:269
+   and specimen.module.css:408-410 loosen theirs — matras sit above and below
+   the baseline and get cramped at 1.6. */
+.text:lang(te) {
+  font-family: var(--font-te);
+  font-size: clamp(1.125rem, 1.6vw, 1.4375rem);
+  letter-spacing: 0;
+  line-height: 1.75;
+}
+
+/* —— The confirmation record ——————————————————————————————————————————— */
+
+.card {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  width: calc(100% - 40px);
+  background: var(--ground-sunk);
+  border: 1px solid var(--rule);
+  border-radius: var(--rad-lg);
+  /* No indent and no hairline: the card is not a message and should not line up
+     as one. It sits on the region's own left edge. */
+}
+
+/* The ONLY green on the component, and the only place --answered appears. A
+   graphic, not a glyph — the words beside it already say "booked", so under
+   1.4.11 it carries nothing required, and at 6.17:1 on --ground-sunk it clears
+   the 3:1 bar anyway. Stroke-drawn rather than a filled tick so it reads as
+   written by hand at the moment the booking landed. */
+.check {
+  flex: none;
+  color: var(--answered);
+  margin-top: 1px;
+}
+
+.cardTitle {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink-strong);
+}
+
+/* Sans, NOT mono. "9:00 AM" here is a clause in a sentence, not a timestamp
+   label — Geist Mono is reserved for .time and appears nowhere else. */
+.cardMeta {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+/* —— Breakpoints ——————————————————————————————————————————————————————
+   768 is fixed by the brief (the card's width switch). 1180 matches `.wrap` in
+   globals.css, so the widest tier arrives when the page container does. */
+
+@media (min-width: 768px) {
+  .region {
+    height: 340px;
+    gap: 28px;
+  }
+  .card {
+    width: 340px;
+  }
+}
+
+@media (min-width: 1180px) {
+  .region {
+    height: 376px;
+    gap: 32px;
+  }
+}
+
+/* —— The ladder ————————————————————————————————————————————————————————
+   Last, so it wins on order against anything above that also sets transform.
+   Three discrete classes rather than an inline custom property: these are the
+   three states the design has, and they belong in the stylesheet beside the
+   tokens rather than in a `style` attribute the component computes. */
+
+.stepActive {
+  transform: scale(1);
+}
+
+.stepNear {
+  transform: scale(0.955);
+}
+
+/* THE FLOOR. Not "the next step" — the last one. Every turn at distance 2 or
+   more sits here. */
+.stepFloor {
+  transform: scale(0.93);
+}

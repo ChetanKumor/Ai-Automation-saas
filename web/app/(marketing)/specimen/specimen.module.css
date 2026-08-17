@@ -554,3 +554,59 @@
     padding: 40px 16px 64px;
   }
 }
+
+/* —— HERO-1 phase 2 · the Conversation specimen ——————————————————————————
+   Chrome only. Nothing here styles the component — every value the composition
+   depends on lives in Conversation.module.css, so a rule added on this page
+   cannot make the component look right somewhere it is not.
+
+   The frame is the one thing here that is more than a label. The region's whole
+   mechanism is a FIXED HEIGHT that content clips against, and an invisible clip
+   edge is indistinguishable from a short thread; the border draws the edge so a
+   reviewer can see the top turn being cut rather than take it on trust. It is
+   deliberately border + horizontal padding only — vertical padding would make
+   the frame taller than the region and misreport the very thing it exists to
+   show — and it stays background-less so the region's composited backdrop is
+   the real --ground, not a surface invented for the specimen. */
+
+.convSection {
+  margin-top: 96px;
+  padding-top: 48px;
+  border-top: 1px solid var(--rule-strong);
+}
+
+.convStack {
+  margin-top: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+}
+
+.convInstance {
+  max-width: 580px;
+}
+
+.convLabel {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.convIndex {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--ink-strong);
+}
+
+.convNote {
+  font-size: var(--type-meta);
+  color: var(--ink-soft);
+}
+
+.convFrame {
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--rad-md);
+  padding: 0 16px;
+}

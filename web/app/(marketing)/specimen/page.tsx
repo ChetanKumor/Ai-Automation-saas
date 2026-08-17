@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import styles from "./specimen.module.css";
 import { TOKENS, GROUNDS, PALETTE, byGroup, verdict, type Verdict } from "./tokens";
+import { Conversation } from "@/components/sections/conversation/Conversation";
+import { getConversation } from "@/components/sections/conversation";
 
 /* ============================================================================
  * Phase 1b token specimen. Server component — no "use client", no hooks, no
@@ -10,6 +12,11 @@ import { TOKENS, GROUNDS, PALETTE, byGroup, verdict, type Verdict } from "./toke
  * render above and below from the old dark tokens, so the two systems sit on
  * one page and dormancy is something you can see rather than something the
  * commit message asserts.
+ *
+ * HERO-1 phase 2 appends a second specimen below the first: the Conversation
+ * component, four instances, static. Same reason the token table is here — a
+ * component whose central primitive nobody has looked at is not reviewable, and
+ * the recency ladder in particular is a thing you either see working or do not.
  *
  * NOT linked from Nav or Footer. Reached by typing the URL.
  * ========================================================================== */
@@ -71,6 +78,21 @@ const TYPE_STEPS = [
     latin: "Last updated · 15 August 2026",
     te: "అంతే, ధన్యవాదాలు",
   },
+];
+
+// Phase 1's data, consumed unedited. `te` because the hero's own subhead claims
+// Telugu and this is the claim the product can prove for free.
+const CONVERSATION = getConversation("te");
+
+// Four states of one scalar. `CONVERSATION.length` — not a literal 6 — is the
+// "complete" value: activeIndex one past the last turn is what puts the
+// confirmation record on screen, and hardcoding 6 would quietly render a
+// six-turn thread with no card the day a seventh turn is authored.
+const INSTANCES = [
+  { activeIndex: 0, note: "idle — only t0 has arrived, resting at the bottom of a full-height region" },
+  { activeIndex: 2, note: "mid-thread — t2 active, t1 one step back, t0 on the floor" },
+  { activeIndex: 5, note: "the last turn active; the record has not landed yet" },
+  { activeIndex: CONVERSATION.length, note: "complete — every turn, plus the confirmation record" },
 ];
 
 export default function SpecimenPage() {
@@ -368,6 +390,74 @@ export default function SpecimenPage() {
           {TOKENS.length} tokens declared in web/app/globals.css. Consumers on
           shipping routes: zero.
         </p>
+
+        {/* ── HERO-1 phase 2 · the Conversation component ───────────────
+            Appended below the token specimen, which is left whole above —
+            footer line included. Everything from here down is the component,
+            not the token table. */}
+        <section className={styles.convSection} data-conversation-section>
+          <p className={styles.kicker}>HERO-1 phase 2 · Static · No playback</p>
+          <h2 className={styles.h2}>Conversation</h2>
+          <p className={styles.sectionNote}>
+            One stateless component, rendered four times.{" "}
+            <code>&lt;Conversation turns activeIndex /&gt;</code> — no timer, no
+            state, no audio, no selector. Phase 3 adds the thing that walks{" "}
+            <code>activeIndex</code> forward; these four frames are what it will
+            walk through, so they are also its pixel-equality baseline.
+          </p>
+          <p className={styles.sectionNote}>
+            The region is <strong>bottom-anchored, not scrolled</strong> — a
+            fixed height, <code>justify-content: flex-end</code> and{" "}
+            <code>overflow: hidden</code>. Content overflows upward and clips;
+            turns that leave view stay in the DOM and stay in reading order. The
+            frame drawn around each region is this page&rsquo;s, not the
+            component&rsquo;s: it marks where the fixed height ends so the clip
+            is visible rather than inferred.
+          </p>
+          <p className={styles.sectionNote}>
+            Recency is <strong>1.000 / 0.955 / 0.930</strong>, floored — colour
+            carries one step and scale carries the rest, so{" "}
+            <code>--ink-faint</code> touches no glyph at any position. Only an
+            active <em>Prantivo</em> turn takes <code>--ink-strong</code>; a
+            patient turn stays <code>--ink-soft</code> whether it is active or
+            not. The hairline is Prantivo-only and decorative.
+          </p>
+
+          <div className={styles.convStack}>
+            {INSTANCES.map((inst) => (
+              <div
+                key={inst.activeIndex}
+                className={styles.convInstance}
+                data-active-index={inst.activeIndex}
+              >
+                <div className={styles.convLabel}>
+                  <span className={styles.convIndex}>
+                    activeIndex = {inst.activeIndex}
+                  </span>
+                  <span className={styles.convNote}>{inst.note}</span>
+                </div>
+                <div className={styles.convFrame}>
+                  <Conversation
+                    turns={CONVERSATION}
+                    activeIndex={inst.activeIndex}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <p className={styles.sectionNote} style={{ marginTop: 32 }}>
+            The record on the last instance is read from{" "}
+            <code>public/demo/fixture.json</code>, not typed into the component:{" "}
+            <code>Dr. Rao</code>, <code>9:00 AM</code> and <code>booked</code>{" "}
+            are that file&rsquo;s <code>appointment</code> block.{" "}
+            <code>Tomorrow</code> is authored — it is the dialogue&rsquo;s own
+            relative framing. The fixture&rsquo;s <code>date</code> is
+            deliberately not rendered: it is 2026-07-18, and a card reading
+            &ldquo;Saturday, 18 July&rdquo; beside a thread saying{" "}
+            <span lang="te">రేపు</span> (&ldquo;tomorrow&rdquo;) is incoherent.
+          </p>
+        </section>
       </div>
     </main>
   );
