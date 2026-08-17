@@ -213,3 +213,160 @@
 .stepFloor {
   transform: scale(0.93);
 }
+
+/* ============================================================================
+ * PLAYBACK — everything below is scoped to `.live`, the region of the one
+ * instance a client is playing.
+ *
+ * THE SCOPING IS THE POINT, not tidiness. The four static instances on
+ * /specimen are phase 3's pixel gate: splitting each turn's text into spans must
+ * not move a glyph, and that gate only means something if the spans are the ONLY
+ * thing that changed underneath them. So a static frame gains no transition, no
+ * animation, and — critically — no `translateY` composed into its transform. It
+ * renders exactly the declarations phase 2 captured.
+ * ========================================================================== */
+
+/* —— The region scroll —————————————————————————————————————————————————
+   A new turn is appended to a bottom-anchored column, so everything above it
+   moves up by the new turn's height in one layout pass. --shift is a FLIP:
+   ConversationPlayer measures that jump, puts the turns back down by exactly
+   it with transitions off, then releases it to 0 with them on. The content
+   slides up over 320ms and the new turn rises into place from below the clip
+   edge, which is what a scroll-to-bottom looks like.
+
+   IT IS THE SAME 320ms AND THE SAME CURVE AS THE RECESSION because it is the
+   same declaration — both live in `transform`, so they cannot drift apart. */
+.live .turn {
+  transition: transform 320ms var(--ease-out);
+  /* The turn's frame — label, time, hairline — arrives whole in one 150ms fade.
+     For a patient turn that IS the whole appearance; for a Prantivo turn the
+     words then emerge into a frame that is already there. */
+  animation: turnIn var(--dur-micro) var(--ease-out) both;
+}
+
+/* The one frame where --shift is applied must not animate, or the content would
+   slide DOWN to the old position before sliding back. */
+.live[data-flip="off"] .turn {
+  transition: none;
+}
+
+.live .stepActive {
+  transform: translateY(var(--shift, 0px)) scale(1);
+}
+
+.live .stepNear {
+  transform: translateY(var(--shift, 0px)) scale(0.955);
+}
+
+.live .stepFloor {
+  transform: translateY(var(--shift, 0px)) scale(0.93);
+}
+
+@keyframes turnIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* —— Phrase emergence ——————————————————————————————————————————————————
+   Opacity only, and no movement — the span keeps its space while transparent,
+   so the words already on screen do not shuffle when the next phrase lands.
+   180ms LINEAR: an eased fade on text reads as a blur, because the eye tracks
+   the midpoint of the ramp rather than its endpoints. */
+.live [data-phrase] {
+  transition: opacity var(--dur-emerge) linear;
+}
+
+.live [data-phrase][data-hidden] {
+  opacity: 0;
+}
+
+/* —— The confirmation record ——————————————————————————————————————————
+   400ms, --ease-out. That curve is cubic-bezier(0.16, 1, 0.3, 1): a strong
+   decelerate that never crosses its endpoint, which is the correct CSS
+   approximation of a critically damped spring. --ease-spring exists and is NOT
+   used here — it overshoots, and a booking confirmation that bounces is a
+   booking confirmation you do not believe. */
+.live .card {
+  animation: cardIn 400ms var(--ease-out) both;
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* THE CHECK DRAWS, IT DOES NOT FADE. The stroke is 22.5 units long; 23 of
+   dash and 23 of offset hides it completely, and running the offset to 0 writes
+   it from the short arm to the long one.
+
+   The 400ms delay is what keeps the promise: it starts only once the card has
+   finished arriving, so the mark is never a shape at partial opacity — it is
+   invisible, and then it is being written. */
+.live .check path {
+  stroke-dasharray: 23;
+  stroke-dashoffset: 23;
+  animation: drawCheck 400ms var(--ease-out) 400ms both;
+}
+
+@keyframes drawCheck {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* —— The player's own frame ————————————————————————————————————————————
+   `.host` and `.fade` wrap the region; they are OUTSIDE it, so they cannot
+   affect the region's internal layout or its fixed height. */
+.host {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+/* Replay dissolves `complete` → `idle` rather than cutting to it. Enter and
+   exit run the same 150ms along the same curve, so the thread leaves the way
+   it came back. */
+.fade {
+  align-self: stretch;
+  transition: opacity var(--dur-micro) var(--ease-out);
+}
+
+.fade[data-crossfading] {
+  opacity: 0;
+}
+
+/* —— Reduced motion ————————————————————————————————————————————————————
+   NO RECENCY SCALING. All turns sit at 1.0 and colour carries recency on its
+   own. Scoped to `.live` deliberately: `prefers-reduced-motion` is a request
+   about things that MOVE, and the ladder on a static frame never moves — it is
+   a visual hierarchy, not an animation. Flattening it there would also destroy
+   the phase-2 pixel baseline, which is captured under forced reduced motion.
+
+   Playback itself is untouched. Reduced motion is not reduced content: the
+   sequence still runs, at the same cadence, through all six turns — what stops
+   is per-phrase emergence (usePlayback reveals a turn's phrases together) and
+   the region-scroll FLIP (ConversationPlayer skips it, so the shift is
+   instantaneous).
+
+   The fades themselves are collapsed to 0.01ms by globals.css:369-375, which
+   applies `transition-duration` and `animation-duration` !important to every
+   element on the site. That is the site-wide contract and this file does not
+   fight it. */
+@media (prefers-reduced-motion: reduce) {
+  .live .stepActive,
+  .live .stepNear,
+  .live .stepFloor {
+    transform: none;
+  }
+}

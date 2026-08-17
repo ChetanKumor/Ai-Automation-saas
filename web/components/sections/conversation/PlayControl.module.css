@@ -1,0 +1,90 @@
+/* ============================================================================
+ * The play control. Every value is a Warm Paper token; nothing here invents a
+ * colour, a radius or a curve.
+ *
+ * THE MORPH IS NOT A WIDTH ANIMATION. `.control` keeps `width: auto` in every
+ * state. What moves is the label's grid column (1fr → 0fr) and the trailing
+ * padding, so the button's intrinsic width follows the label out and lands at
+ * exactly 48px — the glyph slot — with the same 24px radius that made it a
+ * pill. That is why there is no measured pixel width anywhere in this file and
+ * why phase 4 can change the label's language without retuning anything.
+ *
+ * ONE RADIUS, TWO SHAPES. 24px on a 48px-tall box is a pill at any width and a
+ * circle at 48px. The shape change is free.
+ * ========================================================================== */
+
+.control {
+  display: inline-flex;
+  align-items: center;
+  height: 48px;
+  padding: 0 24px 0 0;
+  border: 0;
+  border-radius: 24px;
+  background: var(--ink-strong);
+  color: var(--ground);
+  font-family: inherit;
+  cursor: pointer;
+  /* The press scales about the button's middle rather than a corner. */
+  transform-origin: center;
+  transition:
+    padding-right var(--dur-base) var(--ease-out),
+    transform 100ms var(--ease-out);
+}
+
+.control[data-shape="circle"] {
+  padding-right: 0;
+}
+
+/* PRESS FEEDBACK, ON POINTER-DOWN. `:active` is the whole reason this is CSS
+   and not an onClick class toggle — the browser sets it the instant the pointer
+   goes down, before any click event exists to listen for. */
+.control:active {
+  transform: scale(0.985);
+}
+
+.control:focus-visible {
+  outline: 2px solid var(--accent-on-ground);
+  outline-offset: 3px;
+}
+
+/* A fixed square, so the glyph never moves and the collapsed button is exactly
+   48px. The icon is centred in it, which also centres it in the circle. */
+.glyph {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+}
+
+.icon {
+  display: block;
+}
+
+/* 1fr → 0fr. The child clips, so the label slides out of its own column rather
+   than reflowing or wrapping on the way. */
+.labelWrap {
+  display: grid;
+  grid-template-columns: 1fr;
+  transition:
+    grid-template-columns var(--dur-base) var(--ease-out),
+    opacity var(--dur-base) var(--ease-out);
+}
+
+.control[data-shape="circle"] .labelWrap {
+  grid-template-columns: 0fr;
+  opacity: 0;
+}
+
+.labelText {
+  min-width: 0;
+  overflow: hidden;
+  /* The control must not become two lines at 360px: the region below it has a
+     fixed height and the control's top is measured against it. */
+  white-space: nowrap;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  text-align: left;
+}

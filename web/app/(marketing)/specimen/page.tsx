@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import styles from "./specimen.module.css";
 import { TOKENS, GROUNDS, PALETTE, byGroup, verdict, type Verdict } from "./tokens";
-import { Conversation } from "@/components/sections/conversation/Conversation";
+import { Conversation, to12Hour } from "@/components/sections/conversation/Conversation";
+import { ConversationPlayer } from "@/components/sections/conversation/ConversationPlayer";
 import { getConversation } from "@/components/sections/conversation";
+import fixture from "../../../../public/demo/fixture.json";
 
 /* ============================================================================
  * Phase 1b token specimen. Server component — no "use client", no hooks, no
@@ -83,6 +85,30 @@ const TYPE_STEPS = [
 // Phase 1's data, consumed unedited. `te` because the hero's own subhead claims
 // Telugu and this is the claim the product can prove for free.
 const CONVERSATION = getConversation("te");
+
+/* ── THE SERVER→CLIENT BOUNDARY ───────────────────────────────────────────────
+ *
+ * This narrowing is the whole reason it lives here rather than inside the
+ * component. Phase 2's Conversation was a server component and read
+ * fixture.json itself; phase 3 gives it a client wrapper, which drags every
+ * module it imports into a browser chunk. So the fixture is read HERE — in a
+ * server component, which this page still is — and exactly three strings are
+ * handed across.
+ *
+ * What stays behind, and is verified to stay behind by grepping .next/static/:
+ *   appointment.id            8667b5bc-6509-46df-bf30-051478bd4a95
+ *   customer.name             a synthetic patient
+ *   tenant                    "Smile Dental (Voice Dev)", a dev tenant
+ *   appointment.date          2026-07-18, four weeks stale
+ *
+ * The formatting rule is imported rather than copied: one definition of what
+ * "09:00" renders as, in the component that renders it.
+ * ────────────────────────────────────────────────────────────────────────── */
+const RECORD = {
+  status: fixture.appointment.status,
+  time: to12Hour(fixture.appointment.time),
+  doctor: fixture.appointment.doctor_name,
+} as const;
 
 // Four states of one scalar. `CONVERSATION.length` — not a literal 6 — is the
 // "complete" value: activeIndex one past the last turn is what puts the
@@ -396,14 +422,20 @@ export default function SpecimenPage() {
             footer line included. Everything from here down is the component,
             not the token table. */}
         <section className={styles.convSection} data-conversation-section>
-          <p className={styles.kicker}>HERO-1 phase 2 · Static · No playback</p>
+          <p className={styles.kicker}>
+            HERO-1 phase 3 · Playback · No audio, no selector
+          </p>
           <h2 className={styles.h2}>Conversation</h2>
           <p className={styles.sectionNote}>
-            One stateless component, rendered four times.{" "}
-            <code>&lt;Conversation turns activeIndex /&gt;</code> — no timer, no
-            state, no audio, no selector. Phase 3 adds the thing that walks{" "}
-            <code>activeIndex</code> forward; these four frames are what it will
-            walk through, so they are also its pixel-equality baseline.
+            One stateless component, rendered four times, plus a fifth instance
+            a client is playing. <code>&lt;Conversation&gt;</code> still renders
+            a frame as a pure function of{" "}
+            <code>(turns, activeIndex, revealed)</code> — the thing that walks{" "}
+            <code>activeIndex</code> forward over time is a separate file, and
+            it is the only one carrying <code>&quot;use client&quot;</code>.
+            These four frames are what it walks through, so they are also its
+            pixel-equality baseline: phrase splitting subdivides every turn&rsquo;s
+            text into spans, and that must not move a glyph.
           </p>
           <p className={styles.sectionNote}>
             The region is <strong>bottom-anchored, not scrolled</strong> — a
@@ -440,11 +472,52 @@ export default function SpecimenPage() {
                   <Conversation
                     turns={CONVERSATION}
                     activeIndex={inst.activeIndex}
+                    record={RECORD}
                   />
                 </div>
               </div>
             ))}
           </div>
+
+          {/* ── The fifth instance — interactive ─────────────────────────
+              The four above are frames. This one walks them.
+
+              It sits BELOW them and outside their stack so that nothing about
+              the four changes: same order, same boxes, same markup, so their
+              phase-2 captures stay a usable pixel baseline for the phrase spans
+              that now subdivide every turn's text. */}
+          <div className={styles.convInstance} data-player-instance style={{ marginTop: 48 }}>
+            <div className={styles.convLabel}>
+              <span className={styles.convIndex}>&lt;ConversationPlayer /&gt;</span>
+              <span className={styles.convNote}>
+                playback — idle · playing · paused · complete
+              </span>
+            </div>
+            <div className={styles.convFrame} style={{ padding: 16 }}>
+              <ConversationPlayer turns={CONVERSATION} lang="te" record={RECORD} />
+            </div>
+          </div>
+
+          <p className={styles.sectionNote} style={{ marginTop: 32 }}>
+            The frame around the player encloses the control as well as the
+            region, so unlike the four above it is not a marker for where the
+            fixed height ends — the four static instances keep that job.
+            Playback walks <code>activeIndex</code> 0 → 6 in{" "}
+            <strong>13.2 seconds</strong>, from one constant:{" "}
+            <code>phraseDuration = max(550ms, chars / 32 × 1000)</code>, plus
+            220ms of stillness after each turn. The constant is per language and
+            lives in <code>cadence.ts</code>; phase 4 adds two more.
+          </p>
+          <p className={styles.sectionNote}>
+            <strong>Emergence is Prantivo-only.</strong> A patient turn appears
+            whole, in one 150ms fade — the asymmetry is the content:{" "}
+            <em>Prantivo speaks</em>, the patient&rsquo;s message{" "}
+            <em>arrived</em>. Only <code>t1</code> and <code>t3</code> visibly
+            unfold, because they are the only Prantivo turns with more than one
+            phrase, and they are the two turns where the receptionist is doing
+            work. An un-emerged phrase is transparent rather than absent, so it
+            holds its space and nothing already on screen moves when it lands.
+          </p>
 
           <p className={styles.sectionNote} style={{ marginTop: 32 }}>
             The record on the last instance is read from{" "}
