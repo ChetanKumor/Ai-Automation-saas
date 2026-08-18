@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: d221c8fcf977cae4a4e0ae4829721836ac35653d
-Verified-on: 2026-08-17
+Verified-at: 08120ada634505ad44138d8c9f2cb4c9024eb527
+Verified-on: 2026-08-18
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -76,8 +76,27 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1104 tests / 180 suites / 0 fail** (`npm test`, raw: `# tests 1104 /
-  # pass 1104 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+- Test suite: **1105 tests / 180 suites / 0 fail** (`npm test`, raw: `# tests 1105 /
+  # pass 1105 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  Moved at **HERO-1 phase 4** (the language selector): **+1 test, +0 suites** —
+  `tests/design/conversationLanguages.test.js`, one bare `test()` call, which is
+  why the suite count does not move (see the note below on that asymmetry). It is
+  the **third** Node test with purchase over `web/`, and the first that executes
+  TypeScript from `web/`: the root suite is CommonJS with no loader, so it shells
+  out to `node --experimental-strip-types` and imports the real `cadence.ts`
+  rather than regexing it as text. `index.ts` is NOT reachable that way — it
+  imports its JSON without an import attribute, which Next's bundler resolves and
+  plain Node does not — so `getConversation` is covered by `next build` instead,
+  positive-controlled this session by forcing `getConversation("hi")` into the
+  page and watching the build fail with `conversation: no strings for "hi"`.
+  ✅ **THE PHASE-3 UNATTRIBUTED INTERMITTENT DID NOT RECUR.** Phase 3 recorded one
+  unnamed failure at `acd3e73` (`# pass 1103 / # fail 1`). This session ran the
+  baseline at `910f196` **three times** — twice directly and once through
+  `os:check` — and got `1104 / 180 / 1104 / 0 / 0 / 0 / 0` every time, then
+  `1105 / 180 / 1105 / 0 / 0 / 0 / 0` after the change. That is six consecutive
+  clean runs across two sessions against the one dirty run. It does not NAME the
+  phase-3 failure and so does not close it; it does establish that nothing at this
+  commit reproduces it. Left open, not chased — founder's instruction.
   Re-measured at **HERO-1 phase 3** (playback): all seven counters identical
   again, `1104 / 180 / 1104 / 0 / 0 / 0 / 0`. **The delta is zero by intent** —
   phase 3 adds a state machine, a cadence model and a client boundary, and no
@@ -95,6 +114,8 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   fourth recorded intermittent cannot be claimed on evidence this thin, and
   neither can a clean bill; what is established is that the tree was green
   three times out of four at this commit, twice of them after the change.
+  **Phase 4 added three more clean runs at `910f196` without reproducing it** — see
+  the ✅ note above.
   Re-measured at **HERO-1 phase 2** (the Conversation component on `/specimen`):
   all seven counters identical to phase 1's, `1104 / 180 / 1104 / 0 / 0 / 0 / 0`,
   taken twice at this commit — once before the change at `a071aa8` and once after.
@@ -135,8 +156,8 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   not build, render or import anything under `web/` — `web/` has its own Next
   toolchain and zero tests, which is the standing gap recorded under *Stack
   (frozen)*. An unmoved 1103 says the change broke nothing it can see; it says
-  nothing whatever about whether the conversion landed. **As of HERO-1 phase 1
-  there are TWO** Node tests that reach into `web/`, not one:
+  nothing whatever about whether the conversion landed. **As of HERO-1 phase 4
+  there are THREE** Node tests that reach into `web/`, not one:
   `tests/design/conversationProvenance.test.js` reads
   `web/components/sections/conversation/{meta,te}.json` and compares the two
   captured turns byte-for-byte against `public/demo/fixture.json`. It has real
@@ -145,7 +166,11 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   the test now guards strings that appear on a built page rather than strings
   that appear nowhere; what it still cannot see is whether they are laid out,
   coloured or scaled correctly, which is what the phase 2 gates measured on the
-  live DOM instead. The other is
+  live DOM instead. The third, new at phase 4, is
+  `tests/design/conversationLanguages.test.js`,
+  which pins `en.json`'s bytes, its phrase partition and the cadence parity
+  between the two languages. It is the only one that EXECUTES `web/` code — see
+  the suite note above for how, and for what that still cannot reach. The other is
   `tests/design/tokenDrift.test.js`, which parses
   `web/app/globals.css` as one of its four surfaces — and at S2 it is genuinely
   load-bearing rather than incidentally so: repointing `--accent` to `#0f766e`
@@ -164,7 +189,9 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   (`portalFaqs.integration.test.js:465` did not resurface, and
   `portalKnowledgeSummary` produced no cancellations) — twelve consecutive clean
   runs for both across Sessions 3, 4A and 5.
-  Last moved by **HERO-1 phase 1 — the hero conversation data model** (+1 test,
+  Last moved by **HERO-1 phase 4 — the language selector** (+1 test, **+0
+  suites** — `tests/design/conversationLanguages.test.js`), before that by
+  **HERO-1 phase 1 — the hero conversation data model** (+1 test,
   **+0 suites** — `tests/design/conversationProvenance.test.js`; see the note
   above on why the suite count is right to stay still), before that by
   **Issue 39 — a listen failure is loud, not a successful boot**
@@ -519,6 +546,66 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE CONVERSATION HAS TWO LANGUAGES — HERO-1 phase 4, built** (`08120ad`).
+  Four files new — `en.json`, `LanguageSelector.{tsx,module.css}` and
+  `tests/design/conversationLanguages.test.js` — and three edited: `index.ts`
+  (`LANGS` gains `en`, the runtime guards now run over every language rather than
+  Telugu alone, and a new `LANGUAGES` export), `cadence.ts` (`en: 30`), and
+  `/specimen`'s page. Node **1104 → 1105 / 180 / 0 fail**. No new dependency, no
+  new token, no new font. `/` is **0 differing pixels** at 360/768/1440 under a
+  build-id interlock, and so are the four static instances.
+  ⚠️ The Python worker suite was **not re-run**; its **97** is carried forward,
+  not verified. Nothing under `voice-agent/` is touched.
+  **HINDI WAS CUT, AND THAT IS THE DECISION, NOT A SHORTFALL.** Its six turns need
+  a native-speaker review that does not exist, and stilted Hindi under a claim of
+  vernacular fluency is worse than no Hindi. `hi` stays in `LangCode` and stays
+  out of both `LANGS` and `CPS`, so `getConversation("hi")` throws
+  `conversation: no strings for "hi" — hi lands in phase 4b` and
+  `buildTimeline(…, "hi")` throws `cadence: no CPS for "hi" — hi lands in phase
+  4b`. Both were made to fire, the first through a real `next build`. No greyed
+  third segment: a disabled option advertises an absence.
+  **THE OPTION LIST IS DERIVED, NOT AUTHORED.** `LANGUAGES = Object.keys(LANGS)`,
+  and the page builds its conversations map from the same list, so a segment
+  cannot exist without strings behind it. "No option throws" is a property of the
+  wiring rather than a rule anyone has to remember.
+  **CPS en:30 IS TUNED TO TELUGU'S TOTAL, NOT TO ENGLISH.** 13,203 ms against
+  Telugu's 13,207.5 ms — 4.17 ms apart, 0.03% — with identical phrase counts turn
+  for turn (2/3/1/4/1/1). The two tracks walk at one pace, which is what makes
+  switching mid-sequence coherent.
+  **ZERO LAYOUT SHIFT BETWEEN LANGUAGES, AT NO TOLERANCE.** The play control's
+  `getBoundingClientRect().top` is **10433.17 / 8931.17 / 8404.16** at
+  360/768/1440 — identical for both languages, at idle and at `complete`. That
+  holds because the region's height is a constant and the selector's is too.
+  Positive-controlled: with `height: auto` on the region the two languages diverge
+  by 8.63–12.94 px at idle and 38.82–97.28 px at complete, all six comparisons red.
+  English's natural stack is **shorter** than Telugu's at every width
+  (733/649/774 against 822/688/870), so nothing needed resizing.
+  ⚠️ **SWITCHING MID-PLAYBACK LEAVES THE CLOCK ON THE OUTGOING LANGUAGE. NOT
+  FIXED.** `usePlayback.ts:81-96`: `tick` is `useCallback(…, [tl])` and schedules
+  its own successor with `requestAnimationFrame(tick)`, so the running chain keeps
+  the closure it started with. Changing `lang` rebuilds `tl` and updates
+  `data-playback-total` (13207.5 → 13203.33, visible in the DOM) while the frames
+  keep being derived from the OLD timeline. Measured, not inferred: after a switch
+  at turn 3, **11 of 11 distinguishable transitions followed Telugu's phrase
+  boundaries and 0 followed English's**, margins 137–371 ms. The totals are 4 ms
+  apart and cannot discriminate; the phrase boundaries are hundreds of ms apart and
+  can. This is a **phase-3 defect that phase 4 made reachable** — `lang` could not
+  change before there was a selector — and the fix is in `usePlayback.ts`, which is
+  outside phase 4's allowed files. It is also why "the current turn restarts" did
+  not happen: the playhead IS preserved (playback resumed at **turn index 3**), but
+  nothing rewinds `elapsed` to the new timeline's turn start. One effect that
+  cancels the in-flight rAF and re-anchors `elapsed` on `tl` change delivers both.
+  **BUNDLE.** `/` first-load JS unchanged at **113 kB**. `/specimen` page chunk
+  4.09 → **4.68 kB** (+0.59 kB, the selector), first-load **107 kB** against the
+  140 kB budget.
+  **A11Y, off the live DOM.** `role="radiogroup"` with an `aria-label`; one
+  tabbable option (roving), proved by walking — 16 Tabs reach the group and the
+  17th lands on the play control, not the other segment. Arrows traverse both
+  directions with wrap-around, `Home`/`End` work, selection follows focus, each
+  option carries its own `lang` so `తెలుగు` is not pronounced through an English
+  voice. Focus ring measured at `2px solid rgb(23, 21, 15)` = `--ink-strong`.
+  Contrast: worst text node **6.70:1** against a 4.5 floor, both languages × three
+  widths × idle and complete; `--ink-faint` on **0** glyphs.
 - **THE HERO CONVERSATION PLAYS — HERO-1 phase 3, built** (`d221c8f`).
   Nine files: `cadence.ts`, `usePlayback.ts`, `ConversationPlayer.tsx`,
   `PlayControl.{tsx,module.css}` new; `Conversation.{tsx,module.css}`,
@@ -550,7 +637,8 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   `phraseDuration = max(MIN_PHRASE_MS, chars / CPS × 1000)`, plus **220 ms** of
   stillness after every turn including before the card. **CPS = 32** and
   **MIN_PHRASE_MS = 550** for Telugu, both in `cadence.ts` beside the language
-  data so phase 4 adds two entries and nothing else moves. 450 ms was the
+  data so phase 4 adds two entries and nothing else moves. **Phase 4 added ONE**
+  — Hindi was cut; see that entry. 450 ms was the
   brief's suggestion and was raised after measuring: at CPS 32 the sign-off
   `రేపు కలుద్దాం!` computes to 437 ms and `నమస్తే!` to 219 ms, so a greeting and a
   farewell — exactly what a floor is for — sat at or under it. 550 costs 319 ms
