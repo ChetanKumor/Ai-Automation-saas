@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 89927c9c6c616b488deeafa2fde7a57828af60ae
+Verified-at: 8d67d4760f4d0a608a167bbf48c95c8071b1563d
 Verified-on: 2026-08-18
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -76,9 +76,26 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1106 tests / 180 suites / 0 fail** (`npm test`, raw: `# tests 1106 /
-  # pass 1106 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  Moved at **HERO-1 phase 4.1** (the stale-rAF defect): **+1 test, +0 suites** —
+- Test suite: **1107 tests / 180 suites / 0 fail** (`npm test`, raw: `# tests 1107 /
+  # pass 1107 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  Moved at **HERO-1 phase 5** (the hero conversation replaces the WhatsApp
+  mockup): **+1 test, +0 suites** — `tests/design/heroDisclosure.test.js`, one
+  bare `test()` call. It is the **fifth** Node test with purchase over `web/`
+  and it exists for one reason: phase 5 deleted the component that rendered the
+  site's only visible "this is an example" disclosure, and nothing else in the
+  repo would notice if the replacement stopped rendering one. `next build` does
+  not care, and the pixel gate on `/` is gone by design.
+  **IT READS SOURCE, AND SAYS SO.** It cannot prove the sentence reaches the
+  DOM — that was measured off a running page at 360/768/1440 in all six
+  playback states, see the phase 5 entry. What it can do is fail the moment the
+  sentence stops being in `Hero.tsx`, which is how it would actually be lost.
+  **MUTATION-CHECKED, because two source pins in this repo have gone quietly
+  vacuous before.** Replacing the caption with a plausible substitute that keeps
+  every product claim and drops only the words "An example" turns it **red**;
+  restoring turns it green. It also carries a non-vacuity rail that requires
+  each of its needles to be ABSENT from a control string built out of the
+  hero's other copy.
+  Moved before that at **HERO-1 phase 4.1** (the stale-rAF defect): **+1 test, +0 suites** —
   `tests/design/conversationPlayback.test.js`, one bare `test()` call. It is the
   **fourth** Node test with purchase over `web/` and the **second** that executes
   TypeScript from it, and it is the first that runs a REACT HOOK: the child that
@@ -104,7 +121,7 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   the real `buildTimeline`'s step starts — asserted before anything is asked
   about a switch. A CDP probe against a real browser then reproduced both the red
   and the green to within one frame; see the phase 4.1 entry below.
-  Moved before that at **HERO-1 phase 4** (the language selector): **+1 test, +0 suites** —
+  Moved before that again at **HERO-1 phase 4** (the language selector): **+1 test, +0 suites** —
   `tests/design/conversationLanguages.test.js`, one bare `test()` call, which is
   why the suite count does not move (see the note below on that asymmetry). It is
   the **third** Node test with purchase over `web/`, and the first that executes
@@ -182,8 +199,8 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   not build, render or import anything under `web/` — `web/` has its own Next
   toolchain and zero tests, which is the standing gap recorded under *Stack
   (frozen)*. An unmoved 1103 says the change broke nothing it can see; it says
-  nothing whatever about whether the conversion landed. **As of HERO-1 phase 4.1
-  there are FOUR** Node tests that reach into `web/`, not one:
+  nothing whatever about whether the conversion landed. **As of HERO-1 phase 5
+  there are FIVE** Node tests that reach into `web/`, not one:
   `tests/design/conversationProvenance.test.js` reads
   `web/components/sections/conversation/{meta,te}.json` and compares the two
   captured turns byte-for-byte against `public/demo/fixture.json`. It has real
@@ -198,7 +215,11 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   between the two languages. The fourth, new at phase 4.1, is
   `tests/design/conversationPlayback.test.js`, which runs `usePlayback` itself
   under a driven clock and pins what the playhead does when the language changes
-  mid-sequence. Those two are the only ones that EXECUTE `web/` code — see the
+  mid-sequence. The fifth, new at phase 5, is
+  `tests/design/heroDisclosure.test.js`, which pins the hero's visible honesty
+  disclosure and the fact that `HeroChat.tsx` has not come back. It reads
+  `Hero.tsx` as source and is explicit in its own header about what that cannot
+  see. Those two are the only ones that EXECUTE `web/` code — see the
   suite note above for how, and for what that still cannot reach. The other is
   `tests/design/tokenDrift.test.js`, which parses
   `web/app/globals.css` as one of its four surfaces — and at S2 it is genuinely
@@ -218,7 +239,13 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   (`portalFaqs.integration.test.js:465` did not resurface, and
   `portalKnowledgeSummary` produced no cancellations) — twelve consecutive clean
   runs for both across Sessions 3, 4A and 5.
-  Last moved by **HERO-1 phase 4.1 — the stale-rAF defect in `usePlayback`**
+  ⚠️ **`portalFaqs:465` RESURFACED at HERO-1 phase 5** — first recorded
+  occurrence since. Still open, still unattributed, still not chased. See the
+  phase 5 entry for the run it fired in and what was and was not established
+  about it.
+  Last moved by **HERO-1 phase 5 — the hero conversation replaces the WhatsApp
+  mockup** (+1 test, **+0 suites** — `tests/design/heroDisclosure.test.js`),
+  before that by **HERO-1 phase 4.1 — the stale-rAF defect in `usePlayback`**
   (+1 test, **+0 suites** — `tests/design/conversationPlayback.test.js`), before
   that by **HERO-1 phase 4 — the language selector** (+1 test, **+0
   suites** — `tests/design/conversationLanguages.test.js`), before that by
@@ -577,6 +604,171 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE HERO CONVERSATION IS ON `/` — HERO-1 phase 5, built** (`8d67d47`).
+  **HERO-1 ends here.** Six files: `Hero.tsx` and `Hero.module.css` rewritten,
+  `HeroChat.tsx` **deleted**, one comment block in `PlayControl.module.css`, the
+  `/specimen` kicker, and a new `tests/design/heroDisclosure.test.js`. Node
+  **1106 → 1107 / 180 / 0 fail**. `npm run build` exit 0. No new dependency:
+  `git diff web/package.json` is empty.
+  ⚠️ The Python worker suite was **not re-run**; its **97** is carried forward,
+  not verified. Nothing under `voice-agent/` is touched.
+  **NO CONVERSATION MODULE CHANGED, AND THAT WAS THE ABSTRACTION TEST.** Phase 5
+  mounts `<LanguageSwitchedConversation>` and nothing under
+  `components/sections/conversation/` moved except one comment in
+  `PlayControl.module.css`. `Conversation.tsx`, `ConversationPlayer.tsx`,
+  `usePlayback.ts`, `cadence.ts`, `PlayControl.tsx`, `LanguageSelector.tsx`,
+  `index.ts`, `types.ts`, `en.json`, `te.json` and `meta.json` are byte-identical
+  to phase 4.1. The seam phase 2 drew — a stateless renderer, a client wrapper
+  that owns which frame, a server that narrows the fixture — held when the
+  second consumer arrived.
+  ✅ **THE HONESTY LABEL SURVIVED, which is the thing this change could most
+  easily have lost.** `HeroChat` rendered exactly one visible disclosure, a
+  caption reading *"An example of Prantivo booking a patient appointment on
+  WhatsApp, here in Telugu — the replies are translated beneath. It also answers
+  in Hindi and English, and a staff member can take over the chat at any
+  point."* Two of those clauses described `HeroChat`'s rendering rather than the
+  product, and both became false: there is no gloss line beneath a reply, and
+  with a selector the reader chooses the language. It was carried over **by
+  deletion only** — `", here in Telugu — the replies are translated beneath"`
+  removed, **no word authored** — on a founder ruling taken before any code
+  changed. Both strings were read off the live DOM at 360 and 1440, before and
+  after; every other visible string that changed is enumerated below.
+  **THE `role="img"` WRAPPER WENT WITH IT, AND THAT IS AN IMPROVEMENT.**
+  `HeroChat` hid its whole thread from assistive technology behind `role="img"`
+  and substituted a 33-word `aria-label`. The conversation is real content — DOM
+  order, `aria-live`, a readable confirmation record — so there is nothing left
+  to summarise. Net on `/`: one `aria-label` removed, one added (`Conversation
+  language`, the radiogroup's).
+  **COPY IS OTHERWISE UNTOUCHED.** Headline (`Booked before` / `they message` /
+  `another clinic.`) and sub are **byte-identical** off the live DOM at both
+  widths, 222 bytes each side. 15 strings left `/` (the WhatsApp chrome, six
+  Telugu bubbles, two English glosses, the old caption); 7 arrived (`English`,
+  `తెలుగు`, `Patient`, two phrase spans of t0, `Play the conversation`, the
+  migrated caption).
+  ✅ **`Dr. Rao` LEFT THE CLIENT BUNDLE — phase 3's falsifiable prediction, and
+  it held.** `.next/static/` (45 files) greps **0 hits**, alongside 0 for the
+  appointment UUID, `Sravani Reddy`, `Smile Dental` and `2026-07-18`. Five
+  positive controls were searched first — `Play the conversation`,
+  `data-conversation-region`, `Prantivo`, `Conversation language`,
+  `data-lang-option` — all found, so the zeros are real. `Hero.tsx` reads the
+  fixture and is still a server component; three strings cross the boundary.
+  **THE PROVENANCE COMMENT WAS ALREADY MIGRATED, at phase 1.** Verified
+  byte-for-byte before the delete rather than by eye: sha256 of the
+  CRLF-normalised block is
+  `17088cf2c738ff8236ca728585c9d73ba4c1bf1d167e54da74ed979366374cfe` on both
+  sides, 985 bytes each, matching the digest `index.ts` records for itself.
+  ⚠️ One sentence in that header is now stale — it says `HeroChat.tsx` "keeps
+  its own copy and keeps rendering until phase 5". `index.ts` is outside phase
+  5's allowed files, so it was left alone.
+  **THE HEADLINE IS STILL SERVER-RENDERED.** The raw HTML `next start` serves for
+  `/` is 117,137 bytes and carries the headline, the sub, the caption, the play
+  control's label and t0's Telugu **outside every `<script>`** — so they exist
+  before any JS runs, even though the conversation is now a client component.
+  **`--wa-*`: FOUR ORPHANED, FIVE KEPT, censused with positive controls.**
+  Removed from `Hero.module.css` with the 172 lines of dead card CSS: `--wa-bg`,
+  `--wa-meta`, `--wa-tick`, `--wa-gloss` — now zero consumers anywhere in
+  `web/`. Kept because something else still reads them: `--wa-header`
+  (`FinalCta:30`), `--wa-text` (`FinalCta:64`, `HowItWorks:97,142,189`),
+  `--wa-online` (`FinalCta:72,79,88`, `HowItWorks:152`), `--wa-in`
+  (`HowItWorks:96`), `--wa-out` (`HowItWorks:143`). ⚠️ **The four orphaned
+  DECLARATIONS survive** at `globals.css:135,140,141,147`, because phase 5's
+  allowed files exclude `globals.css`. Declared and unread — a tidy-up, not a
+  defect.
+  **BUNDLE, attributed.** `/` first-load JS **113 → 115 kB** against a 125 kB
+  budget. The whole delta is two numbers: `chunks/29-*.js`, the conversation
+  client graph, is **+3.65 kB gzip** and newly loaded by `/` (it was
+  `/specimen`-only), and `/`'s own page chunk falls **7.42 → 5.75 kB** as
+  `HeroChat` and its six hand-typed messages leave. `/specimen` page chunk **4.77
+  → 1.18 kB**, first-load **107 kB** unchanged — the same code, now shared rather
+  than route-local.
+  **MEASURED ON THE BUILT PAGE, in six states × five widths.** The six are
+  `te-idle`, `te-playing`, `te-paused`, `te-complete`, `en-idle`, `en-complete`,
+  each driven over CDP with real pointer presses and read back off
+  `[data-playback]`. **Contrast:** 0 failures in all 18 measurements at
+  360/768/1440; worst text node **4.81:1** (`Problem_enqTime`, pre-existing, its
+  0.82 opacity a documented design value) and worst node in the hero itself
+  **6.70:1** (the selector's unselected segment) — the same number phase 4
+  recorded. `--ink-faint` on **0** glyphs everywhere. **Token witness:** `body`
+  background `rgb(250, 248, 245)` in all 18. **Overflow:** none at
+  360/390/768/1024/1440 in any state, plus **~979 samples taken during the
+  running animation** across the five widths, every index 0–6 observed, **0**
+  showing `scrollWidth > clientWidth` on the document, the body, the host or the
+  region. **Zero layout shift between states or languages:** the hero box is
+  1223px at 360 and 792px at 1440 in all six states, and the full page is 15318 /
+  11667 / 9739px at 360/768/1440 in all six.
+  ⚠️ **CONTRAST IS MEASURED AT REST, DELIBERATELY.** `playing` is the one state
+  that can be caught mid-fade, and a snapshot during a turn's 150ms arrival
+  composites the glyph at a fractional opacity — one run read **2.47:1** at an
+  accumulated opacity of 0.534, on text that is 7.31:1 the instant it settles.
+  The probe therefore waits until nothing in the region is strictly between 0 and
+  1 opacity before sweeping, and keeps the mid-flight reading separately rather
+  than discarding it.
+  **REDUCED MOTION.** Under `--force-prefers-reduced-motion=reduce` at 360 and
+  1440 the sequence runs end to end: every `activeIndex` 0→6 observed, all six
+  turns rendered, the confirmation card reached. The **only** turn transform ever
+  observed across the whole run is `none`, and the **only** phrase opacity ever
+  observed is `1` — phrases arrive per turn, whole, and nothing translates or
+  scales.
+  ⚠️ **THE PLAY CONTROL IS ABOVE THE FOLD AT 1440×900 AND NOT AT 360×640.** Its
+  rect is `top 609.28 / bottom 657.28` against a 900px viewport — above. At
+  360×640 it is `top 1046.58 / bottom 1094.58`, **454.58px below**. The phase
+  plan's proposed remedy — drop the sub below 400px — was **measured, not
+  reasoned about**: injecting `display: none` on the sub moves the control from
+  1094.58 to 907.45, saving **187.13px**, still **267.45px** short. It was
+  therefore not implemented, because it deletes an approved visible string for no
+  gain. Closing the remaining 267px needs a mobile layout decision — source
+  order, or the region's 296px height — and neither is in phase 5's allowed
+  files. **The hero column does not fit above a 640px fold on mobile:** the copy
+  above it is 518.58px on its own, before the selector, the region and the
+  control.
+  **`/specimen` STILL WORKS**, and stays a design surface. Four static instances
+  at `activeIndex` 0/2/5/6 render 1/3/6/6 turns with the card on the last only,
+  all at the 376px region height; the live instance switches `te → en` and plays
+  to `complete` with the card reading *"Appointment booked · Tomorrow, 9:00 AM ·
+  Dr. Rao"*; the four statics are unmoved afterwards.
+  ⚠️ **NO PIXEL GATE ON `/`, BY DESIGN.** Pixel equality was the phase 1–4
+  instrument and it is meaningless here — the hero was replaced. The live-DOM
+  gates above replace it. Do not read an absent pixel diff as a skipped check.
+  ⚠️ **A MEASUREMENT HAZARD THAT IS NOW PERMANENT.** `globals.css:313` sets
+  `scroll-behavior: smooth`, reverted to `auto` only under reduced motion — and
+  every phase 5 measurement is on `/`, which does not force reduced motion.
+  Phases 2–4 never hit it because their capture modes did. A probe calling
+  `scrollTo(0, 0)` reads a **mid-flight** `scrollY`, indistinguishable from a
+  layout shift. Every geometry expression in this session's harness therefore
+  begins with `scrollTo({ behavior: 'instant' })` and **throws** if `scrollY !==
+  0` afterwards.
+  ⚠️ **`portalFaqs.integration.test.js:465` FIRED ONCE, IN THE FIRST OF TWO
+  `os:check` RUNS AT `c0fa1fd`.** It is a recorded intermittent and it had not
+  resurfaced since RAG Session 3; this is the first occurrence since. **Not
+  attributed to this change, and the reason is structural rather than a shrug:**
+  phase 5 touches `web/` and one new `tests/design/` file, while this test
+  exercises the portal FAQ route, Postgres and a live Gemini embedding — no
+  shared module, no shared fixture. `npm test` at `8d67d47` was **1107 / 0
+  fail** fifteen minutes earlier, the file re-run alone at the same HEAD is
+  **20 / 20 green**, and the second `os:check` is **1107 / 180 / 0 / 0 / 0**.
+  Three green runs at this commit against one red.
+  ⚠️ **ONE DETAIL DOES NOT FIT THE RECORDED MECHANISM, and is written down
+  rather than smoothed over.** The location and assertion match exactly —
+  `:474`, `500 !== 200`, the POST whose `createChunk` makes the process's first
+  cold embedding call. But the failing test took **607 ms**, and `createChunk`
+  has carried a **10,000 ms** interactive budget since RAG Session 3's amendment
+  to D-010. A 607 ms 500 is therefore **not** that timeout, so either the 500
+  has a second cause (a live Gemini error — quota is plausible, this key is a
+  low-quota dev key and the suite ran four times this day) or the budget is not
+  reaching that call site. The underlying route error was not captured: the TAP
+  block carries only the assertion, and `.os-check-last.log` is overwritten by
+  the next run. **Whoever picks this up should capture the route's log line
+  first** — the assertion alone cannot distinguish the two.
+  ⚠️ **TWO PROBE BUGS, FOUND BY THEIR OWN OUTPUT AND RECORDED BECAUSE THEY WILL
+  RECUR.** (1) A contrast sweep that walks the backdrop from `el.parentElement`
+  skips the element's OWN background and reports light-on-dark button text as
+  **1:1** — it flagged both primary CTAs before the walk was corrected to start
+  at `el`. (2) `display: none` **cancels** a running CSS animation, and restoring
+  `display` restarts it from `t=0`; a screenshot taken after a hide/restore probe
+  caught the hero sub at `opacity: 0` mid-delay and looked exactly like a
+  rendering defect. Confirmed directly — after the cycle the element reports
+  `opacity 0` with `fadeUp` `running` at `t=0` — and fixed by shooting before
+  injecting.
 - **THE CLOCK FOLLOWS THE LANGUAGE — HERO-1 phase 4.1, built** (`89927c9`).
   Two files: `usePlayback.ts` (+52 lines, one `useEffect` and one four-line
   helper) and a new `tests/design/conversationPlayback.test.js`. Node
@@ -713,6 +905,10 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   `/specimen` client chunk contains none of the fixture strings, and `/` is
   pixel-identical, so nothing about it moved this phase. Worth knowing before
   phase 5 retires `HeroChat`.
+  ✅ **CLOSED at HERO-1 phase 5 (`8d67d47`).** `HeroChat.tsx` is deleted and
+  `Dr. Rao` now greps **0 hits** across all 45 files of `.next/static/`. The
+  prediction was falsifiable and it held; the grep was re-run with five
+  known-present needles first so the zero could not be a broken search.
   **CADENCE IS A MODEL, NOT EIGHTEEN NUMBERS.**
   `phraseDuration = max(MIN_PHRASE_MS, chars / CPS × 1000)`, plus **220 ms** of
   stillness after every turn including before the card. **CPS = 32** and
