@@ -2,15 +2,15 @@
 // CADENCE — how long the conversation takes, as a model rather than a table of
 // hardcoded numbers.
 //
-// Phase 4 adds English and Hindi. Those strings have different lengths, so a
-// per-turn duration table authored against Telugu would be wrong for both the
-// day it landed. What is actually language-specific is ONE number — how fast
+// Phase 4 adds English; Hindi follows in 4b. Those strings have different
+// lengths, so a per-turn duration table authored against Telugu would be wrong
+// for both the day it landed. What is actually language-specific is ONE number — how fast
 // this script reads — so that is the only thing stored per language:
 //
 //     phraseDuration_ms = max(MIN_PHRASE_MS, chars / CPS * 1000)
 //
-// CPS lives HERE, beside te.json and meta.json, not in the component. Phase 4
-// adds two more entries to the same object and nothing else moves.
+// CPS lives HERE, beside the language files and meta.json, not in the component.
+// Phase 4 added one more entry to the same object and nothing else moved.
 //
 // WHY CHARACTERS AND NOT WORDS. Telugu does not space-delimit the way Latin
 // does, and `String.length` over Telugu counts combining matras as separate
@@ -24,8 +24,18 @@ import type { LangCode, Turn } from "./types";
 
 /** Characters per second, per language. Telugu tuned in phase 3 against the
  *  brief's ~13s target for the whole activeIndex 0 → 6 walk; the measured total
- *  is 13208ms. `en` and `hi` land in phase 4. */
+ *  is 13208ms.
+ *
+ *  English is tuned to THAT total, not to any claim about how fast English is
+ *  read: 30 puts the same six turns at 13203ms against Telugu's 13207.5ms, so
+ *  the two tracks walk at one pace and switching language does not change how
+ *  much of the conversation is left. The number differs from Telugu's 32 only
+ *  because `String.length` counts the two scripts differently — see WHY
+ *  CHARACTERS AND NOT WORDS above.
+ *
+ *  `hi` lands in phase 4b, gated on a native-speaker review. */
 export const CPS: Partial<Record<LangCode, number>> = {
+  en: 30,
   te: 32,
 };
 
@@ -95,7 +105,7 @@ export function phraseDurations(turn: Turn, cps: number): number[] {
 export function buildTimeline(turns: Turn[], lang: LangCode): Timeline {
   const cps = CPS[lang];
   if (cps === undefined) {
-    throw new Error(`cadence: no CPS for "${lang}" — en and hi land in phase 4`);
+    throw new Error(`cadence: no CPS for "${lang}" — hi lands in phase 4b`);
   }
   const steps: Step[] = [];
   const counts: number[] = [];

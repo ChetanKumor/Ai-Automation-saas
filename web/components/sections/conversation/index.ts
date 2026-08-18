@@ -41,6 +41,7 @@
 // tests/design/conversationProvenance.test.js compares these bytes to the fixture.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import enRaw from "./en.json";
 import metaRaw from "./meta.json";
 import teRaw from "./te.json";
 import type { LangCode, LangTurn, Turn, TurnId, TurnMeta, TurnSource } from "./types";
@@ -48,40 +49,61 @@ import type { LangCode, LangTurn, Turn, TurnId, TurnMeta, TurnSource } from "./t
 const SOURCES: readonly TurnSource[] = ["captured", "authored", "translated"];
 
 // `satisfies`, not `as`. This is the build-time half of the guard: a cast would
-// silently accept a te.json missing a turn, whereas Record<TurnId, …> demands all
-// six keys and fails `tsc` when one is deleted. `next build` type-checks every
+// silently accept a language file missing a turn, whereas Record<TurnId, …> demands
+// all six keys and fails `tsc` when one is deleted. `next build` type-checks every
 // file matched by tsconfig's `**/*.ts`, so this fires even while nothing imports
-// this module.
-const TE = teRaw satisfies Record<TurnId, { text: string; source: string }> as Record<
-  TurnId,
-  LangTurn
->;
+// this module. Named once and applied to both files, so a third language cannot
+// arrive holding a weaker shape than the two already here.
+type RawLang = Record<TurnId, { text: string; source: string }>;
+const TE = teRaw satisfies RawLang as Record<TurnId, LangTurn>;
+const EN = enRaw satisfies RawLang as Record<TurnId, LangTurn>;
 const META = metaRaw as TurnMeta[];
+
+/** Every language that HAS strings, in the order a reader is offered them.
+ *  `hi` is deliberately absent — phase 4b, gated on a native speaker. It stays
+ *  in LangCode, so getConversation("hi") type-checks and throws, which is the
+ *  seam 4b opens rather than a hole to be closed early. */
+const LANGS: Partial<Record<LangCode, Record<TurnId, LangTurn>>> = { en: EN, te: TE };
 
 // The runtime half. It cannot fail a build while nothing imports this module —
 // that is the type layer's job above — but it is what turns a mismatch into a
 // loud error instead of an `undefined` turn once phase 5 wires this in.
+//
+// Phase 4 runs it over EVERY entry of LANGS rather than over Telugu alone. A
+// second language that nothing checks is a second place for a turn to go
+// missing, and that failure surfaces as a blank line on screen rather than as
+// an error. The message names the file, because with more than one language
+// "disagree on turns" is otherwise a hunt.
 const metaIds = META.map((m) => m.id);
-const langIds = Object.keys(TE) as TurnId[];
-if (metaIds.length !== langIds.length || metaIds.some((id, i) => id !== langIds[i])) {
-  throw new Error(
-    `conversation: meta.json and te.json disagree on turns — ` +
-      `meta [${metaIds.join(", ")}] vs te [${langIds.join(", ")}]`
-  );
-}
-for (const id of metaIds) {
-  if (!SOURCES.includes(TE[id].source)) {
-    throw new Error(`conversation: ${id} has illegal source "${TE[id].source}"`);
+for (const code of Object.keys(LANGS) as LangCode[]) {
+  const strings = LANGS[code] as Record<TurnId, LangTurn>;
+  const langIds = Object.keys(strings) as TurnId[];
+  if (metaIds.length !== langIds.length || metaIds.some((id, i) => id !== langIds[i])) {
+    throw new Error(
+      `conversation: meta.json and ${code}.json disagree on turns — ` +
+        `meta [${metaIds.join(", ")}] vs ${code} [${langIds.join(", ")}]`
+    );
+  }
+  for (const id of metaIds) {
+    if (!SOURCES.includes(strings[id].source)) {
+      throw new Error(
+        `conversation: ${code}.${id} has illegal source "${strings[id].source}"`
+      );
+    }
   }
 }
 
-const LANGS: Partial<Record<LangCode, Record<TurnId, LangTurn>>> = { te: TE };
+/** The languages a reader may choose, in offer order. DERIVED from LANGS rather
+ *  than authored beside it: a selector built from this list cannot offer a
+ *  language whose strings do not exist, so the "no option throws" property is
+ *  structural instead of something a test has to keep re-checking. */
+export const LANGUAGES = Object.keys(LANGS) as LangCode[];
 
 /** The six turns of the hero conversation, in order, for one language. */
 export function getConversation(lang: LangCode): Turn[] {
   const strings = LANGS[lang];
   if (!strings) {
-    throw new Error(`conversation: no strings for "${lang}" — en and hi land in phase 4`);
+    throw new Error(`conversation: no strings for "${lang}" — hi lands in phase 4b`);
   }
   return META.map((m) => ({ ...m, ...strings[m.id], lang }));
 }

@@ -2,8 +2,13 @@ import type { Metadata } from "next";
 import styles from "./specimen.module.css";
 import { TOKENS, GROUNDS, PALETTE, byGroup, verdict, type Verdict } from "./tokens";
 import { Conversation, to12Hour } from "@/components/sections/conversation/Conversation";
-import { ConversationPlayer } from "@/components/sections/conversation/ConversationPlayer";
-import { getConversation } from "@/components/sections/conversation";
+import { LanguageSwitchedConversation } from "@/components/sections/conversation/LanguageSelector";
+import {
+  getConversation,
+  LANGUAGES,
+  type LangCode,
+  type Turn,
+} from "@/components/sections/conversation";
 import fixture from "../../../../public/demo/fixture.json";
 
 /* ============================================================================
@@ -85,6 +90,15 @@ const TYPE_STEPS = [
 // Phase 1's data, consumed unedited. `te` because the hero's own subhead claims
 // Telugu and this is the claim the product can prove for free.
 const CONVERSATION = getConversation("te");
+
+/* Every language LANGUAGES offers, resolved here on the server. Building the
+ * map from the same list the selector renders its segments from is what makes
+ * "no option throws" structural rather than remembered: a language cannot
+ * become a segment without appearing here, and it cannot appear here without
+ * strings, because getConversation would have thrown on the way. */
+const CONVERSATIONS = Object.fromEntries(
+  LANGUAGES.map((code) => [code, getConversation(code)])
+) as Partial<Record<LangCode, Turn[]>>;
 
 /* ── THE SERVER→CLIENT BOUNDARY ───────────────────────────────────────────────
  *
@@ -423,7 +437,7 @@ export default function SpecimenPage() {
             not the token table. */}
         <section className={styles.convSection} data-conversation-section>
           <p className={styles.kicker}>
-            HERO-1 phase 3 · Playback · No audio, no selector
+            HERO-1 phase 4 · Playback · English and Telugu · No audio
           </p>
           <h2 className={styles.h2}>Conversation</h2>
           <p className={styles.sectionNote}>
@@ -432,7 +446,8 @@ export default function SpecimenPage() {
             a frame as a pure function of{" "}
             <code>(turns, activeIndex, revealed)</code> — the thing that walks{" "}
             <code>activeIndex</code> forward over time is a separate file, and
-            it is the only one carrying <code>&quot;use client&quot;</code>.
+            it and the selector are the only two carrying{" "}
+            <code>&quot;use client&quot;</code>.
             These four frames are what it walks through, so they are also its
             pixel-equality baseline: phrase splitting subdivides every turn&rsquo;s
             text into spans, and that must not move a glyph.
@@ -488,13 +503,20 @@ export default function SpecimenPage() {
               that now subdivide every turn's text. */}
           <div className={styles.convInstance} data-player-instance style={{ marginTop: 48 }}>
             <div className={styles.convLabel}>
-              <span className={styles.convIndex}>&lt;ConversationPlayer /&gt;</span>
+              <span className={styles.convIndex}>
+                &lt;LanguageSelector /&gt; + &lt;ConversationPlayer /&gt;
+              </span>
               <span className={styles.convNote}>
-                playback — idle · playing · paused · complete
+                playback — idle · playing · paused · complete · two languages
               </span>
             </div>
             <div className={styles.convFrame} style={{ padding: 16 }}>
-              <ConversationPlayer turns={CONVERSATION} lang="te" record={RECORD} />
+              <LanguageSwitchedConversation
+                langs={LANGUAGES}
+                conversations={CONVERSATIONS}
+                initial="te"
+                record={RECORD}
+              />
             </div>
           </div>
 
@@ -504,9 +526,13 @@ export default function SpecimenPage() {
             fixed height ends — the four static instances keep that job.
             Playback walks <code>activeIndex</code> 0 → 6 in{" "}
             <strong>13.2 seconds</strong>, from one constant:{" "}
-            <code>phraseDuration = max(550ms, chars / 32 × 1000)</code>, plus
-            220ms of stillness after each turn. The constant is per language and
-            lives in <code>cadence.ts</code>; phase 4 adds two more.
+            <code>phraseDuration = max(550ms, chars / CPS × 1000)</code>, plus
+            220ms of stillness after each turn. <code>CPS</code> is the only
+            per-language number and lives in <code>cadence.ts</code>:{" "}
+            <strong>32</strong> for Telugu, <strong>30</strong> for English,
+            tuned so the two walks take the same time —{" "}
+            <code>13207.5ms</code> and <code>13203ms</code>, four milliseconds
+            apart across thirteen seconds. Hindi lands in 4b.
           </p>
           <p className={styles.sectionNote}>
             <strong>Emergence is Prantivo-only.</strong> A patient turn appears

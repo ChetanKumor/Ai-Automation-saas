@@ -1,0 +1,50 @@
+{
+  "t0": {
+    "text": "Hi, I'd like to book an appointment. When is the doctor available tomorrow?",
+    "source": "translated",
+    "phrases": [
+      36,
+      75
+    ]
+  },
+  "t1": {
+    "text": "Namaste! Tomorrow — Saturday — Dr. Rao is available from 9:00 AM to 5:30 PM. What time would you like?",
+    "source": "translated",
+    "phrases": [
+      8,
+      76,
+      102
+    ]
+  },
+  "t2": {
+    "text": "Book me for 9:00 AM, please.",
+    "source": "translated",
+    "phrases": [
+      28
+    ]
+  },
+  "t3": {
+    "text": "Booked — tomorrow at 9:00 AM with Dr. Rao. I'll send a reminder the day before. Anything else?",
+    "source": "translated",
+    "phrases": [
+      8,
+      42,
+      79,
+      94
+    ]
+  },
+  "t4": {
+    "text": "That's all, thank you.",
+    "source": "translated",
+    "phrases": [
+      22
+    ]
+  },
+  "t5": {
+    "text": "See you tomorrow!",
+    "source": "translated",
+    "phrases": [
+      17
+    ]
+  }
+}

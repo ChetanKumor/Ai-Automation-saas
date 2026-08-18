@@ -1,0 +1,94 @@
+/* ============================================================================
+ * The language selector. Every colour is a Warm Paper token; nothing here
+ * invents one, and --ink-faint paints no glyph (it is 2.41:1 and NON-TEXT ONLY).
+ *
+ * THE GROUP HAS A FIXED HEIGHT, and so does every option. That is the whole of
+ * the no-layout-shift guarantee: the control sits above a region whose height is
+ * also a constant, so the play control's top is a number that text cannot move.
+ * Telugu and Latin have different metrics and the Telugu segment is set a step
+ * larger — with `height` and `line-height: 1` fixed, neither can grow the box.
+ * Give an option `height: auto` and switching language moves the whole player.
+ *
+ * BOTH OPTIONS ALWAYS RENDER. The group's width is therefore also constant: it
+ * is the sum of both labels either way, and selection only repaints.
+ * ========================================================================== */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  /* flex-start, so the group is its own intrinsic width rather than stretching
+     across the player and putting two labels at opposite ends of the page. */
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  height: 40px;
+  background: var(--ground-sunk);
+  /* 10px outer against the option's 7px inner: the 3px inset is the difference,
+     so the two curves stay concentric instead of one flattening inside the
+     other. Same reasoning as PlayControl's documented 24px. */
+  border-radius: var(--rad-lg);
+}
+
+.option {
+  appearance: none;
+  margin: 0;
+  border: 0;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 7px;
+  background: transparent;
+  /* 6.70:1 on --ground-sunk. The unselected segment is still text a reader has
+     to be able to read, so it does not go below --ink-soft. */
+  color: var(--ink-soft);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-micro) var(--ease-out),
+    color var(--dur-micro) var(--ease-out);
+}
+
+/* The selected segment lifts off the track rather than filling with the accent:
+   this control chooses a language, it does not perform an action, and an accent
+   fill here would compete with the play control for the eye. 18.25:1. */
+.option[aria-checked="true"] {
+  background: var(--ground-raised);
+  color: var(--ink-strong);
+  /* inset, so the outline costs no layout — a border would change the option's
+     box and shift the group's width every time the selection moved. */
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+
+/* 2px --ink-strong, offset clear of the raised segment's own edge. --accent-on-ground
+   is the play control's ring; this one is the page's ink, so the two focus
+   states are distinguishable when Tab moves between them. */
+.option:focus-visible {
+  outline: 2px solid var(--ink-strong);
+  outline-offset: 2px;
+}
+
+/* —— Telugu ————————————————————————————————————————————————————————————
+   The same optical correction Conversation.module.css makes for the turn text,
+   for the same reason: Telugu set at a Latin-tuned size reads a step smaller,
+   because the conjuncts stack vertically and the effective x-height is lower.
+
+   TRACKING 0, explicitly — negative tracking collides Telugu conjunct stacks,
+   and the declaration is here so a future letter-spacing on an ancestor cannot
+   inherit into a script that must not have one.
+
+   Neither declaration can change the option's height: that is fixed above, and
+   line-height is 1. */
+.option:lang(te) {
+  font-family: var(--font-te);
+  font-size: 0.9375rem;
+  letter-spacing: 0;
+}
