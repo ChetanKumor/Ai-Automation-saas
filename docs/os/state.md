@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 08120ada634505ad44138d8c9f2cb4c9024eb527
+Verified-at: 89927c9c6c616b488deeafa2fde7a57828af60ae
 Verified-on: 2026-08-18
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -76,9 +76,35 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1105 tests / 180 suites / 0 fail** (`npm test`, raw: `# tests 1105 /
-  # pass 1105 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  Moved at **HERO-1 phase 4** (the language selector): **+1 test, +0 suites** —
+- Test suite: **1106 tests / 180 suites / 0 fail** (`npm test`, raw: `# tests 1106 /
+  # pass 1106 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  Moved at **HERO-1 phase 4.1** (the stale-rAF defect): **+1 test, +0 suites** —
+  `tests/design/conversationPlayback.test.js`, one bare `test()` call. It is the
+  **fourth** Node test with purchase over `web/` and the **second** that executes
+  TypeScript from it, and it is the first that runs a REACT HOOK: the child that
+  strips types also resolves the specifier `"react"` to a 72-line runtime
+  implementing the five hooks `usePlayback` uses to their documented contract, so
+  the hook is imported byte-for-byte unmodified and its stale closure is the one
+  that ships. React is not installed at the repo root and needs a DOM to run
+  effects; the hook does not.
+  **THE CLOCK IS DRIVEN, NOT WAITED ON.** `requestAnimationFrame` and the
+  reduced-motion media query are fakes the test steps by hand, 1 ms at a time —
+  no `setTimeout`, no sleep, no real-rAF race. Six scenarios totalling **96 s of
+  simulated playback** finish in a couple of seconds of wall time, and the file
+  was run **20 consecutive times, 20/20 green** — determinism by construction,
+  with the repetition as corroboration rather than as the argument.
+  **IT ASSERTS PHRASE BOUNDARIES, NEVER TOTALS.** te 13207.5 ms and en
+  13203.33 ms are 4.17 ms apart by design, so `data-playback-total`, completion
+  time and total duration all pass on the broken code. The boundaries are
+  1300–2200 ms apart under a switch and are the only signal that discriminates;
+  the test computes that margin and **fails if it ever drops below 50 ms**, so it
+  cannot go quietly vacuous when Hindi lands at a third CPS.
+  **THE RUNTIME IS NOT TAKEN ON FAITH.** Two scenarios play a language straight
+  through with no switch, and every boundary they produce is required to fall on
+  the real `buildTimeline`'s step starts — asserted before anything is asked
+  about a switch. A CDP probe against a real browser then reproduced both the red
+  and the green to within one frame; see the phase 4.1 entry below.
+  Moved before that at **HERO-1 phase 4** (the language selector): **+1 test, +0 suites** —
   `tests/design/conversationLanguages.test.js`, one bare `test()` call, which is
   why the suite count does not move (see the note below on that asymmetry). It is
   the **third** Node test with purchase over `web/`, and the first that executes
@@ -156,8 +182,8 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   not build, render or import anything under `web/` — `web/` has its own Next
   toolchain and zero tests, which is the standing gap recorded under *Stack
   (frozen)*. An unmoved 1103 says the change broke nothing it can see; it says
-  nothing whatever about whether the conversion landed. **As of HERO-1 phase 4
-  there are THREE** Node tests that reach into `web/`, not one:
+  nothing whatever about whether the conversion landed. **As of HERO-1 phase 4.1
+  there are FOUR** Node tests that reach into `web/`, not one:
   `tests/design/conversationProvenance.test.js` reads
   `web/components/sections/conversation/{meta,te}.json` and compares the two
   captured turns byte-for-byte against `public/demo/fixture.json`. It has real
@@ -169,8 +195,11 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   live DOM instead. The third, new at phase 4, is
   `tests/design/conversationLanguages.test.js`,
   which pins `en.json`'s bytes, its phrase partition and the cadence parity
-  between the two languages. It is the only one that EXECUTES `web/` code — see
-  the suite note above for how, and for what that still cannot reach. The other is
+  between the two languages. The fourth, new at phase 4.1, is
+  `tests/design/conversationPlayback.test.js`, which runs `usePlayback` itself
+  under a driven clock and pins what the playhead does when the language changes
+  mid-sequence. Those two are the only ones that EXECUTE `web/` code — see the
+  suite note above for how, and for what that still cannot reach. The other is
   `tests/design/tokenDrift.test.js`, which parses
   `web/app/globals.css` as one of its four surfaces — and at S2 it is genuinely
   load-bearing rather than incidentally so: repointing `--accent` to `#0f766e`
@@ -189,7 +218,9 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   (`portalFaqs.integration.test.js:465` did not resurface, and
   `portalKnowledgeSummary` produced no cancellations) — twelve consecutive clean
   runs for both across Sessions 3, 4A and 5.
-  Last moved by **HERO-1 phase 4 — the language selector** (+1 test, **+0
+  Last moved by **HERO-1 phase 4.1 — the stale-rAF defect in `usePlayback`**
+  (+1 test, **+0 suites** — `tests/design/conversationPlayback.test.js`), before
+  that by **HERO-1 phase 4 — the language selector** (+1 test, **+0
   suites** — `tests/design/conversationLanguages.test.js`), before that by
   **HERO-1 phase 1 — the hero conversation data model** (+1 test,
   **+0 suites** — `tests/design/conversationProvenance.test.js`; see the note
@@ -546,6 +577,53 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE CLOCK FOLLOWS THE LANGUAGE — HERO-1 phase 4.1, built** (`89927c9`).
+  Two files: `usePlayback.ts` (+52 lines, one `useEffect` and one four-line
+  helper) and a new `tests/design/conversationPlayback.test.js`. Node
+  **1105 → 1106 / 180 / 0 fail**. `npm run build` exit 0. No new dependency.
+  ⚠️ The Python worker suite was **not re-run**; its **97** is carried forward,
+  not verified. Nothing under `voice-agent/` is touched.
+  **THE DEFECT.** `tick` schedules its own successor, so the rAF chain in flight
+  is a chain of ONE closure — the one built with the timeline current when it
+  started. Rebuilding `tl` never reached it, so after a language change the new
+  script's words arrived on the old script's cadence for the rest of the sequence,
+  and the turn the reader was mid-way through never restarted.
+  **THE FIX, ENTIRELY INSIDE `usePlayback.ts`.** One effect: when `tl` changes it
+  re-anchors `elapsed` to the start of the turn the reader is in — the turn is the
+  unit both languages agree on and the phrase boundaries inside it are precisely
+  what they do not — and restarts the chain, **but only when `raf.current !== null`**.
+  `state` would be the wrong guard: during the Replay crossfade the state is
+  already `playing` while no chain has started, so `run()` there would leave the
+  pending timer free to start a second, and two chains accumulating into one
+  `elapsed` play the sequence at double speed. The straight-through and switch
+  scenarios each assert that at most one rAF chain was ever in flight; it is 1 in
+  all six.
+  **RED BEFORE GREEN, ON PHRASE BOUNDARIES.** At `6be329f` the committed test
+  reported `te 4 · en 0` and `en 4 · te 0` — every boundary after the switch
+  within 0.5 ms of the OUTGOING timeline and ~2 s from the incoming one. After the
+  fix: **`te 0 · en 7` and `en 0 · te 7`**, both directions, plus `te 0 · en 6`
+  switching while PAUSED (nothing in flight to cancel, so a cancel-only fix would
+  have left that broken) and `te 0 · en 3` under reduced motion.
+  **CORROBORATED IN A REAL BROWSER.** The committed test drives a hand-rolled
+  hooks runtime, which is the only way to make a timing assertion deterministic —
+  so a CDP probe ran the same switch on both builds with real React, a real DOM,
+  real rAF and real pointer presses, recording transitions in-page on rAF.
+  Baseline `9RLMkXYOtJgLgKmNTs5bo`: `te 4 · en 0` / `en 4 · te 0`, d(stale)
+  ≤ 11 ms. Fixed `0XdunxAf9NNu1meHzHdKY`: `te 0 · en 7` / `en 0 · te 7`,
+  d(fixed) ≤ 21.3 ms, d(stale) ≥ 1357.9 ms. Under forced reduced motion turn 3 then
+  holds the screen for **3711 ms** against English's full turn-3 duration of
+  3686.67 ms, not Telugu's ~2017 ms remainder.
+  **NOTHING ELSE MOVED.** `/` is **0 differing pixels** at 360/768/1440 under the
+  build-id interlock, and so are the four static instances. The play control's
+  `getBoundingClientRect().top` is still **10433.17 / 8931.17 / 8404.16**,
+  identical across `en` and `te`, and switching at idle moves nothing but the
+  language and the total. `/` first-load JS unchanged at **113 kB**; `/specimen`
+  page chunk 4.68 → **4.77 kB**, first-load **107 kB** against the 140 kB budget.
+  ⚠️ **RESIDUAL, NOT FIXED, NOT THE SAME DEFECT.** The Replay crossfade's pending
+  `setTimeout` closes over its own `tl` and `run`, so a language switched during
+  that 150 ms window leaves the restarted chain on the outgoing timeline until the
+  next switch. It needs a two-click-in-150 ms sequence to reach and the effect
+  above deliberately does not widen to cover it.
 - **THE CONVERSATION HAS TWO LANGUAGES — HERO-1 phase 4, built** (`08120ad`).
   Four files new — `en.json`, `LanguageSelector.{tsx,module.css}` and
   `tests/design/conversationLanguages.test.js` — and three edited: `index.ts`
@@ -580,8 +658,9 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   by 8.63–12.94 px at idle and 38.82–97.28 px at complete, all six comparisons red.
   English's natural stack is **shorter** than Telugu's at every width
   (733/649/774 against 822/688/870), so nothing needed resizing.
-  ⚠️ **SWITCHING MID-PLAYBACK LEAVES THE CLOCK ON THE OUTGOING LANGUAGE. NOT
-  FIXED.** `usePlayback.ts:81-96`: `tick` is `useCallback(…, [tl])` and schedules
+  ✅ **SWITCHING MID-PLAYBACK LEFT THE CLOCK ON THE OUTGOING LANGUAGE — CLOSED at
+  phase 4.1 (`89927c9`); the diagnosis is kept because it is how it was found.**
+  `usePlayback.ts:81-96`: `tick` is `useCallback(…, [tl])` and schedules
   its own successor with `requestAnimationFrame(tick)`, so the running chain keeps
   the closure it started with. Changing `lang` rebuilds `tl` and updates
   `data-playback-total` (13207.5 → 13203.33, visible in the DOM) while the frames
@@ -594,7 +673,8 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   outside phase 4's allowed files. It is also why "the current turn restarts" did
   not happen: the playhead IS preserved (playback resumed at **turn index 3**), but
   nothing rewinds `elapsed` to the new timeline's turn start. One effect that
-  cancels the in-flight rAF and re-anchors `elapsed` on `tl` change delivers both.
+  cancels the in-flight rAF and re-anchors `elapsed` on `tl` change delivers both
+  — which is exactly what phase 4.1 shipped.
   **BUNDLE.** `/` first-load JS unchanged at **113 kB**. `/specimen` page chunk
   4.09 → **4.68 kB** (+0.59 kB, the selector), first-load **107 kB** against the
   140 kB budget.
