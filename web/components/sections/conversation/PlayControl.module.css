@@ -7,7 +7,13 @@
  * padding, so the button's intrinsic width follows the label out and lands at
  * exactly 48px — the glyph slot — with the same 24px radius that made it a
  * pill. That is why there is no measured pixel width anywhere in this file and
- * why phase 4 can change the label's language without retuning anything.
+ * why the label's length is not a number anything here depends on.
+ *
+ * THE LABEL STAYS IN ENGLISH, and that was phase 4's ruling rather than an
+ * omission. The selector beside this control chooses the CONVERSATION's
+ * language; this button is site chrome, and the marketing site's reader is the
+ * clinic owner. A play button that changed language when the dialogue did would
+ * be answering a question nobody asked.
  *
  * ONE RADIUS, TWO SHAPES. 24px on a 48px-tall box is a pill at any width and a
  * circle at 48px. The shape change is free.

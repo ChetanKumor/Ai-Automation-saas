@@ -1,4 +1,9 @@
-/* Ported verbatim from design-reference/zyon-hero.html — hero + chat card */
+/* Ported verbatim from design-reference/zyon-hero.html — hero copy.
+   The WhatsApp chat card that used to live in the second half of this file went
+   with HeroChat.tsx at HERO-1 phase 5. What replaces it draws nothing of its
+   own: the conversation module carries its own stylesheets, so everything below
+   is the hero's layout, its page-load reveal, and the caption under the
+   conversation. No --wa-* token is read from this file any more. */
 
 /* —— PAGE-LOAD REVEAL —— */
 .reveal {
@@ -66,7 +71,7 @@
 
 /* Microcopy under the CTAs. Tertiary and small on purpose — it is evidence for
    the claim above it, not a third call to action. Same size and colour as
-   .waCaption, the only other microcopy in this stylesheet. */
+   .chatCaption, the only other microcopy in this stylesheet. */
 .heroMicro {
   margin-top: 14px;
   font-size: 0.78rem;
@@ -74,211 +79,41 @@
   line-height: 1.5;
 }
 
-/* —— CHAT CARD —— */
+/* —— CONVERSATION COLUMN —— */
 .chatCol {}
 
-/* Column, not row. This stage holds the phone card AND the caption <p> beneath
-   it, and a default `flex-direction: row` made them siblings in a row: both are
-   shrinkable, so the card never reached its 384px max-width (it measured 215px
-   at 1440 and 114px at 380) and the caption sat alongside the phone instead of
-   under it. Every property on .waCaption below — margin-top, the auto side
-   margins, text-align: center, the matching 384px max-width — is written for a
-   caption *under* a 384px card, so the row direction contradicted the stylesheet's
-   own intent.
-   Pre-existing at HEAD, not introduced with the Telugu; it only became obvious
-   here because Telugu words are longer and a 215px card wrapped them to two per
-   line. Fixing it is what F-F005's effort line budgets as "layout at the longer
-   Telugu string lengths". align-items replaces justify-content because the
-   centring wanted is on the cross axis once the main axis is vertical. */
+/* Column, so the conversation and the caption beneath it stack. A default
+   `flex-direction: row` made them siblings in a row, and both are shrinkable —
+   a bug this file carried at HEAD and F-F005 fixed.
+
+   STRETCH, NOT CENTRE. The centring was written for a 384px phone card: a
+   fixed-width object narrower than its column, so centring it was the only way
+   it did not sit against one edge. The conversation is not that. It is a
+   left-aligned column of text whose own measure is capped at 34rem by
+   Conversation.module.css, so under `align-items: center` it would be inset
+   from both edges of any column wider than that — visibly so between 900px,
+   where the grid collapses to one column, and the width at which the column
+   stops exceeding 34rem — while the headline directly above it starts at the
+   padding edge. Stretch lets the shell fill the column and its own max-widths
+   do the rest. */
 .chatStage {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   opacity: 0;
   transform: translateY(24px) scale(.98);
   animation: fadeUp .9s var(--ease-out) .5s forwards;
 }
 
-.wa {
-  width: 100%;
-  max-width: 384px;
-  background: var(--wa-bg);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  overflow: hidden;
-  box-shadow: var(--elev-2);
-}
-
-.waHead {
-  background: var(--wa-header);
-  padding: 13px 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.waAvatar {
-  width: 38px;
-  height: 38px;
-  border-radius: var(--r-pill);
-  background: linear-gradient(135deg, #2A3942, #3B4A54);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.92rem;
-  font-weight: 600;
-  color: #8FA3AD;
-}
-
-.waName {
-  font-size: 0.94rem;
-  font-weight: 500;
-  color: var(--wa-text);
-  line-height: 1.2;
-}
-
-.waStatus {
-  font-size: 0.74rem;
-  color: var(--wa-online);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 2px;
-  height: 14px;
-}
-
-.stOnline {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.stOnline::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: var(--r-pill);
-  background: var(--wa-online);
-}
-
-.stTyping {
-  display: none;
-  align-items: center;
-  gap: 3px;
-  color: var(--wa-meta);
-}
-
-.typing .stOnline { display: none; }
-.typing .stTyping { display: flex; }
-
-.stTyping i {
-  width: 4px;
-  height: 4px;
-  border-radius: var(--r-pill);
-  background: var(--wa-meta);
-  animation: bounce 1.2s infinite;
-}
-
-.stTyping i:nth-child(2) { animation-delay: .18s; }
-.stTyping i:nth-child(3) { animation-delay: .36s; }
-
-@keyframes bounce {
-  0%, 60%, 100% { transform: translateY(0); opacity: .5; }
-  30% { transform: translateY(-4px); opacity: 1; }
-}
-
-/* —— MESSAGE BUBBLES —— */
-.waBody {
-  padding: 18px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  height: 392px;
-  overflow-y: auto;
-  scroll-behavior: smooth;
-}
-
-.waBody::-webkit-scrollbar { display: none; }
-.waBody { scrollbar-width: none; }
-
-.bubble {
-  max-width: 80%;
-  padding: 8px 11px 6px;
-  border-radius: 9px;
-  font-size: 0.875rem;
-  color: var(--wa-text);
-  line-height: 1.42;
-  position: relative;
-  opacity: 0;
-  transform: translateY(10px) scale(.96);
-  display: none;
-}
-
-.bubbleShow {
-  display: block;
-  animation: pop .42s var(--ease-spring) forwards;
-}
-
-@keyframes pop { to { opacity: 1; transform: none; } }
-
-/* The Telugu message. The family is scoped to this element rather than to the
-   bubble, so the English line and the timestamp keep rendering in Geist.
-   Slightly larger than the bubble's 0.875rem and looser in leading, because
-   Telugu stacks matras above and below the baseline and gets cramped at a size
-   tuned for Latin — public/demo/styles.css:269-274 makes the same adjustment. */
-.bubbleTe {
-  display: block;
-  font-family: var(--font-te);
-  font-size: 0.9375rem;
-  line-height: 1.62;
-  overflow-wrap: anywhere;
-}
-
-/* The English translation under a reply. Deliberately quieter than the Telugu it
-   translates: the Telugu is the message, this is the aid. */
-.bubbleEn {
-  display: block;
-  margin-top: 5px;
-  font-size: 0.78rem;
-  line-height: 1.45;
-  color: var(--wa-gloss);
-  overflow-wrap: anywhere;
-}
-
-.time {
-  display: block;
-  text-align: right;
-  font-size: 0.64rem;
-  color: var(--wa-meta);
-  margin-top: 3px;
-}
-
-.bubbleIn {
-  background: var(--wa-in);
-  align-self: flex-start;
-  border-top-left-radius: 2px;
-}
-
-.bubbleOut {
-  background: var(--wa-out);
-  align-self: flex-end;
-  border-top-right-radius: 2px;
-}
-
-.bubbleOut .time::after {
-  content: " ✓✓";
-  color: var(--wa-tick);
-}
-
-.waCaption {
-  text-align: center;
+/* The honesty caption under the conversation. 34rem matches `.turn`'s measure
+   in Conversation.module.css so the caption wraps on the same column the
+   dialogue does, rather than running the full width of a 1440px grid cell.
+   Left, not centred, for the same reason .chatStage stretches. */
+.chatCaption {
   font-size: 0.78rem;
   color: var(--text-tertiary);
-  margin-top: 18px;
-  max-width: 384px;
-  margin-left: auto;
-  margin-right: auto;
+  margin-top: 24px;
+  max-width: 34rem;
   line-height: 1.5;
   opacity: 0;
   animation: fadeUp .7s var(--ease-out) 1s forwards;
@@ -313,8 +148,6 @@
 @media (prefers-reduced-motion: reduce) {
   .reveal,
   .chatStage,
-  .waCaption { opacity: 1; transform: none; }
+  .chatCaption { opacity: 1; transform: none; }
   .lineInner { transform: none; }
-  .bubble { opacity: 1; transform: none; }
-  .stTyping i { animation: none; }
 }

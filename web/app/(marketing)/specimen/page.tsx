@@ -437,7 +437,7 @@ export default function SpecimenPage() {
             not the token table. */}
         <section className={styles.convSection} data-conversation-section>
           <p className={styles.kicker}>
-            HERO-1 phase 4 · Playback · English and Telugu · No audio
+            HERO-1 phase 5 · Playback · English and Telugu · No audio
           </p>
           <h2 className={styles.h2}>Conversation</h2>
           <p className={styles.sectionNote}>
