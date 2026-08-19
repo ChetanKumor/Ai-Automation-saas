@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 0fdf971e83172ca63b67a7f3502169e892eab88f
+Verified-at: 50c56901fd80c0fcef14934308020ea91bd9bc42
 Verified-on: 2026-08-19
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -76,9 +76,15 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1107 tests / 180 suites / 0 fail** (`npm test`, raw: `# tests 1107 /
-  # pass 1107 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  Moved at **HERO-1 phase 5** (the hero conversation replaces the WhatsApp
+- Test suite: **1109 tests / 180 suites / 0 fail** (`npm test`, raw: `# tests 1109 /
+  # pass 1109 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  Moved at **the two-arm embedding transport** (`npm test` makes zero live external
+  calls): **+2 tests, +0 suites**, both in
+  `tests/portal/portalFaqs.integration.test.js` — the two error paths the previous
+  stubs could not reach (a transport failure, and a call that never answers being
+  ended by the `interactive` deadline). **The default arm is the same 1107 assertions
+  it was, served offline.** See the session entry below.
+  Previously moved at **HERO-1 phase 5** (the hero conversation replaces the WhatsApp
   mockup): **+1 test, +0 suites** — `tests/design/heroDisclosure.test.js`, one
   bare `test()` call. It is the **fifth** Node test with purchase over `web/`
   and it exists for one reason: phase 5 deleted the component that rendered the
@@ -611,6 +617,154 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE SUITE TELLS THE TRUTH ABOUT WHAT IT RUNS — two-arm embedding transport,
+  built** (`50c5690`). Seven files: a new `tests/_support/embedTransport.js` (the arm
+  switch), a new `scripts/net-census.js` (the instrument), a new
+  `docs/testing/live-arm.md`, one `--require` added to `package.json`'s `test`
+  script, and comment/wiring changes in the three test files that were making live
+  calls. Node **1107 → 1109 / 180 suites / 0 fail / 0 cancelled / 0 skipped /
+  0 todo**. `npm run build` exit 0. **No new dependency.** Nothing under `web/`,
+  no legal page opened, no production route or handler changed, no register file
+  edited except this one.
+
+  **THE SUITE'S LIVE-GEMINI FOOTPRINT WAS 12 CALLS ACROSS 3 FILES. IT IS NOW ZERO
+  BY DEFAULT, AND STILL 12 ON DEMAND.** The predecessor's count was inherited but
+  not trusted: it was re-measured with a new instrument, `scripts/net-census.js`,
+  a preload that records every outbound request at the `fetch`, `http`/`https` and
+  socket layers. Over a full `npm test` at `051ed7b` it recorded **976 outbound
+  attempts, 15 of them non-loopback** — 12 `embedContent` fetches plus the 3 TLS
+  connects they shared — split exactly `5 portalFaqs / 5 portalOnboarding /
+  2 portalKnowledgeSummary`. **The predecessor's 12/3 holds, to the call.**
+
+  The switch is `tests/_support/embedTransport.js`, loaded by `--require` from the
+  `test` script (the `testEnv.js` seam, chosen for the same reason: `node --test`
+  propagates `execArgv` to every per-file child, so it is installed before any
+  test module in every process). `npm test` answers offline; `LIVE_GEMINI=1 npm
+  test` makes the real call. Same tests, same code, one difference.
+
+  **IT REPLACES THE WIRE, NOT THE SERVICE — which is why the error paths got
+  BIGGER, not smaller.** The seam is `GenerativeModel.prototype.embedContent`, so
+  everything in `knowledgeService.embed()` still runs in both arms: the budget
+  class lookup, the `AbortController`, the deadline timer, the `signal` relay, the
+  `result.embedding.values` unwrap. A `mock.method` on `knowledgeService.embed`
+  skips all of it — and cannot see `getRelevantChunks`, which reaches `embed`
+  through the module-local binding (`knowledgeService.js:111-118`). Both stub
+  layers now coexist deliberately: the service seam for the tests that assert on
+  call COUNTS, the transport underneath it for everything else.
+
+  **THE TWO NEW TESTS ARE THE ERROR PATHS NO STUB IN THIS REPO COULD REACH.**
+  `routes.js:1986-1990` turns any throw out of the embedding into a 500, and
+  nothing exercised that line — which is why three historical `500 !== 200`
+  sightings on the retrieval test had no companion showing what a real 500 there
+  looks like. `embedTransport.failNext()` produces a transport rejection;
+  `stallNext()` produces a call that never answers, so only the deadline ends it.
+  Both assert the 500, the recorded latency, and that **no row is written**.
+
+  ⚠️ **FAULT A REMAINS OBSERVABLE — this was the session's stop condition and it
+  was cleared by measurement, not by argument.** The instrumentation `0fdf971`
+  added did not move to a stub; it moved into the transport and runs in **both**
+  arms, so a record has one shape whichever arm produced it. Measured live this
+  session: two ordinary calls at `{"ok":true,"ms":626.8,"live":true}` and
+  `{"ok":true,"ms":463.6,"live":true}` — inside the predecessor's 424–1903 ms
+  band — and then, with `EMBED_TIMEOUT_INTERACTIVE_MS=1` forcing the deadline to
+  fire on a genuinely in-flight live request:
+
+  ```
+  {"ok":false,"ms":4.5,"live":true,
+   "err":"[GoogleGenerativeAI Error]: Request aborted when fetching
+          …:embedContent: This operation was aborted"}
+  ```
+
+  Field for field the shape of the 10,085.7 ms stall record. A live run still
+  produces it, and `docs/testing/live-arm.md` says what to do on the next
+  sighting (record it; do not raise the deadline). **Fault A's production remedy
+  was explicitly out of scope and was not begun** — no handler was touched.
+
+  ✅ **THE GATE ALREADY SAW CANCELLATIONS. Scope item 1 required no change, and
+  that is a finding rather than a failure.** Answered from the parsing logic, not
+  the header: `scripts/os-check.js:196-206` refuses on a non-zero `# cancelled`
+  and **also** refuses when the counter cannot be parsed at all ("a counter that
+  cannot be read is not a zero"), and `:208-224` does the same for `# skipped`.
+  `tests/infra/osCheckGate.unit.test.js:124-198` already covers both against real
+  induced runs. **Demonstrated end to end anyway**, with a throwing `before` hook
+  and three siblings: `# fail 0 / # cancelled 3` → `os:check` **exit 1**, with all
+  three cancelled tests NAMED and their `cancelledByParent` reason given. Exit 1
+  before the change and exit 1 after it.
+
+  ⚠️ **`# todo` IS THE SAME BLIND SPOT, STILL OPEN — reported, not fixed (it was
+  outside this session's scope).** The string `todo` does not occur anywhere in
+  `scripts/os-check.js`. A `todo` test that THROWS is reported `not ok … # TODO`,
+  counted under `# todo` and never under `# fail`, **and it still counts toward
+  `# tests`** — so the recorded-total comparison cannot catch it either, unlike a
+  skipped suite. Reproduced: a 2-test file whose todo test throws gives
+  `# fail 0 / # todo 1`, `node --test` itself exits **0**, and `suiteGate` returns
+  `[]` — green. The fix is three lines, symmetrical with the `cancelled` block:
+  read `todo: got(/^# todo (\d+)$/m)`, refuse when it is `undefined` or not `'0'`,
+  and name the directives (the `skipDirectives` scanner already has the shape —
+  it needs `# TODO` alongside `# SKIP`). At HEAD the count is 0, so landing it
+  cannot turn `os:check` red today.
+
+  **THE TWO FALSE COMMENTS WERE CORRECTED BY MOVING THE CODE, NOT THE PROSE, IN
+  BOTH CASES.** `portalOnboarding.integration.test.js`'s "stubbed exactly like the
+  rest of the suite" was the accurate half — it described `validateTenant`'s
+  `deps` argument, and that argument really is stubbed — while the five
+  `faqService.createFaq` calls twelve lines above it went to Google for real. The
+  code moved: those five are served offline now, and the sentence became true of
+  the whole test rather than of one argument in it. `portalFaqs`'s header claim
+  that real calls were "reserved for ONE test" was wrong by 2.4x; it now states
+  the arm switch and the measured census instead, and **the count is a property of
+  the transport rather than of a comment** — `scripts/net-census.js` re-checks it.
+  `portalKnowledgeSummary` had no comment at all about its two live calls, which
+  was the most dangerous of the three: they sit in a `before` hook, so one bad
+  call reports `# fail 0 / # cancelled 7`. It says so now.
+
+  **DETERMINISM: 20 consecutive `npm test` runs, in `os:check`'s ordering** —
+  `os-check.js:264` spawns `npm test` verbatim, so there is no third ordering.
+  **19 / 20 at `1109 pass / 0 fail / 0 cancelled / 0 skipped / 0 todo`**, and the
+  twentieth is reported rather than re-rolled: **run 4 failed one test in
+  `portalLifecycle.integration.test.js:794`, a file this session never touched**
+  (see the new open risk below). Every run reported `# tests 1109 / # suites 180`
+  and no run recorded a cancellation, a skip or a todo. The census over the
+  default arm reports **961 outbound attempts, 0 of them external**; the same
+  instrument over the live arm reports 12, which is the positive control that it
+  measures anything at all.
+
+  ⚠️ **THE SWEEP CAUGHT TWO DEFECTS IN THIS SESSION'S OWN NEW TESTS, and that is
+  the argument for running it.** Neither would have been visible in a single
+  green run. (1) The deadline test asserted a `Date.now()` ceiling of 5,000 ms;
+  it went red once when the **host suspended for 2h25m mid-run** and the
+  assertion measured the suspension. Removed rather than widened — it was also
+  redundant, because `stallNext()` settles only on abort and the sole aborter on
+  that path is `embed()`'s deadline, so the 500 already proves the deadline
+  fired; a deadline that never fired hangs the request and surfaces as a
+  CANCELLED test, which the gate refuses. (2) The same test then asserted the
+  recorded latency was `>= DEADLINE_MS`, which is **wrong by construction and
+  fired 1 run in 40 at 149.6 ms against 150**: `embed()` arms the timer BEFORE it
+  calls `embedContent` (`knowledgeService.js:147-155`), so the recorded span
+  starts later than the deadline's clock and is always slightly shorter. The
+  floor is now 80% of a named `DEADLINE_MS`, which still separates "waited out
+  the deadline" from "answered instantly" by two orders of magnitude.
+
+  **BOTH NEW TESTS ARE MUTATION-CHECKED**, because this repo has shipped vacuous
+  pins twice. Making `failNext` succeed reds exactly test 18; making `stallNext`
+  answer normally reds exactly test 19. The first attempt showed a CASCADE — 18's
+  leaked row reddening 19 — so both now clear their tenant in `finally`, and the
+  re-check is one mutant, one red, each.
+
+  ⚠️ **THE FREE-TIER ASSUMPTION IN THE REGISTER IS FALSIFIED and was NOT edited
+  here** — `assumptions.md` is founder-landed. `portalFaqs`'s old header cited
+  "Issue 21/30 — 20/day" for the embedding key's quota. The predecessor measured
+  **334 live calls in one session, 334 answered, zero 429s at any point**, which
+  is 16.7x that figure with no rate pressure observed. The proposed correction is
+  written out in this session's report.
+
+  **NOTHING ON THE FORBIDDEN LIST WAS USED.** No test was deleted or skipped to
+  remove a live call — the retrieval test still runs, still asserts `strictEqual`
+  against exactly 200, and gained two siblings. No `.skip`, no `.only`, no `todo`
+  was added anywhere (`# skipped 0 / # todo 0` at HEAD). The live arm is
+  runnable, documented and switched by a recorded flag. No stub is
+  success-only — that is what the two new tests are for. And no cancellation was
+  suppressed: the gate's refusal on `cancelled` is unchanged and re-demonstrated.
 - **THE `portalFaqs` INTERMITTENT IS TWO FAULTS — attribution session, built**
   (`0fdf971`). One file changed: `tests/portal/portalFaqs.integration.test.js`
   (+78/-4 — a pass-through transport spy and three assertion messages). No `it()`
@@ -3368,6 +3522,34 @@ all branches fast-forward onto main · one issue per session · runtime evidence
 
 ## Known open risks
 
+- ⚠️ **`portalLifecycle.integration.test.js:794` FAILS WHEN THE MACHINE IS FAST —
+  a latent flake, measured this session and NOT fixed** (untouched file, outside
+  this session's scope). The assertion is
+  `+e1.updated_at > +e0.updated_at` on `tenant_entities`, comparing two JS `Date`
+  objects, which carry MILLISECOND resolution while Postgres timestamps carry
+  microseconds. Measured directly at the test's own INSERT→UPDATE cadence, on an
+  idle machine, **n=300: 63.7% of pairs land in the SAME millisecond**, where the
+  strict `>` is false. It passes in the suite only because 20-way parallelism
+  stretches the round trip past 1 ms — so the failure mode is an idle or
+  momentarily fast machine, which is the inverse of the usual flake intuition and
+  is why it reads as inexplicable. Seen once in 20 full-suite runs.
+  **The fix is to stop comparing at millisecond resolution**: assert in SQL
+  (`SELECT updated_at > created_at`) or compare
+  `EXTRACT(EPOCH FROM …)` text, either of which keeps the microseconds the
+  database already stored. Widening to `>=` would pass vacuously — it is true at
+  INSERT too — so that is the wrong repair.
+- ⚠️ **TWO CONCURRENT `npm test` RUNS CORRUPT EACH OTHER, silently and in a shape
+  that looks like a product defect.** Observed this session: a full-suite run
+  started while an earlier one was still finishing produced **8 failures in
+  `workflowEngine.test.js`**, all `workflow_rules_tenant_id_fkey` violations. The
+  mechanism is not specific to that file — the shared-DB suites seed FIXED UUIDs
+  (`workflowEngine.test.js:18-19` uses `…0099` / `…00c1`) and delete them
+  unconditionally in `after`, so one run's teardown pulls the row out from under
+  the other run's inserts. The scratch-DB suites are safe (disjoint random
+  prefixes); the fixed-UUID ones are not. Nothing in the repo detects the
+  condition. **On Windows this is easy to hit by accident: stopping a test loop
+  does not reliably reap the `node --test` descendants**, so a "stopped" run can
+  still be executing against the database minutes later. Not fixed.
 - **Distribution is the existential risk**, not capability. Clinic sales in India are
   trust-based; the durable asset is an exclusive channel plus outcome-labelled vernacular
   transcripts. ⚠️ market claim, not repo-derivable.
