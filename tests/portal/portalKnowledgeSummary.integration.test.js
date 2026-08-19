@@ -24,6 +24,15 @@
 //   • tools.booking off empties the doctors section even with doctors on file,
 //   • protections match src/portal/protections.js exactly (single source),
 //   • tenant scope (INV-1): a crafted tenantId is inert.
+//
+// EMBEDDING COST — and why this file was the worst place in the suite for it.
+// The `before` hook seeds two FAQs through the real faqService, which embeds.
+// At 051ed7b those were two LIVE Gemini calls, made from a hook: node reports a
+// throwing `before` as `failureType: 'cancelledByParent'` on every sibling, so
+// one bad call here produced `# fail 0 / # cancelled 7` — seven tests that never
+// ran, in a run whose failure count was zero. They are served offline by
+// tests/_support/embedTransport.js now (`LIVE_GEMINI=1` opts back into the real
+// call); the seeding below is unchanged and still goes through the real service.
 
 process.env.LOG_LEVEL = 'silent';
 require('dotenv').config();
@@ -35,6 +44,13 @@ const http = require('http');
 const { Client } = require('pg');
 
 const runner = require('../../src/db/migrate');
+// Installs the offline embedding transport even when this file is run directly
+// (`node --test <file>`), which bypasses the `--require` preload the `test`
+// script sets up. Requiring it IS the install — the module patches
+// GenerativeModel.prototype.embedContent at load, and require caches, so this is
+// a no-op under `npm test`. Without it, the repeated single-file runs that
+// attribution sessions live on would silently go live again.
+require('../_support/embedTransport');
 const { hashPassword } = require('../../src/portal/auth'); // auth lazy-requires db → safe at top
 const { protectionsForDisplay } = require('../../src/portal/protections');
 

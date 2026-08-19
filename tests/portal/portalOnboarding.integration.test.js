@@ -49,6 +49,13 @@ const path = require('path');
 const { Client } = require('pg');
 
 const runner = require('../../src/db/migrate');
+// Installs the offline embedding transport even when this file is run directly
+// (`node --test <file>`), which bypasses the `--require` preload the `test`
+// script sets up. Requiring it IS the install — the module patches
+// GenerativeModel.prototype.embedContent at load, and require caches, so this is
+// a no-op under `npm test`. Without it, the repeated single-file runs that
+// attribution sessions live on would silently go live again.
+require('../_support/embedTransport');
 const { hashPassword } = require('../../src/portal/auth'); // auth lazy-requires db → safe at top
 
 const ADMIN = process.env.DATABASE_URL;
@@ -403,9 +410,18 @@ describe('portal onboarding wizard — progress + no-duplicate-forms (route-leve
 
       const run = await validationService.validateTenant(done.tenantId, {
         skip: ['turn.scripted'],
-        // kb.retrieval and whatsapp.live are the two network-bound checks
-        // (embedding + a Meta ping) — stubbed exactly like the rest of the
-        // suite (portalHours, shoot.js), never faked into a false pass.
+        // kb.retrieval and whatsapp.live are validateTenant's two network-bound
+        // checks (embedding + a Meta ping) — injected here, never faked into a
+        // false pass.
+        //
+        // That was ALL this comment ever covered, and it read as though it
+        // covered the test. It did not: the five `createFaq` calls twelve lines
+        // above went to Google for real, five live embedContent requests per
+        // suite run, measured by census at 051ed7b. The comment was the accurate
+        // half and the code was the wrong half, so the code moved — the offline
+        // transport preload (tests/_support/embedTransport.js) now serves those
+        // five, and the sentence above is true of the whole test rather than of
+        // one argument in it.
         deps: { getRelevantChunks: async () => [{ id: 1 }], pingNumber: async () => 'stub' },
       });
       const byName = (n) => run.checks.find((c) => c.name === n);

@@ -10,15 +10,29 @@
 // auth / readiness / identity / hours / pricing / booking / doctors / safety
 // suites without dropping their scratch DBs.
 //
-// EMBEDDING COST: knowledgeService.embed is a live Gemini call (~0.6–0.9s
-// measured, see faqs.js's save comment) against a dev key with a small daily
-// quota (Issue 21/30 — 20/day). Every test that only needs to prove CRUD
-// shape, validation, the cap, or cross-tenant isolation stubs `embed` via
-// node:test's `mock.method(knowledgeService, 'embed', ...)` with a cheap
-// deterministic vector — see fakeEmbed below. Real Gemini calls are reserved
-// for ONE test ("real semantic retrieval…") that specifically has to prove
-// the receptionist's retrieval path actually works, on a tenant with no other
-// chunks so nothing else pollutes the ranking.
+// EMBEDDING COST: knowledgeService.embed reaches Google. WHETHER IT DOES SO
+// FOR REAL IS DECIDED IN ONE PLACE — tests/_support/embedTransport.js, loaded
+// as a `--require` preload by the `test` script:
+//
+//   npm test                 default arm — offline transport, ZERO live calls
+//   LIVE_GEMINI=1 npm test   live arm    — the real SDK call (docs/testing/live-arm.md)
+//
+// This header used to claim real calls were "reserved for ONE test". That was
+// false, and measurably so: a census over `npm test` at 051ed7b
+// (scripts/net-census.js) recorded FIVE live embedContent requests from this
+// file, and twelve across three files. The claim was wrong by 2.4x and every
+// quota estimate built on it was wrong by the same factor. The count is now a
+// property of the transport rather than of a comment: in the default arm it is
+// zero, and `scripts/net-census.js` is how that is checked rather than asserted.
+//
+// Two stub layers therefore coexist, and they are not redundant:
+//   • `mock.method(knowledgeService, 'embed', fakeEmbed)` — the SERVICE seam,
+//     used by every test that only needs CRUD shape, validation, the cap or
+//     cross-tenant isolation. It skips `embed()` entirely, which is the point:
+//     those tests assert on call COUNTS (see :293's re-embed test).
+//   • the transport preload — the WIRE seam, underneath all of them. It is what
+//     makes the retrieval test below, which cannot use the service seam
+//     (knowledgeService.js:111-118), run offline by default.
 //
 // The contract under test:
 //   • POST/PATCH/DELETE go through knowledgeService (no raw SQL from the
@@ -42,6 +56,14 @@ const http = require('http');
 const { Client } = require('pg');
 
 const runner = require('../../src/db/migrate');
+// The arm switch + the per-call recorder. Same module instance the `--require`
+// preload installed (require resolves to the same absolute path), so `calls()`
+// here reads the transport that actually served this process — AND it installs
+// the transport when this file is run directly (`node --test <file>`), which
+// bypasses the preload entirely. Requiring it IS the install. Without this line
+// the repeated single-file runs an attribution session lives on would silently
+// go live again, which is how the 12 calls got there in the first place.
+const embedTransport = require('../_support/embedTransport');
 const { hashPassword } = require('../../src/portal/auth'); // auth lazy-requires db → safe at top
 
 const ADMIN = process.env.DATABASE_URL;
@@ -500,44 +522,37 @@ describe('portal faqs — knowledge_chunks Q/A editor (route-level)', { skip: AD
   // live defect against D-011's derivation and it is recorded in state.md — and
   // it is NOT the phase-5 607 ms red, which remains unattributed.
   //
-  // THE LIVE CALL IS NOT STUBBED. `embedContent` still runs for real; its result
-  // and its errors both pass through untouched and the spy only observes. It
-  // sits at the SDK transport rather than on `knowledgeService.embed` on
-  // purpose: :551’s `getRelevantChunks` reaches `embed` through the module-local
-  // binding, which a `mock.method` on the export cannot see
-  // (knowledgeService.js:111-118), and the transport is below that split so it
-  // sees every call this test makes.
-  function liveEmbedProbe() {
-    const { GenerativeModel } = require('@google/generative-ai');
-    const original = GenerativeModel.prototype.embedContent;
-    const calls = [];
-    GenerativeModel.prototype.embedContent = async function (request, requestOptions) {
-      const t0 = process.hrtime.bigint();
-      const took = () => +(Number(process.hrtime.bigint() - t0) / 1e6).toFixed(1);
-      try {
-        const res = await original.call(this, request, requestOptions);
-        calls.push({ ok: true, ms: took() });
-        return res;
-      } catch (err) {
-        calls.push({ ok: false, ms: took(), err: String(err && err.message).slice(0, 300) });
-        throw err;
-      }
-    };
+  // THE INSTRUMENTATION MOVED, IT DID NOT GO AWAY. The per-call recorder this
+  // block describes now lives in tests/_support/embedTransport.js and runs in
+  // BOTH arms, so the record shape an assertion message carries is the same
+  // whether the call went to Google or not. What changed is only that the
+  // default arm answers offline; under `LIVE_GEMINI=1` the call below is the
+  // identical real request, timed the identical way, and a stall would be
+  // recorded exactly as the 10,085.7 ms one was.
+  //
+  // It still sits at the SDK transport rather than on `knowledgeService.embed`,
+  // for the reason that has not changed: :551’s `getRelevantChunks` reaches
+  // `embed` through the module-local binding, which a `mock.method` on the
+  // export cannot see (knowledgeService.js:111-118). The transport is below that
+  // split, so it sees every call this test makes.
+  function embedProbe() {
+    embedTransport.reset();
     return {
-      restore() { GenerativeModel.prototype.embedContent = original; },
       // Everything the next sighting needs, in the assertion message itself:
-      // which request, what came back, and what every live call cost.
+      // which request, what came back, what every embedding call cost, and
+      // which arm produced it.
       why(what, res) {
         return `${what} → HTTP ${res.status}, expected 200. body=${JSON.stringify(res.body)} ` +
-          `liveEmbedCalls=${JSON.stringify(calls)}`;
+          `arm=${embedTransport.live ? 'LIVE' : 'offline'} ` +
+          `embedCalls=${JSON.stringify(embedTransport.calls())}`;
       },
     };
   }
 
-  // ── REAL semantic retrieval (live Gemini calls — see file header) ───────────
+  // ── REAL semantic retrieval (the ONE test the live arm exists for) ────────
   it('real semantic retrieval: create → found by a related query → edit re-embeds → delete removes it', async () => {
     const server = await start();
-    const probe = liveEmbedProbe();
+    const probe = embedProbe();
     try {
       const cookie = await authedCookie(server, ownerC.email, ownerC.password);
 
@@ -570,7 +585,104 @@ describe('portal faqs — knowledge_chunks Q/A editor (route-level)', { skip: AD
 
       const foundAfterDelete = await knowledgeService.getRelevantChunks(ownerC.tenantId, 'does the clinic take insurance', 3);
       assert.ok(!foundAfterDelete.some((c) => c.id === id), 'deleting the FAQ removes it from retrieval');
-    } finally { probe.restore(); server.close(); }
+    } finally { server.close(); }
+  });
+
+  // ── The offline transport can FAIL, and the route's 500 branch proves it ────
+  //
+  // A stub that only ever returns success is not a stub of the call, it is a
+  // deletion of the call's failure mode. routes.js:1986-1990 turns any throw
+  // out of the embedding into a 500 with the body `Failed to add this FAQ`, and
+  // nothing else in the suite reaches that line — which is why the three
+  // historical `500 !== 200` sightings on the retrieval test above had no
+  // companion test showing what a real 500 there looks like.
+  //
+  // These two use the WIRE seam deliberately. `mock.method(knowledgeService,
+  // 'embed', …)` cannot express them: it replaces `embed()` whole, so the
+  // AbortController, the deadline timer and the budget-class lookup — everything
+  // the second test is actually about — never run.
+  it('an embedding transport failure is a 500, not a partial write', async () => {
+    const server = await start();
+    embedTransport.reset();
+    try {
+      const cookie = await authedCookie(server, ownerA.email, ownerA.password);
+      embedTransport.failNext('fetch failed');
+
+      const res = await req(server, { method: 'POST', path: '/portal/api/faqs', cookie, body: VALID });
+      assert.equal(res.status, 500, `expected the embed failure to surface as a 500, got ${res.status}`);
+      assert.deepEqual(res.body, { error: 'Failed to add this FAQ' });
+
+      const calls = embedTransport.calls();
+      assert.equal(calls.length, 1, `exactly one embedding call was attempted: ${JSON.stringify(calls)}`);
+      assert.equal(calls[0].ok, false, 'and it is recorded as a failure, with its latency');
+
+      assert.equal((await rawFaqRows(ownerA.tenantId)).length, 0,
+        'a failed embedding leaves NO row — the FAQ is not written unembedded');
+    } finally {
+      // Defensive, and it earned its place: when this assertion was deliberately
+      // broken during a mutation check, the row it did not expect to exist leaked
+      // into the NEXT test and reddened that one too. A cascade hides which
+      // assertion actually caught the mutant.
+      await clearFaqs(ownerA.tenantId);
+      embedTransport.reset();
+      server.close();
+    }
+  });
+
+  // Fault A's shape, on demand. The stall recorded live on 2026-08-18 (10,085.7 ms,
+  // 1 of 334 calls) is a call that never answers, so the ONLY thing that ends it
+  // is `embed()`'s deadline — which is exactly what this asserts, at a deadline
+  // small enough to be a test. `EMBED_TIMEOUT_INTERACTIVE_MS` is read at call
+  // time (knowledgeService.js:84-87), so no sleeping and no clock control.
+  it('an embedding that never answers is ended by the interactive deadline, and 500s', async () => {
+    const server = await start();
+    const DEADLINE_MS = 150;
+    const prior = process.env.EMBED_TIMEOUT_INTERACTIVE_MS;
+    process.env.EMBED_TIMEOUT_INTERACTIVE_MS = String(DEADLINE_MS);
+    embedTransport.reset();
+    try {
+      const cookie = await authedCookie(server, ownerA.email, ownerA.password);
+      embedTransport.stallNext();
+
+      const res = await req(server, { method: 'POST', path: '/portal/api/faqs', cookie, body: VALID });
+
+      assert.equal(res.status, 500, 'a stalled embedding ends as a 500, the same shape the owner sees');
+      const calls = embedTransport.calls();
+      assert.equal(calls.length, 1, JSON.stringify(calls));
+      assert.equal(calls[0].ok, false);
+      assert.match(calls[0].err, /abort/i,
+        'the deadline aborts the in-flight call — the record carries the reason, not just a status');
+      // A FRACTION of the deadline, not the deadline itself — the bound is
+      // asymmetric by construction and an earlier `>= DEADLINE_MS` went red 1 run
+      // in 20 at 149.6 ms. `embed()` arms the timer BEFORE it calls
+      // `embedContent` (knowledgeService.js:147-155), so the span recorded here
+      // starts strictly later than the deadline's clock and is always a little
+      // shorter than it. What the assertion is actually for is separating "waited
+      // out the deadline" from "answered instantly", and an instant path records
+      // well under a millisecond — so 80% discriminates by two orders of
+      // magnitude while leaving the arming gap all the room it needs.
+      assert.ok(calls[0].ms >= DEADLINE_MS * 0.8,
+        `the recorded latency is the deadline, not the response time: ${JSON.stringify(calls)}`);
+
+      // NO WALL-CLOCK CEILING HERE, deliberately. An earlier revision asserted
+      // `Date.now()` elapsed < 5000 ms and it went red once in 20 runs — the host
+      // suspended for 2h25m mid-run, and the assertion measured the suspension.
+      // It was also redundant: `stallNext()` settles ONLY when the signal aborts,
+      // and on this path the sole aborter is `embed()`'s own deadline timer (no
+      // caller signal is passed from the FAQ save), so a 500 carrying an abort
+      // error IS the deadline having fired. A deadline that never fired would
+      // hang the request instead, which node:test reports as a CANCELLED test —
+      // and os-check.js:196-206 refuses a run with any cancellation. The failure
+      // mode is caught either way, by something a sleeping laptop cannot forge.
+
+      assert.equal((await rawFaqRows(ownerA.tenantId)).length, 0, 'nothing written');
+    } finally {
+      if (prior === undefined) delete process.env.EMBED_TIMEOUT_INTERACTIVE_MS;
+      else process.env.EMBED_TIMEOUT_INTERACTIVE_MS = prior;
+      await clearFaqs(ownerA.tenantId);   // see the sibling above
+      embedTransport.reset();
+      server.close();
+    }
   });
 
   // ── INV-1: cross-tenant (mandatory) ─────────────────────────────────────────
