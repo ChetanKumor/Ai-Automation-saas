@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 8d67d4760f4d0a608a167bbf48c95c8071b1563d
-Verified-on: 2026-08-18
+Verified-at: 0fdf971e83172ca63b67a7f3502169e892eab88f
+Verified-on: 2026-08-19
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -239,10 +239,17 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   (`portalFaqs.integration.test.js:465` did not resurface, and
   `portalKnowledgeSummary` produced no cancellations) — twelve consecutive clean
   runs for both across Sessions 3, 4A and 5.
-  ⚠️ **`portalFaqs:465` RESURFACED at HERO-1 phase 5** — first recorded
-  occurrence since. Still open, still unattributed, still not chased. See the
-  phase 5 entry for the run it fired in and what was and was not established
-  about it.
+  ⚠️ **`portalFaqs:465` IS TWO FAULTS, AND ONE OF THEM IS NOW ATTRIBUTED.** It was
+  chased in a dedicated session (entry below) and splits into an **embedding-call
+  STALL** that expires the 10,000 ms `interactive` deadline — reproduced naturally
+  at **1 red / 50 runs of the file alone**, with the failing call captured — and
+  the **phase-5 607 ms red**, which is **not** that and stays unattributed. The
+  live-Gemini quota/tier hypothesis this register was carrying is **ruled OUT** for
+  the 607 ms red, on an induced comparison, not merely left unconfirmed. The
+  location moved with the instrumentation commit: the signature to watch is now
+  `portalFaqs.integration.test.js:538`, failing at **`:548`** (the POST — where
+  every prior sighting landed) or **`:560`** (the PATCH — where the reproduction
+  landed).
   Last moved by **HERO-1 phase 5 — the hero conversation replaces the WhatsApp
   mockup** (+1 test, **+0 suites** — `tests/design/heroDisclosure.test.js`),
   before that by **HERO-1 phase 4.1 — the stale-rAF defect in `usePlayback`**
@@ -604,6 +611,130 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE `portalFaqs` INTERMITTENT IS TWO FAULTS — attribution session, built**
+  (`0fdf971`). One file changed: `tests/portal/portalFaqs.integration.test.js`
+  (+78/-4 — a pass-through transport spy and three assertion messages). No `it()`
+  added, so **1107 / 180 / 0 / 0 / 0 — UNMOVED**, by intent. `npm run build`
+  exit 0. No new dependency. Nothing under `web/` and no legal page opened.
+  **This session was scoped to attribute, not to fix**, and the outcome is one
+  fault named on evidence and one explicitly not.
+
+  ⚠️ **FAULT A — AN EMBEDDING CALL STALLS AND THE 10,000 ms `interactive`
+  DEADLINE FIRES. Named, reproduced, and NOT fixed.** Caught naturally on run 20
+  of 50 consecutive runs of the file alone, by the instrumentation this session
+  added, on its first firing:
+
+  ```
+  PATCH /portal/api/faqs/8925cc09-… → HTTP 500, expected 200.
+  body={"error":"Failed to save this FAQ"}
+  liveEmbedCalls=[{"ok":true,"ms":816},{"ok":true,"ms":473.3},
+                  {"ok":false,"ms":10085.7,"err":"[GoogleGenerativeAI Error]:
+                   Request aborted when fetching …:embedContent:
+                   This operation was aborted"}]
+  ```
+
+  `duration_ms 12050.0`, at the **PATCH** assertion (`:560`), not the POST. This is RAG
+  Session 3's fault recurring at D-011's raised bound, and **D-011's derivation of
+  10,000 ms is falsified by it.** That number was justified as sitting "3.3x above
+  the value known to fire, outside [the measured spread]". The spread is real and
+  the bound does clear it — **334 live embedding calls measured this session put
+  p50 at 482 ms, p99 at 1571 ms, and the second-slowest call in the whole set at
+  1903 ms** — but the failing call is not in that distribution. It is a separate
+  **stall** mode with no upper latency at all; the deadline is the only reason any
+  number was recorded for it. **No finite bound escapes a stall**, so the two
+  obvious remedies are both wrong and both are on this session's forbidden list:
+  raising the budget only lengthens the red, and a retry hides it. Recorded as
+  open. The real remedy is a decision about what a stalled embedding should do to
+  an owner's Save — which is a product question, not a constant.
+
+  ⚠️ **FAULT B — THE PHASE-5 607 ms RED IS NOT FAULT A, AND ITS CAUSE IS NOT
+  ESTABLISHED.** 607 ms against a 10,000 ms deadline was already recorded as not
+  fitting; this session establishes what it also cannot be. Three arms were
+  induced at this test and measured against it. Every arm is identical in every
+  recorded field — same location, same `500 !== 200`, same response body, because
+  `routes.js:1988` emits one string for every failure — and latency is the only
+  field that separates them:
+
+  | arm | how induced | `duration_ms` |
+  |---|---|---|
+  | Google ANSWERS with a rejection (quota / tier / auth) | whole suite run against a rejected key | **1925.6** (20-way) |
+  | the fetch never reaches Google (DNS / connect / socket) | `globalThis.fetch` throws for that host | **1104.7** (20-way) / **601.0** (alone) |
+  | a POST that does no network work at all | this file's own 400/404 tests | 548–690 (alone) / 712–1334 (20-way) |
+  | the test passing | — | 4875.3 (20-way) / 3770.7 (alone) |
+  | **the phase-5 red** | — | **607** |
+
+  ⚠️ **THE LEADING HYPOTHESIS — the embedding credential's tier or quota — IS
+  RULED OUT for Fault B, not left open.** Four independent lines, no one of which
+  rests on the others. (1) **Induced comparison.** A rejected credential
+  reproduces the signature byte-for-byte — `:465`, raised at `:474:14`
+  (the pins as they stood before this session's change),
+  `500 !== 200` — and costs **1925.6 ms** under the same 20-way parallelism, 3.2x
+  the recorded 607 ms. (2) **Google has no fast answer.** Every answered call
+  costs a full round trip: 424–1903 ms for a 200 (n=333), 535–575 ms for an
+  induced `401 ACCESS_TOKEN_TYPE_UNSUPPORTED`, 981 ms for an induced
+  `400 API_KEY_INVALID`. On top of this test's own start-server + login overhead —
+  548–690 ms uncontended, 712–1334 ms contended — a 607 ms total leaves no room
+  for one. (3) **Recovery pattern.** A daily-quota exhaustion cannot recover in
+  minutes, and the second `os:check` at the same commit was green. (4) **No rate
+  pressure exists to hit.** A census of every live call, taken by wrapping
+  `fetch`, shows the suite issuing **at most 2 embedding requests in any wall-clock
+  second**, and **334 of 334 calls today were answered — 333 with a 200 and one
+  stalled — with no 429 at any point.**
+
+  **Also eliminated for Fault B, each with the observation that did it:** the
+  interactive deadline (607 ms ≪ 10,000 ms, and `.env` sets no `EMBED_TIMEOUT*`
+  override); `DB_STATEMENT_TIMEOUT_MS` (5,000 ms ≠ 607 ms); **Postgres connection
+  exhaustion** — `max_connections` is 100 and a 364-sample sweep across a full
+  suite run peaked at **27**, and the app pool sets no `connectionTimeoutMillis`,
+  so there is no fast-fail path there at all; and **"created, then failed
+  afterwards"** — a successful embed costs ≥424 ms, so a run that reached the
+  INSERT could not have finished in 607 ms. What survives is narrow and honest:
+  **the 500 arose before Google answered.** That is either a transport-level
+  failure on the embedding fetch (an induced one costs 64 ms and lands the test at
+  601.0 ms, against the recorded 607 ms) or a fast failure earlier in the handler —
+  `getConfigForSession`, `countFaqs`, or `requirePortalAuth`, whose own 500 carries
+  a *different* body (`Auth check failed`, `auth.js:148`) that the assertion as it
+  stood could not tell apart. Retrospectively these cannot be separated, because
+  the evidence that would separate them was discarded at the moment of failure.
+
+  **WHAT LANDED, AND WHY IT IS INSTRUMENTATION AND NOT A FIX.** The assertion had
+  failed three times and been attributed once. Both places that know why are
+  closed on this path: `routes.js:1988` collapses every failure into
+  `Failed to add this FAQ`, and the file's `LOG_LEVEL = 'silent'` (`:35`)
+  suppresses `routes.js:1987`, the only line carrying the cause. The test was
+  therefore structurally incapable of reporting its own failure. It now installs a
+  **pass-through** spy at `GenerativeModel.prototype.embedContent` — the live call
+  still runs, its result and its errors pass through untouched, the spy only
+  observes — and the three `assert.equal(…, 200)` calls carry the request, the
+  response body, and every live call's latency and error. The spy sits at the
+  transport rather than on `knowledgeService.embed` because `:551`’s
+  `getRelevantChunks` reaches `embed` through the module-local binding, which a
+  `mock.method` on the export cannot see (`knowledgeService.js:111-118`). Nothing
+  was retried, loosened, skipped, deleted, stubbed or given a longer budget; the
+  assertion is still `strictEqual` against exactly 200. It proved itself inside 50
+  runs.
+
+  **REPRODUCTION RATES, natural runs only** (the induced suite runs are excluded).
+  `os:check` runs `npm test` verbatim — `scripts/os-check.js:264` is
+  `spawnSync('npm', ['test'])` — so **there is no third ordering to test**; the
+  full-suite row IS os:check's ordering. File alone: **1 red / 60** (10 before the
+  change, 50 after). Full suite: **0 red / 10** (2 in Phase 0, 3 before the
+  change, 5 after). Per live call, the stall rate is **1 in 334**.
+
+  ⚠️ **THE SUITE'S LIVE-GEMINI FOOTPRINT IS 12 CALLS ACROSS 3 FILES, NOT ONE TEST
+  — three adjacent defects found and left open.** `portalFaqs`'s own header says
+  real Gemini calls are "reserved for ONE test", which is true inside that file and
+  false of the suite. Established by running the whole suite against a rejected
+  key, which names every live-call site at zero quota cost:
+  `portalKnowledgeSummary.integration.test.js:185-186` makes **2 unstubbed calls in
+  its `before` hook** — and because they sit in a hook, their failure reports
+  `# fail 0 / # cancelled 7`, exactly the shape `os-check.js`'s own header warns a
+  gate cannot see; `portalOnboarding.integration.test.js:398-402` makes **5**, in a
+  test whose comment two lines below claims the network-bound work is "stubbed
+  exactly like the rest of the suite" (true of `kb.retrieval` and `whatsapp.live`,
+  not of the five `createFaq` calls above it); and any quota reasoning done from
+  the `portalFaqs` header is therefore wrong by 2.4x. None of the three was fixed —
+  all are behaviour changes outside an attribution session's scope.
 - **THE HERO CONVERSATION IS ON `/` — HERO-1 phase 5, built** (`8d67d47`).
   **HERO-1 ends here.** Six files: `Hero.tsx` and `Hero.module.css` rewritten,
   `HeroChat.tsx` **deleted**, one comment block in `PlayControl.module.css`, the
