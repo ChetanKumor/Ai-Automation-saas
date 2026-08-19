@@ -461,9 +461,83 @@ describe('portal faqs — knowledge_chunks Q/A editor (route-level)', { skip: AD
     await clearFaqs(ownerB.tenantId);
   });
 
+  // ── Why this ONE test carries its own telemetry ─────────────────────────────
+  //
+  // The assertion below has failed three times — RAG Session 3, HERO-1 phase 3,
+  // HERO-1 phase 5 — and only the first was ever attributed. The other two
+  // recorded `500 !== 200` and NOTHING ELSE, because both places that know why
+  // are closed on this path: routes.js:1988 collapses every failure into the one
+  // string `Failed to add this FAQ`, and this file's `LOG_LEVEL = 'silent'`
+  // (:35) suppresses routes.js:1987, the only line that carries the cause. The
+  // test was therefore incapable of reporting its own failure, which is a defect
+  // in the test before it is a defect in anything it exercises.
+  //
+  // LATENCY is the field that discriminates, and it is the one field a bare
+  // status assertion never records. Measured this session, all at this test, the
+  // arms are metres apart in time and identical in every other recorded field —
+  // same location, same `500 !== 200`, same response body:
+  //
+  //   Google ANSWERS with a rejection (quota / tier / auth)   1925.6 ms
+  //   the fetch never reaches Google (DNS / connect / socket)  1104.7 ms   (20-way parallelism)
+  //   ------------------------------------------------------------------
+  //   a POST that does no network work at all                  548-690 ms (uncontended)
+  //   the phase-5 red, unexplained                               607 ms
+  //
+  // A live embedding call that Google answers costs 424-1903 ms — p50 482, p99
+  // 1571, n=333 measured this session — whether it succeeds or is rejected. No
+  // arm in which Google replied can produce a 607 ms test, which is why the next
+  // sighting needs the per-call timings and not just a status.
+  //
+  // ── AND IT CAUGHT ONE, on run 20 of 50 ──────────────────────────────────────
+  // A natural firing, at :548 (the PATCH, not the POST): the third live call
+  // reported `{"ok":false,"ms":10085.7,"err":"…Request aborted…"}` — the 10,000 ms
+  // `interactive` deadline (knowledgeService.js:66) expiring on a call that
+  // STALLED rather than one that ran long: 1 of 334 calls, and against a p99 of
+  // 1571 ms and a next-slowest of 1903 ms it is not in the tail of the
+  // distribution above but in a separate mode whose latency is unbounded — the
+  // deadline is the only reason a number was recorded for it at all. So no finite
+  // bound escapes it and raising this one would only lengthen the red. That is a
+  // live defect against D-011's derivation and it is recorded in state.md — and
+  // it is NOT the phase-5 607 ms red, which remains unattributed.
+  //
+  // THE LIVE CALL IS NOT STUBBED. `embedContent` still runs for real; its result
+  // and its errors both pass through untouched and the spy only observes. It
+  // sits at the SDK transport rather than on `knowledgeService.embed` on
+  // purpose: :551’s `getRelevantChunks` reaches `embed` through the module-local
+  // binding, which a `mock.method` on the export cannot see
+  // (knowledgeService.js:111-118), and the transport is below that split so it
+  // sees every call this test makes.
+  function liveEmbedProbe() {
+    const { GenerativeModel } = require('@google/generative-ai');
+    const original = GenerativeModel.prototype.embedContent;
+    const calls = [];
+    GenerativeModel.prototype.embedContent = async function (request, requestOptions) {
+      const t0 = process.hrtime.bigint();
+      const took = () => +(Number(process.hrtime.bigint() - t0) / 1e6).toFixed(1);
+      try {
+        const res = await original.call(this, request, requestOptions);
+        calls.push({ ok: true, ms: took() });
+        return res;
+      } catch (err) {
+        calls.push({ ok: false, ms: took(), err: String(err && err.message).slice(0, 300) });
+        throw err;
+      }
+    };
+    return {
+      restore() { GenerativeModel.prototype.embedContent = original; },
+      // Everything the next sighting needs, in the assertion message itself:
+      // which request, what came back, and what every live call cost.
+      why(what, res) {
+        return `${what} → HTTP ${res.status}, expected 200. body=${JSON.stringify(res.body)} ` +
+          `liveEmbedCalls=${JSON.stringify(calls)}`;
+      },
+    };
+  }
+
   // ── REAL semantic retrieval (live Gemini calls — see file header) ───────────
   it('real semantic retrieval: create → found by a related query → edit re-embeds → delete removes it', async () => {
     const server = await start();
+    const probe = liveEmbedProbe();
     try {
       const cookie = await authedCookie(server, ownerC.email, ownerC.password);
 
@@ -471,7 +545,7 @@ describe('portal faqs — knowledge_chunks Q/A editor (route-level)', { skip: AD
         method: 'POST', path: '/portal/api/faqs', cookie,
         body: { question: 'Do you accept insurance?', answer: 'No, we currently do not accept any health insurance plans.' },
       });
-      assert.equal(created.status, 200);
+      assert.equal(created.status, 200, probe.why('POST /portal/api/faqs', created));
       const id = created.body.faqs[0].id;
 
       const found = await knowledgeService.getRelevantChunks(ownerC.tenantId, 'does the clinic take insurance', 3);
@@ -483,7 +557,7 @@ describe('portal faqs — knowledge_chunks Q/A editor (route-level)', { skip: AD
         method: 'PATCH', path: `/portal/api/faqs/${id}`, cookie,
         body: { question: 'Do you accept insurance?', answer: 'Yes, we now accept Star Health and HDFC Ergo insurance plans.' },
       });
-      assert.equal(edited.status, 200);
+      assert.equal(edited.status, 200, probe.why(`PATCH /portal/api/faqs/${id}`, edited));
 
       const foundAfterEdit = await knowledgeService.getRelevantChunks(ownerC.tenantId, 'does the clinic take insurance', 3);
       assert.ok(foundAfterEdit.some((c) => c.content.includes('Star Health')),
@@ -492,11 +566,11 @@ describe('portal faqs — knowledge_chunks Q/A editor (route-level)', { skip: AD
         'the stale answer is gone, not just superseded');
 
       const del = await req(server, { method: 'DELETE', path: `/portal/api/faqs/${id}`, cookie });
-      assert.equal(del.status, 200);
+      assert.equal(del.status, 200, probe.why(`DELETE /portal/api/faqs/${id}`, del));
 
       const foundAfterDelete = await knowledgeService.getRelevantChunks(ownerC.tenantId, 'does the clinic take insurance', 3);
       assert.ok(!foundAfterDelete.some((c) => c.id === id), 'deleting the FAQ removes it from retrieval');
-    } finally { server.close(); }
+    } finally { probe.restore(); server.close(); }
   });
 
   // ── INV-1: cross-tenant (mandatory) ─────────────────────────────────────────
