@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 629412c2c20f95c761a727b0f3472ca176568d40
+Verified-at: d81191014633ad0df97e4b992e8433d139cb79ed
 Verified-on: 2026-08-20
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -57,7 +57,7 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 | # | Gate | Audit (2026-07-16) | **At HEAD** | Evidence for the HEAD verdict |
 |---|---|---|---|---|
 | 1 | Genesis bootstrap works | PASS | **PASS** | `src/db/migrate.js`; `db:genesis`/`db:migrate`/`db:status` in `package.json`. Unchanged since the audit's live throwaway-DB run. |
-| 2 | Live WhatsApp round-trip on prod | PENDING | **PENDING** | No production deploy; no prod evidence log in the repo. Blocked on Issue 20. **Issue 20's scope is incomplete:** as scoped today it deploys the Express app and `public/**` and says nothing about `web/`, leaving the surface a prospect sees *first* un-deployed by any reviewable process. Issue 20 is not closeable until it carries a `web/` deploy line item — see F-F004 and the `web/` bullet under *Stack (frozen)*. |
+| 2 | Live WhatsApp round-trip on prod | PENDING | **PENDING** | No production deploy; no prod evidence log in the repo. Blocked on Issue 20. **Issue 20's scope is incomplete:** as scoped today it deploys the Express app and `public/**` and says nothing about `web/`, leaving the surface a prospect sees *first* un-deployed by any reviewable process. Issue 20 is not closeable until it carries a `web/` deploy line item — see F-F004 and the `web/` bullet under *Stack (frozen)*. **The `web/` half now has a reviewable process** (`d811910`): `docs/deploy/marketing-site.md`, and `web/` measured to need nothing outside itself. That is preparation, not a deploy — this gate still needs the founder to put it at an address, and the site goes up noindexed until the 24 legal placeholders are filled. |
 | 3 | Issue 14 voice gate | PENDING-DID | **PENDING-DID** | **Issue 11 is now done** (`9be2382`) but is **unwired** — the resolver has no caller. Issues 12–13 still absent. External clock C-2 unfiled. |
 | 4 | Tenant isolation audit clean | PASS | **PASS** | Unchanged. The two F-016 letter-violations (`appointmentService.js:171`; dead `identityService.getTimeline`) remain open with zero tenant-facing exposure. |
 | 5 | Issue 18 closed | PASS | **PASS** | Plus `3584240`, which closed the audit's noted `SESSION_SECRET` → `ADMIN_PASSWORD` fallback residual. |
@@ -617,6 +617,87 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **`web/` NEEDS NOTHING OUTSIDE `web/` — deploy prep, built** (`d811910`). Eight
+  files: `next.config.js`, `lib/siteConfig.ts`, `app/layout.tsx`, `app/robots.ts`,
+  `app/sitemap.ts`, `.env.example`, `README.md`, and a new
+  `docs/deploy/marketing-site.md`. Node **1109 / 180 / 0 fail / 0 cancelled /
+  0 skipped / 0 todo** — unmoved. `npm run build` (in `web/`) exit 0. No new
+  dependency. No legal page opened. `git diff web/package.json` empty.
+  ⚠️ The Python worker suite was **not re-run**; its **97** is carried forward.
+  **THE DEPENDENCY QUESTION IS SETTLED BY MEASUREMENT: `web/` DOES NOT NEED THE
+  BACKEND, FOR ANY ROUTE.** Not "no shared build" as `web/README.md` has always
+  claimed — measured. Source: zero `fetch`, zero XHR, zero server actions, zero
+  route handlers, zero `middleware.ts`, zero rewrites. Env: **five** variables,
+  every one `NEXT_PUBLIC_*`, every one read at build time, none naming a backend.
+  Routes: all nine — `/`, `/privacy`, `/terms`, `/data-deletion`,
+  `/acceptable-use`, `/specimen`, `/robots.txt`, `/sitemap.xml`, `/_not-found` —
+  `○ (Static)` prerendered; no ISR, no SSR. A **hostile arm** proved it:
+  `.env.local` moved out of the tree, nothing listening on :3000, and all nine
+  routes served (200, and 404 for the not-found probe).
+  **TWO NETWORK CENSUSES, BOTH POSITIVE-CONTROLLED.** Server side,
+  `scripts/net-census.js` preloaded into `next start`: **zero** outbound attempts
+  across every route. The control is in-process and that matters — a census file
+  that does not exist is indistinguishable from a preload that never loaded — so a
+  canary dialling a non-resolving host was preloaded alongside it. It fired **4
+  times**, which also established that `next start` runs a tree of four node
+  processes and the recorder was live in all of them. Browser side, a CDP census
+  over a real Chrome: **166 requests across the nine routes, 0 non-loopback**, with
+  a `data:` page referencing a Google Fonts stylesheet as the control in the same
+  session (2 external, caught). The same instrument found **82** external attempts
+  from `next build`.
+  **THE BUILD IS NOT OFFLINE EVEN THOUGH THE RUNTIME IS — not previously written
+  down anywhere.** `next/font/google` fetches `fonts.googleapis.com` and
+  `fonts.gstatic.com` at build time to self-host Geist, Geist Mono and Noto Sans
+  Telugu. A build on a machine that cannot reach Google Fonts loses the Telugu
+  face, and Telugu without its face renders as tofu, which reads as a content bug.
+  `next build` also posts to `telemetry.nextjs.org` (**8** requests);
+  `NEXT_TELEMETRY_DISABLED=1` is now documented.
+  **NOINDEX IS A PROPERTY OF THE REPOSITORY, NOT OF A HOST.** Vercel’s
+  preview-URL behaviour does this on Vercel and nowhere else.
+  `NEXT_PUBLIC_ALLOW_INDEXING` must be **exactly** `"true"` to permit indexing;
+  unset, empty, `false`, `1` and any typo all mean noindex, so a typo fails in the
+  recoverable direction. One flag drives four mechanisms that must agree:
+  `X-Robots-Tag: noindex, nofollow, noarchive` (`next.config.js` — it covers
+  `/robots.txt`, `/sitemap.xml`, `og-image.png` and the JS chunks, which have no
+  `<head>`), `<meta name="robots">` (`app/layout.tsx` — the only one that survives
+  a host ignoring `next.config.js`), `robots.txt` → `Disallow: /` with **no**
+  `Sitemap:` line, and `sitemap.xml` → an empty `<urlset/>` instead of the five
+  URLs it advertises when on.
+  **PROVED IN BOTH DIRECTIONS.** Rebuilt with the flag at its production value:
+  header absent on all nine routes, meta `index, follow`, `robots.txt` `Allow: /`
+  plus the sitemap pointer, `sitemap.xml` listing five URLs. Rebuilt with it unset:
+  all of it back. A robots directive that cannot be turned off has not been shown
+  to be on for a reason.
+  **TWO ROUTES STAY NOINDEX IN BOTH STATES, DELIBERATELY.** `/specimen` sets its own
+  (`app/(marketing)/specimen/page.tsx`) — an internal design surface, not a page
+  that becomes public when the flag flips — and Next noindexes `/_not-found`
+  itself. Anyone reading a future flip as "failed" because those two still say
+  noindex is reading the wrong routes.
+  **THE RULE IS WRITTEN TWICE AND THAT IS A KNOWN COST.** `indexingAllowed` in
+  `lib/siteConfig.ts` serves the three TypeScript consumers; one line at the top of
+  `next.config.js` serves the header. `next.config.js` is CommonJS, loaded by the
+  Next CLI before any TypeScript compiles, so it cannot import the module. Both
+  sites say so, and the deploy document’s Step 3 is what catches them
+  disagreeing — but **nothing in the repo fails if they drift**. Open, and small.
+  **SECRET AUDIT CLEAN, AND THE CONTROL USED REAL SECRETS.** Sixteen shapes (Google
+  and OpenAI-style keys, Meta long-lived tokens, bearer tokens,
+  Postgres/Mongo/Redis connection strings, AWS keys, PEM private keys, JWTs,
+  Neon/Railway/LiveKit hosts, RFC1918 addresses, `localhost:3000`, internal TLDs)
+  over **67** files served to the browser and **155** files of build output:
+  **zero**. The one `.internal` hit is `u.internal`, a property access in minified
+  Next internals. The positive control took **ten real values out of the
+  repository’s root `.env`** — Gemini, Postgres, Meta, encryption, session,
+  WhatsApp, Sarvam, LiveKit, voice-internal, admin — proved each findable by the
+  same `grep -F`, and found each absent from every built file. Values were never
+  printed; the report carries variable name, length and count only.
+  **THE 24 PLACEHOLDERS NOW EXIST OUTSIDE A MEMORY**, enumerated by file, line and
+  token in the deploy document’s appendix, with the command to re-derive them at
+  any later commit. A 25th sits outside the legal pages:
+  `siteConfig.legalEntityName` is `[REGISTERED ENTITY NAME]` and is **exempt** from
+  the build guard, published in the Organization JSON-LD on every page. Filling it
+  and deleting the exemption is one commit.
+  **NOT DONE, AND NOT THIS SESSION’S CALL:** no account created, no deploy, nothing
+  pushed. The founder deploys.
 - **THE SUITE TELLS THE TRUTH ABOUT WHAT IT RUNS — two-arm embedding transport,
   built** (`50c5690`). Seven files: a new `tests/_support/embedTransport.js` (the arm
   switch), a new `scripts/net-census.js` (the instrument), a new
@@ -3589,7 +3670,7 @@ Verified against `package.json` and `voice-agent/pyproject.toml` + `voice-agent/
   file is not a deploy: it configures a host that something else must have chosen. Vercel
   is convention here, not evidence. The founder must confirm the target; a `D-006` draft
   awaiting that confirmation sits in `docs/os/decisions.md.draft`.
-  Site configuration is environment-resolved as of Stage 2 Item 1 — see `web/.env.example`
+  **`docs/deploy/marketing-site.md` (`d811910`) now records what a person does, in order, to put `web/` at an address**, and settles by measurement that `web/` needs nothing outside `web/` for any route. The host is still founder-unconfirmed — the document is Vercel-first because `vercel.json` is, and carries a generic Node-host path alongside it. Site configuration is environment-resolved as of Stage 2 Item 1 — see `web/.env.example`
   for the variables a deploy must supply, and note that a production build **fails** if a
   required one is missing. See `docs/audit/2026-07-frontend.md` F-F004 and F-F002.
 - **Corrected:** the previous "Neon (dev/test)" was drift. The test path is local
