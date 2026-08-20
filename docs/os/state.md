@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 50c56901fd80c0fcef14934308020ea91bd9bc42
-Verified-on: 2026-08-19
+Verified-at: 629412c2c20f95c761a727b0f3472ca176568d40
+Verified-on: 2026-08-20
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -889,6 +889,93 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   not of the five `createFaq` calls above it); and any quota reasoning done from
   the `portalFaqs` header is therefore wrong by 2.4x. None of the three was fixed —
   all are behaviour changes outside an attribution session's scope.
+- **THE HERO FITS A PHONE — HERO-1 phase 5.1, built** (`629412c`). Two files,
+  both CSS: `Hero.module.css` and one `max-width` block in
+  `Conversation.module.css`. Node **1109 / 180 / 0 fail / 0 cancelled / 0 skipped /
+  0 todo** — unmoved; no test was added, because every claim here is a measurement
+  on the built page and none of it is assertable from Node. `npm run build` exit 0.
+  `git diff web/package.json` empty.
+  ⚠️ The Python worker suite was **not re-run**; its **97** is carried forward.
+  **THE TARGET WAS REVISED BY THE FOUNDER BEFORE ANY CODE CHANGED.** Phase 5's
+  criterion — the control above a **360×640** fold — was unreachable: the hero copy
+  alone is 518.58px there and the copy, selector, region and control together are
+  1094.58px. 360×640 is a 2016-class viewport. The revised target is the control
+  fully visible at **360×780**, with a floor of ≥140px of the conversation region
+  above a 360×640 fold, and 1440×900 unchanged.
+  **THE BUDGET WAS ITEMISED BEFORE ANYTHING MOVED, and it closes.** A ledger walked
+  from `<body>` down the ancestor chain to the control, emitting each container's
+  lead, each in-flow sibling's height and each inter-sibling gap, reconstructs
+  phase 5's `1046.58` to the hundredth at 360×640 and its `609.28 / 657.28` at
+  1440×900. The rows at 360×640: `108` hero padding-top · `5.8` first-line lead ·
+  `18.42` eyebrow · `23.38` · `126` h1 (3 × 42) · `24` · `163.13` sub (6 lines) ·
+  `36` · `89.14` CTAs · `14` · `18.72` micro · `40` grid gap · `40` selector ·
+  `20` shell gap · `296` region · `24` host gap. **Four levers, and what each
+  actually yielded** (against expectation): rhythm **−72.00** (−72 expected) —
+  padding-top 108→76, grid gap 40→24, h1 margins 22/24→14/16, CTA margin-top 36→20,
+  micro 14→10; type scale **−25.20** (−25.2) — the headline clamp minimum
+  2.5rem→2rem, so 40px→32px below 480; the sub **−203.13** (−187.13 expected, and
+  the extra 16 is real: hiding it also collapses the h1's 24px bottom margin into
+  the CTA's own new 20px top margin, which phase 5's isolated injection could not
+  see); the region **−56.00** (−56) — 296→240 below 480px.
+  **THE RESULT.** Control bottom **750.23** at 360×780 (29.77px clear) and at
+  390×844 (93.77 clear); **902.17** at 412×915 (12.83 clear); **657.28** at
+  1440×900, byte-identical to phase 5. At 360×640 the region's top is **438.25**,
+  so **201.75px** of the conversation is above the fold against a 140px floor — and
+  in the complete state the fold cuts through the confirmation card, which is the
+  affordance the floor exists to protect.
+  ⚠️ **LEVER 4 WAS NEEDED, AND ONLY 412×915 NEEDED IT.** The sub stays visible at
+  412 (the approved design drops it *below* 400), so that device had only rhythm
+  and type to spend: 82 + 25.2 against a 152.39px deficit. Region height 296→240 at
+  ≤480px closed it. Point 1 of `Conversation.module.css`'s own header still holds —
+  a different fixed height, not `auto`. Measured at 360/390/412 in the complete
+  state: **2 turns + the confirmation card** visible, `overflow:hidden`,
+  `justify-content:flex-end`, content overflowing **544.87px above the box's top
+  edge** and clipped there. What is lost is the *partially* rendered turn at the top
+  edge: at 296 a quarter of the previous turn showed, at 240 the top turn starts
+  4.18px below the edge and the one above is fully clipped. `/specimen`'s **five**
+  instances (not four — the brief's count is stale) all move 296→240 at 360 and are
+  unchanged at 768/1440.
+  ⚠️ **THE BREAKPOINTS DO NOT ALL SIT AT 400, AND THE BRIEF ASKED THEM TO.** 412×915
+  is one of the three devices the revised target names and 412 is above 400: with
+  the rhythm and type steps scoped to 400 that phone keeps HEAD's layout and stays
+  152px below its own fold. They are at **480**, the breakpoint the file already
+  had. The type step is at **600** so that `6.67vw` meets the base rule's 2.5rem
+  exactly at the boundary — at 480 it would be a visible 8px snap between 480 and
+  481. Only the **sub** is at 400, and at `399.98` rather than `400` so it still
+  renders AT 400px.
+  **NO COPY CHANGED AND NO ELEMENT LEFT THE MARKUP.** The sub is present at every
+  width measured (360/390/399/400/412/1440) with the same 216-code-unit string and
+  the same hash; it is `display:none` at 360/390/399 and `block` at 400/412/1440.
+  DOM order is identical before and after: **38 hero descendants in the same
+  sequence** at 360, 412 and 1440, with the two pre-existing `order:1`/`order:2`
+  declarations unchanged; the only difference in painted order is the sub, which at
+  360 has no painted position at all.
+  **ZERO LANGUAGE LAYOUT SHIFT SURVIVES, WITH NO TOLERANCE.** The control's top is
+  bit-identical for `en` and `te` at **360, 390, 412, 768 and 1440**, in both idle
+  and complete — Δ 0.0000 in all ten pairs. **Positive-controlled:** setting the
+  region to `height: auto` at the mobile breakpoint (grep-verified in the source
+  *and* in the emitted `.next/static/css`) turns six of the ten pairs red — Δ up to
+  −110.44 — at exactly the three widths the breakpoint covers and nowhere else;
+  reverting and re-verifying returns all ten to 0.0000.
+  **CONTRAST, OVERFLOW, REDUCED MOTION.** Contrast swept over every text node in
+  ten measurements — six states at 360, idle+complete at 390 and 412: **0
+  failures**, worst node **6.70:1** (the selector's unselected segment, the same
+  number phases 4 and 5 recorded), `--ink-faint` on **0** glyphs. Overflow at
+  360/390/412/768/1024/1440, at rest and across **1034 samples taken during the
+  running sequence**: **0** with `scrollWidth > clientWidth` on the document, body,
+  host or region. Under `--force-prefers-reduced-motion=reduce` at 360 and 412 the
+  full sequence runs — every `activeIndex` 0→6, six turns, the card — with the
+  control's top unmoved.
+  ⚠️ **A CAPTURE ARTIFACT WAS FOUND AND IS NOT A DEFECT.**
+  `captureBeyondViewport: true` re-runs the hero's entrance animations from t=0, and
+  the sub came back with **0 dark pixels** at 412 and 5539 instead of 14925 at 1440
+  — a blank band that reads exactly like a rendering bug in a review image. On the
+  same page at the same moment the element computes `display:block`, opacity 1,
+  effective opacity 1, colour `rgb(87, 82, 74)`, identity transform, animation
+  `finished`, and the same clip with `captureBeyondViewport` OFF paints it. The
+  review captures pin the entrance to the end keyframe it is already in before
+  shooting.
+
 - **THE HERO CONVERSATION IS ON `/` — HERO-1 phase 5, built** (`8d67d47`).
   **HERO-1 ends here.** Six files: `Hero.tsx` and `Hero.module.css` rewritten,
   `HeroChat.tsx` **deleted**, one comment block in `PlayControl.module.css`, the
@@ -994,7 +1081,10 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   observed across the whole run is `none`, and the **only** phrase opacity ever
   observed is `1` — phrases arrive per turn, whole, and nothing translates or
   scales.
-  ⚠️ **THE PLAY CONTROL IS ABOVE THE FOLD AT 1440×900 AND NOT AT 360×640.** Its
+  ⚠️ **THE PLAY CONTROL IS ABOVE THE FOLD AT 1440×900 AND NOT AT 360×640** —
+  **SUPERSEDED at HERO-1 phase 5.1** (`629412c`), which closed it on the three
+  devices the founder revised the target onto. What follows is phase 5's own
+  measurement and stays as the record of what it found. Its
   rect is `top 609.28 / bottom 657.28` against a 900px viewport — above. At
   360×640 it is `top 1046.58 / bottom 1094.58`, **454.58px below**. The phase
   plan's proposed remedy — drop the sub below 400px — was **measured, not
