@@ -30,6 +30,36 @@ function envOrNull(raw: string | undefined): string | null {
 const stripTrailingSlashes = (url: string): string => url.replace(/\/+$/, "");
 
 /**
+ * Whether this deploy may be indexed by search engines.
+ *
+ * OFF unless `NEXT_PUBLIC_ALLOW_INDEXING` is exactly the string "true". Unset,
+ * empty, "false", "1", "yes" and a typo all mean NOT indexable — the safe
+ * direction is the default, because the failure mode of the other default is a
+ * private preview appearing in Google and staying there after it is taken down.
+ *
+ * This is a property of the repository, not of a host. Vercel's own
+ * "Deployment Protection" and preview-URL noindex behaviour do the same job on
+ * Vercel and nowhere else; moving this site to Netlify, Cloudflare Pages or a
+ * plain box would silently drop it. The flag drives four things that must all
+ * agree, and each is checked by G4/G6 of the deploy-prep session:
+ *
+ *   1. the `X-Robots-Tag` response header  (web/next.config.js)
+ *   2. the `<meta name="robots">` tag      (web/app/layout.tsx)
+ *   3. /robots.txt                         (web/app/robots.ts)
+ *   4. /sitemap.xml                        (web/app/sitemap.ts)
+ *
+ * It is `NEXT_PUBLIC_` prefixed deliberately: `next.config.js` reads it on the
+ * server and the metadata is inlined at build time, so a non-public name would
+ * work today, but the prefix keeps one name for one concept and survives the
+ * value being needed in a client component later.
+ *
+ * NOTE the build-time nature. Next inlines this at `next build`. Changing the
+ * variable on a running host does nothing until the site is rebuilt.
+ */
+export const indexingAllowed: boolean =
+  envOrNull(process.env.NEXT_PUBLIC_ALLOW_INDEXING) === "true";
+
+/**
  * Canonical origin, in resolution order:
  *   1. NEXT_PUBLIC_SITE_URL          — explicit; correct on any host.
  *   2. VERCEL_PROJECT_PRODUCTION_URL — host-supplied by Vercel, no scheme.

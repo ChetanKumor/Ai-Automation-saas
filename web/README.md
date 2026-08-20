@@ -45,6 +45,7 @@ the deploy environment. The file is the authority; this table mirrors it.
 | `NEXT_PUBLIC_CONTACT_EMAIL` | **Yes** (production) | Organization JSON-LD `contactPoint.email` |
 | `NEXT_PUBLIC_X_URL` | No | Organization JSON-LD `sameAs` |
 | `NEXT_PUBLIC_LINKEDIN_URL` | No | Organization JSON-LD `sameAs` |
+| `NEXT_PUBLIC_ALLOW_INDEXING` | No (safe value: **unset**) | `X-Robots-Tag` header, `<meta name="robots">`, `/robots.txt`, `/sitemap.xml` |
 
 Notes:
 
@@ -58,6 +59,14 @@ Notes:
 - **On Vercel**, `NEXT_PUBLIC_SITE_URL` may be left unset: the platform-supplied
   `VERCEL_PROJECT_PRODUCTION_URL` is used as a fallback and prefixed `https://`.
   Setting it explicitly is safer and is required on any other host.
+- **Indexing is OFF unless you turn it on.** `NEXT_PUBLIC_ALLOW_INDEXING`
+  must be exactly the string `true` for the site to be indexable; anything
+  else, including unset and a typo, serves `noindex, nofollow, noarchive` on
+  every route, `Disallow: /` in `robots.txt` and an empty `sitemap.xml`. It is
+  read at build time, so flipping it on a running host does nothing until the
+  next build. `/specimen` is noindexed in **both** states by its own page
+  metadata — it is an internal design surface, not a page that becomes public.
+  See `docs/deploy/marketing-site.md`.
 - **In development** nothing is required. The origin falls back to
   `http://localhost:3100` and the guard does not run.
 - `legalEntityName` is deliberately **exempt** from the guard while it reads

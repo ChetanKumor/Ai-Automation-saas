@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Noto_Sans_Telugu } from "next/font/google";
-import { siteConfig } from "@/lib/siteConfig";
+import { indexingAllowed, siteConfig } from "@/lib/siteConfig";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -85,9 +85,16 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-touch-icon.png",
   },
+  // Inherited by every route that does not set its own `robots`, which is
+  // all of them except /specimen (permanently noindex — an internal design
+  // surface, not a page that becomes public when the flag flips).
+  //
+  // NEXT_PUBLIC_ALLOW_INDEXING drives this; see web/lib/siteConfig.ts. While
+  // the four (legal)/*/page.tsx still carry bracketed placeholders, the
+  // correct value of that flag is unset.
   robots: {
-    index: true,
-    follow: true,
+    index: indexingAllowed,
+    follow: indexingAllowed,
   },
 };
 
