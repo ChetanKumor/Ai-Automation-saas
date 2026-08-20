@@ -177,6 +177,20 @@
    768 is fixed by the brief (the card's width switch). 1180 matches `.wrap` in
    globals.css, so the widest tier arrives when the page container does. */
 
+/* THE ONE max-width IN THIS FILE, and the only lever HERO-1 phase 5.1 took from
+   the conversation itself. 296 was chosen in phase 2 for a component with no
+   fold above it; on a 412x915 phone the hero could not get its play control
+   above the fold without it, after the rhythm and the type scale had both been
+   spent. Point 1 at the top of this file still holds — this is a different fixed
+   height, not `auto`, so the bottom-anchored top-clipping mechanism is
+   untouched. Measured at 360 in the complete state: two turns and the
+   confirmation record remain visible. */
+@media (max-width: 480px) {
+  .region {
+    height: 240px;
+  }
+}
+
 @media (min-width: 768px) {
   .region {
     height: 340px;

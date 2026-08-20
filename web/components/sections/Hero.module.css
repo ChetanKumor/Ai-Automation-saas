@@ -141,8 +141,49 @@
   .heroCta a { flex: 1; justify-content: center; min-width: 140px; white-space: normal; text-align: center; }
 }
 
+/* —— THE MOBILE FOLD ——————————————————————————————————————————————————
+   HERO-1 phase 5.1. At HEAD the play control's bottom sat 314.58px below the
+   fold on a 360x780 phone and 152.39px below it on a 412x915 one: a hero whose
+   only interactive affordance a visitor never saw. The itemised budget behind
+   every number below is in the phase 5.1 report; the levers are taken in order
+   of least damage, and each is scoped as narrowly as the target allows.
+
+   THE TYPE STEP GETS ITS OWN, WIDER BREAKPOINT, and it is not tidiness. Scoped
+   to 480 it would be an 8px jump in the headline between 480px and 481px, which
+   is a visible seam on a tablet held in portrait. `6.67vw` reaches 2.5rem at
+   exactly 600px, so the base rule's value and this one AGREE at the boundary and
+   the headline ramps 32→40px across 480–600 instead of snapping.
+
+   WHY 480 AND NOT THE BRIEF'S 400. 412x915 is one of the three devices the
+   revised target names, and 412 is above 400: with the rhythm and type steps
+   scoped to 400 that device keeps HEAD's layout and stays 152px below its own
+   fold. 480 is the breakpoint this file already had. The SUB is the one lever
+   that stays at 400, because dropping it is a content decision the approved
+   design fixes at "below 400px" and 412 is not below 400. */
+@media (max-width: 600px) {
+  .h1 { font-size: clamp(2rem, 6.67vw, 2.5rem); }
+}
+
 @media (max-width: 480px) {
-  .hero { padding: 108px 18px 48px; }
+  /* 108 → 76. The nav is position: fixed and 71.05px tall, of which 16px is its
+     own bottom padding, so 76 leaves ~27px of ink-to-ink air under the brand
+     line — down from ~59px, which was desktop's proportion applied to a phone. */
+  .hero {
+    padding: 76px 18px 48px;
+    gap: 24px;
+  }
+  .h1 { margin: 14px 0 16px; }
+  .heroCta { margin-top: 20px; }
+  .heroMicro { margin-top: 10px; }
+}
+
+/* THE SUB DROPS BELOW 400px, and only there. 399.98 rather than 400 so the
+   paragraph still renders AT 400px: the approved design says "below 400px", and
+   `max-width: 400px` would match 400 itself. The element is never removed from
+   the markup — this is a breakpoint, not an edit, and at 400px and above the
+   string is byte-identical to what it always was. */
+@media (max-width: 399.98px) {
+  .sub { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
