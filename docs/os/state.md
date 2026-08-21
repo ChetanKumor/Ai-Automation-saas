@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: d81191014633ad0df97e4b992e8433d139cb79ed
-Verified-on: 2026-08-20
+Verified-at: c6bda00744c694dfd39232c1426242ac83c43153
+Verified-on: 2026-08-21
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -76,9 +76,21 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1109 tests / 180 suites / 0 fail** (`npm test`, raw: `# tests 1109 /
-  # pass 1109 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  Moved at **the two-arm embedding transport** (`npm test` makes zero live external
+- Test suite: **1111 tests / 180 suites / 0 fail** (`npm test`, raw: `# tests 1111 /
+  # pass 1111 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  Moved at **the truth audit** (the site stops asserting what is not true):
+  **+2 tests, +0 suites**, both bare `test()` calls in a new
+  `tests/design/indexingFlagParity.test.js`. It is the **sixth** Node test with
+  purchase over `web/`, and the first that guards a rule written in TWO files:
+  `indexingAllowed` in `web/lib/siteConfig.ts` and the line restating it in
+  `web/next.config.js`, which cannot import it because the Next CLI loads
+  CommonJS before TypeScript compiles. Nothing failed if they drifted, and a
+  drift ships a site whose `X-Robots-Tag` header and whose `<meta name="robots">`
+  disagree about whether it may be indexed. It extracts both EXPRESSIONS and
+  evaluates them against a 16-value environment matrix rather than comparing
+  source text, so a reword passes and a semantic change does not.
+  **RED-CHECKED IN BOTH DIRECTIONS OF DRIFT** — see the session entry.
+  Moved before that at **the two-arm embedding transport** (`npm test` makes zero live external
   calls): **+2 tests, +0 suites**, both in
   `tests/portal/portalFaqs.integration.test.js` — the two error paths the previous
   stubs could not reach (a transport failure, and a call that never answers being
@@ -617,6 +629,114 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE SITE NO LONGER NAMES A COMPANY THAT DOES NOT EXIST — the truth audit,
+  built** (`c6bda00`). Three files: `web/lib/siteConfig.ts`, `web/app/layout.tsx`,
+  and a new `tests/design/indexingFlagParity.test.js`. Node **1109 → 1111 / 180
+  suites / 0 fail / 0 cancelled / 0 skipped / 0 todo** — **+2 tests, +0 suites**,
+  two bare `test()` calls. `npm run build` (in `web/`) exit 0. No new dependency.
+  No legal page opened. No `clocks.md`. ⚠️ The Python worker suite was **not
+  re-run**; its **97** is carried forward.
+  ⚠️ The new test lives in `tests/design/`, i.e. **outside `web/`**, against the
+  session's own scope line. It has to: `web/` has no test runner and no test of
+  any kind, and `npm run os:check` runs the ROOT suite. A guard placed in `web/`
+  would never execute, which is the precise failure this session was called to
+  fix. It is the **sixth** root test with purchase over `web/`.
+
+  **THE ORGANIZATION JSON-LD WAS ASSERTING A COMPANY NAME THAT IS A PLACEHOLDER,
+  ON EVERY ROUTE, TO MACHINES.** `siteConfig.legalEntityName` was the literal
+  string `[REGISTERED ENTITY NAME]`, emitted unconditionally as `legalName` in
+  the `Organization` block that `app/layout.tsx` puts in the `<body>` of every
+  page. Measured off a running `next start`, not read off source: present in the
+  rendered JSON-LD of all seven HTML routes — `/`, `/specimen` and all four legal
+  pages, plus the 404. It is now `null`, and every render site omits the key
+  entirely, the rule `sameAs` and `contactPoint` already followed. **An absent
+  field is honest; a bracketed one is a claim.** The structured data still parses
+  on every route (`JSON.parse` over each block, `@type` recovered).
+
+  **THE GUARD'S CARVE-OUT WAS FOR THE ONE FIELD A CRAWLER PARSES.** The
+  build-time placeholder guard is a module-scope loop over a hand-written
+  `GUARDED` array. `legalEntityName` was not in it. The reason is in the code and
+  is not carelessness — the array ended with a five-line comment naming the field,
+  citing external clock **C-1** and audit finding **F-F003**, saying to remove the
+  exemption in the same commit that fills the legal pages, and stating outright
+  that "while this line exists, an unfiled external clock is holding a production
+  build open on a knowingly false statement." The exemption existed because the
+  guard's only verdict is *fail the build*, and the one value nobody could supply
+  would have blocked every production build. **The cost of that trade was never
+  paid by the person who made it: the build went green and the placeholder
+  shipped.**
+  The array is gone. The guarded set is now **derived** by walking `siteConfig`
+  and `waMessages`, so there is no list to leave a field off — a field added to
+  either object is checked from the moment it exists. `waMessages` is swept
+  because its two strings are inlined into the `wa.me?text=` href of every CTA and
+  reach the browser exactly as `siteConfig`'s do. `REQUIRED_IN_PRODUCTION` names
+  which fields must be non-empty; **absence from it means optional, never
+  unchecked**, and an optional field is still content-checked when present.
+  **POSITIVE-CONTROLLED, in the field that was exempt.** Setting
+  `legalEntityName` back to `[REGISTERED ENTITY NAME]` fails `next build` with
+  **exit 1** — `siteConfig: legalEntityName still holds a placeholder (matched
+  /\[[^\]]+\]/)` — and reverting passes. A guard never shown to fail is not a
+  guard, which is what the carve-out taught.
+
+  **THE INDEXING RULE IS STILL WRITTEN TWICE, AND NOW SOMETHING FAILS WHEN THE
+  COPIES DISAGREE.** The predecessor recorded the duplication as a known,
+  unguarded cost. `tests/design/indexingFlagParity.test.js` closes it.
+  It does **not** compare source text: the two are worded differently on purpose
+  (`next.config.js` inlines the trim, `siteConfig.ts` routes through `envOrNull`),
+  so a text compare would fail on a reword and pass on a semantic change to the
+  shared helper. It extracts each rule's **expression**, plus `envOrNull`'s body,
+  and evaluates both in a `vm` context against a **16-value environment matrix** —
+  unset, empty, whitespace, `true`, padded `true`, `TRUE`, `True`, `false`, `1`,
+  `0`, `yes`, `no`, `ture`, `true!`, `"true"` — comparing verdicts. **Drift is
+  measured as behaviour.** Every extraction is anchored and asserts its anchor,
+  so a refactor that moves either rule turns it red rather than vacuous, and a
+  degenerate pass (two expressions extracting to the same string) is rejected
+  explicitly.
+  **AGREEMENT ALONE IS NOT THE PROPERTY.** Both files flipped the same wrong way
+  would satisfy a parity check and still leak a preview into Google, so a second
+  test pins the truth table itself: only the exact string `true`, after trimming,
+  may enable indexing.
+  **RED-CHECKED TWICE, IN BOTH SHAPES OF DRIFT.** Dropping the `.trim()` from
+  `next.config.js` alone → red, naming the two padded-`true` inputs where the
+  header and the meta tag disagree. Inverting its default to `!== "false"` → red
+  on **eleven** inputs including *unset*, which is the dangerous one: header says
+  indexable, meta says not. `git checkout` on the file → green, 2/2.
+
+  **NOTHING VISIBLE MOVED, AND THAT WAS MEASURED, NOT ASSUMED.** A headless
+  Chrome under forced reduced motion (so every `<Reveal>` is in `innerText`)
+  dumped `document.body.innerText`, every `<meta>`, the `<title>` and the
+  canonical for all seven HTML routes, before and after. **Every route's rendered
+  text is byte-identical**; every meta block is identical. The **only** difference
+  anywhere on the site is one line removed from the `Organization` JSON-LD:
+  `"legalName": "[REGISTERED ENTITY NAME]"`.
+
+  **NOINDEX RE-VERIFIED IN BOTH FLAG STATES, ALL NINE ROUTES.** Flag unset:
+  `X-Robots-Tag: noindex, nofollow, noarchive` on all nine (including
+  `/robots.txt`, `/sitemap.xml` and the 404), `<meta name="robots">` on all seven
+  HTML routes, `robots.txt` → `Disallow: /` with no sitemap pointer, `sitemap.xml`
+  → empty `<urlset/>`. Rebuilt with `NEXT_PUBLIC_ALLOW_INDEXING=true`: header
+  absent everywhere, meta `index, follow`, `Allow: /` plus the pointer, five URLs.
+  `/specimen` and `/_not-found` stay noindex in both states, as designed.
+
+  **THE INVENTORY IS THE SESSION'S MAIN DELIVERABLE, and it is not all fixed.**
+  Every assertion on every rendered route was classified off the rendered DOM and
+  the structured data. The three implemented items above were the whole mandate;
+  everything else is reported. **The finding that matters most is not a
+  placeholder — it is `Lakeview Dental`**, an invented clinic rendered in the
+  final CTA as a WhatsApp contact chip with an avatar, a name and a green
+  `online` dot, **with no disclosure anywhere near it**. The hero's conversation
+  is fiction too, but the hero says so in a caption that has its own test
+  (`heroDisclosure.test.js`). The CTA pill has nothing. A clinic owner reads that
+  chip as a customer, and finds out otherwise in the one conversation the company
+  cannot afford to lose. **The fix needs words, and words are a founder decision**
+  — the minimal wording is proposed in the session report and NOT applied here.
+  Also reported, not fixed: `/`'s `HowItWorks` step 02 renders `Lead added to
+  CRM` and `runs any follow-ups you've set up` alongside four `LIVE` badges, and
+  the FAQ states a `30-day exit`, an `80%`/`90%` usage notice and a `₹0.75`
+  overage rate — commercial commitments with **zero paying customers and no
+  billing system in the repository**. They are policy, not code, and only the
+  founder can grade them true.
+
 - **`web/` NEEDS NOTHING OUTSIDE `web/` — deploy prep, built** (`d811910`). Eight
   files: `next.config.js`, `lib/siteConfig.ts`, `app/layout.tsx`, `app/robots.ts`,
   `app/sitemap.ts`, `.env.example`, `README.md`, and a new
@@ -679,6 +799,8 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   Next CLI before any TypeScript compiles, so it cannot import the module. Both
   sites say so, and the deploy document’s Step 3 is what catches them
   disagreeing — but **nothing in the repo fails if they drift**. Open, and small.
+  ✅ **CLOSED at `c6bda00`** by `tests/design/indexingFlagParity.test.js`. The
+  duplication remains — it is forced by the loader — but a drift is now red.
   **SECRET AUDIT CLEAN, AND THE CONTROL USED REAL SECRETS.** Sixteen shapes (Google
   and OpenAI-style keys, Meta long-lived tokens, bearer tokens,
   Postgres/Mongo/Redis connection strings, AWS keys, PEM private keys, JWTs,
@@ -696,6 +818,11 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   `siteConfig.legalEntityName` is `[REGISTERED ENTITY NAME]` and is **exempt** from
   the build guard, published in the Organization JSON-LD on every page. Filling it
   and deleting the exemption is one commit.
+  ✅ **THE 25th IS GONE at `c6bda00`, and it was not filled — it was removed.**
+  `legalEntityName` is `null`, `legalName` is omitted from the JSON-LD entirely
+  while no entity exists, and the guard has no exemption because it no longer has
+  a list to leave a field off. C-1 is still unfiled; the 24 in the legal pages
+  still stand. Filling C-1 is now a one-line change with nothing to un-exempt.
   **NOT DONE, AND NOT THIS SESSION’S CALL:** no account created, no deploy, nothing
   pushed. The founder deploys.
 - **THE SUITE TELLS THE TRUTH ABOUT WHAT IT RUNS — two-arm embedding transport,
@@ -3581,10 +3708,14 @@ about it.
 - **F-F003** — the legal pages still ship bracketed placeholders. Blocked on **C-1**
   (business entity registration, `docs/os/clocks.md`). Not schedulable: the fix is to
   write facts that do not exist yet.
-- **F-F002 residual** — `legalEntityName` remains exempt in `siteConfig.ts`'s guard, and
-  the deploy-environment values are unset. Blocked on C-1 and on the domain purchase,
-  which is deferred by founder decision. While the exemption line exists, an unfiled
-  external clock is holding a production build open on a knowingly false statement.
+- **F-F002 residual** — ✅ **the exemption half is CLOSED** at `c6bda00`.
+  `legalEntityName` is `null`, `legalName` is omitted from the Organization JSON-LD
+  rather than emitted as a placeholder, and the guard's field list is derived from
+  `siteConfig` and `waMessages` instead of hand-written, so there is nothing left to
+  exempt and no way to add a field without checking it. **Open:** the
+  deploy-environment values are still unset, blocked on C-1 and on the domain
+  purchase, which is deferred by founder decision. That half fails the build loudly
+  and always did; it was only the exemption that shipped quietly.
 - **F-F004 residual** — the `web/` deploy host is founder-unconfirmed. `D-006` is drafted
   in `docs/os/decisions.md.draft`, not `decisions.md`, awaiting that confirmation.
 
