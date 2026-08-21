@@ -88,13 +88,33 @@ function resolveSiteUrl(): string {
 const twitterUrl = envOrNull(process.env.NEXT_PUBLIC_X_URL);
 const linkedinUrl = envOrNull(process.env.NEXT_PUBLIC_LINKEDIN_URL);
 
+/**
+ * The REGISTERED legal entity name — not the trading name, which is `BRAND`.
+ *
+ * `null` because the entity does not exist yet: external clock C-1, business
+ * entity registration, `docs/os/clocks.md`. Not environment-varying and so not
+ * an env var — there is one registered name, in every environment, and it is
+ * simply unknown.
+ *
+ * NULL RATHER THAN "[REGISTERED ENTITY NAME]", and that difference is the whole
+ * point of this constant existing. The bracketed string shipped as `legalName`
+ * in the Organization JSON-LD on every route — machine-readable structured
+ * data, the field a crawler reads as the company's registered name — while the
+ * build reported success, because it was the one field the guard below did not
+ * check. An absent field is honest; a bracketed one is a claim.
+ *
+ * Every render site guards on null and omits the field entirely, exactly as the
+ * social URLs above do. When C-1 clears, this becomes the real name and the
+ * guard below content-checks it like everything else — no exemption to remove,
+ * because there is no longer one.
+ */
+const legalEntityName: string | null = null;
+
 export const siteConfig = {
   siteUrl: resolveSiteUrl(),
   siteName: BRAND,
-  // Unknown, pending C-1 (business entity registration, docs/os/clocks.md).
-  // Not environment-varying: there is one registered entity name, it simply
-  // does not exist yet. Exempted from the guard below — see the note there.
-  legalEntityName: "[REGISTERED ENTITY NAME]",
+  // `null` until C-1 clears; every render site omits the field. See above.
+  legalEntityName,
   defaultTitle: `${BRAND} — the AI receptionist for clinics, on WhatsApp`,
   defaultDescription: `${BRAND} is the AI receptionist for clinics — it answers patients in Telugu, Hindi or English, quotes your prices, and books the appointment on your clinic's own WhatsApp number.`,
   ogImage: "/og-image.png",
@@ -130,6 +150,23 @@ export function waLink(text: string): string {
 // and `Faq.tsx` (both "use client"), and a guard has no business running in a
 // visitor's browser: `VERCEL_PROJECT_PRODUCTION_URL` is not `NEXT_PUBLIC_`-
 // prefixed and so is absent there, which would throw on a perfectly good build.
+//
+// EXHAUSTIVE BY CONSTRUCTION, AND THAT IS THE POINT.
+//
+// The field list is DERIVED by walking `siteConfig` and `waMessages`, not typed
+// out beside them. The previous version was a hand-written array, and it had a
+// hole in exactly the field that mattered: `legalEntityName` was left out of it
+// deliberately, with a comment explaining why, and so "[REGISTERED ENTITY NAME]"
+// shipped as `legalName` in the Organization JSON-LD of every route — the
+// machine-readable field a crawler reads as the company's registered name —
+// while `next build` reported success. A guard with a carve-out for the one
+// field nobody looks at by eye is worse than no guard: it manufactures
+// confidence. There is no carve-out now, and no way to add a field to either
+// object without it being checked.
+//
+// `waMessages` is swept too. Its strings are not decoration — they are inlined
+// into the `wa.me?text=` href of every CTA on the site, so a placeholder there
+// reaches the browser exactly as one in `siteConfig` does.
 // ---------------------------------------------------------------------------
 
 const PLACEHOLDER_PATTERNS: readonly RegExp[] = [
@@ -139,80 +176,81 @@ const PLACEHOLDER_PATTERNS: readonly RegExp[] = [
   /\[[^\]]+\]/,
 ];
 
-type GuardedField = {
-  field: string;
-  value: string | null;
-  /** false = may legitimately be absent; still content-checked when present. */
-  requiredInProduction: boolean;
-  /** Where the value comes from, quoted back in the failure message. */
-  source: string;
-};
-
-const GUARDED: readonly GuardedField[] = [
-  {
-    field: "siteUrl",
-    value: siteConfig.siteUrl,
-    requiredInProduction: true,
-    source: "NEXT_PUBLIC_SITE_URL",
-  },
-  {
-    field: "contactEmail",
-    value: siteConfig.contactEmail,
-    requiredInProduction: true,
-    source: "NEXT_PUBLIC_CONTACT_EMAIL",
-  },
-  {
-    field: "siteName",
-    value: siteConfig.siteName,
-    requiredInProduction: true,
-    source: "the BRAND constant in web/lib/siteConfig.ts",
-  },
-  {
-    field: "defaultTitle",
-    value: siteConfig.defaultTitle,
-    requiredInProduction: true,
-    source: "the BRAND constant in web/lib/siteConfig.ts",
-  },
-  {
-    field: "defaultDescription",
-    value: siteConfig.defaultDescription,
-    requiredInProduction: true,
-    source: "the BRAND constant in web/lib/siteConfig.ts",
-  },
-  // Socials are not required — an account that does not exist renders no link.
-  // They are still content-checked, so a plausible-looking invented handle
-  // fails the build exactly as an unset-but-required field would.
-  {
-    field: "socialUrls.twitter",
-    value: siteConfig.socialUrls.twitter,
-    requiredInProduction: false,
-    source: "NEXT_PUBLIC_X_URL",
-  },
-  {
-    field: "socialUrls.linkedin",
-    value: siteConfig.socialUrls.linkedin,
-    requiredInProduction: false,
-    source: "NEXT_PUBLIC_LINKEDIN_URL",
-  },
-
-  // EXEMPT — legalEntityName is blocked on C-1 (business entity registration,
-  // docs/os/clocks.md). Tracked as F-F003 in docs/audit/2026-07-frontend.md.
-  // Remove this exemption in the same commit that fills the legal pages.
-  // While this line exists, an unfiled external clock is holding a production
-  // build open on a knowingly false statement.
+/**
+ * Fields that must be NON-EMPTY in a production build. Anything not named here
+ * may legitimately be absent — a social account nobody owns, a legal entity
+ * that is not registered yet — and is still content-checked when present, so a
+ * plausible-looking invented value fails exactly as an unset required one does.
+ *
+ * Absence from this list is a statement that the field is OPTIONAL, never that
+ * it is unchecked. Nothing is unchecked.
+ */
+const REQUIRED_IN_PRODUCTION: readonly string[] = [
+  "siteUrl",
+  "contactEmail",
+  "siteName",
+  "defaultTitle",
+  "defaultDescription",
 ];
 
+/** What to DO about each field, quoted back in the failure message. An operator
+ *  reading a failed deploy log needs the remedy, not a restatement of the fault.
+ *  A field not listed here is authored in this file and is told so — which is
+ *  every field the walk finds and nobody thought to name, and is therefore the
+ *  branch that must still produce a sentence someone can act on. */
+const BRAND_CONSTANT = "Fix the BRAND constant in web/lib/siteConfig.ts";
+const FIELD_REMEDY: Readonly<Record<string, string>> = {
+  siteUrl: "Set NEXT_PUBLIC_SITE_URL in the deploy environment — see web/.env.example",
+  contactEmail:
+    "Set NEXT_PUBLIC_CONTACT_EMAIL in the deploy environment — see web/.env.example",
+  "socialUrls.twitter":
+    "Set NEXT_PUBLIC_X_URL to a real profile, or leave it unset — see web/.env.example",
+  "socialUrls.linkedin":
+    "Set NEXT_PUBLIC_LINKEDIN_URL to a real profile, or leave it unset — see web/.env.example",
+  siteName: BRAND_CONSTANT,
+  defaultTitle: BRAND_CONSTANT,
+  defaultDescription: BRAND_CONSTANT,
+};
+const AUTHORED_HERE = "This value is authored in web/lib/siteConfig.ts";
+
+/**
+ * Every string-or-null leaf of an object, as dotted paths. Nested objects are
+ * walked (`socialUrls.twitter`); anything neither string, null nor object — a
+ * number, a function — carries no prose and is skipped rather than coerced into
+ * a string the patterns would then match by accident.
+ */
+function stringLeaves(
+  obj: Record<string, unknown>,
+  prefix = ""
+): [string, string | null][] {
+  const out: [string, string | null][] = [];
+  for (const [key, value] of Object.entries(obj)) {
+    const field = prefix ? `${prefix}.${key}` : key;
+    if (value === null || typeof value === "string") out.push([field, value]);
+    else if (typeof value === "object") {
+      out.push(...stringLeaves(value as Record<string, unknown>, field));
+    }
+  }
+  return out;
+}
+
 if (isProduction && typeof window === "undefined") {
-  for (const { field, value, requiredInProduction, source } of GUARDED) {
+  const guarded: [string, string | null][] = [
+    ...stringLeaves(siteConfig),
+    ...stringLeaves(waMessages, "waMessages"),
+  ];
+
+  for (const [field, value] of guarded) {
+    const remedy = FIELD_REMEDY[field] ?? AUTHORED_HERE;
     const reject = (why: string): never => {
       throw new Error(
-        `siteConfig: ${field} ${why}. Set ${source} in the deploy environment — ` +
-          `see web/.env.example. Production builds refuse to ship placeholders.`
+        `siteConfig: ${field} ${why}. ${remedy}. ` +
+          `Production builds refuse to ship placeholders.`
       );
     };
 
     if (value === null || value === "") {
-      if (requiredInProduction) reject("is empty");
+      if (REQUIRED_IN_PRODUCTION.includes(field)) reject("is empty");
       continue;
     }
 

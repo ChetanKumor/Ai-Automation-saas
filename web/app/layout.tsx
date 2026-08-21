@@ -110,7 +110,16 @@ const organizationJsonLd = {
   "@context": "https://schema.org",
   "@type": "Organization",
   name: siteConfig.siteName,
-  legalName: siteConfig.legalEntityName,
+  // `legalName` is OMITTED while no entity is registered (external clock C-1).
+  // It used to emit "[REGISTERED ENTITY NAME]" unconditionally: a bracketed
+  // placeholder in the one field of this document a crawler reads as the
+  // company's registered name. Structured data is a machine-readable assertion,
+  // and there is no reading of that string under which it was true. An absent
+  // field says nothing; a bracketed one says something false. Same rule as
+  // `sameAs` and `contactPoint` below, applied to the field that most needed it.
+  ...(siteConfig.legalEntityName
+    ? { legalName: siteConfig.legalEntityName }
+    : {}),
   url: siteConfig.siteUrl,
   logo: siteConfig.siteUrl + "/favicon.svg",
   description:
