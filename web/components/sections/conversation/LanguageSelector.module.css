@@ -59,18 +59,47 @@
 
 /* The selected segment lifts off the track rather than filling with the accent:
    this control chooses a language, it does not perform an action, and an accent
-   fill here would compete with the play control for the eye. 18.25:1. */
+   fill here would compete with the play control for the eye. Label 18.25:1.
+
+   THE BOUNDARY IS THE STATE, SO THE BOUNDARY HAS TO CLEAR 1.4.11. Which
+   language is selected is carried by this edge and by nothing else — the labels
+   both render at all times, and neither type size nor weight changes with
+   selection. That makes the ring a graphical object conveying information, and
+   WCAG 1.4.11 asks 3:1 of it against the adjacent surface. The fill does not
+   help: --ground-raised on --ground-sunk is 1.156:1, so a reader who cannot see
+   the ring cannot see the selection at all.
+
+   --rule DID NOT REACH IT AND COULD NOT. It is rgba(23,21,15,0.08), a
+   decorative hairline by its own declaration: composited on --ground-raised it
+   is 1.020:1 against the --ground-sunk track. Its high-contrast form (0.24)
+   only gets to 1.465:1, so darkening the mode does not rescue it either.
+   --rule-strong was measured too and fails the same way in the mode that
+   matters — 1.243:1 normally, and its 3.081:1 under prefers-contrast is no use
+   to a reader who has not asked for it.
+
+   --ink-soft is the lightest token on the site that clears 3:1 in BOTH modes:
+   6.702:1 against the track normally, 8.078:1 at #4B4640 under
+   prefers-contrast — the accommodation comes free, because the token moves.
+   It is also already this file's token for "text a reader has to be able to
+   read", one declaration below.
+
+   STILL INSET, and that is now load-bearing twice over: a border would change
+   the option's box and shift the group's width every time the selection moved,
+   which is the no-layout-shift guarantee at the top of this file. An inset
+   shadow paints inside the existing border-box and costs no dimension. */
 .option[aria-checked="true"] {
   background: var(--ground-raised);
   color: var(--ink-strong);
-  /* inset, so the outline costs no layout — a border would change the option's
-     box and shift the group's width every time the selection moved. */
-  box-shadow: inset 0 0 0 1px var(--rule);
+  box-shadow: inset 0 0 0 1px var(--ink-soft);
 }
 
-/* 2px --ink-strong, offset clear of the raised segment's own edge. --accent-on-ground
-   is the play control's ring; this one is the page's ink, so the two focus
-   states are distinguishable when Tab moves between them. */
+/* 2px --ink-strong, offset clear of the raised segment's own edge. Every focus
+   ring on the site is --ink-strong; the play control's was the one exception
+   and it is one no longer, so this comment no longer has a divergence to
+   distinguish itself from. It is kept because the OFFSET is still a decision:
+   the selected segment already carries an --ink-soft edge of its own, and a
+   ring drawn flush against it would read as one thick border rather than as
+   focus. */
 .option:focus-visible {
   outline: 2px solid var(--ink-strong);
   outline-offset: 2px;

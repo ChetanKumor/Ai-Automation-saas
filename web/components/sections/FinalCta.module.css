@@ -22,6 +22,24 @@
    so a --rule replacement would stack a lighter line under a darker one and say
    nothing. */
 
+/* THE PILL AND ITS DISCLOSURE ARE ONE GROUP. Lakeview Dental is an example,
+   and the pill says the opposite with every signal it has: an avatar, a name, a
+   green dot and the word `online`. The disclosure is therefore a SIBLING inside
+   a shared column rather than a line dropped further down the frame — a reader
+   who takes in the pill takes in the correction in the same glance, and no
+   width or reflow can separate them.
+
+   The 30px that stood on .livePill moves to the group unchanged: the pill's own
+   box is untouched, and the gap between the group and the headline is the same
+   30px it has always been. */
+.pillGroup {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 30px;
+}
+
 /* live callback pill */
 .livePill {
   display: inline-flex;
@@ -30,7 +48,6 @@
   background: var(--wa-header);
   border-radius: var(--r-pill);
   padding: 7px 16px 7px 8px;
-  margin-bottom: 30px;
 }
 
 /* THE AVATAR CHIPS ARE LEFT UNCHANGED — all three gradients (here, Hero

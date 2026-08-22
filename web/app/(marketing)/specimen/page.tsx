@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import styles from "./specimen.module.css";
 import { TOKENS, GROUNDS, PALETTE, byGroup, verdict, type Verdict } from "./tokens";
+import { SwatchRatio } from "./SwatchRatio";
 import { Conversation, to12Hour } from "@/components/sections/conversation/Conversation";
 import { LanguageSwitchedConversation } from "@/components/sections/conversation/LanguageSelector";
 import {
@@ -33,11 +34,29 @@ import fixture from "../../../../public/demo/fixture.json";
 // web/app/robots.ts allows "/", so robots.txt blocks nothing either. This
 // page-level metadata is the only thing keeping an internal design document
 // out of the index.
+//
+// `alternates.canonical` and `openGraph.url` are BOTH page-level because the
+// root layout declares `openGraph.url: "/"`. Next merges openGraph field by
+// field rather than replacing the object, so without a url of its own this page
+// advertised og:url as the homepage — a second document claiming the
+// homepage's identity. canonical had no declaration at any level here, which
+// leaves the resolver with the same homepage default.
 export const metadata: Metadata = {
   title: "Token specimen",
   description: "Internal design specimen for the Warm Paper token layer.",
+  alternates: { canonical: "/specimen" },
+  openGraph: { url: "/specimen" },
   robots: { index: false, follow: false },
 };
+
+/* The declared value of every token, keyed by name — the SEED the two measured
+ * swatch captions server-render from before the browser can be asked what
+ * `prefers-contrast` resolved to. Built from TOKENS rather than written out, so
+ * it cannot name a token the table does not hold or hold a value the table
+ * disagrees with. */
+const DECLARED: Record<string, string> = Object.fromEntries(
+  TOKENS.map((t) => [t.name, t.value])
+);
 
 const VERDICT_CLASS: Record<Verdict, string> = {
   TEXT: styles.vText,
@@ -230,11 +249,23 @@ export default function SpecimenPage() {
             </div>
             <div className={styles.faintDemo}>
               <div className={styles.faintBad}>
-                <span className={styles.demoTag}>--ink-faint · 2.21:1 on sunk · WRONG</span>
+                <SwatchRatio
+                  className={styles.demoTag}
+                  token="--ink-faint"
+                  ground="sunk"
+                  initialFg={DECLARED["--ink-faint"]}
+                  initialBg={DECLARED["--ground-sunk"]}
+                />
                 Ravi Kumar · 11:47 PM
               </div>
               <div className={styles.faintGood}>
-                <span className={styles.demoTag}>--ink-soft · 6.70:1 on sunk · CORRECT</span>
+                <SwatchRatio
+                  className={styles.demoTag}
+                  token="--ink-soft"
+                  ground="sunk"
+                  initialFg={DECLARED["--ink-soft"]}
+                  initialBg={DECLARED["--ground-sunk"]}
+                />
                 Ravi Kumar · 11:47 PM
               </div>
             </div>

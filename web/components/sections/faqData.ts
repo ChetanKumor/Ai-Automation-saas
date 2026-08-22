@@ -17,7 +17,7 @@ export const FAQ_ITEMS: FaqItem[] = [
   {
     question: "What happens if I go over my plan?",
     answer:
-      "Nothing breaks. You’ll see a notice at 80% of your included usage and again at 90%, so there are no surprises. Past your included usage, extra replies bill at ₹0.75 each — or you move up a plan, which is usually cheaper. There’s a safety limit well above your included usage that stops the AI replying, and even then your team can still answer every message in the same thread. A patient never gets silence.",
+      "Nothing breaks. We’ll tell you before you reach your included usage, so there are no surprises. Past your included usage, extra replies bill at ₹0.75 each — or you move up a plan, which is usually cheaper. There’s a safety limit well above your included usage that stops the AI replying, and even then your team can still answer every message in the same thread. A patient never gets silence.",
   },
   {
     question: "What if my patients don’t want to talk to a machine?",

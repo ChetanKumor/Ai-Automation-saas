@@ -47,8 +47,8 @@ export function HowItWorks() {
             <div className={styles.stepNum}>02 · Act</div>
             <div className={styles.stepTitle}>It books and records</div>
             <p className={styles.stepDesc}>
-              It books the appointment, updates the CRM, and runs any follow-ups
-              you&rsquo;ve set up — automatically.
+              It books the appointment, records the patient, and sends the
+              reminder — automatically.
             </p>
             <div className={styles.mv}>
               <div className={styles.mvRow}>

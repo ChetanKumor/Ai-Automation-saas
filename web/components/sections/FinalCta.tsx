@@ -8,13 +8,16 @@ export function FinalCta() {
     <section className={styles.cta}>
       <div className="wrap">
         <Reveal className={styles.frame}>
-          <div className={styles.livePill}>
-            <span className={styles.lpAvatar}>L</span>
-            <span className={styles.lpName}>Lakeview Dental</span>
-            <span className={styles.lpStatus}>
-              <span className={styles.lpDot} />
-              online
-            </span>
+          <div className={styles.pillGroup}>
+            <div className={styles.livePill}>
+              <span className={styles.lpAvatar}>L</span>
+              <span className={styles.lpName}>Lakeview Dental</span>
+              <span className={styles.lpStatus}>
+                <span className={styles.lpDot} />
+                online
+              </span>
+            </div>
+            <span className={styles.ctaMicro}>An example clinic.</span>
           </div>
           <h2 className={styles.ctaH2}>
             Open your clinic&rsquo;s WhatsApp. Count the unread messages.

@@ -67,6 +67,31 @@
   min-height: 142px;
 }
 
+/* prefers-contrast: more, and ONLY there. .82 is a documented design value and
+   4.84:1 clears AA, so normal contrast is not the complaint and does not move.
+
+   The high-contrast pass darkens --ink-soft to #4B4640, which carries the four
+   dimmed strings from 4.84 to 5.59:1 — better, and still under the design
+   record's 7:1 body floor. Opacity is the only lever left: the colour is
+   already the darkest the token has, and the card's whole point is that it is
+   faded. .90 measures 7.03:1, which clears by three parts in a thousand and is
+   inside the rounding of a live measurement; .92 measures 7.43:1 and is the
+   floor plus a margin, in the same spirit as the .82 above it. The card is
+   still visibly dimmer than an answered one — .92 against 1.0 — so the section
+   keeps the point it is making.
+
+   IT SITS ABOVE THE 480px BREAKPOINT DELIBERATELY. That block sets opacity 1
+   and carries no media condition this one excludes, so an equal-specificity
+   rule placed after it would REPLACE the 1 with .92 on a small screen — a
+   contrast accommodation that made a phone worse. Ordered this way the narrow
+   viewport keeps its 1 (9.34:1) in both modes.
+
+   .enq:hover is unaffected in either direction: :hover is one specificity step
+   above a bare class, so it wins wherever it applies regardless of order. */
+@media (prefers-contrast: more) {
+  .enq { opacity: .92; }
+}
+
 .enq:hover {
   opacity: 1;
   transform: translateY(-3px);

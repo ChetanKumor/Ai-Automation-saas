@@ -132,6 +132,49 @@ export function verdict(ratio: number): Verdict {
   return "NON-TEXT ONLY";
 }
 
+/**
+ * WCAG 2.x relative luminance and contrast, over `rgb()` / `rgba()` / `#rrggbb`.
+ *
+ * It exists so the two --ink-faint demo swatches below the palette can print a
+ * ratio they DERIVED instead of one somebody typed. Both labels used to carry a
+ * literal — 2.21 and 6.70 — measured at normal contrast, and phase 6's
+ * `prefers-contrast: more` block moved both tokens underneath them (3.42 and
+ * 8.08). The numbers went on being rendered and went on being wrong, on the one
+ * page whose entire job is to be right about contrast.
+ *
+ * Alpha is composited over white rather than over the true backdrop: nothing
+ * this is asked to measure is translucent, and a wrong answer on a translucent
+ * input would be better than a silently plausible one. Returns NaN on anything
+ * it cannot parse, which the caller renders as "?" rather than as a number.
+ */
+export function contrast(a: string, b: string): number {
+  const rgb = (c: string): [number, number, number] | null => {
+    const m = String(c).match(/rgba?\(([^)]+)\)/);
+    if (m) {
+      const p = m[1].split(/[,\s/]+/).filter(Boolean).map(Number);
+      if (p.length < 3 || p.slice(0, 3).some(Number.isNaN)) return null;
+      const alpha = p.length > 3 && !Number.isNaN(p[3]) ? p[3] : 1;
+      return [p[0], p[1], p[2]].map((v) => v * alpha + 255 * (1 - alpha)) as [number, number, number];
+    }
+    const h = String(c).trim().replace("#", "");
+    if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+    return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)) as [number, number, number];
+  };
+  const lum = (c: [number, number, number]) => {
+    const f = (v: number) => {
+      const x = v / 255;
+      return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
+  };
+  const x = rgb(a);
+  const y = rgb(b);
+  if (!x || !y) return NaN;
+  const lx = lum(x);
+  const ly = lum(y);
+  return (Math.max(lx, ly) + 0.05) / (Math.min(lx, ly) + 0.05);
+}
+
 /** Rows that carry a measured contrast ratio — the palette proper. */
 export const PALETTE = TOKENS.filter((t) => t.ratios !== null);
 

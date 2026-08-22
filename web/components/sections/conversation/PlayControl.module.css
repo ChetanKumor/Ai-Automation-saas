@@ -48,9 +48,20 @@
   transform: scale(0.985);
 }
 
+/* --ink-strong, 2px, 2px offset — the site's one focus-ring rule, with no
+   exception left anywhere on the page. This control used to ring in
+   --accent-on-ground at 5.16:1 against --ground. That PASSED 1.4.11, and it was
+   still the wrong ring: every other focusable thing on `/` measures 15.79-17.22:1
+   in --ink-strong, so a keyboard user crossing the page met one indicator that
+   was quieter than the rest for no reason a reader could infer. A rule with one
+   undocumented exception is not a rule.
+
+   The ring is the same colour as the button's own --ink-strong fill, which is
+   why the offset stays non-zero: 2px of --ground separates the two, and the
+   ring is read against that paper at 17.22:1, not against the button. */
 .control:focus-visible {
-  outline: 2px solid var(--accent-on-ground);
-  outline-offset: 3px;
+  outline: 2px solid var(--ink-strong);
+  outline-offset: 2px;
 }
 
 /* A fixed square, so the glyph never moves and the collapsed button is exactly
