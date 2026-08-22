@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 1b03c398be9177a45647fd0c39e3d97455f263e7
+Verified-at: 1727ace67efda99b4eea997a8339c21add9011c9
 Verified-on: 2026-08-22
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -629,6 +629,76 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **HOME STOPS TELLING A FINISHED OWNER TO FINISH — the readiness denominator,
+  built** (`1727ace`). **Three files, +148/−20**: `public/portal/home.js`,
+  one line of `public/portal/wizard.js`, and `scripts/portal/shootD3.js`. No
+  route, no schema, no migration, no severity, no token, no stylesheet, no nav.
+  Node **1111 / 180 suites / 0 fail / 0 cancelled / 0 skipped / 0 todo** —
+  unmoved. `npm run os:check` exit 0. ⚠️ The Python worker suite was **not
+  re-run**; its **97** is carried forward.
+  **THE RING AND THE LIST IT SITS BESIDE WERE COUNTING DIFFERENT THINGS.**
+  `computeScore` scored every check that was `material`; `renderChecks` has
+  grouped rows by `actor !== 'operator'` since `PORTAL-P6-S18`. So a clinic
+  whose own setup was finished read **"8 of 11" above a list of 8**, with the
+  other three under a heading saying they were Prantivo's, carrying a lock badge
+  and deliberately no fix link — and a **"Finish setting up your receptionist"**
+  CTA as the loudest element on the page. Four surfaces described one thing
+  through three different predicates. There is now **one**, `actor !==
+  'operator'`, read by the ring, the headline, the draft banner and the CTA, and
+  the denominator is exactly the rows under *Needed to go live*.
+  **PRESENTATION ONLY, ESTABLISHED BEFORE ANYTHING WAS EDITED.** `computeScore`
+  has exactly three references, all inside `home.js` — its definition, one call,
+  and the `window.PortalHome` export. Nothing derives eligibility from it:
+  `shell.js deriveGoLive` reads `run.passed`, which `validationService` computes
+  server-side, and that is unchanged. `draft` stays `draft`.
+  **A SKIPPED OPERATOR CHECK IS NOT OUTSTANDING WORK** — it is a channel the
+  clinic does not use, and the run PASSES with it skipped. The session brief
+  defined outstanding operator work as *failing OR present in `run.skipped`*;
+  that was adopted as *failing only*, because the skipped half would have told
+  every clinic with its voice line switched off that Prantivo was still
+  finishing something, and would have made the existing *All setup checks are
+  ready* arm unreachable for them. Evidenced on a fourth fixture: draft, all
+  eight owner-scope checks passing, all four operator checks skipped — headline
+  and note unchanged from baseline, `Go live` enabled.
+  **THE ONE-CONCERN RULE.** With exactly one distinct outstanding operator
+  concern the note names it from `CHECK_META` (*"…the last step — WhatsApp
+  connection — and your receptionist can go live once that's done."*); with two
+  or more it refuses to enumerate, because the grouped rows immediately below
+  already do that exactly. Concern identity is the check's own namespace, so
+  `whatsapp.config` and `whatsapp.live` are one thing to wait on, not two.
+  **THE DRAFT BANNER TAKES ONE OF FOUR LINES**, and the fourth is why the
+  obvious design was wrong: `render()` calls `renderBanner` BEFORE it knows
+  whether a run exists, so the no-run arm is also Home's never-checked state,
+  where the card reads *"Nothing has been checked yet."* A line about what the
+  checks below show would have been a fresh untruth on exactly that screen. The
+  no-run arm keeps the baseline string; every non-Home caller stays correct
+  without knowing the option exists. `validated` / `live` / `paused` untouched.
+  `wizard.js` passes its run in ONE line, so the Review step's banner and card
+  cannot contradict each other — measured on a blocked tenant, both now read
+  completion.
+  **MEASURED, NOT ARGUED.** Four fixtures on a scratch DB through the real
+  routers and CDP, before and after: the invariant *ring denominator === rows
+  under "Needed to go live"* was **false on all three** original fixtures at
+  `1b03c39` (8≠11, 9≠11, 5≠12) and is **true on all four** now. The
+  owner-outstanding control is unchanged in kind — same headline shape, same
+  note, same CTA, same baseline banner, and the page renders at **identical
+  height at both 1440 and 380** — with only the denominator narrowing, 12→9,
+  which is the ring ceasing to disagree with its own row count. Tab order is
+  byte-identical but for the removed CTA; `:focus-visible` rule count 5 before
+  and 5 after; exactly one `[role="status"].vh`, matching the ring's
+  `aria-label`.
+  ⚠️ **`shootD3.js` HAS TWO STALE ASSERTIONS, PRE-EXISTING, NOT FIXED.** Its
+  draft-clinic probe (`:494-500`) asserts the truth strip is present on Home,
+  but D5a suppressed the not-live strip **on Home only**
+  (`shadow-notice.js:294`, `pageId !== 'home'`) and did not update this
+  harness. **Verified identical at `1b03c39` with the working tree reverted**,
+  so it is not this session's. The script therefore aborts before its capture
+  phase and `d3-*.png` were not regenerated. Out of this session's authorised
+  file edits; needs one deliberate fix.
+  ⚠️ The setup CTA is evaluated **once, on load**. An owner who fixes their last
+  item and presses *Check again* still sees it until they reload — baseline
+  behaviour, unchanged, because `render()` does not re-run the onboarding
+  banner and `me` is not in its scope.
 - **THE SITE STOPS ASSERTING THINGS IT CANNOT SHOW — the last site session**
   (`1b03c39`). **Nine files, +276/−22.** No legal page opened, no
   `globals.css`, no `brand-values.md`, no `clocks.md`, no register file other
