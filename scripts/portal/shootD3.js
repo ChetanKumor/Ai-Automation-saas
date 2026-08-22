@@ -502,13 +502,29 @@ const FAIL = (frag) => `(function(){var f=window.fetch;window.fetch=function(u,o
       ['group headers', "Array.from(document.querySelectorAll('.checks__group-label')).map(function(e){return e.textContent;}).join('|')",
         'Needed to go live|Handled by Prantivo'],
     ] });
-    console.log('  Home, draft clinic — strip does not re-announce on a re-render:');
+    // The not-live strip is SUPPRESSED ON HOME, deliberately: D5a/W5, decided
+    // and recorded three times over — the rationale at shadow-notice.js:283-290,
+    // the worklist item in docs/specs/portal-v2-batch1.md:377, and the entry in
+    // docs/os/state.md. Home answers the question better and more specifically
+    // with the ring and the grouped checks, and the strip's action pointed at
+    // the page the owner was already standing on.
+    //
+    // This probe asserted `strip present: 1` and had been RED since D5a landed —
+    // the harness kept the pre-suppression expectation and nothing re-ran it, so
+    // the script aborted here and its capture phase had not run since. The
+    // absent case is now asserted the same way the clean-clinic block above does
+    // it: absent, not empty-and-collapsed. A draft clinic on any OTHER page is
+    // still covered by the hours.html shots below.
+    console.log('  Home, draft clinic — not-live strip suppressed here (D5a/W5):');
     await probe(cdp, { url: `${base}/index.html`, cookie: draftCk, port, waitFor: homeReady, checks: [
-      ['strip present', "document.querySelectorAll('.ts').length", 1],
+      ['truth strips on the page', "document.querySelectorAll('.ts').length", 0],
+      ['host exists (so it can announce later)', "!!document.getElementById('truthStrip')", true],
+      ['host renders zero height', "document.getElementById('truthStrip').getBoundingClientRect().height", 0],
+      ['host paints no border', "getComputedStyle(document.getElementById('truthStrip')).borderBottomWidth", '0px'],
       ['re-dispatching the same readiness does not rewrite the region',
         "(function(){var h=document.getElementById('truthStrip');var before=h.innerHTML;"
         + "document.dispatchEvent(new CustomEvent('portal:readiness',{detail:{status:'draft',run:{checks:[],skipped:[]}}}));"
-        + "return h.innerHTML===before && h.querySelectorAll('.ts').length===1;})()", true],
+        + "return h.innerHTML===before && h.querySelectorAll('.ts').length===0;})()", true],
     ] });
 
     console.log('capturing:');

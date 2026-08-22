@@ -85,9 +85,15 @@
   color: var(--muted);
   margin-top: 5px;
 }
-/* At 100% the numeral has nothing left to count — a check says it in one glyph. */
+/* At 100% the numeral has nothing left to count — a check says it in one glyph.
+ * `transform: none` un-does the rotate(-90deg) two rules up. That rotation is
+ * there to move the ARC's dash start to 12 o'clock, but `.ring svg` matches
+ * BOTH svg nodes inside .ring — the 132px progress circle and this 24px
+ * checkmark — so the tick inherited it and rendered as a chevron pointing
+ * right. Equal specificity, later rule, so only this declaration is overridden;
+ * the arc keeps its rotation and its start point. */
 .ring__done { color: var(--green-700); }
-.ring__done svg { width: 38px; height: 38px; }
+.ring__done svg { width: 38px; height: 38px; transform: none; }
 
 .readiness__summary { min-width: 0; }
 .readiness__headline { font-size: 18px; font-weight: 700; letter-spacing: -.01em; line-height: 1.3; }
