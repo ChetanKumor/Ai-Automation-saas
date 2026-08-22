@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 889a5a897ba5c7cbe5ca11caa56429b9160afc83
-Verified-on: 2026-08-22
+Verified-at: 7e39c49d507747af2efcc6a5021c98c5eee3f806
+Verified-on: 2026-08-23
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -629,6 +629,106 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE RECEPTIONIST IS PRESENT ON HOME AND NAMED ON THE TAB — Portal Phase 1,
+  built** (`7e39c49`). **Nineteen files, +586/−49**: the new
+  `public/portal/greeting-copy.js`, `home.js`, `home.css`, `index.html`,
+  `verbatim.js`, `verbatim.css`, `shadow-notice.js`, `shell.js`, `knows.html`,
+  nine `<script>` lines across the panel pages, and `scripts/portal/shootD4.js`.
+  No route, no schema, no migration, no severity, no `tokens.css`, no `src/`.
+  Node **1111 / 180 suites / 0 fail / 0 cancelled / 0 skipped / 0 todo** —
+  unmoved. `npm run os:check` exit 0; `shootD3.js` and `shootD4.js` both exit 0.
+  ⚠️ The Python worker suite was **not re-run**; its **97** is carried forward.
+  **THE PRODUCT MENTIONED THE RECEPTIONIST FOUR TIMES ON HOME AND SHOWED HER
+  ZERO TIMES.** Her actual words existed only inside the nine editing pages'
+  Verbatim panel, behind a 44px strip whose one word was *Preview*, set
+  vertically, in the panel's **muted** step. Measured in Phase 0: below 1280 the
+  collapsed strip is the **default**, not a state an owner chooses
+  (`verbatim.js:112`), and one click writes `portal.verbatim.collapsed` for
+  every future session on that browser.
+  **HOME.** A greeting block above the readiness section, one hairline between:
+  her name (or *Your receptionist* — `personality.display_name` defaults to `''`
+  and the nameless clinic is the common case), what the line is, the greeting at
+  26px in the clinic's default language, the English gloss, and one accent link.
+  **No card:** measured `bg=rgba(0,0,0,0) radius=0px shadow=none`, one bottom
+  border. Telugu leading **43.68px** against the Latin line's **39px** at the
+  same 26px, tracking `normal` against Latin's `-0.364px`; the face that
+  rasterised is **`Noto-Sans-Telugu-SemiBold`, `isCustomFont: true`, 66 glyphs**
+  (`CSS.getPlatformFontsForNode`), not a fallback.
+  **ONE ROUND TRIP IS STILL ONE ROUND TRIP.** `/portal/api/readiness` carries no
+  persona at all — its projection is `{name, severity}` and a grep of the live
+  payload for `persona` / `greeting` / `display_name` returns false on all three.
+  The greeting comes from `/portal/api/knowledge-summary`
+  (`sections.receptionist.greeting[<lang>]`), fired **after** `render()` has
+  painted and never awaited by it. Any failure empties the block — `.greet:empty`
+  removes the hairline and the space with it. It also loads on the readiness
+  FAILURE path, from a different endpoint, rather than leaving a skeleton up
+  forever because a request it does not depend on failed.
+  **THE TAB.** Her name, horizontally, in `--field-ink` — **15.69:1** on the
+  panel ground, up from the muted step's 7.21:1 — beside a left chevron. Hover
+  and `:focus-visible` (both forced via `CSS.forcePseudoState` and measured)
+  slide a peek carrying the greeting's opening words: `opacity 0→1`, transform
+  only, `position: absolute`, `pointer-events: none`, **panel width unchanged at
+  91px** through the reveal. Tab width **91px** with a name, **164px** without,
+  capped at 168 so an 80-character `display_name` truncates; the content column
+  at 1024 goes 748 → **701** named, **628** nameless.
+  ⚠️ **NO COLLAPSE ANIMATION, RULED DELIBERATELY.** Nothing animates it today
+  (`transition-duration: 0s` at every breakpoint, measured) and the flip reflows
+  the whole content column; a fade layered on a reflow reads as two events. The
+  fixed-position-with-reserved-width design is **filed, not attempted**.
+  ⚠️ **F-V006 DID NOT REPRODUCE.** Measured at `ed67515`: `.content` padding
+  64px over a 43px sheet at 1023 and 56 over 45 at 380 — content already cleared,
+  by **11px** at 380. The finding's "~57px" assumed a drag pill that has never
+  rendered (see F-V007). The clearance was a coincidence of two unrelated
+  numbers, so the ruling was to **declare the relation and change no pixels**:
+  `--vp-sheet-h: 45px` in `verbatim.css`, referenced only by `.content`'s bottom
+  padding, with the sheet's own height left emergent. Now 61px over 43/45 at both
+  widths, and `shootD4` asserts `padding >= sheet height` at 1023 and 380.
+  **Also folded in (one declaration):** `body.has-save-bar .vp` moved from the
+  `1023.98` media block to `860`, where `.save-bar { display: flex }` actually
+  applies. Between 861 and 1023 a dirty card lifted the sheet 69px above a bar
+  that was not there. Measured after: at 900 `bar=none, sheet bottom=0px`; at 760
+  `bar=flex, sheet bottom=69px`.
+  **COPY HAS ONE HOME EACH.** `glossFor`'s three answers and the no-greeting
+  sentence moved to `greeting-copy.js` **byte-identical** (verified against the
+  shipped `verbatim.js` source before the move); `Saved settings` / `Saved`
+  moved to `shadow-notice.js`, which already owns every word said about the
+  legacy condition. A shadowed Home now reads **`Asha · Saved settings`** — the
+  panel's own vocabulary, no live claim, no third string, and the verdict read
+  from the run Home already holds via `ShadowNotice.isShadowed`, with no second
+  request.
+  **NAV: `What it knows` → `Everything it knows`** (`shell.js:86`,
+  `knows.html:6`, `:45`). The item was a verbatim duplicate of the group header
+  two rows above it. **`it`, not `she`** — the portal says `it` in forty-plus
+  strings and `voice.sarvam_speaker` defaults to `shubh`, so `she` is a claim the
+  product cannot keep for every clinic. `cmdk.js` reads `Portal.nav` and follows
+  for free; `shell.js:55`'s group label is deliberately unchanged.
+  **A11Y, measured before and after.** Heading outline `H1: Your receptionist`
+  (visually hidden) → `H2: Readiness`; h1 count **1**. `[role="status"]` **2 both
+  sides** — the `#truthStrip` host (`shell.js:704`, mounted empty on every page
+  including Home) and the ring's `.vh` sibling. The brief asked for exactly one;
+  that was never true at HEAD, the strip host is under preservation, and the rule
+  was amended to *the block introduces zero*, which it does. Tab order 15 → 16
+  on Home (the new link, last); `:focus-visible` rule count 5 → 5 on Home and
+  6 → 8 on an editing page — both additions, none changed.
+  ⚠️ **THE "NO GREETING" STATE IS ALL BUT UNREACHABLE, AND THE FRESH-CLINIC CASE
+  IS NOT WHAT IT LOOKS LIKE.** `clinicDefaults.greeting` (`defaults.js:30-34`)
+  ships a real line in te/hi/en, `writeTenantConfig` deep-merges onto it, and
+  `writeTenantConfigMeta` materialises the whole document for a tenant that has
+  never saved a page — so a brand-new clinic sees the **default Telugu line**,
+  which does not name their clinic. That is honest and is left as-is;
+  default-detection was ruled out as the product guessing about its own data.
+  The empty branch is defensive, for a document that predates the field, and was
+  evidenced on a raw-SQL stale-schema fixture.
+  Evidence: `scratchpad/p1/` (scratch DB → genesis → real routers → CDP;
+  five fixtures — named, nameless, never-saved, stale-schema, legacy — plus
+  before/after shots at 1440/1024/380). Not committed.
+  ⚠️ **F-V007 FILED — the mobile sheet's drag pill has never rendered.**
+  `.vp__grip-bar` is an empty `<span>` at `display: inline`, so its
+  `width: 36px; height: 4px; margin: 0 auto 10px` are inert on a non-replaced
+  inline box; measured `0x0`. Pre-existing since D4. Giving it `display: block`
+  grows the collapsed sheet from 45px to ~59px and breaks the 380px clearance, so
+  it must be fixed **together with a re-measured `--vp-sheet-h`, never alone** —
+  which is what the new `shootD4` assertion exists to catch.
 - **THE COMPLETION TICK IS A TICK, AND ITS HARNESS RUNS AGAIN — evidence fix,
   built** (`889a5a8`). **Two files, +27/−5**: one declaration in
   `public/portal/home.css`, and the draft-clinic assertions in
