@@ -403,7 +403,7 @@
     // The Go-live control, in its real (display-only — S18 owns the action)
     // state — the exact same rendering the header uses everywhere else.
     window.Portal.renderLifecycle(data.status, window.Portal.deriveGoLive(data.run), $('wizGolive'));
-    window.PortalHome.renderBanner(data.status, { bannerEl: $('wizBanner') });
+    window.PortalHome.renderBanner(data.status, { bannerEl: $('wizBanner'), run: data.run });
     if (!data.run) { window.PortalHome.renderEmpty({ cardEl: $('wizReadinessCard') }); return; }
     window.PortalHome.renderReadiness(data.run, { cardEl: $('wizReadinessCard'), checksEl: $('wizChecks'), stepFor });
   }

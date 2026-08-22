@@ -476,12 +476,24 @@ const FAIL = (frag) => `(function(){var f=window.fetch;window.fetch=function(u,o
     console.log('  Home, legacy clinic — ring aria + score live region:');
     await probe(cdp, { url: `${base}/index.html`, cookie: legacyCk, port, waitFor: homeReady, checks: [
       ['ring role', "document.querySelector('.ring').getAttribute('role')", 'img'],
-      // 8, not 9: the ring scores MATERIAL checks, and tenant.legacy_prompt is
-      // advisory. Its absence from both the numerator and the denominator is
-      // the same decision as its absence from the checklist.
+      // 8, not 9, for TWO reasons — the ring scores checks that are MATERIAL
+      // *and* owner-scope. tenant.legacy_prompt is advisory, so it is out on
+      // materiality; the four operator checks are out on actor. This fixture
+      // does not distinguish the two rules (readyConfig switches whatsapp,
+      // voice and booking off, so every operator check is SKIPPED and would be
+      // outside the denominator under either), which is exactly why the reason
+      // has to be written down rather than inferred from the number.
       ['ring label', "document.querySelector('.ring').getAttribute('aria-label')", '8 of 8 checks complete'],
       ['score live regions', "document.querySelectorAll('[role=\"status\"].vh').length", 1],
       ['score live region text', "document.querySelector('[role=\"status\"].vh').textContent", '8 of 8 checks complete'],
+      // The invariant the owner-scope denominator exists to hold, locked here
+      // because it is cheap and because its absence is what let the ring count
+      // rows the owner was never shown under that heading.
+      ['ring denominator === rows under "Needed to go live"',
+        "(function(){var e=Array.from(document.querySelectorAll('.checks > *'));"
+        + "var i=e.findIndex(function(x){return x.classList.contains('checks__group-label')&&x.textContent==='Needed to go live';});var n=0;"
+        + "for(var j=i+1;j<e.length&&!e[j].classList.contains('checks__group-label');j++)if(e[j].classList.contains('check'))n++;"
+        + "return n===+document.querySelector('.ring').getAttribute('aria-label').split(' of ')[1].split(' ')[0];})()", true],
       ['strip sits directly under the 56px top bar',
         "document.querySelector('#truthStrip .ts').getBoundingClientRect().top", 56],
       ['strip is 40px tall', "document.querySelector('#truthStrip .ts').getBoundingClientRect().height", 40],

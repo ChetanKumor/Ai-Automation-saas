@@ -4,8 +4,10 @@
  * Reads GET /portal/api/readiness (latest validation run + lifecycle status for
  * the session's tenant, INV-1) and renders:
  *   • the status banner (Draft / Validated / Live / Paused + its meaning),
- *   • the readiness RING (material checks passed / material total — the signature
- *     element), and
+ *   • the readiness RING (owner-scope material checks passed / owner-scope
+ *     material total — the signature element. The operator's checks are shown
+ *     but never scored, so the denominator is exactly the list the owner can
+ *     act on), and
  *   • per-check rows using the friendly copy map (spec §5.1). The owner never
  *     sees the raw catalog wording or check `detail` — that stays in the admin
  *     panel; here every check is translated to what the owner recognises.
@@ -43,12 +45,35 @@
   // keep passing the name alone.
   const metaFor = (name, severity) => window.Portal.checkMeta(name, severity);
 
+  // `draft` is a BACKEND lifecycle value and its label is not ours to reword.
+  // Its MEANING line is, and it had one wording for four different situations —
+  // it told a clinic whose own setup was finished to "finish the setup below",
+  // which is the contradiction this session exists to remove. The line is now
+  // chosen by draftMeaning() from the run renderBanner is handed.
+  //
+  // The variants share their first sentence on purpose: "isn't live yet" is the
+  // half of `draft` that is never in doubt. Only the second sentence — what the
+  // owner should do about it — depends on the checks. validated / live / paused
+  // are untouched.
   const BANNER = {
     draft:     { label: 'Draft', meaning: 'Your receptionist isn’t live yet. Finish the setup below, then go live.' },
     validated: { label: 'Validated', meaning: 'Setup checks passed. You’re ready to go live.' },
     live:      { label: 'Live', meaning: 'Your receptionist is answering calls and messages.' },
     paused:    { label: 'Paused', meaning: 'Your receptionist is paused — calls and messages aren’t being answered.' },
   };
+  const DRAFT_OPERATOR = 'Your receptionist isn’t live yet. Nothing more is needed from you — Prantivo is finishing the last steps.';
+  const DRAFT_READY = 'Your receptionist isn’t live yet. Everything’s ready — press Go live when you are.';
+
+  // NO RUN keeps the baseline line, and that is not caution — render() below
+  // calls renderBanner BEFORE it knows whether a run exists, so the no-run arm
+  // is also Home's never-checked state, the one where renderEmpty draws
+  // "Nothing has been checked yet." A banner claiming the checks below show
+  // anything would be a fresh untruth on exactly that screen.
+  function draftMeaning(run) {
+    if (!run || !run.checks) return BANNER.draft.meaning;
+    if (ownerWorkOutstanding(run)) return BANNER.draft.meaning;
+    return operatorFails(run).length ? DRAFT_OPERATOR : DRAFT_READY;
+  }
 
   function fmtDate(iso) {
     const d = new Date(iso);
@@ -83,26 +108,69 @@
   // onboarding wizard's Review step, PORTAL-P6-S16 — see window.PortalHome
   // below); defaults to this page's own #banner, so the call from main() below
   // is byte-identical to before this option existed.
+  // `opts.run` is optional and read for the DRAFT state ONLY (see draftMeaning).
+  // Absent, the draft line is the one it has always been — so every caller that
+  // has no run to hand over stays correct without knowing this option exists.
   function renderBanner(status, opts) {
     const b = BANNER[status] || BANNER.draft;
     const el = (opts && opts.bannerEl) || document.getElementById('banner');
+    const meaning = b === BANNER.draft ? draftMeaning(opts && opts.run) : b.meaning;
     el.innerHTML =
       `<div class="banner banner--${esc(status)}">
         <span class="banner__dot"></span>
         <div class="banner__body">
           <div class="banner__label">${esc(b.label)}</div>
-          <div class="banner__meaning">${esc(b.meaning)}</div>
+          <div class="banner__meaning">${esc(meaning)}</div>
         </div>
       </div>`;
   }
 
-  // Ring: material checks that RAN. numerator = not-failed; denominator = ran.
-  // Advisory + skipped checks are excluded (a skipped check made no claim).
+  // ── The owner-scope line ───────────────────────────────────────────────────
+  // ONE predicate, read by the ring, the headline, the banner and the
+  // onboarding CTA — four surfaces describing the same progress from three
+  // different predicates is how they came to disagree with each other.
+  //
+  // Owner scope is everything that is NOT the operator's. `system` checks
+  // (config.schema, prompt.renders, consent.lines) are derived from settings
+  // the owner saved and are nobody else's to fix, so they belong on the owner's
+  // side of the line; the unknown-check default is `system` too (shell.js:166),
+  // which keeps a future check inside the score rather than silently outside it.
+  const ownerScope = (m) => m.material && m.actor !== 'operator';
+
+  function ownerWorkOutstanding(run) {
+    return (run.checks || []).some((c) => ownerScope(metaFor(c.name)) && c.severity === 'fail');
+  }
+
+  // Operator work the owner is WAITING ON. FAILING only. A skipped operator
+  // check is not outstanding — it is a channel this clinic does not use ("Not
+  // in use", see the skipped branch of the row-state map below), and the run
+  // passes with it skipped. Counting one as outstanding would tell every live
+  // clinic with its voice line switched off that Prantivo is still finishing
+  // something.
+  function operatorFails(run) {
+    return (run.checks || []).filter((c) => {
+      const m = metaFor(c.name);
+      return m.material && m.actor === 'operator' && c.severity === 'fail';
+    });
+  }
+
+  // Ring: material OWNER-SCOPE checks that RAN. numerator = not-failed;
+  // denominator = ran. Advisory and skipped checks are excluded as they always
+  // were (a skipped check made no claim); OPERATOR checks are excluded as of
+  // this session.
+  //
+  // The denominator is now exactly the rows rendered under "Needed to go live".
+  // renderChecks has grouped by `actor !== 'operator'` since PORTAL-P6-S18
+  // while the ring scored by `material` alone, so the ring counted rows the
+  // owner was shown under a different heading, told they were Prantivo's, and
+  // given no link to act on: a clinic whose own work was finished read "8 of
+  // 11" beside a list of 8. Nothing about eligibility moves — `run.passed` is
+  // the only signal deriveGoLive reads and it is the server's.
   function computeScore(checks) {
     let passed = 0, total = 0;
     for (const c of checks) {
       const m = metaFor(c.name);
-      if (!m.material) continue;
+      if (!ownerScope(m)) continue;
       total += 1;
       if (c.severity !== 'fail') passed += 1;
     }
@@ -173,6 +241,24 @@
     }));
   }
 
+  // A distinct operator CONCERN, taken from the check's own namespace rather
+  // than a second lookup table: whatsapp.config and whatsapp.live are one thing
+  // for an owner to be waiting on, not two.
+  const concernOf = (name) => String(name).split('.')[0];
+
+  // The note for a finished owner setup with Prantivo still working. It names
+  // the outstanding item only when there is exactly ONE concern — two or more
+  // stops being a sentence and starts being a list, and the "Handled by
+  // Prantivo" rows immediately below already ARE that list, named exactly. The
+  // label is the one from CHECK_META, so this sentence and the row it refers to
+  // can never call the same thing two different things.
+  function operatorNote(fails) {
+    const concerns = new Set(fails.map((c) => concernOf(c.name)));
+    return concerns.size === 1
+      ? `Nothing more is needed from you. Prantivo is finishing the last step — ${metaFor(fails[0].name).label} — and your receptionist can go live once that’s done.`
+      : 'Nothing more is needed from you. Prantivo is finishing the last steps — your receptionist can go live once that’s done.';
+  }
+
   // `opts.cardEl`/`opts.checksEl` let a caller render into different elements
   // (the onboarding wizard's Review step — see window.PortalHome below);
   // `opts.stepFor` is threaded through to checkRow (see there). Both default to
@@ -182,19 +268,29 @@
     const card = (opts && opts.cardEl) || document.getElementById('readinessCard');
     const { passed, total } = computeScore(run.checks);
     const complete = total > 0 && passed === total;
+    const opFails = operatorFails(run);
 
-    // Any owner-actionable material check still failing?
-    const ownerTodo = run.checks.some((c) => {
-      const m = metaFor(c.name);
-      return m.material && m.actor === 'owner' && c.severity === 'fail';
-    });
+    // Any owner-scope material check still failing? The SAME predicate the ring
+    // scores with, so the number and the sentence beside it can no longer be
+    // describing different sets of checks. It used to be `actor === 'owner'`,
+    // which left the four `system` checks outside it.
+    const ownerTodo = ownerWorkOutstanding(run);
 
     let headline, note;
-    if (complete) {
+    if (complete && opFails.length) {
+      headline = 'Your setup is complete';
+      note = operatorNote(opFails);
+    } else if (complete) {
       headline = 'All setup checks are ready';
       note = 'Every check that gates go-live has passed.';
     } else {
       headline = `${passed} of ${total} setup checks ready`;
+      // The second arm is DEFENSIVE. With an owner-scope denominator `ownerTodo`
+      // is equivalent to `!complete` for every total > 0, so it is reachable
+      // only at total === 0 — a run in which no owner-scope material check ran
+      // at all. That payload shape is real (a run carrying nothing but operator
+      // checks), and "0 of 0 setup checks ready" under an instruction to
+      // complete highlighted items that do not exist would be worse than this.
       note = ownerTodo
         ? 'Complete the highlighted items below, then your receptionist can go live.'
         : 'The remaining items are handled by Prantivo before go-live.';
@@ -482,11 +578,24 @@
   //     "Continue setting up" entry point (they left on purpose — don't
   //     re-trap them in the wizard).
   //   • completed → stay on Home, no banner.
-  function renderOnboardingBanner(onboarding) {
+  //
+  // `run` is the readiness payload's run, HANDED in by main() rather than
+  // fetched here — Home is a one-readiness-round-trip page and this must not
+  // become the second. Null (no run yet, or the fetch failed) means the state
+  // is unknown, and an unknown state keeps the banner: an owner cannot be told
+  // they are finished on the strength of a check that never ran.
+  function renderOnboardingBanner(onboarding, run) {
     const host = document.getElementById('onboardingBanner');
     if (!host) return;
     if (!onboarding || onboarding.completed) { host.innerHTML = ''; return; }
     const resuming = onboarding.step != null;
+    // A resuming owner with nothing owner-scope failing has nothing to resume.
+    // This CTA is the loudest element on the page and it was telling a clinic
+    // that had finished to go and finish — into a wizard whose own Review step
+    // would then have shown them the complete ring they had just been sent away
+    // from. Only the RESUMING banner is suppressed; the never-started case is
+    // handled by main()'s redirect above and is untouched.
+    if (resuming && run && !ownerWorkOutstanding(run)) { host.innerHTML = ''; return; }
     host.innerHTML =
       `<div class="setup-cta">
         <div class="setup-cta__body">
@@ -514,8 +623,13 @@
       window.location.replace('wizard.html');
       return;
     }
-    renderOnboardingBanner(me.onboarding);
-
+    // The onboarding CTA is rendered AFTER the readiness fetch, because whether
+    // to render it at all depends on the run (see renderOnboardingBanner). It
+    // still renders on the failure path below, with a null run: onboarding
+    // state is not readiness state, and hiding the owner's way back into the
+    // wizard because a fetch failed would put a second failure on top of the
+    // first. #onboardingBanner keeps its place in the document either way, so
+    // nothing moves — only when it is filled in.
     let data;
     try {
       const res = await fetch('/portal/api/readiness', { headers: { Accept: 'application/json' } });
@@ -523,10 +637,12 @@
       if (!res.ok) throw new Error('readiness ' + res.status);
       data = await res.json();
     } catch (_) {
+      renderOnboardingBanner(me.onboarding, null);
       renderError();
       return;
     }
 
+    renderOnboardingBanner(me.onboarding, data.run);
     render(data);
 
     // A go-live / pause / resume fired from the header control re-renders the
@@ -543,7 +659,7 @@
   // lifecycle action, so both paths can never diverge.
   function render(data) {
     window.Portal.renderLifecycle(data.status, window.Portal.deriveGoLive(data.run));
-    renderBanner(data.status);
+    renderBanner(data.status, { run: data.run });
     // The truth strip is shell chrome, but Home is the one page that fetches
     // readiness itself — so it HANDS the payload over rather than letting the
     // strip request its own. That is what keeps this page at exactly one
