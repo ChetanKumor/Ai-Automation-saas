@@ -41,8 +41,29 @@
       </header>
 
       <main class="content">
+        <!-- The page's H1 is the RECEPTIONIST, not the bookkeeping about her.
+             Visually hidden because the block below says it in her own voice,
+             and a heading repeating that would be a second title on a page
+             whose whole point is that she speaks first. "Readiness" drops to
+             h2 — it is a section of this page, not the page. -->
+        <h1 class="vh">Your receptionist</h1>
+
+        <!-- The greeting block (Portal Phase 1). Filled by home.js from
+             GET /portal/api/knowledge-summary, fetched AFTER readiness has
+             painted. The skeleton is the block's own shape at its own height,
+             held invisible for 300ms by `.sk-wrap` — a response faster than
+             that never shows it, and the layout never moves when the real
+             block arrives. A failed fetch empties this node entirely: a block
+             that cannot state the greeting truthfully states nothing. -->
+        <section class="greet sk-wrap" id="greeting">
+          <div class="sk sk-line greet__sk-who"></div>
+          <div class="sk greet__sk-line"></div>
+          <div class="sk greet__sk-line greet__sk-line--short"></div>
+          <div class="sk sk-line greet__sk-gloss"></div>
+        </section>
+
         <div class="page-head">
-          <h1 class="page-head__title">Readiness</h1>
+          <h2 class="page-head__title">Readiness</h2>
           <p class="page-head__sub">What's ready and what still needs your attention before your receptionist goes live.</p>
         </div>
 
@@ -77,6 +98,7 @@
   <script src="./shadow-notice.js"></script>
   <script src="./shell.js"></script>
   <script src="./cmdk.js"></script>
+  <script src="./greeting-copy.js"></script>
   <script src="./home.js"></script>
 </body>
 </html>

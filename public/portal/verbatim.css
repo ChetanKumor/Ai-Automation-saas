@@ -10,13 +10,40 @@
  * shape, it only toggles `.is-collapsed`:
  *
  *   >= 1280px    docked right, --panel-w, full height
- *   1024-1279    44px rail, vertical "Preview" label
+ *   1024-1279    a TAB carrying the receptionist's name, horizontally
  *   <  1024px    bottom sheet with a persistent handle carrying the greeting's
  *                first line, so even collapsed the owner sees their
  *                receptionist's voice
  *
  * Read-only. Nothing in this file styles a control that writes.
  * ========================================================================== */
+
+/* ── F-V006 ────────────────────────────────────────────────────────────────
+ * Below 1024 the panel is `position: fixed; bottom: 0` and nothing padded
+ * `.content` for it on the clean-card path — the dirty path has been handled
+ * since D5b by `body.has-save-bar .vp`. Measured at HEAD the last content pixel
+ * DOES clear the sheet (64px of padding over a 43-45px sheet, 56 over 45 at
+ * 380), so the finding does not currently reproduce. That clearance is a
+ * coincidence of two numbers nothing relates, and it is 11px at 380.
+ *
+ * So: declare the relationship rather than move any pixels. `--vp-sheet-h` is
+ * the collapsed sheet's MAXIMUM height, and `.content`'s bottom padding is
+ * derived from it. The sheet's own height stays emergent and untouched — giving
+ * it an explicit height would make it 45px at 1023 too, where it is 43.
+ *
+ * Scoped to this file on purpose: verbatim.css loads on exactly the nine pages
+ * that mount the panel, and last, so a bare `.content` here wins over the one in
+ * tokens.css while `body.has-save-bar .content` and `.app.is-embedded .content`
+ * (both two classes) still beat it. No token layer edit, and no page without a
+ * sheet is padded for one.
+ *
+ * The guard is in shootD4: padding-bottom >= the sheet's measured height, at
+ * 380 and at 1023. It reds the moment F-V007 is fixed without re-measuring
+ * this — see that finding: `.vp__grip-bar` is an empty inline span, so the drag
+ * pill has never rendered, and giving it `display: block` grows the sheet to
+ * ~59px.
+ * ────────────────────────────────────────────────────────────────────────── */
+:root { --vp-sheet-h: 45px; }
 
 .vp {
   /* Local to the ink ground. tokens.css carries --field-line; the bubble and
@@ -277,28 +304,101 @@
   box-shadow: 0 0 0 2px var(--field);
 }
 
-/* ── Rail (1024-1279, and any collapsed desktop panel) ──────────────────── */
+/* ── The TAB (1024-1279, and any collapsed desktop panel) ────────────────────
+ *
+ * This was a 44px strip reading "Preview" — one word, set vertically, in the
+ * panel's MUTED grey. Three separate ways of not saying whose preview it was,
+ * on the surface an owner meets before they meet anything else. It is the
+ * receptionist's NAME now, horizontally, in the panel's foreground ink, beside
+ * a chevron pointing the way it opens.
+ *
+ * The panel is the same object collapsed as open: same ink ground, same
+ * border-left, same top offset, same right edge. Only its width changes, and
+ * that change is INSTANT and unanimated — it reflows the whole content column,
+ * and a transition on a layout property is the one thing this panel's motion
+ * rules forbid. (Animating the collapse properly means a fixed-position panel
+ * over reserved width; filed, not attempted here.)
+ * ────────────────────────────────────────────────────────────────────────── */
 .vp__rail {
   display: none;
+  position: relative;         /* the peek anchors to this */
   width: 100%;
   flex: 1;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   background: transparent;
   border: 0;
-  color: var(--field-muted);
+  /* Ink-on-ink, not the muted grey. This is a name, and the muted step is what
+   * the panel uses for labels ABOUT things — 7.21:1 either way, so the change
+   * is hierarchy, not contrast. */
+  color: var(--field-ink);
   cursor: pointer;
-  padding: 14px 0;
+  padding: 14px 12px;
+  min-width: 0;
+  transition: transform var(--dur-1) var(--ease-in-out), opacity var(--dur-1) var(--ease-in-out);
 }
+/* Sentence case, not the uppercase micro a system label takes: it is her name.
+ * Truncates rather than widening the tab — `display_name` allows 80 characters
+ * and the tab is standing in the content column's light. */
 .vp__rail-t {
-  writing-mode: vertical-rl;
-  font: 600 11px/1 var(--sans);
-  letter-spacing: .1em;
-  text-transform: uppercase;
+  font: 600 12.5px/1.35 var(--sans);
+  letter-spacing: -.005em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.vp__rail:hover { color: var(--field-ink); }
+.vp__rail-chev { color: var(--field-muted); flex: none; display: flex; }
+.vp__rail-chev svg { width: 14px; height: 14px; }
+.vp__rail:hover .vp__rail-chev { color: var(--field-ink); }
 .vp__rail .vp__dot { animation: none; }
+
+/* The peek. Hovering or focusing the tab slides the greeting's opening words
+ * out from under it — the thing that tells a first-time viewer there is more in
+ * that direction, and the one part of the old rail's job the word "Preview"
+ * was doing badly.
+ *
+ * transform + opacity ONLY, out of flow, `pointer-events: none`, aria-hidden.
+ * It cannot move the page, cannot swallow the click that opens the panel, and
+ * nothing depends on it: at >=1024 on touch there is no hover at all and a tap
+ * opens the panel outright. */
+.vp__rail-peek {
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  max-width: min(420px, 34vw);
+  padding: 9px 13px;
+  border: 1px solid var(--field-line-2);
+  border-right: 0;
+  border-radius: var(--r-md) 0 0 var(--r-md);
+  background: var(--field-2);
+  color: var(--field-ink);
+  font: 600 14px/22px var(--sans);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(10px, -50%);
+  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
+}
+/* Vernacular resolves its own face off the lang the JS already sets — the same
+ * mechanism the bubble uses, read from the attribute instead of a class. */
+.vp__rail-peek[lang="te"] { font-family: var(--te); }
+.vp__rail-peek[lang="hi"] { font-family: var(--hi); }
+.vp__rail:hover .vp__rail-peek,
+.vp__rail:focus-visible .vp__rail-peek {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
+/* Press feedback lands on POINTER-DOWN (verbatim.js), not on click. Transform
+ * and opacity only. */
+.vp__rail.is-press,
+.vp__grip.is-press { transform: scale(.985); opacity: .82; }
+.vp__grip { transition: transform var(--dur-1) var(--ease-in-out), opacity var(--dur-1) var(--ease-in-out); }
 
 /* ── Sheet handle (<1024) ───────────────────────────────────────────────── */
 .vp__grip { display: none; }
@@ -307,11 +407,19 @@
  * Collapsed, >= 1024px: the panel becomes a 44px rail.
  * ======================================================================== */
 @media (min-width: 1024px) {
-  .vp.is-collapsed { width: 44px; }
+  /* Only as far as horizontal name-setting requires: `max-content` asks the tab
+   * what it needs, the floor keeps a two-letter name a real target, and the
+   * ceiling stops an 80-character `display_name` eating the content column —
+   * it truncates instead (.vp__rail-t). */
+  .vp.is-collapsed {
+    width: max-content;
+    min-width: 44px;
+    max-width: 168px;
+  }
   .vp.is-collapsed .vp__h,
   .vp.is-collapsed .vp__b,
   .vp.is-collapsed .vp__f { display: none; }
-  .vp.is-collapsed .vp__rail { display: flex; flex-direction: column; }
+  .vp.is-collapsed .vp__rail { display: flex; }
 }
 
 /* 1024-1279: docking is not offered — the content column cannot afford 360px
@@ -345,15 +453,6 @@
     z-index: 45;
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
-  /* D5b — two fixed surfaces, one bottom edge. The sticky save bar is pinned to
-   * the bottom too, and the panel was covering it: the owner would have been
-   * looking for their Save button underneath a reference surface, which is the
-   * exact failure the bar exists to prevent.
-   *
-   * The PANEL yields, not the bar. The bar is the action and it exists only
-   * while the card is dirty; the panel is a reference surface that is always
-   * there. It slides back down the moment the change is saved. */
-  body.has-save-bar .vp { bottom: var(--save-bar-h); }
   .vp__rail { display: none; }
 
   .vp__grip {
@@ -404,6 +503,30 @@
   .vp__f .vp__btn--end { margin-left: auto; }
   .vp__sel { height: 32px; }
   .vp__x { width: 32px; height: 32px; }
+
+  /* Content clears the collapsed sheet by a DECLARED margin now, not by the
+   * accident of two unrelated numbers. `--s-4` keeps the result within a few
+   * pixels of the padding this page has always had (64 above 480, 56 below). */
+  .content {
+    padding-bottom: calc(var(--vp-sheet-h) + var(--s-4) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* D5b — two fixed surfaces, one bottom edge. The sticky save bar is pinned to
+ * the bottom too, and the panel was covering it: the owner would have been
+ * looking for their Save button underneath a reference surface, which is the
+ * exact failure the bar exists to prevent.
+ *
+ * The PANEL yields, not the bar. The bar is the action and it exists only while
+ * the card is dirty; the panel is a reference surface that is always there. It
+ * slides back down the moment the change is saved.
+ *
+ * At 860, NOT at 1023.98, and that is this session's one-line correction. The
+ * bar itself is `display: flex` only below 860 (tokens.css), so between 861 and
+ * 1023 a dirty card used to lift the sheet ~69px above a bar that was not
+ * there — the panel yielding to nothing, mid-air. */
+@media (max-width: 860px) {
+  body.has-save-bar .vp { bottom: var(--save-bar-h); }
 }
 
 /* Under reduce, the live dot stops pulsing and the progress line paints at its
@@ -412,4 +535,11 @@
   .vp__dot { animation: none; }
   .vp__prog { transition: none; }
   .vp__grip-chev { transition: none; }
+  /* The peek still reveals — it carries information — but it cross-fades in
+   * place instead of sliding, and the press stops scaling. Opacity only. */
+  .vp__rail-peek { transform: translate(0, -50%); transition: opacity var(--dur-2) var(--ease-out); }
+  .vp__rail:hover .vp__rail-peek,
+  .vp__rail:focus-visible .vp__rail-peek { transform: translate(0, -50%); }
+  .vp__rail.is-press,
+  .vp__grip.is-press { transform: none; }
 }

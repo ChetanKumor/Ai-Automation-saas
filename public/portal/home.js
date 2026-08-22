@@ -608,6 +608,114 @@
       </div>`;
   }
 
+
+  // ==========================================================================
+  // THE GREETING BLOCK (Portal Phase 1)
+  //
+  // Home mentioned the receptionist four times and showed her none. Her actual
+  // words lived only inside the editing pages' preview panel, behind a 44px
+  // strip labelled "Preview" that is one click from a permanent, cross-session
+  // exile — so an owner could use this product and never once read a line their
+  // receptionist would say. This block is what fixes that, and it comes FIRST
+  // on the page: you meet her, then you read the bookkeeping about her.
+  //
+  // ── One round trip stays one round trip ────────────────────────────────────
+  // GET /portal/api/readiness carries no persona at all — its owner-safe
+  // projection is {name, severity} and nothing else (routes.js). The greeting
+  // lives on GET /portal/api/knowledge-summary, the same owner-scoped endpoint
+  // the Verbatim panel and `Everything it knows` already read. So this is a
+  // SECOND fetch, and it is fired AFTER render() has painted, never awaited by
+  // it, never in front of it. No route was added.
+  //
+  // Any failure empties the host and takes no space. A block that cannot state
+  // the greeting truthfully states nothing — it must never become a third way
+  // for this page to show an error, and it must never render half a claim.
+  //
+  // ── Honesty on a legacy clinic ─────────────────────────────────────────────
+  // On a clinic running a hand-written script the stored greeting is NOT what
+  // the receptionist says, so this block may not say it is. The verdict comes
+  // from the run Home ALREADY HOLDS, through ShadowNotice.isShadowed — the same
+  // field the truth strip and the panel's header read, with no second request —
+  // and the words are the panel's own, SAVED_ONLY. Three surfaces, one
+  // vocabulary; an unknown verdict changes nothing, as everywhere else.
+  // ==========================================================================
+  const GC = window.GreetingCopy;
+
+  // The one link out. Names the page's own subject — `sections.receptionist`
+  // is titled "How it introduces itself" by the very payload this block reads.
+  const GREET_LINK = 'Change how it introduces itself';
+  // What she is called when `personality.display_name` is blank, which is the
+  // schema default and the common case for a fresh clinic. receptionist.html
+  // says the same thing about the same field: "it introduces itself as your
+  // clinic's receptionist, with no name".
+  const GREET_NONAME = 'Your receptionist';
+  // What this line IS. receptionist.html's Greeting card, verbatim.
+  const GREET_WHEN = 'The first thing a caller or customer hears';
+
+  function renderGreeting(rec, shadowed) {
+    const host = document.getElementById('greeting');
+    if (!host) return;
+
+    const langs = rec.languages || [];
+    const lang = rec.default_language || langs[0] || 'en';
+    const line = String((rec.greeting || {})[lang] || '').trim();
+    const name = String(rec.display_name || '').trim();
+
+    // The qualifier is the claim. On a shadowed clinic there is no claim to
+    // make about what is heard, so it takes the panel's word for that state
+    // rather than a second one invented here.
+    const when = shadowed ? window.ShadowNotice.SAVED_ONLY : GREET_WHEN;
+
+    let body;
+    if (line) {
+      // NEVER truncated and never line-clamped. The schema caps a greeting at
+      // 300 characters; a long one producing a tall block is the product
+      // telling the truth about a greeting that is too long to say out loud.
+      body = `<p class="greet__line" lang="${esc(lang)}">${esc(line)}</p>`;
+      // Mandatory beside a vernacular line, never aria-hidden (spec 2.10) —
+      // and its three answers are greeting-copy.js's, shared verbatim with the
+      // panel so the two surfaces cannot gloss the same line two ways.
+      const gloss = GC.glossFor(lang, langs, () => String((rec.greeting || {}).en || '').trim());
+      if (gloss) {
+        body += `<p class="greet__gloss"><b>${esc(gloss.label)}</b>${esc(gloss.text)}</p>`;
+      }
+    } else {
+      // Defensive. clinicDefaults ships a real greeting in all three languages
+      // and writeTenantConfig merges onto it, so a clinic with a config
+      // document always has one — a fresh clinic sees the DEFAULT line, which
+      // does not name their clinic and is its own prompt to change it. This arm
+      // is for a document that predates the field.
+      body = `<p class="greet__none">${esc(GC.noGreeting(lang))}</p>`;
+    }
+
+    host.classList.remove('sk-wrap');
+    host.innerHTML =
+      `<p class="greet__who"><span class="greet__name">${esc(name || GREET_NONAME)}</span>`
+      + `<span class="greet__when">${esc(when)}</span></p>`
+      + body
+      + `<a class="greet__link" href="receptionist.html">${esc(GREET_LINK)}${IC.arrow}</a>`;
+  }
+
+  // Fired after the readiness render, never awaited by it. `run` is the payload
+  // Home already has; it is read for the legacy verdict only.
+  async function loadGreeting(run) {
+    const host = document.getElementById('greeting');
+    if (!host) return;
+    let data;
+    try {
+      const res = await fetch('/portal/api/knowledge-summary', { headers: { Accept: 'application/json' } });
+      if (!res.ok) throw new Error('summary ' + res.status);
+      data = await res.json();
+    } catch (_) {
+      host.innerHTML = '';           // silent: no error surface, no partial claim
+      host.classList.remove('sk-wrap');
+      return;
+    }
+    const rec = data && data.sections && data.sections.receptionist;
+    if (!rec) { host.innerHTML = ''; host.classList.remove('sk-wrap'); return; }
+    renderGreeting(rec, window.ShadowNotice && window.ShadowNotice.isShadowed(run) === true);
+  }
+
   // ── Boot ───────────────────────────────────────────────────────────────────
   async function main() {
     let me;
@@ -639,11 +747,22 @@
     } catch (_) {
       renderOnboardingBanner(me.onboarding, null);
       renderError();
+      // The greeting still loads. It comes from a DIFFERENT endpoint and is
+      // still true when readiness is not available — and leaving the block on
+      // its skeleton forever, because a request it does not depend on failed,
+      // would be a second failure stacked on the first. `null` means the legacy
+      // verdict is unknown, which changes nothing here exactly as it changes
+      // nothing in the panel: we only ever withdraw a claim from evidence.
+      loadGreeting(null);
       return;
     }
 
     renderOnboardingBanner(me.onboarding, data.run);
     render(data);
+    // AFTER the paint above, and deliberately not awaited: the readiness round
+    // trip is the one this page is measured on and the greeting may not delay
+    // it by a millisecond.
+    loadGreeting(data.run);
 
     // A go-live / pause / resume fired from the header control re-renders the
     // whole page state from the action's OWN response (PORTAL-P6-S18) — the

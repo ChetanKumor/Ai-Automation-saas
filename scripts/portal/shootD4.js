@@ -661,13 +661,62 @@ const FAIL = (frag) => `(function(){var f=window.fetch;window.fetch=function(u,o
         "Math.round(document.getElementById('verbatim').getBoundingClientRect().width)", 360],
     ] });
 
-    console.log('  the rail at 1024 is 44px:');
+    // ── The collapsed TAB (Portal Phase 1) ─────────────────────────────────
+    // These assertions replace 'rail width is 44' and 'the rail label reads
+    // Preview'. Both were true and both described the defect: a 44px strip whose
+    // only word was "Preview" told a first-time viewer neither whose preview it
+    // was nor that it opened — and below 1280 that strip is the DEFAULT state,
+    // not a state an owner has to choose.
+    console.log('  the tab at 1024 names the receptionist and shows the way in:');
     await probe(cdp, { url: base + '/pricing.html', cookie: ck, port, width: 1024,
-      waitFor: "document.querySelector('.vp')", checks: [
+      waitFor: "document.querySelector('.vp__rail-peek') && document.querySelector('.vp__rail-peek').textContent.trim().length > 0",
+      checks: [
         ['collapsed by default below 1280', "document.getElementById('verbatim').classList.contains('is-collapsed')", true],
-        ['rail width', "Math.round(document.getElementById('verbatim').getBoundingClientRect().width)", 44],
-        ['the rail label reads Preview', "document.querySelector('.vp__rail-t').textContent.trim()", 'Preview'],
+        ['the tab reads her NAME, not "Preview"',
+          "document.querySelector('.vp__rail-t').textContent.trim()", 'Asha'],
+        ['set horizontally',
+          "getComputedStyle(document.querySelector('.vp__rail-t')).writingMode", 'horizontal-tb'],
+        ['in the panel FOREGROUND ink, not its muted step',
+          "getComputedStyle(document.querySelector('.vp__rail')).color", 'rgb(232, 237, 242)'],
+        ['the accessible name identifies the receptionist',
+          "document.querySelector('.vp__rail').getAttribute('aria-label')",
+          'Asha — your receptionist. Open the preview.'],
+        ['a directional indicator, never alone',
+          "!!document.querySelector('.vp__rail-chev svg') && document.querySelector('.vp__rail-t').textContent.trim().length > 0", true],
+        ['the peek carries the greeting opening, in its own language',
+          "document.querySelector('.vp__rail-peek').getAttribute('lang')", 'te'],
+        ['and is invisible + inert at rest',
+          "(function(){var s=getComputedStyle(document.querySelector('.vp__rail-peek'));"
+          + "return s.opacity + '/' + s.pointerEvents;})()", '0/none'],
+        ['hover AND focus-visible both reveal it',
+          "(function(){var ok=0;for(var i=0;i<document.styleSheets.length;i++){var rr;try{rr=document.styleSheets[i].cssRules;}catch(e){continue;}"
+          + "for(var j=0;j<rr.length;j++){var r=rr[j];var t=r.selectorText;"
+          + "if(t&&t.indexOf('.vp__rail:hover .vp__rail-peek')!==-1&&t.indexOf('.vp__rail:focus-visible .vp__rail-peek')!==-1"
+          + "&&r.style.opacity==='1')ok++;}}return ok;})()", 1],
+        ['it never moves layout (out of flow)',
+          "getComputedStyle(document.querySelector('.vp__rail-peek')).position", 'absolute'],
+        ['the tab stays inside its cap, so an 80-char name cannot eat the column',
+          "Math.round(document.getElementById('verbatim').getBoundingClientRect().width) <= 168", true],
       ] });
+
+    // ── F-V006 — the invariant, not the coincidence ────────────────────────
+    // The clearance was real at HEAD and accidental: 64px of `.content` padding
+    // over a 43-45px sheet, 56 over 45 at 380, with nothing relating the two
+    // numbers. `--vp-sheet-h` relates them (verbatim.css) and this is the guard.
+    // It reds the moment F-V007 is fixed without re-measuring that value — the
+    // drag pill is an empty inline span today and rendering it grows the sheet.
+    console.log('  F-V006 — .content clears the collapsed sheet by declaration:');
+    for (const w of [1023, 380]) {
+      await probe(cdp, { url: base + '/pricing.html', cookie: ck, port, width: w, mobile: w <= 480,
+        waitFor: ready, checks: [
+          ['padding-bottom >= collapsed sheet height at ' + w,
+            "(function(){var v=document.getElementById('verbatim');"
+            + "v.classList.add('is-collapsed');"       // deterministic: earlier probes share localStorage
+            + "var pad=parseFloat(getComputedStyle(document.querySelector('.content')).paddingBottom);"
+            + "var h=v.getBoundingClientRect().height;"
+            + "return pad >= h;})()", true],
+        ] });
+    }
 
     // ── 5. Mount coverage ──────────────────────────────────────────────────
     console.log('  mounts — nine, and nowhere else:');

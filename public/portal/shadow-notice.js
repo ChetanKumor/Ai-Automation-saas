@@ -141,6 +141,16 @@
 
   const TITLE = 'Your receptionist is following a custom script';
 
+  // What a surface calls ITSELF once this condition holds (F-V004). The
+  // Verbatim panel's header, its collapsed tab and Home's greeting block all
+  // stop saying "live" and say this instead, because on a clinic running a
+  // hand-written script none of them is showing what the receptionist will
+  // actually say — only what is saved. One word for one idea: three surfaces
+  // asserting the same thing in three vocabularies is exactly the drift this
+  // file exists to prevent.
+  const SAVED_ONLY = 'Saved settings';
+  const SAVED_ONLY_SHORT = 'Saved';   // where only a tab's width is available
+
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -352,7 +362,7 @@
   }
 
   return {
-    CHECK_NAME, SHADOWED, SURVIVES, TITLE, SAFE,
+    CHECK_NAME, SHADOWED, SURVIVES, TITLE, SAFE, SAVED_ONLY, SAVED_ONLY_SHORT,
     isShadowed, pageNotice, noticeHtml, savedMessage,
     stripFor, stripHtml, affectsHtml,
   };

@@ -51,10 +51,18 @@
     warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2.4 17.5A1.9 1.9 0 0 0 4 20.4h16a1.9 1.9 0 0 0 1.6-2.9L13.7 3.9a1.9 1.9 0 0 0-3.4 0Z"/></svg>',
     play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>',
     chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>',
+    // The tab's indicator points LEFT, which is the direction the panel comes
+    // from. A chevron is not a label and never stands alone here — it sits
+    // beside the receptionist's name (see the rail markup below).
+    chevLeft: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>',
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>',
   };
 
-  const LANG_LABEL = { te: 'Telugu', hi: 'Hindi', en: 'English' };
+  // The copy this panel and Home's greeting block SHARE (greeting-copy.js).
+  // Every string it holds was this file's; it holds them so the two surfaces
+  // cannot describe the same greeting two different ways.
+  const GC = window.GreetingCopy;
+  const LANG_LABEL = GC.LANG_LABEL;
   const LANG_CLASS = { te: 'vp__te', hi: 'vp__hi', en: 'vp__en' };
   const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
@@ -208,19 +216,13 @@
   // to. When there is no English greeting to check against, the panel says so;
   // an unverifiable preview is exactly the theatre the gloss rule exists to
   // prevent, and silence would hide it.
+  // The three answers and their wording moved to greeting-copy.js verbatim when
+  // Home grew a greeting block that has to give the same ones. The branch order
+  // is unchanged and `greetingFor` is still passed as a THUNK, so the
+  // English-not-enabled arm still never resolves a greeting it does not read.
   function glossFor(code) {
-    if (code === 'en') return null;
     const langs = summary.sections.receptionist.languages || [];
-    if (langs.indexOf('en') === -1) {
-      return { label: 'No English to check against',
-        text: 'English isn’t switched on for your clinic, so there’s no English version of this line to compare.' };
-    }
-    const en = greetingFor('en');
-    if (!en) {
-      return { label: 'No English to check against',
-        text: 'You haven’t written the English greeting yet. Add it on Receptionist and it will show here, so you can check this line reads right.' };
-    }
-    return { label: 'Your English greeting', text: en };
+    return GC.glossFor(code, langs, () => greetingFor('en'));
   }
 
   // ── FACTS ────────────────────────────────────────────────────────────────
@@ -425,8 +427,7 @@
     if (greeting) {
       html += `<div class="vp__bub"><p class="${cls}" lang="${esc(lang)}">${esc(greeting)}</p></div>`;
     } else {
-      html += `<div class="vp__bub"><p class="vp__empty">You haven’t written a ${esc(LANG_LABEL[lang] || lang)} greeting yet — ` +
-        'your receptionist opens with a plain line naming your clinic.</p></div>';
+      html += `<div class="vp__bub"><p class="vp__empty">${esc(GC.noGreeting(lang))}</p></div>`;
     }
 
     const gloss = greeting ? glossFor(lang) : null;
@@ -466,9 +467,12 @@
       </span>
       <span class="vh" id="vpGripLabel">Live preview</span>
     </button>
-    <button class="vp__rail" type="button" aria-expanded="false" aria-controls="vpBody">
+    <button class="vp__rail" type="button" aria-expanded="false" aria-controls="vpBody"
+      aria-label="Your receptionist — open the preview">
       <span class="vp__dot" aria-hidden="true"></span>
-      <span class="vp__rail-t">Preview</span>
+      <span class="vp__rail-t">Your receptionist</span>
+      <span class="vp__rail-chev" aria-hidden="true">${ICON.chevLeft}</span>
+      <span class="vp__rail-peek" aria-hidden="true"></span>
     </button>
     <header class="vp__h">
       <span class="vp__lb" id="vpLabel"><span class="vp__dot" aria-hidden="true"></span>Live preview</span>
@@ -494,6 +498,8 @@
   const langEl = $('#vpLang', panel);
   const gripEl = $('#vpGrip', panel);
   const railEl = $('.vp__rail', panel);
+  const railName = $('.vp__rail-t', panel);
+  const railPeek = $('.vp__rail-peek', panel);
   const gripBtn = $('.vp__grip', panel);
 
   function applyCollapsed() {
@@ -510,6 +516,18 @@
 
   railEl.addEventListener('click', () => setCollapsed(false));
   gripBtn.addEventListener('click', () => setCollapsed(!collapsed));
+
+  // Press feedback on POINTER-DOWN, not click. `click` fires after the finger
+  // lifts, which is 100-300ms of a control that looks inert while it is being
+  // pressed. The class only scales and fades (see verbatim.css) — no layout —
+  // and it is cleared on every way a press can end, including the one where the
+  // pointer leaves the control and no click ever arrives.
+  [railEl, gripBtn].forEach((el) => {
+    const off = () => el.classList.remove('is-press');
+    el.addEventListener('pointerdown', () => el.classList.add('is-press'));
+    ['pointerup', 'pointercancel', 'pointerleave', 'blur'].forEach((ev) =>
+      el.addEventListener(ev, off));
+  });
   $('#vpClose', panel).addEventListener('click', () => setCollapsed(true));
 
   // Escape collapses the sheet / overlay (spec §2.11). Above 1280 the panel is
@@ -554,6 +572,47 @@
     if (why) why.hidden = !langEl.disabled;
   }
 
+  // ── The collapsed tab (Portal Phase 1) ────────────────────────
+  // It read "Preview": one word, set vertically, in the panel's MUTED grey.
+  // Three separate ways of not saying whose preview it was — on the surface an
+  // owner meets before they meet anything else, and the one they are one click
+  // away from living with permanently. A first-time viewer could not tell that
+  // the strip was their receptionist, or that it opened.
+  //
+  // So the tab carries her NAME, horizontally, in the panel's foreground ink,
+  // with a chevron pointing the way it opens. Most clinics have not set a name
+  // — the schema defaults `personality.display_name` to '' — so the fallback
+  // has to identify her too, and "Your receptionist" is what receptionist.html
+  // already calls her when the field is blank ("it introduces itself as your
+  // clinic's receptionist, with no name").
+  //
+  // The peek is the second half of the answer: hovering or focusing the tab
+  // slides the greeting's opening words out from under it, which is what tells
+  // a first-time viewer there is more in that direction. It is an affordance
+  // for a pointer and a keyboard only — `aria-hidden`, `pointer-events: none`,
+  // no layout — and nothing depends on it: a tap at >=1024 opens the panel
+  // outright, because on touch there is no hover to discover anything with.
+  //
+  // Silent on a legacy clinic: applyLegacyHeader has already replaced these
+  // words with "Saved", and naming the receptionist on a tab that is showing
+  // saved settings rather than her voice is the exact claim `.vp--saved-only`
+  // exists to withdraw. Guarded in BOTH directions — that function awaits a
+  // readiness promise and can land either side of this one.
+  const RAIL_FALLBACK = 'Your receptionist';
+  function renderRail(firstLine) {
+    if (!railName || panel.classList.contains('vp--saved-only')) return;
+    const name = ((summary && summary.sections.receptionist.display_name) || '').trim();
+    railName.textContent = name || RAIL_FALLBACK;
+    railEl.setAttribute('aria-label', name
+      ? `${name} — your receptionist. Open the preview.`
+      : 'Your receptionist — open the preview.');
+    if (railPeek) {
+      railPeek.textContent = firstLine || '';
+      if (firstLine) railPeek.setAttribute('lang', lang); else railPeek.removeAttribute('lang');
+      railPeek.hidden = !firstLine;
+    }
+  }
+
   function render() {
     if (!summary && !failed) return;
     renderLangOptions();
@@ -579,6 +638,7 @@
       const first = (g.split('\n')[0] || '').trim() || g;
       gripEl.textContent = first || 'Live preview';
       if (g) gripEl.setAttribute('lang', lang); else gripEl.removeAttribute('lang');
+      renderRail(first);
     }
     panel.classList.remove('is-busy');
   }
@@ -672,12 +732,21 @@
     const data = await P.readinessOnce();
     if (SN.isShadowed(data && data.run) !== true) return;
 
-    const LABEL = 'Saved settings';
+    // Both words are shadow-notice.js's now — SAVED_ONLY / SAVED_ONLY_SHORT —
+    // because Home's greeting block has to say the same thing about the same
+    // clinic and a second literal would be a second vocabulary waiting to
+    // drift. The values are unchanged: 'Saved settings' and 'Saved'.
+    const LABEL = SN.SAVED_ONLY;
     const labelEl = $('#vpLabel', panel);
     if (labelEl) labelEl.textContent = LABEL;      // drops the dot with the markup
     panel.setAttribute('aria-label', LABEL);
-    const railT = $('.vp__rail-t', panel);
-    if (railT) railT.textContent = 'Saved';
+    if (railName) railName.textContent = SN.SAVED_ONLY_SHORT;
+    // The tab's ACCESSIBLE name follows its visible one. At rest the tab now
+    // identifies the receptionist by name — and on this clinic that is exactly
+    // the claim `.vp--saved-only` exists to withdraw, so it reads out the same
+    // label the header and the sheet handle already take.
+    railEl.setAttribute('aria-label', LABEL);
+    if (railPeek) railPeek.remove();               // no greeting is being previewed
     const railDot = $('.vp__rail .vp__dot', panel);
     if (railDot) railDot.remove();
     const gripLabel = $('#vpGripLabel', panel);

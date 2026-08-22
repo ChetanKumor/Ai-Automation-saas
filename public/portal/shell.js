@@ -83,7 +83,7 @@
     { id: 'receptionist',label: 'Receptionist',     icon: I.bot,      href: 'receptionist.html',    group: 'behaviour' },
     { id: 'safety',      label: 'Safety & handoff', icon: I.shield,   href: 'safety.html',          group: 'behaviour' },
 
-    { id: 'knows',       label: 'What it knows',    icon: I.bulb,     href: 'knows.html',           group: 'check' },
+    { id: 'knows',       label: 'Everything it knows', icon: I.bulb,  href: 'knows.html',           group: 'check' },
     { id: 'test',        label: 'Test',             icon: I.message,  href: 'test.html',            group: 'check' },
     { id: 'history',     label: 'History',          icon: I.history,  href: 'history.html',         group: 'check' },
   ];

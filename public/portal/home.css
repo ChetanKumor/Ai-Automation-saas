@@ -274,3 +274,132 @@ a.check__link:hover { color: var(--teal-800); text-decoration: underline; }
   .setup-cta { flex-direction: column; align-items: stretch; text-align: left; }
   .setup-cta .btn { width: 100%; justify-content: center; }
 }
+
+/* ============================================================================
+ * THE GREETING BLOCK (Portal Phase 1)
+ *
+ * Above the readiness section, separated from it by one hairline. NO CARD — no
+ * border, no fill, no shadow, no radius, no accent block. The receptionist is
+ * not a widget on this page, she is the subject of it, and a container would
+ * file her under the same furniture as the checks below. Structure comes from
+ * type and space alone.
+ *
+ * The one bold element portal-wide is still the readiness ring (spec §4). The
+ * greeting is the largest TYPE on Home and deliberately stops short of the
+ * ring's 30px numeral, which is a figure inside the signature element and
+ * whose geometry this session preserves.
+ * ========================================================================== */
+.greet {
+  padding-bottom: var(--s-5);
+  margin-bottom: var(--s-6);
+  border-bottom: 1px solid var(--line);
+}
+/* A failed summary fetch empties this node. `:empty` then removes the hairline
+ * and the space with it — a block that has nothing to say leaves no trace of
+ * having tried. */
+.greet:empty { display: none; }
+
+/* Her name, then what this line is. Sentence case, never uppercase micro: this
+ * is a name, not a system label, and the portal sets system labels in 11px
+ * uppercase precisely so that names do not have to look like them. */
+.greet__who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  margin: 0 0 var(--s-3);
+  font: var(--t-label);
+}
+.greet__name { color: var(--ink); font-weight: 650; }
+.greet__when { color: var(--muted); }
+.greet__when::before { content: "·"; margin: 0 7px; }
+
+/* The greeting itself. Vernacular resolves its own face from the `lang` the
+ * renderer already sets — the same stacks the panel uses, read off the
+ * attribute rather than a class, so no new font token is introduced.
+ *
+ * Leading is LOOSER than the Latin line at the same size, and tracking is 0.
+ * Telugu matras and conjuncts sit above and below the baseline and collide at
+ * Latin leading; negative display tracking, which every other large line in
+ * this portal takes, closes exactly the gaps a conjunct needs.
+ *
+ * NEVER truncated and never line-clamped. The schema caps a greeting at 300
+ * characters, and a long one producing a tall block is the product telling the
+ * truth about a greeting that is too long to say out loud. */
+.greet__line {
+  margin: 0;
+  font: 600 26px/1.5 var(--sans);
+  letter-spacing: -.014em;
+  color: var(--ink);
+}
+.greet__line[lang="te"],
+.greet__line[lang="hi"] {
+  line-height: 1.68;
+  letter-spacing: 0;
+}
+.greet__line[lang="te"] { font-family: var(--te); }
+.greet__line[lang="hi"] { font-family: var(--hi); }
+
+/* The English gloss — mandatory beside a vernacular line, never aria-hidden.
+ * Same shape as the panel's: a small block label over the clinic's own English
+ * line, labelled as that rather than passed off as a translation. */
+.greet__gloss {
+  max-width: 60ch;
+  margin: var(--s-4) 0 0;
+  font: var(--t-body-sm);
+  color: var(--muted);
+}
+/* --muted, not --faint. The panel's own gloss label is a one-off #6E7784 on the
+ * ink ground; on this near-white one --faint measures 2.41:1, which the token's
+ * own comment marks non-text. --muted is 4.47:1 and is the step every
+ * `.page-head__sub` in the portal already takes. */
+.greet__gloss b {
+  display: block;
+  font: var(--t-micro);
+  letter-spacing: var(--ls-micro);
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+
+/* No greeting on file for the default language. Defensive — see home.js. */
+.greet__none {
+  margin: 0;
+  max-width: 60ch;
+  font: 400 17px/1.6 var(--sans);
+  color: var(--ink-2);
+}
+
+.greet__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: var(--s-4);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--teal-700);
+  text-decoration: none;
+}
+.greet__link svg { width: 14px; height: 14px; }
+.greet__link:hover { color: var(--teal-800); text-decoration: underline; }
+
+/* Skeleton — the block's own shape at its own height, so nothing moves when
+ * the real block lands. Never animate a skeleton's height. */
+.greet__sk-who   { width: 220px; margin-bottom: var(--s-3); }
+.greet__sk-line  { height: 26px; border-radius: var(--r-xs); margin-bottom: 10px; }
+.greet__sk-line--short { width: 62%; }
+.greet__sk-gloss { width: 300px; margin-top: var(--s-4); }
+
+@media (max-width: 520px) {
+  /* One step down, and nothing else: the block's job on a phone is the same. */
+  .greet__line { font-size: 21px; }
+  .greet__none { font-size: 15.5px; }
+  .greet__sk-line { height: 21px; }
+  /* A full-row target, because a 13px inline link is not a tap target. */
+  .greet__link {
+    display: flex;
+    min-height: 44px;
+    margin-top: var(--s-2);
+    padding: 0 var(--s-2);
+    margin-left: calc(-1 * var(--s-2));   /* the label stays flush left */
+  }
+}
