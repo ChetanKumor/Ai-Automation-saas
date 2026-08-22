@@ -379,3 +379,70 @@ a {
     transform: none;
   }
 }
+
+/* —— High contrast ————————————————————————————————————————————————————
+   `prefers-contrast: more` is a request for definition, not a theme. Five
+   tokens take a darker form of themselves and NOTHING else moves: no layout,
+   no motion, no element, no copy, no new hue. Ratios below are quoted on
+   --ground / --ground-sunk / --ground-raised, in that order.
+
+   PLACEMENT IS LOAD-BEARING, AND IT WAS MEASURED BEFORE THIS WAS WRITTEN.
+   tests/design/tokenDrift.test.js parses this file for the FIRST rule whose
+   selector is the root, and stops at the first `}` in column zero — so it
+   reads the block at the top of this file and never enters this one. That is
+   the correct outcome: brand-values.md records each surface's CANONICAL
+   values, and a high-contrast override is not one. Move this block ABOVE that
+   rule and the parser matches HERE instead, the token map truncates from 55
+   entries to five, and that test reds on its >= 15 floor with a message about
+   a stray brace. Both orders were run against the test's own parser, and
+   against the whole test in a VM, before a declaration was written.
+
+   --rule  0.08 -> 0.24 alpha, 1.18 -> 1.69:1. Still a hairline and still
+       decorative: the conversation's speaker rule carries nothing required
+       (the LABEL is the speaker channel) and the confirmation card is
+       distinguished by its --ground-sunk fill, not by its border. What
+       changes is that the line survives a bright room.
+
+   --rule-strong  0.17 -> 0.51 alpha, 1.43 -> 3.51:1 — which clears 1.4.11's
+       3:1 floor on all three grounds, so the emphasis border becomes a real
+       boundary rather than a suggestion.
+       IT IS HERE BECAUSE OMITTING IT INVERTS THE PAIR. --rule at 0.24 is
+       darker than --rule-strong at 0.17, so every consumer of the stronger
+       token — 17 var(--border-strong) across .enq:hover, Button's hover,
+       Platform .mod, Why, Pricing, HowItWorks, FinalCta .frame, Trust and
+       Footer, plus four direct var(--rule-strong) in the legal group and
+       /specimen — would draw their STRONG border LIGHTER than the ordinary
+       hairline it exists to outweigh. The alpha ratio is preserved exactly
+       rather than invented: 0.17 / 0.08 = 2.125, and 0.24 x 2.125 = 0.51.
+
+   --ink-soft  #57524A -> #4B4640, 7.31/6.70/7.75 -> 8.81/8.08/9.34.
+       The floor is 7:1 and only --ground-sunk misses it, by 0.30 — that is
+       where the selector's unselected segment and the card's meta line sit.
+       The lightest value that clears it is #544F48, a 3% darkening: an
+       accommodation nobody can see is not an accommodation, so this takes the
+       next whole ratio point instead. Hue-preserving — one factor across all
+       three sRGB channels, so only value moves (H36.9 S14.9 V34.1 ->
+       H32.7 S14.7 V29.4) and the warm grey stays a warm grey.
+       --text-secondary and --text-tertiary BOTH alias this token, so the
+       site's whole body scale darkens with it. That is the intent, not a
+       side effect.
+
+   --answered  #166534 -> #14523A, 6.73/6.17/7.13 -> 8.62/7.91/9.14.
+
+   --ink-faint  #A8A199 -> #857F79, 2.41/2.21/2.55 -> 3.73/3.42/3.96.
+       IT STOPS SHORT OF 4.5:1 ON PURPOSE. D-016 makes this token NON-TEXT
+       ONLY by written contract, so the target here is 1.4.11's 3:1 for
+       non-text — with a CEILING under 4.5:1, so the contract stays true on
+       inspection. A high-contrast value that passed AA for text would invite
+       the first glyph, and the contract would then be a comment rather than a
+       fact.
+   ———————————————————————————————————————————————————————————————————— */
+@media (prefers-contrast: more) {
+  :root {
+    --rule: rgba(23, 21, 15, 0.24);
+    --rule-strong: rgba(23, 21, 15, 0.51);
+    --ink-soft: #4B4640;
+    --answered: #14523A;
+    --ink-faint: #857F79;
+  }
+}
