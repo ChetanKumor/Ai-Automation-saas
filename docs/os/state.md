@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 1727ace67efda99b4eea997a8339c21add9011c9
+Verified-at: 889a5a897ba5c7cbe5ca11caa56429b9160afc83
 Verified-on: 2026-08-22
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -629,6 +629,61 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE COMPLETION TICK IS A TICK, AND ITS HARNESS RUNS AGAIN — evidence fix,
+  built** (`889a5a8`). **Two files, +27/−5**: one declaration in
+  `public/portal/home.css`, and the draft-clinic assertions in
+  `scripts/portal/shootD3.js`. No JS touched — `shadow-notice.js`, `home.js`
+  and `wizard.js` are all unchanged. Node **1111 / 180 suites / 0 fail / 0
+  cancelled / 0 skipped / 0 todo** — unmoved. `npm run os:check` exit 0.
+  ⚠️ The Python worker suite was **not re-run**; its **97** is carried forward.
+  ⚠️ **CONVENTION DEVIATION, DELIBERATE, NOT DRIFT.** This is the third and
+  fourth commit of a session that had already closed with a `Verified-at` bump
+  at `36869d6`, so this is that session's SECOND state bump. Both defects were
+  surfaced by the first half's own evidence run; splitting them into a new
+  session would have separated them from the measurements that found them. A
+  later reader should not treat the double bump as a broken two-commit rule.
+  **THE ROTATION LEAKED ONTO THE GLYPH.** `home.css:58` `.ring svg { transform:
+  rotate(-90deg) }` exists to move the progress arc's dash start to 12 o'clock.
+  It matches **both** `<svg>` nodes inside `.ring` — the 132px progress circle,
+  a direct child, and the 24px checkmark nested in `.ring__center > .ring__done`
+  — so the tick inherited −90° and rendered as a **chevron pointing right**.
+  Measured rather than eyeballed: the tick's computed transform read
+  `matrix(0, -1, 1, 0, 0, 0)`, byte-identical to the arc's.
+  The fix is `transform: none` on `.ring__done svg`, which is the narrowest
+  selector that can reach the tick — the arc is a SIBLING of `.ring__center`,
+  not a descendant of `.ring__done`, so it is unreachable from there by
+  construction. Equal specificity, later rule, so only that one declaration is
+  overridden; width/height already worked the same way, which is why the tick
+  was the right size and the wrong angle. **The arc was proved unmoved**: its
+  computed transform is unchanged on all four fixtures and its dash start point
+  maps to **(0, −61)** from the ring centre — 12 o'clock — before AND after. The
+  mobile override at `:222` declares only width/height, so the un-rotation holds
+  at 380 as well; photographed at both widths.
+  **PRE-EXISTING, AND MADE LOAD-BEARING BY THE COMMIT BEFORE IT.** Reproduced
+  identically in `scripts/portal/shots/d3-ring-groups-complete.png` dated
+  31 Jul, so it long predates this work. What changed is exposure: before the
+  owner-scope denominator a blocked clinic never reached the complete ring at
+  all (it read 8 of 11), and now the completion glyph is the first thing a
+  finished clinic looks at.
+  **THE HARNESS HAD BEEN RED SINCE D5a AND NOBODY RAN IT.** `shootD3.js`'s
+  draft-clinic probe asserted the truth strip is PRESENT on Home. D5a/W5
+  suppressed the not-live strip on Home deliberately — recorded at
+  `shadow-notice.js:283-290`, in `docs/specs/portal-v2-batch1.md:377` as a named
+  worklist item of a landed session, and in this file — and did not update the
+  harness. So the probe threw, the script aborted at `:506`, and **its capture
+  phase had not run since before D5a**: every `d3-*.png` on disk was stale by
+  three weeks. The probe now asserts the ABSENT case the way the clean-clinic
+  block above it does (absent, not empty-and-collapsed) and keeps the
+  re-announce idempotence check, adapted to zero. `shadow-notice.js` was not
+  opened: the behaviour was right and the assertion was not.
+  **shootD3 now runs end to end** — 23 assertions green, zero red, 33 captures
+  regenerated, including the complete-ring shot that had carried the chevron.
+  ⚠️ **The ring-denominator invariant is still guarded only by `shootD3.js`,
+  which `npm test` never loads** (it globs `tests/**/*.test.js`; `probe()` is a
+  hand-rolled CDP assert loop, not `node:test`). It is a screenshot-harness
+  assertion that has to be run deliberately — and this session is the proof that
+  such a thing can sit red for weeks. Making it a real Node test is filed, not
+  built.
 - **HOME STOPS TELLING A FINISHED OWNER TO FINISH — the readiness denominator,
   built** (`1727ace`). **Three files, +148/−20**: `public/portal/home.js`,
   one line of `public/portal/wizard.js`, and `scripts/portal/shootD3.js`. No
