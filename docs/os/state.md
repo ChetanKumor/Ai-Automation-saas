@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 2f39f2eae435aa4498d84543be18bc5187033395
+Verified-at: 1b03c398be9177a45647fd0c39e3d97455f263e7
 Verified-on: 2026-08-22
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -629,6 +629,131 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE SITE STOPS ASSERTING THINGS IT CANNOT SHOW — the last site session**
+  (`1b03c39`). **Nine files, +276/−22.** No legal page opened, no
+  `globals.css`, no `brand-values.md`, no `clocks.md`, no register file other
+  than this one. Node **1111 / 180 suites / 0 fail / 0 cancelled / 0 skipped /
+  0 todo** — unmoved; nothing added here is assertable from Node, every claim
+  below being a measurement on a built page under a forced media feature.
+  `npm run build` (in `web/`) exit 0, `/` at **115 kB** first load, unmoved.
+  ⚠️ The Python worker suite was **not re-run**; its **97** is carried forward.
+  **THIS CLOSES ALL FOUR FINDINGS PHASE 6 FILED AND COULD NOT TOUCH**, plus the
+  three copy claims the truth audit left standing.
+  **THE THREE COPY CHANGES, VERBATIM AND NOTHING ELSE.** (1) `FinalCta.tsx`'s
+  WhatsApp chip — avatar, name, green dot, `online` — gains `An example clinic.`
+  directly beneath it in `.ctaMicro`, the treatment `No commitment.` already
+  has. It was the last fiction on the site with no disclosure attached and it
+  sat in the highest-intent position on the page. (2) HowItWorks step 02:
+  "updates the CRM, and runs any follow-ups you've set up" → "records the
+  patient, and sends the reminder". The original implied a user-configurable
+  workflow builder, which does not exist. (3) The over-plan FAQ's opening
+  sentence: the notice "at 80% … and again at 90%" → "We'll tell you before you
+  reach your included usage". Those percentages named a mechanism nothing
+  implements. **Deliberately untouched in the same answer:** the ₹0.75 rate, the
+  30-day exit and the safety-limit sentence — prices and commitments, honourable
+  by hand, not claimed mechanisms.
+  **THE DISCLOSURE IS A SIBLING, NOT A LINE FURTHER DOWN.** A new `.pillGroup`
+  (`inline-flex`, column, `gap: 8px`) makes the chip and its correction one
+  visual unit; the `margin-bottom: 30px` that stood on `.livePill` moved to the
+  group, so the pill's own box and the gap to the headline are unchanged. Read
+  off the live DOM at 360 and 1440: rendered, `display: block`, `visibility:
+  visible`, same parent as the chip, **8.00px** below it, **7.746:1** normal and
+  **9.336:1** high contrast. Swept across **15 widths from 320 to 1920** — hidden
+  at **zero** of them.
+  **THE SELECTED LANGUAGE SEGMENT NOW HAS A BOUNDARY A READER CAN SEE.** Phase 6
+  filed it as a real 1.4.11 failure and it was: the fill is **1.156:1** against
+  the track and the `--rule` ring measured **1.020:1**, so which language is
+  selected was carried by an edge no low-vision reader could resolve. `--rule` is
+  a decorative hairline by its own declaration and cannot reach 3:1 in either
+  mode (0.24 alpha only gets to **1.465:1**); `--rule-strong` reaches **3.081:1**
+  under `prefers-contrast` and **1.243:1** without it, which is no use to a
+  reader who has not asked for the accommodation. `--ink-soft` is the lightest
+  token on the site that clears the floor in **both** modes and moves with the
+  media query for free: **6.702:1** normal, **8.078:1** high contrast, on all
+  eight cells (360/390/768/1440 × en/te), **measured twice** — once from
+  `getComputedStyle` and once as the darkest device pixel on a 3× screenshot run
+  crossing the segment's outer edge. The two readings agree to three decimals.
+  **STILL AN INSET SHADOW, SO NO BOX MOVED.** The control's `top` is
+  **bit-identical** for `en` and `te` at 360/390/412/768/1440 in idle and
+  complete, in **both** contrast modes — twenty cells, Δ=0 with no tolerance.
+  The fold rows reproduce phase 6 exactly: control bottom **902.1719** at
+  412×915 and **657.2813** at 1440×900.
+  **POSITIVE-CONTROLLED, AND THE CONTROL REPRODUCES HEAD.** Reverting the ring to
+  `var(--rule)` — grep-verified in the source *and* in the emitted
+  `.next/static/css` bundle, rebuilt, re-interlocked — reds every cell at
+  **1.020:1** normal and **1.465:1** high contrast; restoring, rebuilding and
+  re-verifying returns 6.702 and 8.078. The same probe run against a build of
+  `e38b383` itself returns the identical red, so the control is faithful rather
+  than merely different.
+  **EVERY FOCUS RING ON THE PAGE IS NOW `--ink-strong`, WITH ONE PRE-EXISTING
+  EXCEPTION THAT IS NOT A TOKEN.** The play control moves from
+  `--accent-on-ground` (5.16:1) to `--ink-strong` 2px at 2px offset (**17.22:1**),
+  matching the 15.79–17.22:1 every other ring measures. All **43** focusable
+  elements on `/` were enumerated and forced into `:focus-visible` via
+  `CSS.forcePseudoState`, read after a 260ms settle because `.btn` transitions
+  `all .18s`; **41 of 43** ring in `--ink-strong`. ⚠️ The remaining two — `Nav
+  .brand` and `Footer .brand` — ring in Chrome's **UA default `#101010`** at
+  17.95:1, because neither stylesheet declares a `:focus-visible` rule for them
+  at all. Pre-existing, not an accessibility failure, and outside this issue's
+  files; **open**.
+  ⚠️ **PHASE 6 RECORDED THE DIVERGENCE COMMENT IN THE WRONG FILE.** Its entry
+  says the play control's ring "is documented as deliberate in
+  `PlayControl.module.css`"; the comment naming `--accent-on-ground` as that
+  control's ring was in **`LanguageSelector.module.css`**, and `PlayControl` had
+  no comment on its focus rule at all. Both are now rewritten — the divergence
+  has ended, so neither file claims one.
+  **`.enq` CLEARS THE 7:1 BODY FLOOR WHERE THE READER ASKED FOR IT, AND NOWHERE
+  ELSE.** `opacity: .82` → `.92` under `prefers-contrast: more` only:
+  **7.434:1** measured, against 5.59 before. Normal contrast is untouched and
+  re-measured at **4.875:1** — `.82` is a documented design value and normal
+  contrast was not the complaint. `.90` was rejected at 7.026:1 as inside the
+  rounding of a live measurement. **The rule sits ABOVE the 480px breakpoint on
+  purpose:** that block sets `opacity: 1` with no media condition this one
+  excludes, so an equal-specificity rule placed after it would have replaced the
+  1 with .92 on a phone — a contrast accommodation that made a small screen
+  worse. Ordered this way, ≤480px keeps its **9.336:1** in both modes.
+  **THE PAGE THAT DOCUMENTS CONTRAST NO LONGER GETS IT WRONG.** `/specimen`'s two
+  `--ink-faint` demo captions carried the literals 2.21 and 6.70, measured before
+  phase 6 made both tokens conditional; under the media query the true values are
+  3.42 and 8.08, and the page went on printing the old ones to precisely the
+  reader who had asked for more contrast. They are now **computed at runtime**
+  from the swatch's own resolved `color` and `backgroundColor` — a `contrast()`
+  helper in `tokens.ts` and a small client island, `SwatchRatio.tsx`, that
+  re-measures on `prefers-contrast` change. Rendered and read back: `--ink-faint ·
+  2.21:1 on sunk · WRONG` / `--ink-soft · 6.70:1 on sunk · CORRECT` at normal
+  contrast, and `3.42` / `8.08` under `more`, with the verdict derived from the
+  4.5:1 threshold rather than passed in. The island costs `/specimen` 1.18→2.94 kB
+  and 107→109 kB first load; **`/` is untouched at 115 kB**.
+  ⚠️ **THE REST OF `/specimen`'s TABLE IS STILL A LITERAL.** `tokens.ts` carries
+  hardcoded `ratios` for every palette row, captioning a *declaration* — which is
+  the design and is stated as such in that file's header — but those numbers are
+  also stale under `prefers-contrast`. Only the two swatch captions were in scope;
+  **open**.
+  **`/specimen` GAINS ITS OWN IDENTITY.** `alternates.canonical` and a page-level
+  `openGraph.url`, both `/specimen`. The root layout declares `openGraph.url:
+  "/"` and Next merges openGraph field by field, so the page had been advertising
+  the homepage's og:url as its own; canonical had no declaration at any level.
+  Verified on the wire: `https://prantivo.com/specimen` for both, against the
+  homepage's `https://prantivo.com`.
+  **NO REGRESSION, MEASURED BOTH WAYS.** Fourteen contrast measurements per mode —
+  six states at 360, idle+complete at 390/768/1024/1440. Normal: worst hero
+  **6.70:1**, worst page **4.84:1**, both the numbers phases 4 through 6 recorded.
+  High contrast: worst hero **8.08:1**, **0** failures. `--ink-faint` on **zero**
+  glyphs in both modes. No horizontal overflow at 360/390/412/768/1024/1440, at
+  rest and across ~1,100 samples per width during the sequence, in both modes.
+  Reduced motion runs the full sequence at 360 and 1440 with turn transforms
+  `["none"]` and the card reached. `X-Robots-Tag: noindex, nofollow, noarchive`
+  on **9/9** routes with the flag unset. `tokenDrift`, `heroDisclosure` and
+  `indexingFlagParity` green (7/7 design tests); `git diff
+  docs/design/brand-values.md` empty.
+  **THE PROBE HARNESS PAID FOR FOUR LESSONS.** A bare `window.__x = el`
+  assignment returned through `returnByValue` is what "Object reference chain is
+  too long" means — the *value* of an assignment is the DOM node. A CDP screenshot
+  `clip` is in **page** coordinates, so a viewport-relative `top` taken 13,508px
+  down the document crops a blank sheet of paper. Backticks inside a JS template
+  literal terminate it. And a boundary sampler must read each segment's **outer**
+  edge: sampling `te`'s left edge reads the neighbouring segment's glyphs as
+  "the track" and reports 4.57:1 for a 6.70:1 ring.
 - **THE SITE ANSWERS `prefers-contrast: more` — HERO-1 phase 6, built** (`2f39f2e`).
   **One file: `web/app/globals.css`, +67 lines, 0 deletions.** No component, no
   module CSS, no markup, no copy, no dependency. Node **1111 / 180 suites / 0
