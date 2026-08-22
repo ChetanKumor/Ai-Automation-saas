@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: c6bda00744c694dfd39232c1426242ac83c43153
-Verified-on: 2026-08-21
+Verified-at: 2f39f2eae435aa4498d84543be18bc5187033395
+Verified-on: 2026-08-22
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -629,6 +629,106 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE SITE ANSWERS `prefers-contrast: more` — HERO-1 phase 6, built** (`2f39f2e`).
+  **One file: `web/app/globals.css`, +67 lines, 0 deletions.** No component, no
+  module CSS, no markup, no copy, no dependency. Node **1111 / 180 suites / 0
+  fail / 0 cancelled / 0 skipped / 0 todo** — unmoved; no test was added, because
+  every claim here is a measurement on a built page under a forced media feature
+  and none of it is assertable from Node. `npm run build` (in `web/`) exit 0, `/`
+  at **115 kB** first load, unmoved. `git diff web/package.json` empty. No legal
+  page opened. No `clocks.md`. ⚠️ The Python worker suite was **not re-run**; its
+  **97** is carried forward.
+  **FIVE TOKENS DARKEN AND NOTHING ELSE MOVES.** `--rule` 0.08→0.24 alpha,
+  `--rule-strong` 0.17→0.51, `--ink-soft` `#57524A`→`#4B4640`, `--answered`
+  `#166534`→`#14523A`, `--ink-faint` `#A8A199`→`#857F79`. Fifteen geometry cells —
+  the control's top at 360/390/412/768/1440 in idle and complete, plus the five
+  fold rows — are **bit-identical between `more` and normal**, so the accommodation
+  is a colour change and provably nothing else.
+  **THE FIFTH TOKEN IS NOT IN THE PLAN, AND OMITTING IT WOULD HAVE INVERTED A PAIR.**
+  `--rule` at 0.24 is darker than `--rule-strong` at 0.17, so the four planned
+  tokens alone would have made every `--border-strong` consumer draw its *strong*
+  border **lighter** than the ordinary hairline it exists to outweigh. The alpha
+  ratio is preserved rather than invented: 0.17 / 0.08 = 2.125, and 0.24 × 2.125 =
+  0.51 — which also clears 1.4.11's 3:1 (3.51:1). Principle applied throughout:
+  **fix what this change breaks; report what it merely fails to fix.**
+  **THE PLACEMENT WAS MEASURED AGAINST THE TEST'S OWN PARSER BEFORE A DECLARATION
+  WAS WRITTEN.** `tests/design/tokenDrift.test.js` matches `/:root\s*{([\s\S]*?)\n}/`
+  — non-global, so the **first** `:root {` — and stops at the first `}` in column
+  zero. Both orders were executed by pulling `SURFACES` and the parsing region
+  verbatim into a `vm` context: the block **appended after** the base `:root` is
+  never entered (55 declarations before and after, all five tokens at their
+  canonical values, whole test PASS); **prepended above** it, the token map
+  truncates 55→4 and the test **reds on its `>= 15` floor**. Even if it were parsed,
+  `declarations()` is an object keyed by token, so a re-declaration overwrites
+  rather than adding a surface, and none of the five is declared by any non-`web`
+  surface — so none can become "shared" and **no `brand-values.md` row is required
+  or made stale**. `git diff docs/design/brand-values.md` is empty.
+  **CONTRAST, AND THE POSITIVE CONTROL.** Fourteen measurements under
+  `prefers-contrast: more` — six states at 360, idle+complete at 390/768/1024/1440:
+  **0 hero failures**, worst hero **8.08:1** and worst region **8.08:1** against a
+  7:1 floor, `--ink-faint` on **0** glyphs and **0** non-text marks (3.42–3.96:1 on
+  the three grounds, deliberately under 4.5:1 so D-016's non-text contract stays
+  true on inspection). **Positive-controlled:** reverting `--ink-soft` alone to
+  `#57524A` inside the media block — grep-verified in the source *and* in the
+  emitted `.next/static/css`, rebuilt, re-interlocked — turns every cell red at
+  **6.70:1**, 122 failures against 84, naming `Conversation_cardMeta` and
+  `LanguageSelector_option`; restoring and re-verifying returns 0 and 8.08.
+  **AT NORMAL CONTRAST NOTHING REGRESSED.** The same fourteen measurements with the
+  feature off reproduce HEAD: worst hero **6.70:1** — the number phases 4, 5 and 5.1
+  all recorded — worst page **4.84:1**, and 0 faint glyphs.
+  **TEN ACCESSIBILITY ITEMS, MEASURED NOT ASSERTED.** Every turn's `lang` matches
+  its script (6/6); the speaker is real text, not a colour; the hairline is
+  `aria-hidden`; the card's tick is `aria-hidden` and the card carries its own
+  title; the region is `aria-live="polite"`, not `role="img"`; Space **and** Enter
+  both drive the control; three focus rings render at 17.22:1, 15.79:1 and 5.16:1
+  against their backdrops.
+  ⚠️ **THREE FINDINGS FOUND AND NOT FIXED — all pre-existing, none in an allowed
+  file.** (1) The play control's focus ring is `--accent-on-ground` at **5.16:1**
+  where every other ring on the page is `--ink-strong` at 15–17:1; the divergence is
+  documented as deliberate in `PlayControl.module.css` and this session did not
+  relitigate it. (2) The language selector's *selected* segment is bounded only by
+  fill (1.156:1), an inset ring (1.67:1) and its ink (1.955:1) — none
+  reaches 1.4.11's 3:1, so which segment is selected is carried by a boundary no
+  low-vision user can see. High contrast improves it and does not close it.
+  (3) `Problem.module.css`'s `.enq { opacity: .82 }` is the page's worst node at
+  **4.84 → 5.59:1**, still under the 7:1 body floor at high contrast; `Problem`
+  is not an allowed file this phase.
+  ⚠️ **`/specimen`'s TWO SWATCH LABELS BECOME FACTUALLY WRONG UNDER HIGH CONTRAST.**
+  They read `--ink-faint · 2.21:1 on sunk · WRONG` and `--ink-soft · 6.70:1 on sunk
+  · CORRECT`; under the media query those are 3.42 and 8.08. Copy is frozen this
+  phase, so they stand. The specimen page is not indexed and not linked.
+  **PRESS FEEDBACK RE-VERIFIED, NOT REBUILT — and the measurement trap is real.**
+  `will-change` is set on pointerdown and removed on `transitionend`, and the
+  transform transition is 100ms, so a single sample at +160ms reads `auto` and looks
+  exactly like proof the handler never ran. Sampled at +16/+40/+70/+160ms with the
+  press held open by a real `Input.dispatchMouseEvent`: `:active` true at +16,
+  `will-change: transform` at +16 **and** +40, `auto` by +70, transform
+  `matrix(0.9897…)` → `0.9865` → `0.985`, playback state unmoved throughout, and
+  `transform: none` / `will-change: auto` at rest.
+  **NO OVERSHOOT ANYWHERE.** The confirmation card sampled across **1943 frames**:
+  `translateY` 9.49 → 0 **monotone**, `overshoot: false`, the tick's `stroke-dashoffset`
+  23 → 0 monotone. Nothing animates spontaneously at idle (0 animations over the
+  observation window). The stillness between phrases never drops below **766.3ms**.
+  **BOTH MEDIA QUERIES AT ONCE HOLD.** Under `prefers-reduced-motion: reduce` **and**
+  `prefers-contrast: more` together, at 360 and 1440: `--ink-soft` `#4B4640`,
+  `--rule` 0.24, `html { scroll-behavior: auto }`, every turn transform `none`, every
+  phrase opacity `1`, all seven indices 0→6, twelve turns and the card, control top
+  702.2344 / 609.2813 — identical to the non-reduced runs.
+  **OVERFLOW AND THE FOLD, UNCHANGED.** 0 horizontal overflow at
+  360/390/768/1024/1440 at rest and across **6573 samples** taken during the running
+  sequence; `document.scrollWidth === innerWidth` at every width. Control bottom
+  **750.23** at 360×780, **902.17** at 412×915, **657.28** at 1440×900; region top
+  **438.2344** at 360×640, i.e. **201.77px** of conversation above that fold. Zero
+  language layout shift survives with no tolerance: Δ 0.0000 in all ten pairs.
+  ⚠️ **TWO PRIOR NUMBERS DID NOT REPRODUCE TO THE DIGIT, AND NEITHER IS A
+  CONTRADICTION.** (1) Phase 5 recorded the page-scoped worst node at **4.81:1**;
+  this session reads **4.84:1** on the same node (`Problem_enqTime`, `#75716B` on
+  white at opacity 0.82) with the same cause — third decimal of the compositing
+  arithmetic. (2) Phase 5.1 recorded the region's top at 360×640 as **438.25**
+  (201.75px above the fold); this session reads **438.2344** (201.77px) — sixteen
+  THOUSANDTHS of a pixel, on a floor of 140. Every other number reproduced to the
+  digit: control bottom 750.2344 / 902.1719 / 657.2813, worst hero 6.70:1 at normal
+  contrast, and the ten zero-shift pairs.
 - **THE SITE NO LONGER NAMES A COMPANY THAT DOES NOT EXIST — the truth audit,
   built** (`c6bda00`). Three files: `web/lib/siteConfig.ts`, `web/app/layout.tsx`,
   and a new `tests/design/indexingFlagParity.test.js`. Node **1109 → 1111 / 180
