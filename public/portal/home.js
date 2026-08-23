@@ -649,8 +649,21 @@
   // says the same thing about the same field: "it introduces itself as your
   // clinic's receptionist, with no name".
   const GREET_NONAME = 'Your receptionist';
+  // Bound to the name by a COMMA, not a second dot-separated segment. The
+  // comprehension test failed here: "Asha - The first thing a caller or
+  // customer hears" never says Asha IS the receptionist, and a first-time
+  // viewer reads her as a member of staff. The word `receptionist` was on the
+  // screen four times and never once attached to the name.
+  //
+  // Apposition, because three dot-separated segments read as a pile — and on a
+  // legacy clinic there genuinely are two segments, the identity unit and
+  // `Saved settings`, so the comma is what keeps that line to two.
+  const GREET_ROLE = ', your receptionist';
   // What this line IS. receptionist.html's Greeting card, verbatim.
   const GREET_WHEN = 'The first thing a caller or customer hears';
+  // After the apposition the phrase has already opened, so the qualifier joins
+  // it lowercase. Derived from the one string above, never written twice.
+  const lowerFirst = (t) => t.charAt(0).toLowerCase() + t.slice(1);
 
   function renderGreeting(rec, shadowed) {
     const host = document.getElementById('greeting');
@@ -661,10 +674,19 @@
     const line = String((rec.greeting || {})[lang] || '').trim();
     const name = String(rec.display_name || '').trim();
 
+    // The nameless line is UNCHANGED, byte for byte. "Your receptionist"
+    // already is the role, and appending it would read "Your receptionist,
+    // your receptionist" — so only the named case gains the apposition, and
+    // only the named case lowercases what follows the dot.
+    const who = name ? esc(name) + esc(GREET_ROLE) : esc(GREET_NONAME);
+
     // The qualifier is the claim. On a shadowed clinic there is no claim to
     // make about what is heard, so it takes the panel's word for that state
-    // rather than a second one invented here.
-    const when = shadowed ? window.ShadowNotice.SAVED_ONLY : GREET_WHEN;
+    // rather than a second one invented here — and it still REPLACES the
+    // qualifier rather than joining it, so the legacy line stays two segments:
+    // "Asha, your receptionist - Saved settings".
+    const when = shadowed ? window.ShadowNotice.SAVED_ONLY
+      : (name ? lowerFirst(GREET_WHEN) : GREET_WHEN);
 
     let body;
     if (line) {
@@ -690,7 +712,7 @@
 
     host.classList.remove('sk-wrap');
     host.innerHTML =
-      `<p class="greet__who"><span class="greet__name">${esc(name || GREET_NONAME)}</span>`
+      `<p class="greet__who"><span class="greet__name">${who}</span>`
       + `<span class="greet__when">${esc(when)}</span></p>`
       + body
       + `<a class="greet__link" href="receptionist.html">${esc(GREET_LINK)}${IC.arrow}</a>`;

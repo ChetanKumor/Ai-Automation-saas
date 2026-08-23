@@ -439,14 +439,13 @@
  * "Receptionist" is not new vocabulary: it is the sidebar's own label for the
  * page that configures her, two rows above this tab in the same viewport.
  *
- * ⚠ THE HOOK IS THE ACCESSIBLE NAME, and that is a coupling worth stating.
- * verbatim.js writes `Your receptionist — open the preview.` on the nameless
- * tab and `<name> — your receptionist. Open the preview.` on a named one; the
- * static markup carries the same nameless string without its full stop. There
- * is no other attribute in the DOM that distinguishes the two, and adding one
- * is a markup change this fix is not allowed to make. If that label is ever
- * reworded, this rule stops matching and the tab silently returns to 164px —
- * nothing breaks, it just gets wide again. Re-check both together.
+ * THE SWITCH IS `data-unnamed`. verbatim.js sets it beside the label it
+ * chooses (renderRail), clears it when a name is configured, and clears it
+ * again on a legacy clinic, where the tab reads "Saved" and is not a nameless
+ * receptionist at all. The static markup carries it, because the fallback is
+ * what the tab paints before the summary lands — it must already be narrow
+ * rather than snap. This rule reads state, not a sentence: rewording the
+ * accessible name cannot silently switch it off.
  *
  * Only the GLYPHS shorten. `aria-label` is untouched at every width, so a
  * screen reader still hears the full "Your receptionist — open the preview."
@@ -455,8 +454,8 @@
  * type; the accessible name comes from the attribute, so neither is read.
  * ────────────────────────────────────────────────────────────────────────── */
 @media (min-width: 1024px) and (max-width: 1279.98px) {
-  .vp__rail[aria-label^="Your receptionist"] .vp__rail-t { font-size: 0; }
-  .vp__rail[aria-label^="Your receptionist"] .vp__rail-t::after {
+  .vp__rail[data-unnamed] .vp__rail-t { font-size: 0; }
+  .vp__rail[data-unnamed] .vp__rail-t::after {
     content: "Receptionist";
     font-size: 12.5px;
   }

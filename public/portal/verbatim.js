@@ -468,7 +468,7 @@
       <span class="vh" id="vpGripLabel">Live preview</span>
     </button>
     <button class="vp__rail" type="button" aria-expanded="false" aria-controls="vpBody"
-      aria-label="Your receptionist — open the preview">
+      data-unnamed aria-label="Your receptionist — open the preview">
       <span class="vp__dot" aria-hidden="true"></span>
       <span class="vp__rail-t">Your receptionist</span>
       <span class="vp__rail-chev" aria-hidden="true">${ICON.chevLeft}</span>
@@ -603,6 +603,13 @@
     if (!railName || panel.classList.contains('vp--saved-only')) return;
     const name = ((summary && summary.sections.receptionist.display_name) || '').trim();
     railName.textContent = name || RAIL_FALLBACK;
+    // `data-unnamed` is the switch verbatim.css narrows the fallback on at
+    // 1024-1279. It is set HERE, where the label is chosen, so the two can
+    // never disagree — and it carries no meaning to assistive tech, which
+    // reads `aria-label` and nothing else. The attribute is on the static
+    // markup too: the fallback is what the tab paints before the summary
+    // lands, so it must already be narrow, not snap.
+    railEl.toggleAttribute('data-unnamed', !name);
     railEl.setAttribute('aria-label', name
       ? `${name} — your receptionist. Open the preview.`
       : 'Your receptionist — open the preview.');
@@ -741,6 +748,11 @@
     if (labelEl) labelEl.textContent = LABEL;      // drops the dot with the markup
     panel.setAttribute('aria-label', LABEL);
     if (railName) railName.textContent = SN.SAVED_ONLY_SHORT;
+    // The tab is not showing a nameless receptionist here, it is showing
+    // "Saved". Without this the CSS fallback would paint "Receptionist" over
+    // it at 1024-1279 on any legacy clinic that renderRail's guard returns
+    // early for — which is every one of them.
+    railEl.removeAttribute('data-unnamed');
     // The tab's ACCESSIBLE name follows its visible one. At rest the tab now
     // identifies the receptionist by name — and on this clinic that is exactly
     // the claim `.vp--saved-only` exists to withdraw, so it reads out the same
