@@ -422,6 +422,46 @@
   .vp.is-collapsed .vp__rail { display: flex; }
 }
 
+/* ── The NAMELESS tab, 1024-1279 only ────────────────────────────────────────
+ *
+ * Three defaults land on top of each other at this band and the result was the
+ * widest tab the product can produce, in the place least able to afford it:
+ * collapsed is the DEFAULT state below 1280, `personality.display_name`
+ * defaults to '' so most clinics have no name to show, and the content column
+ * is already below its 760px max. Measured: the fallback tab is 164px against a
+ * named tab's 91px, and it took the column from 748 to 628.
+ *
+ * So the FALLBACK shortens here, and only here. A configured name is untouched
+ * at every width — it truncates against the 168px cap as before — and >=1280 the
+ * long form stays, because there collapsing is something an owner chose and the
+ * column has the room.
+ *
+ * "Receptionist" is not new vocabulary: it is the sidebar's own label for the
+ * page that configures her, two rows above this tab in the same viewport.
+ *
+ * ⚠ THE HOOK IS THE ACCESSIBLE NAME, and that is a coupling worth stating.
+ * verbatim.js writes `Your receptionist — open the preview.` on the nameless
+ * tab and `<name> — your receptionist. Open the preview.` on a named one; the
+ * static markup carries the same nameless string without its full stop. There
+ * is no other attribute in the DOM that distinguishes the two, and adding one
+ * is a markup change this fix is not allowed to make. If that label is ever
+ * reworded, this rule stops matching and the tab silently returns to 164px —
+ * nothing breaks, it just gets wide again. Re-check both together.
+ *
+ * Only the GLYPHS shorten. `aria-label` is untouched at every width, so a
+ * screen reader still hears the full "Your receptionist — open the preview."
+ * `font-size: 0` collapses the real text node to zero width (its em-based
+ * letter-spacing resolves to 0 with it) and the pseudo-element restores the
+ * type; the accessible name comes from the attribute, so neither is read.
+ * ────────────────────────────────────────────────────────────────────────── */
+@media (min-width: 1024px) and (max-width: 1279.98px) {
+  .vp__rail[aria-label^="Your receptionist"] .vp__rail-t { font-size: 0; }
+  .vp__rail[aria-label^="Your receptionist"] .vp__rail-t::after {
+    content: "Receptionist";
+    font-size: 12.5px;
+  }
+}
+
 /* 1024-1279: docking is not offered — the content column cannot afford 360px
  * beside it — so the panel is a rail that opens over the content. */
 @media (min-width: 1024px) and (max-width: 1279.98px) {
