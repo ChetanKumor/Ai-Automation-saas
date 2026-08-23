@@ -310,6 +310,10 @@ a.check__link:hover { color: var(--teal-800); text-decoration: underline; }
   font: var(--t-label);
 }
 .greet__name { color: var(--ink); font-weight: 650; }
+/* The role half of the apposition. Nested inside `.greet__name` (see home.js)
+ * so the two cannot be split across a flex boundary — this rule only re-colours
+ * it, so the eye lands on the name and still reads the pair as one phrase. */
+.greet__role { color: var(--muted); font-weight: 500; }
 .greet__when { color: var(--muted); }
 .greet__when::before { content: "·"; margin: 0 7px; }
 

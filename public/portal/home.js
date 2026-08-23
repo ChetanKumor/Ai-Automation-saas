@@ -658,7 +658,7 @@
   // Apposition, because three dot-separated segments read as a pile — and on a
   // legacy clinic there genuinely are two segments, the identity unit and
   // `Saved settings`, so the comma is what keeps that line to two.
-  const GREET_ROLE = ', your receptionist';
+  const GREET_ROLE = 'your receptionist';
   // What this line IS. receptionist.html's Greeting card, verbatim.
   const GREET_WHEN = 'The first thing a caller or customer hears';
   // After the apposition the phrase has already opened, so the qualifier joins
@@ -678,7 +678,15 @@
     // already is the role, and appending it would read "Your receptionist,
     // your receptionist" — so only the named case gains the apposition, and
     // only the named case lowercases what follows the dot.
-    const who = name ? esc(name) + esc(GREET_ROLE) : esc(GREET_NONAME);
+    // The role NESTS inside `.greet__name` rather than sitting beside it.
+    // `.greet__who` is a flex row, so a third flex item would render
+    // "Asha,your receptionist" — no word space between items — and could wrap
+    // the two halves onto separate lines. One flex item keeps the word space,
+    // keeps the comma with the name, and makes the apposition unbreakable by
+    // construction; the nested span only re-colours its half.
+    const who = name
+      ? `${esc(name)}, <span class="greet__role">${esc(GREET_ROLE)}</span>`
+      : esc(GREET_NONAME);
 
     // The qualifier is the claim. On a shadowed clinic there is no claim to
     // make about what is heard, so it takes the panel's word for that state
