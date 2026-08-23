@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 7e39c49d507747af2efcc6a5021c98c5eee3f806
+Verified-at: ceb7a24e7ca230868c7be3f228c3df7d22b76dbf
 Verified-on: 2026-08-23
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -629,6 +629,48 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE NAMELESS TAB STOPS TAKING THE COLUMN IT IS STANDING IN — Portal Phase 1
+  follow-up, built** (`ceb7a24`). **One file, +40/−0**: a single media block in
+  `public/portal/verbatim.css`. No JS, no markup, no new file, no new script
+  tag, no `tokens.css`. Node **1111 / 180 suites / 0 fail / 0 cancelled / 0
+  skipped / 0 todo** — unmoved. `npm run os:check` exit 0; `shootD3.js` and
+  `shootD4.js` both exit 0 and reach capture.
+  ⚠️ The Python worker suite was **not re-run**; its **97** is carried forward.
+  ⚠️ **CONVENTION DEVIATION, DELIBERATE, NOT DRIFT.** This is the third and
+  fourth commit of a session that had already closed with a `Verified-at` bump
+  at `aa8e6e0`. The alternative was leaving a measured regression on `main`
+  overnight to buy a tidier log.
+  **THREE DEFAULTS LANDED ON TOP OF EACH OTHER.** At 1024–1279 collapsed is the
+  **default** state (`verbatim.js:112`), `personality.display_name` **defaults
+  to `''`** (`schema.js:282`) so most clinics have no name to show, and the
+  content column is already under its 760px max. The fallback tab measured
+  **164px** against a named tab's 91px, taking the column from 748 to **628**.
+  Worst case and most common case, at the same width.
+  **The FALLBACK label shortens, at that band only.** `Receptionist` — the
+  sidebar's own label for the page that configures her, two rows above the tab
+  in the same viewport, so no new vocabulary. Measured after: **137px**, column
+  **655**. A configured name is untouched at every width (1024: 91px / 701,
+  identical to the previous run) and still truncates against the 168px cap; at
+  ≥1280 the long form stays, and the column is 808 either way.
+  **Only the glyphs shorten.** `aria-label` is byte-identical at both widths —
+  `Your receptionist — open the preview.` at 1024 **and** at 1440 — so a screen
+  reader loses nothing. `font-size: 0` collapses the real text node (its
+  em-based letter-spacing resolves to 0 with it) and a pseudo-element restores
+  the type; the accessible name comes from the attribute, so neither is read.
+  ⚠️ **THE ≤90px TARGET WAS NOT MET AND IS NOT REACHABLE THIS WAY.** Tab chrome
+  measures **61px** (24 padding + 6 dot + 8 gap + 8 gap + 14 chevron). Candidate
+  glyph widths at the tab's 12.5px/600: `Your receptionist` **103px**,
+  `Receptionist` **75px**, `Preview` 47px, `Asha` 30px. So the floor for any word
+  that identifies her is ~136px, and ≤90px leaves 29px of glyphs — one four-letter
+  name. Reaching it means cutting the dot and the chevron, and the chevron is the
+  directional indicator the tab is required to carry. Reported, not met.
+  ⚠️ **THE HOOK IS THE ACCESSIBLE NAME, and the coupling is stated at the rule.**
+  `[aria-label^="Your receptionist"]` is the only thing in the DOM that
+  distinguishes a nameless tab from a named one; adding a real attribute is a
+  markup change this fix was not authorised to make. Reword that label and the
+  rule stops matching and the tab quietly returns to 164px. Nothing breaks; it
+  just gets wide again. Re-check both together.
+  Evidence: `scratchpad/p1/after.log` §G. Not committed.
 - **THE RECEPTIONIST IS PRESENT ON HOME AND NAMED ON THE TAB — Portal Phase 1,
   built** (`7e39c49`). **Nineteen files, +586/−49**: the new
   `public/portal/greeting-copy.js`, `home.js`, `home.css`, `index.html`,
