@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: ceb7a24e7ca230868c7be3f228c3df7d22b76dbf
+Verified-at: 963ee5faa225b53324b3839abbb416f03f8e8204
 Verified-on: 2026-08-23
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -629,6 +629,57 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE IDENTITY LINE SAYS WHOSE NAME IT IS, AND THE TAB SWITCH STOPS READING A
+  SENTENCE — Portal Phase 1 follow-up, built** (`963ee5f`). **Three files,
+  +47/−14**: `public/portal/home.js`, `public/portal/verbatim.js`,
+  `public/portal/verbatim.css`. No markup file, no new file, no script tag, no
+  `tokens.css`, no CSS outside the one selector swap. Node **1111 / 180 suites /
+  0 fail / 0 cancelled / 0 skipped / 0 todo** — unmoved. `npm run os:check` exit
+  0; `shootD3.js` and `shootD4.js` both exit 0 and reach capture.
+  ⚠️ The Python worker suite was **not re-run**; its **97** is carried forward.
+  ⚠️ **CONVENTION DEVIATION, DELIBERATE, NOT DRIFT.** Commits **five and six** of
+  a session that had already closed with `Verified-at` bumps at `aa8e6e0` and
+  `0b7f64e`. The multi-continuation is deliberate: each pair closed a finding the
+  previous pair's own evidence produced, and holding them back would have left
+  two measured defects on `main` to buy a tidier log.
+  **THE COMPREHENSION TEST FAILED ON QUESTION 2 AND NOW PASSES.** `Asha · The
+  first thing a caller or customer hears` never said Asha **is** the
+  receptionist. The word was on Home four times and attached to the name none of
+  them, so a first-time viewer could read her as a member of staff — while the
+  tab's accessible name, `Asha — your receptionist. Open the preview.`, told a
+  screen-reader user outright. The eye got less than the ear.
+  Now: **`Asha, your receptionist · the first thing a caller or customer hears`**.
+  **APPOSITION, NOT A THIRD SEGMENT.** The comma binds name to role as one unit
+  and the dot separates that unit from what the line below it is. It is also what
+  keeps the legacy line to two segments — **`Asha, your receptionist · Saved
+  settings`** — where a third would have piled up. Phase 0 established the shape
+  before anything was edited: the identity line is exactly two spans, the `·` is
+  `.greet__when::before` and is not in the DOM at all, and `SAVED_ONLY`
+  **REPLACES** the qualifier rather than appending to it. That precedence and
+  both of its strings are unchanged.
+  **THE NAMELESS LINE IS UNCHANGED, BYTE FOR BYTE** — `Your receptionist · The
+  first thing a caller or customer hears`, verified against the previous run.
+  "Your receptionist" already is the role; appending it would have read "Your
+  receptionist, your receptionist". ⚠️ **The qualifier is therefore capitalised
+  in one case and not the other** (`The` nameless, `the` named). That is the
+  direct consequence of two constraints held at once — lowercase after an
+  apposition that has already opened the phrase, and a nameless line that does
+  not move — and it is deliberate, not an oversight. The lowercase form is
+  derived from the one string, never written twice.
+  **THE TAB SWITCH WAS A STRING MATCH ON THE ACCESSIBLE NAME.**
+  `[aria-label^="Your receptionist"]` meant rewording that label would silently
+  return the tab to 164px. It is **`[data-unnamed]`** now: set in `renderRail`
+  beside the label it switches on, present on the static markup so the fallback
+  paints narrow rather than snapping when the summary lands, and **removed by
+  `applyLegacyHeader`** — without that last line the CSS would have painted
+  "Receptionist" over "Saved" on every legacy clinic at 1024–1279, because
+  `renderRail`'s `vp--saved-only` guard returns early there. Measured: legacy tab
+  reads `Saved`, `data-unnamed` absent, 83px.
+  **ACCESSIBLE NAMES UNAFFECTED BY EITHER CHANGE, at every width.** `Your
+  receptionist — open the preview.` at 1024 **and** 1440; `Asha — your
+  receptionist. Open the preview.` named. Tab widths unmoved by the selector
+  swap: **137px** at 1024, **164px** at 1440, **91px** named.
+  Evidence: `scratchpad/p1/after.log` §A (five fixtures) and §C/§G. Not committed.
 - **THE NAMELESS TAB STOPS TAKING THE COLUMN IT IS STANDING IN — Portal Phase 1
   follow-up, built** (`ceb7a24`). **One file, +40/−0**: a single media block in
   `public/portal/verbatim.css`. No JS, no markup, no new file, no new script
