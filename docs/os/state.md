@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 963ee5faa225b53324b3839abbb416f03f8e8204
+Verified-at: e4177e837e80b7bc192a2133ea6ae4a81604698d
 Verified-on: 2026-08-23
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -629,6 +629,35 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE ROLE HALF OF THE APPOSITION READS AS THE ROLE — Portal Phase 1
+  follow-up, built** (`e4177e8`). **Two files, +14/−2**:
+  `public/portal/home.js` and `public/portal/home.css`. No other file. Node
+  **1111 / 180 suites / 0 fail / 0 cancelled / 0 skipped / 0 todo** — unmoved.
+  `npm run os:check` exit 0; `shootD3.js` and `shootD4.js` both exit 0 and reach
+  capture.
+  ⚠️ The Python worker suite was **not re-run**; its **97** is carried forward.
+  ⚠️ **CONVENTION DEVIATION, DELIBERATE, NOT DRIFT.** Commits **seven and eight**
+  of a session that had already closed with `Verified-at` bumps at `aa8e6e0`,
+  `0b7f64e` and `f1a27f5`.
+  `Asha, your receptionist` shipped entirely in `--ink` at 650 because the
+  previous session was scoped to `home.js` and could not add a class — so the
+  whole unit was bold and the eye landed on the phrase rather than on the name,
+  which is the one distinctive half. The role takes `--muted` at 500 now and the
+  name keeps its weight.
+  **THE ROLE NESTS INSIDE `.greet__name`, it does not sit beside it.**
+  `.greet__who` is a flex row with **no gap**, so a third flex item would have
+  rendered `Asha,your receptionist` — flex items get no word space between them
+  — and `flex-wrap: wrap` could have split the two halves across lines. One flex
+  item keeps the word space, keeps the comma with the name, and makes the
+  apposition unbreakable by construction; the nested span only re-colours its
+  half.
+  **The nameless line is unchanged byte for byte and emits no role span at all**
+  — `.greet__name` `Your receptionist`, `.greet__when` `The first thing a caller
+  or customer hears`, verified against the previous run. The legacy line carries
+  the role span and its `Saved settings` swap is untouched:
+  `Asha, your receptionist · Saved settings`.
+  No size change, no spacing change. Evidence: `scratchpad/p1/after.log` §A,
+  five fixtures. Not committed.
 - **THE IDENTITY LINE SAYS WHOSE NAME IT IS, AND THE TAB SWITCH STOPS READING A
   SENTENCE — Portal Phase 1 follow-up, built** (`963ee5f`). **Three files,
   +47/−14**: `public/portal/home.js`, `public/portal/verbatim.js`,
