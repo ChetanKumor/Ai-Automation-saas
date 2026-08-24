@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 0f3a9ed046c616c972174e1a198103226a4dc552
+Verified-at: 7d49ec048739380306568a7b72b7ce5ba9a2634b
 Verified-on: 2026-08-24
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -629,6 +629,118 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE LANGUAGE CONTROL STOPS BEING THE OPERATING SYSTEM'S, AND THE LEDGER
+  HOLDS ITS SECOND COLUMN — Portal polish 3, built** (`7d49ec0`). **Two files,
+  +309/−12**: `public/portal/verbatim.js`, `public/portal/verbatim.css`. No
+  `tokens.css`, no `home.*`, no markup file, no new file, no script tag, no
+  change to the greeting bubble, `glossFor`, the FACTS content, the live dot,
+  the amber warning, `applyLegacyHeader`, the tab, the rail or the collapse
+  mechanism. `scripts/portal/shootD5a.js` is **byte-identical** —
+  `git status --porcelain` on it is empty. Node **1111 / 180 suites / 0 fail /
+  0 cancelled / 0 skipped / 0 todo** — unmoved. `npm run os:check` exit 0;
+  `shootD4.js` exit 0 and reaches capture; `shootD5a.js` run **unmodified**,
+  exit 0.
+  ⚠️ The Python worker suite was **not re-run**; its **97** is carried forward.
+  **THE PREVIEW LANGUAGE WAS A NATIVE `<select>`.** `appearance: auto` on the
+  one ink surface in the product: the OS's chrome, the OS's font, the OS's
+  arrow and focus ring, and a popup drawn outside the page in the OS's blue.
+  Measured at HEAD it already wore the panel's ground and ink
+  (`rgb(232,237,242)` on `rgb(20,28,42)`, `500 12px "Noto Sans"`) — only the
+  widget was foreign, which is why it read as the single most jarring element
+  on the best-designed surface. It is now
+  `<button id="vpLang" role="combobox">` plus a `<div role="listbox">` of
+  `role="option"` rows. **The id and the element type are the contract:**
+  `shootD5a.js` reads `#vpLang` at four sites (`:639`, `:646`, `:797`, `:800`)
+  and `.disabled`, `.focus()` and both `querySelector` waits are native to a
+  button, so all four survive with that file untouched. Nothing in `public/`,
+  `src/` or `tests/` reads the element at all.
+  **THE LISTBOX IS IN FLOW, AND THAT IS THE WHOLE OVERLAP ARGUMENT.** The
+  greeting bubble spans the panel's full inner width and starts 27.5px below a
+  44px header, so a popup dropped under the trigger intersects it — measured at
+  HEAD as **80 × 32.5px** — and there is no clear air at any width. Rather than
+  position around that, the listbox is a `flex: none` block between the header
+  and the body, the slot `#vpLangWhy` already occupies. **Flex siblings in a
+  column cannot overlap**, so the guarantee is structural, not arithmetic.
+  Runtime rects, both widths: at 1440 listbox `top 52 → bottom 134` against
+  bubble `top 160 → bottom 326`; at 380 listbox `244.61 → 346.61` against
+  bubble `372.61 → 538.61`. **Intersection area 0.00 at both.** The reflow on
+  open is instant and unanimated — the same rule the collapse mechanism
+  follows, and for the same reason.
+  **THE READ PATH IS UNCHANGED, VERB FOR VERB.** The `<select>`'s only listener
+  was `change → lang = langEl.value; render()`. Choosing a row now sets the
+  same module-local `lang` and calls the same `render()`. All five readers of
+  `lang` (`bodyHtml` ×3, `render`'s grip `lang`, `renderRail`'s peek `lang`)
+  are untouched. Re-run with `fetch`, `XMLHttpRequest.prototype.open` and
+  `Storage.prototype.setItem` patched, switching te→en→te→en: **requests `[]`,
+  storage writes `[]`** — the read-only contract holds.
+  **KEYBOARD, BY REAL KEY DISPATCH.** Enter → focus on the selected row,
+  `aria-expanded=true`; ArrowDown → next row; ArrowDown again → wraps to the
+  first; ArrowUp → previous; **Escape → `button#vpLang`,
+  `aria-expanded=false`, and the panel is NOT collapsed** (`is-collapsed ===
+  false` — Escape is `stopPropagation`ed so it never reaches the document
+  listener that collapses the sheet below 1280); Tab → `button#vpClose`. Tab on
+  an *open* list also lands on `#vpClose`: the handler hands the trigger focus
+  first, because hiding a focused row drops focus to `<body>` and Tab would
+  then restart the page's order from the top. Enter and Space each toggle
+  **once** — `preventDefault` in `keydown` suppresses the button's synthesised
+  click, and the click handler screens on nothing, so a screen reader's
+  activation still works.
+  **A11Y, MEASURED NOT ASSERTED.** AX: `role combobox`, name
+  `"Preview language Telugu"`, value `"Telugu"`, `expanded` flipping
+  false/true with `controls="vpLangList"`; the listbox is `role listbox` named
+  `"Preview language"`; rows are `role option` named `Telugu` / `English`.
+  Focusable counts **unmoved**: 4 pricing, 5 doctors (one warning), **3** on a
+  one-language tenant — the trigger is a **real disabled button**, not
+  `aria-disabled`, so it leaves the tab order exactly as the disabled
+  `<select>` did, and `#vpLangWhy` still reads *Only one language is switched
+  on. Add another on Clinic profile to preview it here.* Tab order unmoved:
+  trigger → `#vpClose` → *See all* → warnings → *Open test →*. Contrast on ink,
+  every state forced through `CSS.forcePseudoState` and read back: trigger text
+  **14.5:1** at rest, **13.18:1** hover, **14.5:1** focus; row unselected
+  **6.66:1** at rest, **11.93:1** hover; row selected **14.5:1** at rest,
+  **11.93:1** hover and focus; focus ring **7.42:1** (non-text, needs 3). Touch
+  targets at 380: trigger **44px**, both rows **44px**. Under
+  `prefers-reduced-motion: reduce` the rows report `animation-name: none`, `0`
+  running animations and `transform: none`; at no-preference the same read is
+  mid-flight (`matrix(1,0,0,1,0,-0.1128)`, 1 running).
+  **The trigger is two boxes on purpose.** The button is the target and paints
+  nothing; `.vp__sel-in` is the pill. On the sheet the target must be 44px and
+  the header **is** 44px, so a 44px pill would sit flush against the header's
+  own bottom rule and read as a double line. Button 44, pill 32 — the 32 the
+  `<select>` had — so the panel's proportions do not move. The single
+  `:focus-visible` rule at `verbatim.css` is inherited unchanged; the
+  replacement needed none of its own.
+  **THE LEDGER'S SECOND COLUMN — `flex-wrap: wrap` WAS THE FAULT, AND `nowrap`
+  IS THE WHOLE FIX.** `.vp__fact` is a flex row whose value carries
+  `margin-left: auto; text-align: right; min-width: 0`. Wrapping let the flex
+  LINE break before the value ever shrank, so a long value dropped to a second
+  line where, alone, it stretched the full column and both those declarations
+  had nothing to push against. Intrinsic widths at 1440 docked against 327px of
+  column: **Hours** 42.84 + 12 + 396.84 = **451.68** and **Address** 56.77 + 12
+  + 326.22 = **394.99** are the only two over; Clinic 156.12, Phone 168.71,
+  Speaks 169.53 and Consultation 135.96 all fit and never wrapped.
+  **No row is named and no length is tested.** Shrinking engages only when a
+  line overflows, so the rows that fit are untouched to the pixel — *Clinic*'s
+  value is `x 1328.09, w 95.91` before and after. The value shrinks because it
+  declares `min-width: 0`; the label does **not**, so its automatic minimum
+  holds it at min-content — its longest word — and a one-word label like
+  *Hours* cannot shrink at all. After, on `clinic-profile.html` at 1440: Hours
+  `lbl x 1097 y 508.94` / `val x 1147.56 y 508.94 w 276.44` (two lines,
+  right-aligned, sharing the label's baseline); Address `lbl x 1097 y 391.94` /
+  `val x 1160.09 y 391.94 w 263.91`. Both hold at 380. A 120-character
+  treatment name — the schema's cap — degrades to its longest word and wraps
+  inside its own column instead of overflowing.
+  ⚠️ **THE FOOTER GAP IS EMERGENT AND WAS DELIBERATELY LEFT ALONE.** The space
+  under the last block is flex-grow slack, not a declared gap: at 1440 docked
+  with one warning it is **252.53px**, of which **18px** is `.vp__b`'s own
+  `padding-bottom`. Proven by removal — setting `flex: none` on `.vp__b`
+  collapses it from **799.97px to 565.44px** and the gap to exactly that 18px.
+  At 380 it does not exist at all: the body is already scrolling
+  (`scrollHeight 533 > clientHeight 377`). The measurement is now a comment at
+  `.vp__b`'s `flex: 1` so a later session does not re-derive it or close it.
+  **Nothing was moved.**
+  Evidence: `scratchpad/pp3/phase0.log`, `phase0b.log`, `after.log`, and
+  `scratchpad/pp3/shots/{before,after}-{1440,380}-*.png`. Not committed.
 - **THE SKELETON STOPS DRAWING A RING, AND THE SUB-HEADING GETS ITS THIRD STATE
   — Portal polish 1a, built** (`0f3a9ed`). **Three files, +43/−20**:
   `public/portal/index.html`, `public/portal/home.css`, `public/portal/home.js`.
