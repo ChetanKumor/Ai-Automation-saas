@@ -79,13 +79,22 @@
              that used to sit here is gone (D-017): on a finished clinic it said
              the same thing as the card below it, less specifically, and the
              lifecycle state is carried permanently by the top-bar pill. -->
-        <!-- Loading: the shape of the answer (ring + headline + two lines), not a
-             spinner. This layout is known before the request returns, so a
+        <!-- Loading: the shape of the answer (headline · note · last-checked),
+             not a spinner. That layout is known before the request returns, so a
              spinner would discard information we already have. `.sk-wrap` holds
-             it invisible for 300ms — a response faster than that never shows it. -->
+             it invisible for 300ms — a response faster than that never shows it.
+
+             THE RING CIRCLE IS GONE FROM HERE (D-017). The ring is conditional
+             now: a complete tenant gets none, and that is the state an owner
+             opens Home in every day after setup. A ring-shaped skeleton asserted
+             a layout most tenants will not get, then collapsed 88–108px when the
+             payload said otherwise. The three lines below are true in BOTH
+             outcomes, which is the most this markup can honestly claim — it is
+             painted before the answer exists, so it must not guess at one. No
+             cached shape, no last-known score: the residual mismatch is the
+             price of not pretending to know. -->
         <section class="card" id="readinessCard">
           <div class="readiness sk-wrap">
-            <div class="ring-sk"></div>
             <div class="readiness__summary sk-stack" style="flex:1">
               <div class="sk sk-line" style="width:220px"></div>
               <div class="sk sk-line" style="width:min(100%,340px)"></div>

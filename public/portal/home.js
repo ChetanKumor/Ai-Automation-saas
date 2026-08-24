@@ -128,11 +128,25 @@
   }
 
   // ── The section sub-heading ────────────────────────────────────────────────
-  // Same defect family as the two draft meanings above: ONE wording, asserting
-  // that attention is needed, printed over a clinic with nothing outstanding.
-  // The second line is chosen by ownerWorkOutstanding — the SAME predicate the
-  // ring, the headline and the banner meaning read — so no second notion of
-  // "complete" enters the page.
+  // Same defect family as the draft meanings above, and it takes the SAME three
+  // arms from the SAME two predicates in the SAME order — this function and
+  // draftMeaning() are now structurally identical on purpose, because they are
+  // answering one question ("what is left?") for one screen, and two shapes
+  // would be two chances to disagree.
+  //
+  //   owner work outstanding      → attention is needed, and it is the owner's
+  //   owner done, operator to go  → the wait is Prantivo's, and it is named
+  //   nothing outstanding         → neither claim is true
+  //
+  // The third arm is the one this file got wrong first time round. A clinic
+  // that is finished, live and waiting on nobody was still being told Prantivo
+  // was "still finishing" something — a smaller version of the untruth the
+  // first arm was fixed for. It says what the list below actually is instead:
+  // every check, its state, and which side of the line it sits on.
+  //
+  // "before your receptionist goes live" is deliberately absent from the last
+  // two lines: a live clinic has already gone live, and a deadline that has
+  // passed is not a deadline.
   //
   // NO RUN keeps the baseline line, for draftMeaning's reason exactly: the
   // never-checked screen must not be told what is finished on the strength of
@@ -141,12 +155,14 @@
   // SUB_TODO is byte-identical to the string in index.html, which is what the
   // page renders until this runs.
   const SUB_TODO = "What's ready and what still needs your attention before your receptionist goes live.";
-  const SUB_DONE = "What's ready, and what Prantivo is still finishing.";
+  const SUB_OPERATOR = "What's ready, and what Prantivo is still finishing.";
+  const SUB_SETTLED = "What's ready, and who handles each part.";
 
   function renderSectionSub(run) {
     const el = document.getElementById('readinessSub');
     if (!el) return;
-    el.textContent = (run && run.checks && !ownerWorkOutstanding(run)) ? SUB_DONE : SUB_TODO;
+    if (!run || !run.checks || ownerWorkOutstanding(run)) { el.textContent = SUB_TODO; return; }
+    el.textContent = operatorFails(run).length ? SUB_OPERATOR : SUB_SETTLED;
   }
 
   // ── The owner-scope line ───────────────────────────────────────────────────

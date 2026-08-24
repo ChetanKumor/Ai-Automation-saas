@@ -285,19 +285,17 @@ a.check__link:hover { color: var(--teal-800); text-decoration: underline; }
  * tokens.css — this page's private `.empty` block was the only copy of a shape
  * six other pages also needed, and it has been folded into the shared one. */
 
-/* Loading skeleton — the ring's own shape, so the layout does not move when the
- * real ring arrives. A circle at full stroke, not a spinner. */
-.ring-sk {
-  width: 132px; height: 132px;
-  flex: none;
-  border-radius: var(--r-full);
-  border: 10px solid var(--line-2);
-}
+/* The loading skeleton's ring circle — `.ring-sk`, 132px/104px — is GONE, with
+ * the element it styled (D-017). It existed so "the layout does not move when
+ * the real ring arrives", and that reason expired when the ring became
+ * conditional: on a complete tenant no ring arrives at all, so the circle was
+ * drawing an object that was never coming and reserving 88–108px that then
+ * collapsed. The skeleton is the summary's three text lines now — see the note
+ * in index.html for why it does not try to guess which outcome is coming. */
 
 @media (max-width: 520px) {
   .readiness { flex-direction: column; align-items: center; gap: 20px; text-align: center; }
   .ring, .ring svg { width: 104px; height: 104px; }
-  .ring-sk { width: 104px; height: 104px; border-width: 8px; }
   .ring__num { font-size: 26px; }
   .ring__done svg { width: 30px; height: 30px; }
   .readiness__summary { text-align: center; }
