@@ -476,9 +476,17 @@
     </button>
     <header class="vp__h">
       <span class="vp__lb" id="vpLabel"><span class="vp__dot" aria-hidden="true"></span>Live preview</span>
-      <select class="vp__sel" id="vpLang" aria-label="Preview language"></select>
+      <span class="vh" id="vpLangLbl">Preview language</span>
+      <button class="vp__sel" id="vpLang" type="button" role="combobox"
+        aria-labelledby="vpLangLbl vpLang" aria-controls="vpLangList" aria-expanded="false">
+        <span class="vp__sel-in">
+          <span class="vp__sel-v"></span>
+          <span class="vp__sel-c" aria-hidden="true">${ICON.chevron}</span>
+        </span>
+      </button>
       <button class="vp__x" id="vpClose" type="button" aria-label="Collapse preview">${ICON.close}</button>
     </header>
+    <div class="vp__opts" id="vpLangList" role="listbox" aria-labelledby="vpLangLbl" hidden></div>
     <p class="vp__note" id="vpLangWhy" hidden>Only one language is switched on. Add another on Clinic profile to preview it here.</p>
     <div class="vp__b" id="vpBody">
       <div id="vpLive" aria-live="polite"></div>
@@ -496,6 +504,8 @@
   const progEl = $('.vp__prog', panel);
   const liveEl = $('#vpLive', panel);
   const langEl = $('#vpLang', panel);
+  const langValEl = $('.vp__sel-v', panel);
+  const listEl = $('#vpLangList', panel);
   const gripEl = $('#vpGrip', panel);
   const railEl = $('.vp__rail', panel);
   const railName = $('.vp__rail-t', panel);
@@ -540,7 +550,140 @@
     railEl.focus();
   });
 
-  langEl.addEventListener('change', () => { lang = langEl.value; render(); });
+  // ── The language control ─────────────────────────────────────────────────
+  //
+  // It was the OS's native <select>: white chrome, system font, a blue system
+  // highlight and a popup drawn outside the page — the one element in the
+  // product that did not belong to the surface it sat on, and it sat on the
+  // panel's ink ground.
+  //
+  // The replacement is a real button-and-listbox (`role="combobox"` +
+  // `role="listbox"`), not a div with click handlers. It is STILL a
+  // `<button id="vpLang">`, so every native property the element carried is
+  // carried still: `.disabled` is the button's own (and a disabled button
+  // leaves the tab order exactly as a disabled <select> did — the one-language
+  // focusable count stays 3), and `.focus()` works unchanged.
+  //
+  // THE LISTBOX IS IN FLOW, not floated. A popup dropped under the trigger
+  // intersects the greeting bubble by 80 x 32.5px at 1440 — the bubble spans
+  // the panel's full inner width and starts 27.5px below the header, so there
+  // is no clear air to open into at any width. Rather than manage that
+  // collision, the listbox is a `flex: none` block between the header and the
+  // body, which is the slot #vpLangWhy already occupies: flex siblings in a
+  // column cannot overlap, so the guarantee is structural rather than
+  // arithmetic. Opening it shortens `.vp__b` (which is `flex: 1`) and the
+  // bubble moves down with it, still whole.
+  //
+  // That reflow is INSTANT and unanimated, which is the same rule the collapse
+  // mechanism follows for the same reason: a transition on a layout property
+  // is the one thing this panel's motion rules forbid. Only the rows fade in.
+  //
+  // The read path is untouched. Choosing a language sets the module-local
+  // `lang` and calls render() — what the <select>'s `change` handler did, verb
+  // for verb. Nothing is fetched, posted or stored.
+  function listOpen() { return !listEl.hidden; }
+
+  function openList() {
+    if (langEl.disabled || listOpen()) return;
+    listEl.hidden = false;
+    langEl.setAttribute('aria-expanded', 'true');
+    const sel = $('.vp__opt[aria-selected="true"]', listEl) || listEl.firstElementChild;
+    if (sel) sel.focus();
+  }
+
+  // `restore` is false when focus is already going somewhere else of the user's
+  // choosing (a click outside, a Tab that has been handed the trigger already).
+  // Stealing it back would fight them.
+  function closeList(restore) {
+    if (!listOpen()) return;
+    listEl.hidden = true;
+    langEl.setAttribute('aria-expanded', 'false');
+    if (restore) langEl.focus();
+  }
+
+  function choose(code) {
+    closeList(true);
+    if (!code || code === lang) return;
+    lang = code;
+    render();
+  }
+
+  langEl.addEventListener('keydown', (e) => {
+    const k = e.key;
+    // Escape is handled here so it never reaches the document listener below,
+    // which would collapse the whole sheet out from under an owner who only
+    // meant to dismiss a two-row list.
+    if (k === 'Escape') {
+      if (!listOpen()) return;
+      e.preventDefault();
+      e.stopPropagation();
+      closeList(true);
+      return;
+    }
+    if (k === 'ArrowDown' || k === 'ArrowUp' || k === 'Down' || k === 'Up') {
+      e.preventDefault();
+      openList();          // focus moves into the list; further arrows are its own
+      return;
+    }
+    if (k === 'Enter' || k === ' ' || k === 'Spacebar') {
+      e.preventDefault();  // and with it the button's synthesised click
+      if (listOpen()) closeList(true); else openList();
+    }
+  });
+  // A plain click handler, with no test for how the click arrived. The
+  // preventDefault above is what stops Enter and Space reaching here twice —
+  // verified, one toggle per keystroke — and screening on `detail === 0` to
+  // catch a synthesised click would also throw away the one a screen reader
+  // sends when it activates the control, which is not a case to guess at.
+  langEl.addEventListener('click', () => {
+    if (listOpen()) closeList(true); else openList();
+  });
+
+  listEl.addEventListener('keydown', (e) => {
+    const opts = $$('.vp__opt', listEl);
+    if (!opts.length) return;
+    const k = e.key;
+    const i = opts.indexOf(document.activeElement);
+    if (k === 'ArrowDown' || k === 'ArrowUp' || k === 'Down' || k === 'Up') {
+      e.preventDefault();
+      const step = (k === 'ArrowDown' || k === 'Down') ? 1 : opts.length - 1;
+      opts[i === -1 ? 0 : (i + step) % opts.length].focus();
+      return;
+    }
+    if (k === 'Home' || k === 'End') {
+      e.preventDefault();
+      opts[k === 'Home' ? 0 : opts.length - 1].focus();
+      return;
+    }
+    if (k === 'Enter' || k === ' ' || k === 'Spacebar') {
+      e.preventDefault();
+      if (i !== -1) choose(opts[i].dataset.code);
+      return;
+    }
+    if (k === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      closeList(true);
+      return;
+    }
+    // Tab closes. Hand the trigger the focus FIRST and let the default run, so
+    // Tab continues from the control's own place in the order (-> #vpClose)
+    // rather than from <body>, which is where hiding a focused row would drop
+    // it and which would restart the page's tab order from the top.
+    if (k === 'Tab') closeList(true);
+  });
+
+  listEl.addEventListener('click', (e) => {
+    const opt = e.target.closest && e.target.closest('.vp__opt');
+    if (opt) choose(opt.dataset.code);
+  });
+
+  // A press anywhere else dismisses it. Capture, so it lands before the page's
+  // own handlers rather than after whatever they do to the DOM.
+  document.addEventListener('pointerdown', (e) => {
+    if (!listOpen() || langEl.contains(e.target) || listEl.contains(e.target)) return;
+    closeList(false);
+  }, true);
 
   // Warnings focus the field they are about (spec §2.10).
   liveEl.addEventListener('click', (e) => {
@@ -556,18 +699,33 @@
     try { target.focus({ preventScroll: true }); } catch (_) { target.focus(); }
   });
 
+  // The rows are rebuilt only when the set or the selection actually moves.
+  // render() runs on every debounce tick, and rewriting the list while it is
+  // open would destroy the row the owner is standing on — focus would drop to
+  // <body> mid-keystroke. `optsKey` is the same idea as `lastKey` below, for
+  // the same reason: an identical regeneration must not disturb anything.
+  let optsKey = '';
   function renderLangOptions() {
     const langs = (summary && summary.sections.receptionist.languages) || [];
     if (!lang || langs.indexOf(lang) === -1) {
       lang = summary ? (summary.sections.receptionist.default_language || langs[0] || 'en') : 'en';
     }
-    langEl.innerHTML = langs.map((c) =>
-      `<option value="${esc(c)}"${c === lang ? ' selected' : ''}>${esc(LANG_LABEL[c] || c)}</option>`).join('');
+    const label = LANG_LABEL[lang] || lang;
+    if (langValEl.textContent !== label) langValEl.textContent = label;
+
+    const key = langs.join(',') + '|' + lang;
+    if (key !== optsKey) {
+      optsKey = key;
+      listEl.innerHTML = langs.map((c) =>
+        `<div class="vp__opt" role="option" id="vpLangOpt-${esc(c)}" data-code="${esc(c)}"` +
+        ` tabindex="-1" aria-selected="${c === lang}">${esc(LANG_LABEL[c] || c)}</div>`).join('');
+    }
     // A disabled control with no reason is a dead end (spec §2.9). The selector
     // goes inert when the clinic has one language, and until now said nothing
     // about why — leaving an owner clicking a switch that had no second setting
     // to reach. The reason sits directly beneath it and names where to fix it.
     langEl.disabled = langs.length < 2;
+    if (langEl.disabled) closeList(false);
     const why = $('#vpLangWhy', panel);
     if (why) why.hidden = !langEl.disabled;
   }

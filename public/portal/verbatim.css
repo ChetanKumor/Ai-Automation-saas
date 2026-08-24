@@ -51,6 +51,12 @@
    * --field-2, which sits above --field. Kept here rather than in tokens.css:
    * D5 owns the token layer, and nothing outside this panel uses an ink line. */
   --field-line-2: rgba(255, 255, 255, .16);
+  /* The same white-over-ink ramp one step BELOW the line: the ground a control
+   * takes under the pointer or under focus. It is a ground, not a border, so it
+   * sits under --field-line's .10 rather than over it. Two users only — the
+   * language trigger and a listbox row — which is why it is a property and not
+   * two literals waiting to drift apart. */
+  --field-3: rgba(255, 255, 255, .07);
 
   width: var(--panel-w);
   flex: none;
@@ -109,18 +115,113 @@
 }
 @keyframes vp-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 
+/* ── The language control ──────────────────────────────────────────────────
+ *
+ * This was `appearance: auto` — the OS's own combo box, in the OS's font, with
+ * the OS's arrow, the OS's focus ring and a blue system highlight, drawn on the
+ * one ink surface in the product. Everything about it belonged to somewhere
+ * else. Only the widget changes here; the ground, the ink and the 12px/500
+ * micro-control type are the ones it already had.
+ *
+ * TWO BOXES, one control. The BUTTON is the target and carries nothing visible;
+ * `.vp__sel-in` is the pill. That split exists for one reason: on the sheet the
+ * target has to be 44px and the header is 44px tall, so a 44px pill would sit
+ * flush against the header's own bottom rule and read as a broken double line.
+ * The button grows to 44 and the pill stays at the 32 the <select> had, so the
+ * panel's proportions do not move and the target still clears the floor. At
+ * >=1024 the two boxes are the same 26px and the split costs nothing.
+ *
+ * The single :focus-visible rule (below) lands on the BUTTON, which is correct:
+ * the ring should describe what a keypress would hit.
+ * ────────────────────────────────────────────────────────────────────────── */
 .vp__sel {
   margin-left: auto;
+  display: flex;
+  align-items: center;
   height: 26px;
-  padding: 0 8px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.vp__sel-in {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 7px 0 9px;   /* the chevron's own side-bearing makes the right read even at 7 */
   border-radius: var(--r-sm);
   background: var(--field-2);
   border: 1px solid var(--field-line);
   color: var(--field-ink);
   font: 500 12px/1 var(--sans);
-  cursor: pointer;
 }
-.vp__sel:disabled { opacity: .55; cursor: default; }
+.vp__sel:hover .vp__sel-in { background: var(--field-3); border-color: var(--field-line-2); }
+.vp__sel[disabled] { cursor: default; }
+.vp__sel[disabled] .vp__sel-in { opacity: .55; }
+/* The panel's own disclosure idiom, borrowed whole from .vp__grip-chev: one
+ * upward chevron, rotated to point the way the thing will move. Closed points
+ * down (it will open downward), open points up. */
+.vp__sel-c {
+  display: flex;
+  flex: none;
+  color: var(--field-muted);
+  transform: rotate(180deg);
+  transition: transform var(--dur-2) var(--ease-in-out);
+}
+.vp__sel-c svg { width: 12px; height: 12px; display: block; }
+.vp__sel[aria-expanded="true"] .vp__sel-c { transform: rotate(0deg); }
+.vp__sel:hover .vp__sel-c { color: var(--field-ink); }
+
+/* The listbox. `flex: none` between the header and the body — the slot
+ * .vp__note already occupies — so it can never overlap the greeting bubble;
+ * see the block comment in verbatim.js.
+ *
+ * It is the BUBBLE'S material at menu scale: --field-2 on --field inside
+ * --field-line-2, which is the panel's one existing vocabulary for a raised
+ * block. No shadow — it is in flow, not floating, and a shadow would say
+ * otherwise.
+ *
+ * `width: max-content` with an auto LEFT margin right-aligns it in the flex
+ * column's cross axis, so it hangs off the trigger's end of the header rather
+ * than spanning a 359px band for a six-letter word, and its right edge lands
+ * on the panel's own 16px content inset — the same margin the bubble, the
+ * facts and the footer are set to.
+ *
+ * No `display` is declared, deliberately: the UA's `[hidden] { display: none }`
+ * must keep winning, and an author `display` here would beat it. */
+.vp__opts {
+  flex: none;
+  width: max-content;
+  margin: var(--s-2) 16px var(--s-2) auto;
+  padding: 6px;
+  background: var(--field-2);
+  border: 1px solid var(--field-line-2);
+  border-radius: var(--r-md);
+}
+/* SELECTION is carried by type (the panel's foreground ink at 600 against the
+ * muted step at 500); POSITION is carried by ground. Two channels that cannot
+ * be confused with each other — and neither of them is teal or amber, which in
+ * this panel already mean live-status and warning and must not acquire a third
+ * job. No tick, no flag, no second line: the row is the language's name. */
+.vp__opt {
+  display: flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 11px;
+  border-radius: var(--r-sm);
+  font: 500 13px/1 var(--sans);
+  color: var(--field-muted);
+  cursor: pointer;
+  animation: vp-opt-in var(--dur-2) var(--ease-out) both;
+}
+.vp__opt[aria-selected="true"] { color: var(--field-ink); font-weight: 600; }
+.vp__opt:hover,
+.vp__opt:focus { background: var(--field-3); color: var(--field-ink); }
+@keyframes vp-opt-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
 
 /* Collapse control. 26px square, so it clears the 24x24 AA target floor and
  * grows to 44px on the sheet, where it is the handle's neighbour. */
@@ -140,6 +241,13 @@
 .vp__x:hover { color: var(--field-ink); background: var(--field-2); }
 
 /* ── Body ───────────────────────────────────────────────────────────────── */
+/* MEASURED, so a later session does not re-derive it or "fix" it: the space
+ * between the last block in the body and the footer is flex-grow SLACK, not a
+ * declared gap. At 1440 docked with one warning it is 252.53px, of which 18px
+ * is this element's own padding-bottom; setting `flex: none` here collapses
+ * .vp__b from 799.97px to 565.44px and the gap to exactly that 18px. At 380 it
+ * does not exist at all — the body is already scrolling (533 > 377). It is the
+ * column doing its job, and closing it would be decoration. */
 .vp__b {
   flex: 1;
   min-height: 0;
@@ -198,14 +306,34 @@
  * panel never shows), so it is retained as the advanced view and named here. */
 .vp__k a { margin-left: auto; color: var(--teal-400); text-transform: none; letter-spacing: 0; font-weight: 500; }
 
-/* Wrapping matters here. Most values are a short number and sit on the label's
- * line; a few — the week's hours summary, a written policy — are a sentence. On
- * a 360px column an unwrapped row runs the value back over its own label. */
+/* A LEDGER: label left, value right, on one line. Most values are a short
+ * number; a few — the week's hours summary, the clinic's address — are a
+ * sentence, and those were the rows that broke it.
+ *
+ * `flex-wrap: wrap` was the cause. It let a long value shrink, but the flex
+ * LINE broke first: measured at 1440 docked (327px of column), "Hours" wants
+ * 42.84 + 12 + 396.84 = 451.68 and "Address" 56.77 + 12 + 326.22 = 394.99, so
+ * both dropped their value onto a second line where, alone, it stretched the
+ * full column and `margin-left: auto` and `text-align: right` had nothing left
+ * to push against. "Clinic" (156.12), "Phone" (168.71), "Speaks" (169.53) and
+ * "Consultation" (135.96) all fit and never wrapped.
+ *
+ * `nowrap` is the whole fix, and it is general — no row is named and no length
+ * is tested. Shrinking engages only when a line overflows, which is exactly the
+ * set of rows that were broken, so the rows that fit are untouched to the
+ * pixel. The value shrinks because it declares `min-width: 0`; the label does
+ * NOT, so its automatic minimum holds it at min-content — its longest word —
+ * and a one-word label like "Hours" cannot be shrunk at all. A 120-character
+ * treatment name (the schema's cap) still degrades gracefully: it shrinks to
+ * its longest word and wraps inside its own column instead of overflowing.
+ *
+ * `column-gap`, not `gap`: with one line there is no row-gap to set, and a
+ * value that can never apply is not a spacing decision. */
 .vp__fact {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: baseline;
-  gap: 4px 12px;
+  column-gap: 12px;
   padding: 6px 0;
   font: 400 13.5px/1.5 var(--sans);
 }
@@ -540,7 +668,12 @@
   .vp__btn { height: 44px; padding: 0 14px; }
   .vp__why { order: 3; flex-basis: 100%; }
   .vp__f .vp__btn--end { margin-left: auto; }
-  .vp__sel { height: 32px; }
+  /* The BUTTON is the 44px touch target; the pill inside keeps the 32px the
+   * <select> had, so the header's own proportions do not move. See the block
+   * comment on .vp__sel. */
+  .vp__sel { height: 44px; }
+  .vp__sel-in { height: 32px; }
+  .vp__opt { height: 44px; font-size: 13.5px; }
   .vp__x { width: 32px; height: 32px; }
 
   /* Content clears the collapsed sheet by a DECLARED margin now, not by the
@@ -581,4 +714,10 @@
   .vp__rail:focus-visible .vp__rail-peek { transform: translate(0, -50%); }
   .vp__rail.is-press,
   .vp__grip.is-press { transform: none; }
+  /* The listbox opens with no transform at all — the rows are simply there.
+   * The chevron still turns, because that is a STATE the control is in and not
+   * a movement through one; it just stops animating its way there, exactly as
+   * .vp__grip-chev above does. */
+  .vp__opt { animation: none; }
+  .vp__sel-c { transition: none; }
 }
