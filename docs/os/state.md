@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: e4177e837e80b7bc192a2133ea6ae4a81604698d
-Verified-on: 2026-08-23
+Verified-at: 3629cc34043f1de457105fc986801b30c275de2a
+Verified-on: 2026-08-24
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -629,6 +629,113 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **AT 100% HOME STATES THE FACT INSTEAD OF DRAWING A RING — Portal polish 1,
+  built** (`3629cc3`). **Six files, +243/−28**: `public/portal/home.js`,
+  `public/portal/home.css`, `public/portal/index.html`,
+  `scripts/portal/shootD3.js`, `docs/os/decisions.md` (**D-017**),
+  `docs/design/portal-v2-spec.md`. No `tokens.css`, no greeting block, no checks
+  list, no backend, no route, no schema. Node **1111 / 180 suites / 0 fail / 0
+  cancelled / 0 skipped / 0 todo** — unmoved. `npm run os:check` exit 0;
+  `shootD3.js`, `shootD4.js` and `shootWizard.js` all exit 0 and reach capture.
+  ⚠️ The Python worker suite was **not re-run**; its **97** is carried forward.
+  **THE RING IS NOT DRAWN AT 100% ON HOME.** It was 17,424px² of green circle
+  whose whole payload is "yes", beside an 11,742px² sentence that said strictly
+  more; and on the Draft-with-operator-work state a banner reading *"Nothing more
+  is needed from you — Prantivo is finishing the last steps"* sat one card above
+  a card reading *"Nothing more is needed from you. Prantivo is finishing the
+  last step — WhatsApp connection"*. Two cards, one fact, the vaguer of the two
+  first and louder. `ringSvg(passed, total, opts)` now takes
+  `noRingWhenComplete`; **Home sets it and the wizard never does.**
+  **BELOW 100% NOTHING MOVED** — 132px, 10px stroke, `5` / `of 9`, teal
+  `rgb(15,118,110)`, offset 170.3, same once-per-session draw. Measured on the
+  incomplete fixture after the change.
+  **THE RING SURVIVES IN THE WIZARD'S REVIEW STEP, and that is the decision, not
+  a carve-out** — arriving at 100% at the end of setup is a moment seen once; the
+  same object on a daily screen is furniture. Verified by screenshot **and**
+  runtime read: ring present, 132px, `role="img"`, `8 of 8 checks complete`,
+  `.readiness` still `28px 24px` / gap `28px` / three children, and **no**
+  completion mark. Byte-identical rendering.
+  **THE LIVE REGION IS THE THING THAT HAD TO SURVIVE, AND IT DID.**
+  `<p class="vh" role="status">` is emitted on **every** path of `ringSvg`,
+  byte-identical, ring or no ring. Home carries exactly **TWO** `[role="status"]`
+  on all four fixtures before and after — `#truthStrip` (empty; the strip is
+  suppressed on Home by D5a/W5) and the score sentence. `role="status"` emitters
+  portal-wide were enumerated first: `home.js:214`, `shell.js:704`,
+  `shadow-notice.js:188` (not on Home) and `shell.js:602` (a transient toast).
+  **`renderBanner` HAD ONE CALL EXPRESSION ON HOME, NOT TWO.** The prompt's
+  premise was that `main()` and the lifecycle re-render each called it; in fact
+  `render()` held the only call and **three** paths reached it — `main()`, the
+  `portal:lifecycle` listener, and `recheck()`. Deleting one line removed it from
+  all three, so no call could outlive `#banner`. `renderBanner`, the `BANNER` map
+  and `draftMeaning()` are untouched; the wizard still uses them.
+  **THE COMPLETION MARK'S OPTICAL OFFSET WAS MEASURED, NOT CHOSEN.** An
+  inline-block's baseline is its bottom margin edge and the tick's ink sits high
+  inside its own 24-unit box, so at `baseline` a 20px mark floats ~5.8px clear of
+  the line. Landing the ink's optical centre on the **x-height** centre — the
+  standard target beside sentence-case text — gives, at 18px Noto Sans: x-height
+  **9.90px** (sampled at **10x**, because Chrome quantises
+  `actualBoundingBoxAscent` to whole pixels at 1x, a ±0.5px error of the same
+  order as the value being decided), ink height **11.33px**, exact solution
+  **-0.304em**, shipped as **`-0.3em`** — residual **0.08px**, 0.4% of the
+  headline, 0.14 device pixels at 2x. In `em`, so a headline resize cannot break
+  it. ⚠️ **No spacing token supplies this**: `--s-*` is the 8px layout rhythm and
+  this is a font-metric derivation, not a gap. Reported rather than introduced
+  silently. Mark contrast **5.02:1** on `--card`, measured on the live DOM.
+  **`.readiness--stated` IS (0,2,0) ON PURPOSE.** With no ring the `.readiness`
+  flex row has ONE in-flow child (`.vh` is `position:absolute` and is not a flex
+  item), so its `28px 24px` inset and `28px` gap became a padded void on top of
+  the `22px 24px` `.card` already provides — the modifier withdraws the ring-era
+  override and **no new number enters the file**. The `max-width: 520px` block
+  sets `align-items` and `text-align` on `.readiness` at (0,1,0); at equal
+  specificity **source order alone** would have decided it and a later reorder
+  would have undone it invisibly. Doubling the class states the precedence in the
+  selector. `text-align` is restated on `.readiness__summary` at (0,3,0) because
+  that block sets it there too. Proven at 380: `readiness--stated` computes
+  `text-align: left`, `align-items: stretch`, `padding: 0px`, `gap: 0px`, and the
+  summary `text-align: left` — while the **incomplete** card at the same
+  breakpoint still computes `start` / `center` / `28px 24px` / `28px`.
+  **THE SUB-HEADING IS STATE-AWARE, FROM THE SAME PREDICATE.** *"What's ready,
+  and what Prantivo is still finishing."* when `ownerWorkOutstanding(run)` is
+  false, the existing line otherwise, and the existing line when there is **no
+  run** — a never-checked screen cannot be told what is finished. Third member of
+  the family the last two sessions fixed.
+  **THREE `.ring` ASSERTIONS IN `shootD3.js`, NOT TWO** (`:478`, `:486`,
+  `:492-496`). All three were **re-pointed, none deleted** — `:478` asserts the
+  ring is null on the complete legacy fixture, `:486` asserts the live region
+  still carries `8 of 8 checks complete`, and the **denominator invariant** added
+  two sessions ago now reads `[role="status"].vh` instead of the ring's
+  `aria-label`. Identical bytes, and it now holds in the ringed case too. `:487`
+  (`score live regions === 1`) is untouched and is the load-bearing one. Nothing
+  else in the harness changed.
+  ⚠️ **COLLATERAL ENUMERATED AND DELIBERATELY LEFT ALONE.** `shootD5a.js:591`
+  and `shootD5b.js:644-647` read `.ring` on Home against `owner@sri.test`, a
+  **dev-DB** tenant the scripts do not seed; D5b already waits on `.ring__num`,
+  which a complete ring has never had, so that tenant is incomplete and both stay
+  green. `shoot.js:517,520` stubs `getRelevantChunks` to `[]` so `kb.retrieval`
+  always fails and its ring always renders. `f1.js` only opens Home while its run
+  is stale/incomplete and its two `.ring` reads are null-safe and never asserted.
+  `shots/shootD2.js:182` has a `#readinessCard` fallback. **None was modified.**
+  **WHAT IT BOUGHT, MEASURED.** Complete Home **1560 → 1376px** at 1440 (−184);
+  live **1560 → 1355** (−205); stale **1627 → 1474** (−153); incomplete
+  **1667 → 1570** (−97, the banner alone). Readiness card **234 → 146px**
+  (live 234 → 126, stale 301 → 245). At **380** the first check-group header rose
+  **974 → 617px** against an 820px viewport — **from below the fold to above it**,
+  the largest single usability gain here. Tab order unmoved on every fixture
+  (16 / 16 / 20 / 17); `:focus-visible` rule count unmoved at 5; heading outline
+  unmoved (`H1(vh) Your receptionist` → `H2 Readiness`).
+  ⚠️ **THE SKELETON NOW OVERSHOOTS THE COMPLETE CARD, MEASURED AND NOT FIXED.**
+  `index.html`'s `.ring-sk` is byte-identical and still paints a 132px ring
+  shape: `#readinessCard` is **234px** while loading. It used to match the
+  complete card exactly (234px); it now overshoots by **88px** (op) and **108px**
+  (live), while the **stale** mismatch improved from +67px to +11px. `.sk-wrap`
+  holds the skeleton invisible for only 300ms and the readiness round trip
+  measured **232–980ms** locally on every fixture, so the skeleton **is** seen and
+  the collapse **is** visible. The skeleton cannot know the outcome before the
+  payload arrives, so this is a real trade, not an oversight: it was out of scope
+  by instruction and is recorded here for whoever picks it up.
+  Evidence: `scratchpad/pp1/before.txt`, `scratchpad/pp1/after.txt` and
+  `scratchpad/pp1/shots/` (20 shots, four fixtures plus the wizard, 1440 and
+  380). Not committed.
 - **THE ROLE HALF OF THE APPOSITION READS AS THE ROLE — Portal Phase 1
   follow-up, built** (`e4177e8`). **Two files, +14/−2**:
   `public/portal/home.js` and `public/portal/home.css`. No other file. Node
