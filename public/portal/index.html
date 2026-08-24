@@ -64,15 +64,21 @@
 
         <div class="page-head">
           <h2 class="page-head__title">Readiness</h2>
-          <p class="page-head__sub">What's ready and what still needs your attention before your receptionist goes live.</p>
+          <!-- State-aware (D-017): home.js rewrites this from the SAME
+               owner-work predicate the readiness card reads. The string here is
+               the one it takes when owner work is outstanding, and the one it
+               keeps when no run has ever been recorded. -->
+          <p class="page-head__sub" id="readinessSub">What's ready and what still needs your attention before your receptionist goes live.</p>
         </div>
 
         <!-- Onboarding entry point (PORTAL-P6-S16) — shown only when the owner
              hasn't completed the wizard yet; empty (no markup) otherwise. -->
         <div id="onboardingBanner"></div>
 
-        <!-- Status banner + ring + checks injected here -->
-        <div id="banner"></div>
+        <!-- Readiness card + checks injected here. The Draft/Live status banner
+             that used to sit here is gone (D-017): on a finished clinic it said
+             the same thing as the card below it, less specifically, and the
+             lifecycle state is carried permanently by the top-bar pill. -->
         <!-- Loading: the shape of the answer (ring + headline + two lines), not a
              spinner. This layout is known before the request returns, so a
              spinner would discard information we already have. `.sk-wrap` holds

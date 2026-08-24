@@ -758,6 +758,14 @@ The ink pane is the same surface as the Verbatim panel — the owner meets the p
 
 ### 3.2 Home
 
+> **Overridden in part by [D-017](../os/decisions.md) (2026-08-24).** At 100% Home renders
+> **no ring** and **no status banner**; a ~20px `--green-700` check inside the readiness
+> headline says the setup is finished, and the score's `role="status"` live region is
+> unchanged. Below 100% the ring is exactly as specified here. The complete ring, and the
+> orchestrated draw this section calls "the product's only orchestrated moment", live on
+> in the **wizard's Review step** — a moment seen once at the end of setup, rather than an
+> object seen daily. Read D-017 before restoring anything below.
+
 *Exists: readiness page. Tier 1. Signature: the readiness ring.*
 
 The owner's answer to two questions: **am I live, and what is left?**

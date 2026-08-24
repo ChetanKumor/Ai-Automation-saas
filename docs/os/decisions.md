@@ -805,3 +805,51 @@ token. If one does, the two-step collapse was too aggressive and the hierarchy w
 carrying information that size and weight could not.
 
 Review: 2027-02-16
+
+## D-017 — At 100% Home drops the readiness ring; the ring survives in the wizard's Review step
+
+Date: 2026-08-24
+Overrides: `docs/design/portal-v2-spec.md` §3.2 and §1.4 — "the readiness ring is Home's
+signature", "the one bold element on the screen", and "This is the product's only
+orchestrated moment and it is spent here because it is the one screen an owner sees every
+day." Also §3.2's status-banner placement on Home.
+
+Decision: on Home, at 100%, the ring is not rendered at all. The score sentence it carried
+is unchanged and still announced (`<p class="vh" role="status">N of N checks complete</p>`,
+emitted on every path). A ~20px check in `--green-700` takes over saying "finished", set
+inside `.readiness__headline` so it reads as the first mark of the sentence. Below 100%
+the ring is untouched: 132px, 10px stroke, numeral, denominator, teal arc. The Draft /
+Validated / Live / Paused banner is removed from Home entirely; `renderBanner` and its
+copy map survive for the wizard.
+
+Reason: at 100% the ring is a 132px object whose entire semantic payload is "yes", beside
+a sentence that says the same thing and says more of it — measured, 17 424px² of ring
+against 11 742px² of sentence. On the Draft-with-operator-work state it was worse than
+redundant: the banner above it read "Nothing more is needed from you — Prantivo is
+finishing the last steps" and the card below read "Nothing more is needed from you.
+Prantivo is finishing the last step — WhatsApp connection", the vaguer of the two first
+and louder. Home is the screen an owner opens every day, and an object that says one word
+every day is furniture, not a signature.
+
+The ring is KEPT in the wizard's Review step, and that is the substance of this entry
+rather than a carve-out. Arriving at 100% at the end of setup is a moment, seen once; the
+same object on a daily screen is a permanent ornament. The spec spent the product's one
+orchestrated moment on the wrong surface — not on the wrong object. `noRingWhenComplete`
+is passed by Home and never by the wizard, so the two surfaces cannot converge by
+accident.
+
+What this cost: nothing measurable. Home's `[role="status"]` count is unchanged at two
+(the truth-strip host and the score's live region), tab order is unchanged at 16 on a
+complete tenant, and `:focus-visible` rule count is unchanged at 5. What it bought: Home's
+complete state fell from 1560px to 1376px at 1440 (−184px), the readiness card from 234px
+to 146px, and at 380 the first check-group header rose from 974px to 617px against an
+820px viewport — from below the fold to above it.
+
+Falsifiable prediction: by 2027-02-24, no owner-facing session has needed to re-introduce
+a completion ring, a status banner, or any other second "you are done" object on Home,
+and no session has had to add a second predicate for "complete" beside
+`ownerWorkOutstanding`. If a later session finds owners cannot tell whether their setup is
+finished without the ring, then the ring was carrying information the sentence does not,
+the measurement above was of area rather than of meaning, and this entry is wrong.
+
+Review: 2027-02-24

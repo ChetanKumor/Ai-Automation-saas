@@ -104,10 +104,12 @@
 
   // ── Renderers ──────────────────────────────────────────────────────────────
 
-  // `opts.bannerEl` lets a caller render into a different element (the
-  // onboarding wizard's Review step, PORTAL-P6-S16 — see window.PortalHome
-  // below); defaults to this page's own #banner, so the call from main() below
-  // is byte-identical to before this option existed.
+  // `opts.bannerEl` names the element to render into. It USED to be optional,
+  // defaulting to Home's own #banner; D-017 removed that host and Home's only
+  // call with it, so the wizard's Review step (PORTAL-P6-S16 — see
+  // window.PortalHome below) is now the sole caller and it always passes one.
+  // The default is kept rather than made required: the function is unchanged
+  // by that decision, and a caller-supplied element is the contract either way.
   // `opts.run` is optional and read for the DRAFT state ONLY (see draftMeaning).
   // Absent, the draft line is the one it has always been — so every caller that
   // has no run to hand over stays correct without knowing this option exists.
@@ -123,6 +125,28 @@
           <div class="banner__meaning">${esc(meaning)}</div>
         </div>
       </div>`;
+  }
+
+  // ── The section sub-heading ────────────────────────────────────────────────
+  // Same defect family as the two draft meanings above: ONE wording, asserting
+  // that attention is needed, printed over a clinic with nothing outstanding.
+  // The second line is chosen by ownerWorkOutstanding — the SAME predicate the
+  // ring, the headline and the banner meaning read — so no second notion of
+  // "complete" enters the page.
+  //
+  // NO RUN keeps the baseline line, for draftMeaning's reason exactly: the
+  // never-checked screen must not be told what is finished on the strength of
+  // a check that never ran.
+  //
+  // SUB_TODO is byte-identical to the string in index.html, which is what the
+  // page renders until this runs.
+  const SUB_TODO = "What's ready and what still needs your attention before your receptionist goes live.";
+  const SUB_DONE = "What's ready, and what Prantivo is still finishing.";
+
+  function renderSectionSub(run) {
+    const el = document.getElementById('readinessSub');
+    if (!el) return;
+    el.textContent = (run && run.checks && !ownerWorkOutstanding(run)) ? SUB_DONE : SUB_TODO;
   }
 
   // ── The owner-scope line ───────────────────────────────────────────────────
@@ -177,11 +201,18 @@
     return { passed, total };
   }
 
-  // ── The readiness ring (spec §3.2) ─────────────────────────────────────────
+  // ── The readiness ring (spec §3.2, amended by D-017) ───────────────────────
   // 132px, 10px stroke, --line-2 track, --teal-700 progress, round cap; green
-  // with a check at 100%. The product's ONE bold element and its only
-  // orchestrated moment, spent here because Home is the screen an owner opens
-  // every day.
+  // with a check at 100%. Unchanged while there is still something to count.
+  //
+  // At 100% ON HOME it is not drawn at all (`opts.noRingWhenComplete`). A
+  // finished ring is a 132px object whose entire payload is "yes", beside a
+  // sentence that says the same thing in words and says more of it — and Home
+  // is the screen an owner opens every day, so it is furniture there rather
+  // than a moment. It survives in the wizard's Review step, which is where
+  // arriving at 100% IS a moment, seen once at the end of setup. That
+  // distinction is the whole of D-017; it is not an implementation detail and
+  // must not be collapsed by making either surface pass the other's flag.
   //
   // Accessibility is the reason this is two nodes and not one. `.ring` is
   // role="img" with the whole sentence as its label — which makes its subtree
@@ -190,14 +221,20 @@
   // save, so the live region is a visually-hidden sibling carrying the same
   // sentence. Screen readers therefore read the ring once on arrival and once
   // per change, never twice for the same event.
+  //
+  // That sibling is emitted on EVERY path, byte-identical, ring or no ring. It
+  // is the only node that announces the score, so it can never be conditional
+  // on the thing that is merely its picture.
   const RING_R = 61;
   const RING_C = 2 * Math.PI * RING_R;
 
-  function ringSvg(passed, total) {
+  function ringSvg(passed, total, opts) {
     const frac = total > 0 ? passed / total : 0;
     const offset = RING_C * (1 - frac);
     const complete = total > 0 && passed === total;
     const label = `${passed} of ${total} checks complete`;
+    const announced = `<p class="vh" role="status">${esc(label)}</p>`;
+    if (complete && opts && opts.noRingWhenComplete) return announced;
     return `<div class="ring${complete ? ' ring--complete' : ''}" role="img" aria-label="${esc(label)}">
       <svg viewBox="0 0 132 132">
         <circle class="ring__track" cx="66" cy="66" r="${RING_R}"></circle>
@@ -211,7 +248,7 @@
           : `<div class="ring__num">${passed}</div><div class="ring__den">of ${total}</div>`}
       </div>
     </div>
-    <p class="vh" role="status">${esc(label)}</p>`;
+    ${announced}`;
   }
 
   // Draws 0 → value over --dur-4, ONCE per session. A ring that re-animates on
@@ -264,11 +301,21 @@
   // `opts.stepFor` is threaded through to checkRow (see there). Both default to
   // this page's own containers with no override, so main()'s call below is
   // byte-identical to before these options existed.
+  //
+  // `opts.noRingWhenComplete` is threaded straight to ringSvg (D-017) and is
+  // set by HOME ONLY. Absent — which is what the wizard passes — every line
+  // below renders exactly as it did before the option existed.
   function renderReadiness(run, opts) {
     const card = (opts && opts.cardEl) || document.getElementById('readinessCard');
     const { passed, total } = computeScore(run.checks);
     const complete = total > 0 && passed === total;
     const opFails = operatorFails(run);
+    // The card is ringless in exactly one condition, and three things key off
+    // it: the ring is not drawn, the completion mark takes over saying so, and
+    // the layout stops reserving a lane for a 132px object. One expression, so
+    // they cannot come apart — a mark beside a ring would be the same sentence
+    // twice over, which is the defect this session is removing.
+    const stated = complete && !!(opts && opts.noRingWhenComplete);
 
     // Any owner-scope material check still failing? The SAME predicate the ring
     // scores with, so the number and the sentence beside it can no longer be
@@ -322,11 +369,21 @@
         </div>`
       : `<div class="readiness__ran">Last checked ${esc(fmtDate(run.created_at))}</div>`;
 
+    // The completion mark (D-017). It is the ring's tick, kept at sentence
+    // scale, and it appears in exactly the case the ring does not — so this
+    // card carries one completion glyph in every state, never two and never
+    // none. aria-hidden: the headline beside it already says the setup is
+    // complete, and the live region above already announces the score, so any
+    // accessible text here would be the third telling of one fact.
+    const mark = stated
+      ? `<span class="readiness__mark" aria-hidden="true">${IC.check}</span>`
+      : '';
+
     card.innerHTML =
-      `<div class="readiness">
-        ${ringSvg(passed, total)}
+      `<div class="readiness${stated ? ' readiness--stated' : ''}">
+        ${ringSvg(passed, total, opts)}
         <div class="readiness__summary">
-          <div class="readiness__headline">${esc(headline)}</div>
+          <div class="readiness__headline">${mark}${esc(headline)}</div>
           <div class="readiness__note">${esc(note)}</div>
           ${ran}
         </div>
@@ -372,7 +429,7 @@
     //
     // renderReadiness is mounted on TWO surfaces — this page and the wizard's
     // Review step, which passes its own cardEl/checksEl (PORTAL-P6-S16). Calling
-    // render() unconditionally would reach for #banner/#readinessCard, which the
+    // render() unconditionally would reach for #readinessCard/#checks, which the
     // wizard does not have, and a button that throws is worse than one that isn't
     // there. Home renders itself; anywhere else re-renders from the event, which
     // is how the wizard's Review step gets a working control without this file
@@ -808,19 +865,29 @@
   // lifecycle action, so both paths can never diverge.
   function render(data) {
     window.Portal.renderLifecycle(data.status, window.Portal.deriveGoLive(data.run));
-    renderBanner(data.status, { run: data.run });
+    // The status banner is GONE from Home (D-017). On a finished clinic its
+    // Draft meaning was "Nothing more is needed from you — Prantivo is
+    // finishing the last steps", printed one card above the readiness card
+    // saying "Nothing more is needed from you. Prantivo is finishing the last
+    // step — WhatsApp connection". Two cards, one fact, and the vaguer of the
+    // two came first. The lifecycle state itself is not lost: it is the pill in
+    // the top bar, on every page, which is where a persistent state belongs.
+    // renderBanner survives untouched for the wizard's Review step, where the
+    // state is being reported once rather than standing permanently.
+    //
     // The truth strip is shell chrome, but Home is the one page that fetches
     // readiness itself — so it HANDS the payload over rather than letting the
     // strip request its own. That is what keeps this page at exactly one
     // readiness round trip, and it is why shell.js contains a single fetch.
     document.dispatchEvent(new CustomEvent('portal:readiness', { detail: data }));
+    renderSectionSub(data.run);
     if (!data.run) { renderEmpty(); return; }
-    renderReadiness(data.run);
+    renderReadiness(data.run, { noRingWhenComplete: true });
   }
 
   // Boot ONLY on the real Home page. The onboarding wizard (PORTAL-P6-S16)
   // loads this file solely for window.PortalHome below (its Review step reuses
-  // the ring/check rendering) and has none of #banner/#readinessCard/#checks —
+  // the ring/check rendering) and has none of #readinessCard/#checks —
   // running main() there would be a guaranteed, pointless null-element error.
   if (document.body.getAttribute('data-page') === 'home') main();
 

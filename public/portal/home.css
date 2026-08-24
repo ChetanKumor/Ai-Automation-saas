@@ -1,9 +1,13 @@
 /* ============================================================================
  * Home / Readiness — page-specific styles (PORTAL-P1-S2)
  *
- * The readiness ring is the signature element portal-wide (spec §4): the one
- * memorable, slightly-bold device. Everything else on this page stays quiet so
- * the ring carries the eye. Tokens + shell come from tokens.css.
+ * The readiness ring (spec §4) is still the one memorable, slightly-bold
+ * device, and everything else here stays quiet so it carries the eye — but
+ * only while there is something left to count. At 100% on Home it is not drawn
+ * at all and the receptionist's own words are the largest thing on the screen
+ * (D-017); the finished ring survives in the wizard's Review step. Its rules
+ * below are live on both surfaces and none of them is dead CSS.
+ * Tokens + shell come from tokens.css.
  * ========================================================================== */
 
 /* ── Status banner (Draft / Validated / Live / Paused) ── */
@@ -95,8 +99,78 @@
 .ring__done { color: var(--green-700); }
 .ring__done svg { width: 38px; height: 38px; transform: none; }
 
+/* ── No ring: the statement is the whole card (D-017) ──────────────────────
+ * At 100% on Home the ring is not rendered, so `.readiness` is left with ONE
+ * in-flow child — the `.vh` live region is position:absolute and is therefore
+ * not a flex item. The 28px/24px inset and the 28px gap exist to seat a 132px
+ * ring beside a paragraph; with no ring they are a padded void around one
+ * sentence, sitting on top of the 22px/24px `.card` already provides. So the
+ * override is switched off and the card's own padding becomes the whole inset.
+ * No new number enters the file — a ring-era one stops applying.
+ *
+ * SPECIFICITY IS (0,2,0) ON PURPOSE. The `max-width: 520px` block below sets
+ * `align-items` and `text-align` on `.readiness` at (0,1,0). At equal
+ * specificity source order would decide, and a later edit moving either block
+ * would silently undo this with nothing at the call site to show it. Doubling
+ * the class states the precedence in the selector, where it can be read.
+ * (`flex-direction` and `gap` in that block are inert here — one child.)
+ *
+ * The centring goes with it. It exists because the ring stacked above the text
+ * on a phone; with no ring there is nothing to centre against, and a centred
+ * multi-line paragraph would be the only one on the page. `text-align` has to
+ * be restated on the summary because that block sets it there too, at (0,1,0). */
+.readiness.readiness--stated {
+  padding: 0;
+  gap: 0;
+  align-items: stretch;
+  text-align: left;
+}
+.readiness.readiness--stated .readiness__summary { text-align: left; }
+
 .readiness__summary { min-width: 0; }
 .readiness__headline { font-size: 18px; font-weight: 700; letter-spacing: -.01em; line-height: 1.3; }
+
+/* ── The completion mark (D-017) ───────────────────────────────────────────
+ * With the ring gone at 100%, this is the glyph that says so — the same
+ * IC.check the rows use, at sentence scale, set INSIDE the headline so it
+ * reads as the first mark of the sentence and not as a badge beside it. It is
+ * aria-hidden: the headline says "Your setup is complete" and the live region
+ * announces the score, so accessible text here would be a third telling.
+ *
+ * --green-700 is completion, and it is what this page has always used for a
+ * passed check (.check__icon--pass, .ring--complete). It is not the teal
+ * accent, so this costs no accent instance.
+ *
+ * 20px against the 18px headline: the check rows set a 15px glyph beside a
+ * 14px label, 18 × 15/14 is 19.3px, and 20px is the status-icon size spec §3.2
+ * names — the same relationship carried up one step of the type scale.
+ *
+ * The vertical-align is MEASURED, not chosen. An inline-block's baseline is its
+ * bottom margin edge, and this tick's ink sits high inside its own 24-unit box
+ * (path y 6→17, plus half of a 2.6-unit round-capped stroke), so at `baseline`
+ * the mark floats ~5.8px clear of the line. The offset drops it until the ink's
+ * optical centre lands on the headline's x-height centre — the standard target
+ * for a glyph set beside sentence-case text, because the x-height band is where
+ * the line's visual mass is.
+ *
+ * Measured on the rendered page, 18px Noto Sans: x-height 9.90px (sampled at
+ * 10x so Chrome's whole-pixel quantisation of actualBoundingBoxAscent cannot
+ * decide this), ink height 11.33px, and the exact solution -0.304em. Rounded to
+ * -0.3em, which leaves the ink centre 0.07px above the x-centre — 0.4% of the
+ * headline, 0.14 device pixels at 2x, below the rendering grid.
+ *
+ * In `em`, so it survives a change of headline size that a px value would not.
+ * No spacing token supplies it: --s-* is the 8px layout rhythm and this is a
+ * font-metric derivation, not a gap. */
+.readiness__mark {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  margin-right: var(--s-2);
+  color: var(--green-700);
+  vertical-align: -0.3em;
+}
+.readiness__mark svg { display: block; width: 100%; height: 100%; }
 .readiness__note { color: var(--muted); font-size: 13.5px; margin-top: 6px; line-height: 1.55; }
 .readiness__ran { color: var(--faint); font-size: 12px; margin-top: 10px; }
 
