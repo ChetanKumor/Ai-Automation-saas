@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 3629cc34043f1de457105fc986801b30c275de2a
+Verified-at: 0f3a9ed046c616c972174e1a198103226a4dc552
 Verified-on: 2026-08-24
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -629,6 +629,90 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE SKELETON STOPS DRAWING A RING, AND THE SUB-HEADING GETS ITS THIRD STATE
+  — Portal polish 1a, built** (`0f3a9ed`). **Three files, +43/−20**:
+  `public/portal/index.html`, `public/portal/home.css`, `public/portal/home.js`.
+  No `tokens.css`, no completion mark, no `.readiness--stated`, no ring logic, no
+  harness, no other page. Node **1111 / 180 suites / 0 fail / 0 cancelled / 0
+  skipped / 0 todo** — unmoved. `npm run os:check` exit 0; `shootD3.js` and
+  `shootD4.js` both exit 0 and reach capture.
+  ⚠️ The Python worker suite was **not re-run**; its **97** is carried forward.
+  ⚠️ **CONVENTION DEVIATION, DELIBERATE, NOT DRIFT.** Commits **three and four**
+  of a session that had already closed with a `Verified-at` bump at `6e13884`.
+  **Both defects were produced by the previous pair's own evidence run** — one
+  measured and recorded there as out of scope, one flagged in the report — so
+  holding them back would have left two known, written-down defects on `main` to
+  buy a tidier log.
+  **THE SKELETON DREW A RING THAT WAS NOT COMING.** `.ring-sk` painted a 132px
+  circle (104px at ≤520) before the payload arrived, so a complete tenant watched
+  a ring appear and then be removed, and `#readinessCard` collapsed **234 → 146px**
+  (operator-outstanding) or **234 → 126px** (live). The reserve existed so *"the
+  layout does not move when the real ring arrives"* — a reason that **expired at
+  D-017**, when the ring became conditional. The element and **both** its CSS
+  rules are deleted; the skeleton is the summary's three `.sk-line`s, which are
+  the shape of the answer — headline · note · last-checked — in **both** outcomes.
+  ⚠️ **NO OUTCOME INFERENCE WAS ADDED AND NONE IS AVAILABLE.** No
+  `sessionStorage` of last-known shape, no cached score, no read of any prior
+  run. The skeleton is painted before the answer exists; the residual mismatch is
+  the price of not pretending otherwise.
+  **THE ERROR MOVED FROM THE DAILY STATE TO THE SETUP STATE — measured, and the
+  regression is stated rather than buried.** Skeleton card **234 → 174px** at
+  1440 and **298 → 174px** at 380 (the column ring lane goes too). Delta =
+  skeleton − resolved; **positive means the card shrinks on resolve**:
+
+  | Fixture | 1440 before → after | 380 before → after |
+  |---|---|---|
+  | complete (operator outstanding) | **+88 → +28** | **+110 → −14** |
+  | complete (live) | **+108 → +48** | **+172 → +48** |
+  | incomplete | **0 → −60** | **−28 → −152** |
+  | complete (stale) | **−11 → −71** | **+26 → −98** |
+
+  **Incomplete tenants now GROW on resolve, and at 380 that is 152px.** Total
+  absolute movement at 1440 is **unchanged either way (207px)** — the trade is
+  not a reduction, it is a relocation, and it is deliberate: an owner who has
+  finished setup opens Home **every day**, an owner mid-setup does so for a few
+  days, and at 380 the skeleton now matches the complete card to within **14px**
+  where it was 110px out. Skeleton `revealedAtMs` (first frame at opacity 1,
+  from navigation) measured **628–710ms** across both widths and both runs,
+  against a readiness round trip of 232–980ms — the skeleton **is** seen, which
+  is why the collapse mattered.
+  **THE SUB-HEADING NEEDED THREE ARMS AND SHIPPED WITH TWO.** Polish 1's report
+  flagged the overstatement; this run measured it on two fixtures —
+  `ownerWorkOutstanding: false`, `operatorFails.length: 0`, and *"what Prantivo
+  is still finishing"* rendered anyway on a clinic that was finished, live and
+  waiting on nobody. A smaller version of the untruth the first arm was fixed for.
+  **NO THIRD PREDICATE WAS INTRODUCED.** The three arms come from the two
+  functions `renderReadiness` already computes — `ownerWorkOutstanding(run)` at
+  `home.js:324` and `operatorFails(run)` at `:312` — in the same order and with
+  the same no-run fallback, so `renderSectionSub` and `draftMeaning()` are now
+  **structurally identical**. They answer one question for one screen; two shapes
+  would be two chances to disagree.
+  · `ownerWorkOutstanding` → *"What's ready and what still needs your attention
+    before your receptionist goes live."* — **byte-identical**, and still the
+    string in `index.html` that stands until the payload lands.
+  · owner done, `operatorFails.length` → *"What's ready, and what Prantivo is
+    still finishing."* — **byte-identical**.
+  · neither → **NEW**: *"What's ready, and who handles each part."*
+  **"before your receptionist goes live" is absent from the last two on purpose**
+  — a live clinic has already gone live, and a deadline that has passed is not a
+  deadline. All three verified against independently re-derived predicate values
+  (payload + `window.Portal.checkMeta`, mirroring `home.js` rather than trusting
+  it) on four fixtures at both widths.
+  **POLISH 1'S GAINS ARE INTACT, RE-MEASURED NOT ASSUMED.** Page heights
+  1376 / 1355 / 1570 / 1474 at 1440 and 1885 / 1822 / 2309 / 1969 at 380, and
+  first-group-header tops 519 / 498 / 607 / 618 at 1440 and 617 / 554 / 775 / 701
+  at 380 — **identical** before and after, all `aboveFold: true`. `[role="status"]`
+  still exactly **2** on every fixture at both widths. Tab order **16 / 16 / 20 /
+  17**; `:focus-visible` rule count **5**. Wizard Review untouched: `.readiness`
+  `28px 24px` / gap `28px` / three children.
+  ⚠️ `.ring-sk` survives as an **alternate selector** in `shootD5a.js:591`
+  (`.ring, .ring-sk`) and `shootD5b.js:644` (`.ring__num, .ring-sk`). Both stay
+  green because their `owner@sri.test` fixture is incomplete and the FIRST
+  selector matches; neither script was modified. There is no remaining renderer
+  for `.ring-sk` anywhere in `public/`.
+  Evidence: `scratchpad/pp1/p1a-before.txt`, `scratchpad/pp1/p1a-after.txt` and
+  `scratchpad/pp1/shots/p1a-*` (skeleton held open at 1440 and 380, before and
+  after, plus all four fixtures at both widths). Not committed.
 - **AT 100% HOME STATES THE FACT INSTEAD OF DRAWING A RING — Portal polish 1,
   built** (`3629cc3`). **Six files, +243/−28**: `public/portal/home.js`,
   `public/portal/home.css`, `public/portal/index.html`,
