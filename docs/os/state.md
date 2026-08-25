@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: fc97326a4cc6f8a2448147fd5662889c7264f2f3
+Verified-at: 4c1a3115770a41b9adf12250778aab5a24ecd01f
 Verified-on: 2026-08-25
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -629,6 +629,133 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE ACTIVE ITEM KEEPS ITS ICON UNDER THE POINTER, AND THE `--teal-50`
+  COMMENT STOPS DESCRIBING A FILL THAT IS GONE — Portal polish 4, built**
+  (`4c1a311`). **Two files, +35/−11**: `public/portal/tokens.css` (+31/−9, two
+  hunks — the `--teal-50` comment at `:51`, and the `.nav__item--active:hover`
+  rule with its comment) and `docs/design/portal-v2-spec.md` (+4/−2, the teal
+  ramp's `--teal-50` and `--teal-700` rows plus one correction note). No page
+  CSS, no `shell.js`, no HTML, no backend, no `decisions.md`. Node **1111 / 180
+  suites / 0 fail / 0 cancelled / 0 skipped** — unmoved. `npm run os:check`
+  exit 0.
+  ⚠️ The Python worker suite was **not re-run**; its **97** is carried forward.
+  **THE WART D-018 RECORDED IS CLOSED.** The active nav item no longer loses its
+  icon colour under the pointer. Measured with a real `Input.dispatchMouseEvent`
+  and `:hover` confirmed matching on Home, Pricing and knows, the hovered active
+  icon goes **`rgb(100,116,139)` `#64748b` 4.47:1 → `rgb(15,118,110)` `#0f766e`
+  5.14:1** on `--bg`. Above the 3:1 non-text floor before *and* after, so this
+  was never a contrast defect. It was a **state-signal** defect: the one hue that
+  says *you are here* vanished exactly when the pointer arrived, on all 13
+  sidebar pages, from D2 until now.
+  ⚠️ **THE OBVIOUS ONE-LINE FIX IS A SPECIFICITY TIE, NOT A WIN, AND THE
+  SESSION BRIEF'S ARITHMETIC WAS WRONG.** The brief specified
+  `.nav__item--active:hover svg` as **(0,3,1)** beating `.nav__item:hover svg`
+  **(0,2,1)** "on specificity — not source order". It is **(0,2,1)**: one class
+  (`.nav__item--active` is a single identifier, not two), one pseudo-class, one
+  type. It **ties**, and would have won only by sitting later in the file —
+  correct where written and silently broken the moment anyone moved it. Shipped
+  instead, on an explicit overrule, is a genuine **(0,3,1)**:
+  `.nav__item--active.nav__item--active:hover svg`. **The class is repeated on
+  purpose**; the repetition is the whole mechanism, and it raises rank while
+  matching **exactly** the same elements. `.side__nav .nav__item--active:hover
+  svg` is also (0,3,1) and was measured to work, but was **rejected**: it trades
+  a source-order dependency for a DOM-structure one, relocating the class of bug
+  rather than removing it.
+  ⚠️ **EVERY CASCADE CLAIM ABOVE WAS READ OUT OF THE LIVE CASCADE, NOT DERIVED**,
+  by injecting each candidate at **index 0** of `tokens.css` — the worst source
+  position, where every existing rule comes after it — and reading the hovered
+  icon back:
+
+  | injected at index 0 | outcome |
+  |---|---|
+  | `.nav__item--active:hover svg` | **LOST**, icon stayed `#64748b` |
+  | *the same rule appended at the END* | **WON** — position, not rank |
+  | `.nav__item--active.nav__item--active:hover svg` *(shipped)* | **WON** — rank, not position |
+  | `.nav__item--active svg` (0,1,1) | LOST, as it must |
+  | `.nav__item:hover svg` (0,2,1) | LOST on source order — index 0 is genuinely disadvantaged |
+  | `.side__nav .nav__item--active:hover svg` (0,3,1) | WON — so the probe **can** see a specificity win |
+
+  The last row is what makes the first row's loss non-vacuous. The shipped rule
+  was confirmed to win from index 0 **before** it was written and again after.
+  Placement beside `.nav__item--active:hover` is for readability only;
+  correctness no longer depends on it.
+  **NOTHING ELSE MOVED.** A field-by-field diff of the before and after probe
+  reports over `nav`, `focus`, `hover` and `activeRect` on all three pages
+  returned **exactly nine differences, all of them the hovered icon** (colour,
+  hex, ratio × 3 pages). Resting state byte-identical to D-018 on all three:
+  background `rgba(0, 0, 0, 0)`, label `rgb(17,94,89)` **7.58:1**, icon
+  `rgb(15,118,110)` **5.47:1**, bar `rgb(15,118,110)` 2px **5.47:1**, weight
+  **600**, ground greyscale **255 vs 255**. Hovered background
+  `rgb(246,248,250)` and hovered label `rgb(17,94,89)` **7.12:1** unchanged.
+  Focusables **16 / 35 / 24** at 1440 with **12** in the nav and
+  `aria-current="page"` — unchanged. The three resting greyscale crops are
+  **sha256-identical to Polish 2's after-shots** (`83bdb1c3c601`,
+  `64a4c89500ec`, `eead7cb11e45`); the hovered greyscale crops differ on all
+  three, which is the change itself.
+  ⚠️ **`shootD5b` RED ONCE, AND COUNTING RUNS COULD NOT CLEAR THE DIFF — A
+  REACHABILITY MEASUREMENT DID.** The first post-change sweep failed section E on
+  `pricing.html` at 380×820: *after scroll: header pinned, title visible,
+  description gone* returned `[false,76,true,true]` against `[true,56,true,false]`
+  — the same assertion Polish 2 recorded failing environmentally. Tallies do not
+  settle it: **1 red in 4 runs with the diff, 0 red in 5 at HEAD** is p≈0.44, no
+  evidence either way. What settles it is that the shipped rule is **not
+  reachable** in that probe, measured on `pricing.html` at 380×820 mobile with no
+  pointer dispatched: `.nav__item--active:hover` matches **0** elements, the
+  shipped selector matches **0**, and the rule declares exactly one property,
+  `color`. Removing that declaration and re-reading the quantity section E
+  depends on leaves it **identical** — `document.scrollHeight` 2653,
+  `clientHeight` 820, `scrollY` after `scrollTo(0,600)` = **600**, `.page-head`
+  top **56** — with the rule, without it, and restored. `is-stuck` is toggled by
+  `shell.js:795` on `window.scrollY > 4`, so the red means the page had not
+  scrolled when the 400 ms timer read it. **A `color` declaration that matches
+  nothing cannot make a page unscrollable.** The flake itself is a scroll or
+  content-readiness race and is **still unexplained and unfiled**. A second full
+  sweep after the change was clean: `shootD3`, `shootD4`, `shootD5a`, `shootD5b`
+  all exit 0 and reach capture on a verified-clean slate, none modified.
+  **`--teal-50`'s COMMENT DESCRIBED 2 OF ITS 12 LIVE SITES, AND THE FIRST CLAUSE
+  WAS DEAD.** `tokens.css:51` read *"active nav fill, selected row, subtle info
+  fill"*. Inventoried from every `var(--teal-50)` occurrence, each selector then
+  checked against shipped markup: **12 sites in 8 stylesheets**, all live —
+  **four** `[aria-pressed="true"]` toggles (`clinic-profile` language, `doctors`
+  day + language, `pricing` payment), **four** chips and badges
+  (`history .chip`, `knows .chip`, `.greet-field__badge`, `.badge--teal`), the ⌘K
+  palette's **current row** and its **focus halo**, one info note
+  (`.hist-current-note`), and one hover fill (`.starter:hover`). **Five further
+  sites** reach the same value through the deprecated `--teal-050` alias
+  (`booking-rules .summary`, `safety .always-on`, `home .setup-cta`,
+  `home .banner--validated`, `pricing .tr__archive:hover`) — 17 paint sites in
+  all. D-018's *"eight other consumers"* counted **files**, not sites, and is not
+  contradicted. The new comment names the majority families, the alias path, and
+  the negative fact that stops the fill being re-added.
+  **THE SPEC'S TOKEN TABLE CARRIED THE SAME DEAD CLAUSE POLISH 2 CORRECTED AT
+  §2.9.** `portal-v2-spec.md:164` still said *"Active nav background"*; `:171`
+  called `--teal-700` *"active nav text"* when the active label is `--teal-800`
+  (`rgb(17,94,89)`, measured) and `--teal-700` (`rgb(15,118,110)`) is the **icon
+  and bar**. Both rows corrected with one `> **Corrected at Polish 4 (D-018).**`
+  note after the table, the convention already used at `:539`, `:547` and `:714`.
+  **DELIBERATELY LEFT, HAVING BEEN CHECKED:** D-018's own text in `decisions.md`
+  (a decision record describing what it removed is correct); `state.md`'s D2-era
+  history at `:4462`; `portal-v2-spec.md` `:545`, `:547`, `:628`, `:872`,
+  `:1222`; `brand-values.md:126` (a naming-convention mention, not a nav claim);
+  `docs/specs/portal-v2-batch1.md:73` (a **completed** D1–D5 implementation plan
+  — its token-migration row records what D1 did); and
+  `docs/design/prantivo-mockups-batch1.html` (headed *"DESIGN REFERENCE ARTEFACT.
+  Not shippable code"*, approved 2026-07-28 — editing it would forge the approval
+  record).
+  **STILL OPEN from Polish 2's three follow-ups:** (1) is **closed** by this
+  session. (2) `.vp__b`, `.content` and every other portal scroll container keep
+  the native scrollbar, so the portal is inconsistent by exactly one styled
+  container. (3) The inactive nav icon sits at **2.56:1** — pre-existing,
+  `--faint` is declared non-text, and it is redundant beside its own text label.
+  ⚠️ **The Node suite still has zero nav assertions**, and all five portal shoot
+  scripts pass `--hide-scrollbars`. This change is invisible to the whole
+  harness: the four shoots staying green is a no-regression result, not a
+  confirmation. Only a probe with a real pointer can see it.
+  Evidence: `scratchpad/pp4/probe.js`, `reach.js`, `report-{before,after}.json`,
+  `reach.json`, `shoots-{before,after,after2}.txt`, `d5b-{withdiff,head}.txt`,
+  and `scratchpad/pp4/shots/pp4-{before,after}-*.png` (resting and hovered item
+  crops on all three pages, sidebar crops, greyscale resting and hovered). Not
+  committed.
 - **THE ACTIVE NAV ITEM DROPS ITS FILL, AND THE SCROLLBAR STOPS SHOUTING —
   Portal polish 2, built** (`fc97326`). **Three files, +153/−3**:
   `public/portal/tokens.css` (+43/−2, four hunks, all inside `.side__nav` or
