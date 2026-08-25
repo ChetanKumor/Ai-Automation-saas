@@ -275,6 +275,34 @@ a { color: var(--teal-700); }
   display: flex;
   flex-direction: column;
   gap: 1px;
+
+  /* The nav content is a constant 602px. The container is the viewport height
+   * minus 182 (brand 75 + foot 107), so below a 784px-tall viewport it
+   * overflows — 16px at a 768 laptop — and Windows Chrome answers 16px of
+   * travel with a 15px-wide slab, a full-length thumb and two stepper arrows,
+   * inside a 232px sidebar. Styling it costs nothing at heights that do not
+   * scroll and reclaims ~7px of the gutter at heights that do.
+   *
+   * NEVER scrollbar-width: none, and never display: none on the pseudo-
+   * element. The nav still scrolls by wheel, keyboard and touch when it is
+   * hidden, which makes a hidden scrollbar a trap rather than a tidy-up.
+   * A muted thumb on a transparent track is the whole intervention. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--faint) transparent;
+}
+/* Fallback for engines without the standard properties — Safari below 18.2
+ * and older WebKit. On Chrome 121+ the two standard declarations above take
+ * precedence and this block is inert; measured on Chrome 151, the gutter is
+ * the one `thin` produces, not the 8px asked for here. Kept deliberately: on
+ * the engines that do read it, it is the only thing standing between the nav
+ * and a default slab. */
+.side__nav::-webkit-scrollbar { width: 8px; }
+.side__nav::-webkit-scrollbar-track { background: transparent; }
+.side__nav::-webkit-scrollbar-thumb {
+  background: var(--faint);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 /* Group label (spec §3.0). A label, NOT an accordion — nothing collapses,
  * because with twelve items collapsing hides more than it helps. No rule above
@@ -317,13 +345,33 @@ a { color: var(--teal-700); }
 .nav__item svg { width: 16px; height: 16px; flex: none; color: var(--faint); }
 .nav__item:hover { background: var(--bg); color: var(--ink); }
 .nav__item:hover svg { color: var(--muted); }
+/* No fill. The tint carried the state in HUE only: measured, it is 250 vs 255
+ * in greyscale luminance, 2% of the range, so it was sitting next to the
+ * signal rather than carrying it. What carries it is below: the positional
+ * bar, the weight, and the ink. Removing the fill RAISES every ratio, because
+ * the ground goes from --teal-50 to --card. See D-018. */
 .nav__item--active {
-  background: var(--teal-50);
   color: var(--teal-800);
   font-weight: 600;
 }
 .nav__item--active svg { color: var(--teal-700); }
-.nav__item--active:hover { background: var(--teal-50); color: var(--teal-800); }
+/* The active item takes the SAME neutral hover as every other item. With the
+ * fill gone, a background no longer means "you are here" — it means only
+ * "your pointer is here", which is the one thing hover should ever mean.
+ *
+ * The colour override must stay. .nav__item:hover sets color: var(--ink) and
+ * would otherwise strip the active label back to slate the moment a pointer
+ * touched it.
+ *
+ * The ICON is a different story and the measurement is worth recording, since
+ * reading the file suggests the opposite. .nav__item:hover svg is (0,2,1) —
+ * :hover is a pseudo-CLASS and counts in the class column — while
+ * .nav__item--active svg is only (0,1,1). The hover rule therefore WINS, and
+ * the active icon has gone --muted grey on hover since D2. That is not fixed
+ * here: it predates this change, the grant was the fill, and the icon is not
+ * this rule's subject. The one-line fix, when someone wants it, is
+ * .nav__item--active:hover svg { color: var(--teal-700); } — see D-018. */
+.nav__item--active:hover { color: var(--teal-800); }
 /* The 2px bar is not decoration. A tint alone carries the active state in HUE
  * only, so it disappears in greyscale and thins out badly under deuteranopia /
  * protanopia. The bar is a POSITIONAL cue and survives both. */

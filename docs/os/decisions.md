@@ -853,3 +853,103 @@ finished without the ring, then the ring was carrying information the sentence d
 the measurement above was of area rather than of meaning, and this entry is wrong.
 
 Review: 2027-02-24
+
+---
+
+## D-018 — The active nav item drops its `--teal-50` fill; the bar and the weight carry the state
+
+Date: 2026-08-25
+Overrides: `docs/design/portal-v2-spec.md` §2.9 "Other components / Nav item" — "Active:
+`--teal-50` fill, `--teal-700` text at 600". Corrected in place at that line.
+
+Decision: `.nav__item--active` no longer sets `background: var(--teal-50)`. The active
+state is carried by the three channels that remain: the 2px `--teal-700` left bar, the
+weight change from 500 to 600, and the label and icon ink (`--teal-800` / `--teal-700`).
+`.nav__item--active:hover` keeps its `color` override and drops its `background`, so the
+active item now takes the same neutral `--bg` hover as every other item. The `--teal-50`
+token itself is untouched; it has eight other consumers.
+
+Reason: the fill's own rationale, written into `tokens.css` beside the bar at D2, was that
+a tint carries state in hue only. It was measured this session and the number is decisive:
+the fill moved the item's greyscale luminance from **255 to 250 — 2% of the range**, which
+is invisible. The greyscale proof at 1440 is identical with and without it. A channel that
+contributes 2% of a signal is not carrying the signal, it is sitting next to it, and in a
+232px sidebar it was the widest and loudest thing in the column while being the least
+informative. Removing it also *raised* every active contrast ratio, because the ground
+goes from `--teal-50` to `--card`: label **7.27 → 7.58:1**, icon **5.25 → 5.47:1**, bar
+**5.25 → 5.47:1**. Nothing fell.
+
+The hover change is the substance rather than a tidy-up. While the fill existed,
+`.nav__item--active:hover` had to re-assert it or the generic `:hover` would repaint the
+current page grey — so a background meant two different things depending on which item it
+was under. With the fill gone, a background in the nav means exactly one thing: *your
+pointer is here*. The hovered item is the only filled item on the screen, and it is filled
+because it is under the cursor, not because it is where you are.
+
+What this did NOT fix, and is recorded here so a later session does not mistake it for
+drift: `.nav__item:hover svg` is `(0,2,1)` and `.nav__item--active svg` is `(0,1,1)` —
+`:hover` is a pseudo-class and counts in the class column. The hover rule therefore wins on
+**specificity**, not source order, and the active item's icon has gone `--muted` grey on
+hover since D2. That is unchanged by this entry (grey before, grey after) and was left
+alone deliberately: the grant was narrow and the icon is not this decision's subject. It is
+a real wart and the fix is one rule, `.nav__item--active:hover svg { color: var(--teal-700) }`.
+
+Falsifiable prediction: by 2027-02-25, no owner-facing session has needed to re-introduce a
+background fill, a tint, or any other filled shape to say which nav item is current, and no
+session has had to add a fourth channel to the active state. If a later session finds that
+owners cannot locate their current page without a fill, then the bar and the weight were
+not carrying it, the greyscale measurement above described luminance rather than
+legibility, and this entry is wrong. The specific thing to watch is the label: without hue
+it is **lighter** than an inactive label (77.3 vs 63.5), so it works slightly against the
+signal, and the correction if one is ever needed is more ink in the label — never a
+returning tint.
+
+Review: 2027-02-25
+
+---
+
+## D-019 — The nav's scrollbar is styled; the nav's height is not reclaimed
+
+Date: 2026-08-25
+Overrides: nothing. `.side__nav` had no scrollbar treatment and no entry.
+
+Decision: `.side__nav` gains `scrollbar-width: thin` and
+`scrollbar-color: var(--faint) transparent`, plus a `::-webkit-scrollbar` block for engines
+without the standard properties. Its `padding` is unchanged. Group labels and item height
+are unchanged. `.vp__b`, `.content` and every other scroll container in the portal keep
+their native treatment.
+
+Reason: the nav content is a constant **602px**. The container is the viewport height minus
+182 (brand 75 + foot 107), so the nav overflows below a **784px-tall viewport** and not at
+all above it — measured across twenty heights. On a 768 laptop the overflow is **16px**,
+and Windows Chrome answered those 16px with a 15px-wide slab, a near-full-length thumb and
+two stepper arrows, inside a 232px sidebar. Styled, the gutter is **10px** and the track is
+gone.
+
+The reclaim was considered and rejected: `.side__nav`'s own padding is the only in-scope
+lever and yields 18px, which clears a 768 viewport and not a 760 one. That cost is paid at
+100% of viewport heights to win inside a 766–784 band, and the 12px it would take is the
+last nav item's only separation from the `.side__foot` hairline. `scrollbar-width: thin`
+recovers 5px of the same gutter at every height that scrolls and costs nothing at the
+heights that do not.
+
+Never `scrollbar-width: none`, never `display: none` on the pseudo-element. The nav still
+scrolls by wheel, keyboard and touch when its scrollbar is hidden, which makes a hidden
+scrollbar a trap rather than a tidy-up. This is written into `tokens.css` beside the rule.
+
+Recorded because it is invisible to every existing tool: all five portal shoot scripts pass
+`--hide-scrollbars`, which is why this bar never appeared in a single piece of portal
+evidence across D1–D5b and Polish 1. It was found by eye and confirmed only by a probe that
+drops the flag (`scratchpad/`, not committed). On Chrome 151 the **standard properties**
+are what paint — verified by removing each mechanism in turn and reading the gutter: with
+the standard properties removed the gutter moves 10 → 8px (the webkit block taking over);
+widening the webkit rule to 30px moves nothing. The webkit block is a Safari-below-18.2
+fallback, not the working mechanism.
+
+Falsifiable prediction: by 2027-02-25, no session has needed to hide this scrollbar, to
+reclaim nav height to avoid it, or to reduce the nav below twelve destinations because of
+it. If a later session finds owners on short laptops cannot reach `History`, then a styled
+scrollbar was not enough affordance, the 602px should have been cut instead, and this entry
+is wrong.
+
+Review: 2027-02-25

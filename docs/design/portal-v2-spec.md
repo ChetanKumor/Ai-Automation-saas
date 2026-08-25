@@ -542,7 +542,9 @@ This is ~80 lines of vanilla JS with no dependency and it is the highest ratio o
 
 #### Other components
 
-**Nav item** — 32px, `--r-sm`, `--s-2`/`--s-3` padding, 16px icon in `--faint`, `--t-body-sm` at 500. Active: `--teal-50` fill, `--teal-700` text at 600, icon `--teal-700`, plus a 2px `--teal-700` left bar inset 4px. The bar matters: it survives greyscale and colour-blindness, which a tint alone does not.
+**Nav item** — 32px, `--r-sm`, `--s-2`/`--s-3` padding, 16px icon in `--faint`, `--t-body-sm` at 500. Active: **no fill** — `--teal-800` text at 600, icon `--teal-700`, and a 2px `--teal-700` left bar inset 4px. The bar matters: it survives greyscale and colour-blindness, which a tint alone does not.
+
+> **Corrected at Polish 2 (D-018).** This read *"`--teal-50` fill, `--teal-700` text at 600"*. Two corrections. The **fill is gone.** Measured, it moved the item ground from 255 to 250 in greyscale luminance — 2% of the range — so it was sitting beside the active signal rather than carrying it, which is what the second sentence of this line had said all along. Removing it *raised* every active ratio, because the ground goes from `--teal-50` to `--card`: label 7.27:1 → 7.58:1, icon and bar 5.25:1 → 5.47:1. And the active label token was always **`--teal-800`**, not `--teal-700` — `tokens.css` has said so since D2 and this line had drifted. §3.4's greyscale claim is unaffected and stands.
 
 **Nav group header** — `--t-micro`, `--faint`, `--s-4` top / `--s-2` bottom padding, no rule.
 
