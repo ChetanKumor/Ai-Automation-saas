@@ -48,7 +48,9 @@
    * word "press" described only by accident. Those resolve to --teal-700, the
    * accent on the light ground — not to --teal-900, which is a pressed button.
    * ────────────────────────────────────────────────────────────────────────── */
-  --teal-50:  #f0fdfa;   /* active nav fill, selected row, subtle info fill */
+  --teal-50:  #f0fdfa;   /* lightest teal fill — pressed toggles, chips, badges,
+                            ⌘K current row, info panels (more of them reach it
+                            through --teal-050). NOT the nav: see D-018. */
   --teal-100: #ccfbf1;   /* badge fill on light ground */
   --teal-200: #99f6e4;   /* chart series fill, hover on tinted surfaces */
   --teal-300: #5eead4;   /* reserved */
@@ -363,15 +365,35 @@ a { color: var(--teal-700); }
  * would otherwise strip the active label back to slate the moment a pointer
  * touched it.
  *
- * The ICON is a different story and the measurement is worth recording, since
- * reading the file suggests the opposite. .nav__item:hover svg is (0,2,1) —
- * :hover is a pseudo-CLASS and counts in the class column — while
- * .nav__item--active svg is only (0,1,1). The hover rule therefore WINS, and
- * the active icon has gone --muted grey on hover since D2. That is not fixed
- * here: it predates this change, the grant was the fill, and the icon is not
- * this rule's subject. The one-line fix, when someone wants it, is
- * .nav__item--active:hover svg { color: var(--teal-700); } — see D-018. */
+ * The ICON is a different story, and the arithmetic is worth recording because
+ * reading the file gets it wrong twice.
+ *
+ * TRAP ONE: .nav__item:hover svg is (0,2,1) — :hover is a pseudo-CLASS and
+ * counts in the class column — while .nav__item--active svg is only (0,1,1).
+ * The hover rule wins, and the active icon went --muted grey on hover from D2
+ * until the last rule below.
+ *
+ * TRAP TWO, and the reason that rule is spelled the way it is: the obvious
+ * fix, .nav__item--active:hover svg, is NOT stronger. One class + one
+ * pseudo-class + one type is (0,2,1) again — a TIE with the rule it means to
+ * beat, broken only by sitting later in the file. Spelled that way it would
+ * work where it sits and stop working the moment anyone moved it up.
+ *
+ * So the class is REPEATED. That is the mechanism, not a typo: two class
+ * selectors + :hover + svg is (0,3,1), which outranks (0,2,1) outright while
+ * matching exactly the same elements. Do not "simplify" it away.
+ *
+ * VERIFIED, NOT DERIVED. Each candidate was injected at index 0 of this
+ * stylesheet — the worst source position, where every existing rule comes
+ * after it — and the hovered icon read back:
+ *   .nav__item--active:hover svg                    @0  LOST — stayed #64748b
+ *   the same rule, appended at the END                  WON  — position, not rank
+ *   .nav__item--active.nav__item--active:hover svg  @0  WON  — rank, not position
+ *   .nav__item--active svg              (0,1,1)     @0  LOST
+ *   .nav__item:hover svg                (0,2,1)     @0  LOST
+ * See D-018. */
 .nav__item--active:hover { color: var(--teal-800); }
+.nav__item--active.nav__item--active:hover svg { color: var(--teal-700); }
 /* The 2px bar is not decoration. A tint alone carries the active state in HUE
  * only, so it disappears in greyscale and thins out badly under deuteranopia /
  * protanopia. The bar is a POSITIONAL cue and survives both. */

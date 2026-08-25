@@ -161,18 +161,20 @@ Teal is kept. It is consumed on all 14 portal pages, covered by the root suite, 
 
 | Token | Value | Contrast | Use |
 |---|---|---|---|
-| `--teal-50` | `#F0FDFA` | — | Active nav background, selected row, subtle info fill |
+| `--teal-50` | `#F0FDFA` | — | Pressed toggles, chips and badges, the ⌘K current row, subtle info fill |
 | `--teal-100` | `#CCFBF1` | — | Badge fill on light ground |
 | `--teal-200` | `#99F6E4` | — | Chart series fill, hover on tinted surfaces |
 | `--teal-300` | `#5EEAD4` | — | Reserved |
 | `--teal-400` | `#2DD4BF` | 9.4:1 on `--field` | **Accent on the ink ground.** Hover state there. |
 | `--teal-500` | `#14B8A6` | 7.9:1 on `--field` | **Accent on the ink ground.** Links, focus, live dot in the Verbatim panel. This is `web/globals.css`'s current value — now a named step, not a divergence. |
 | `--teal-600` | `#0D9488` | 3.9:1 on `--card` | Chart series 1. Large text and non-text UI only. |
-| `--teal-700` | `#0F766E` | **5.4:1** on `--card` | **The accent on the light ground.** Primary buttons, active nav text, links, focus ring. Unchanged from today. |
+| `--teal-700` | `#0F766E` | **5.4:1** on `--card` | **The accent on the light ground.** Primary buttons, the active nav icon and bar (resting and hovered), links, focus ring. Unchanged from today. |
 | `--teal-800` | `#115E59` | 7.4:1 | Primary button hover |
 | `--teal-900` | `#134E4A` | 9.6:1 | Primary button pressed |
 | `--accent` | `var(--teal-700)` | | The alias every component uses on light ground. |
 | `--accent-on-field` | `var(--teal-500)` | | The alias every component uses on the ink ground. |
+
+> **Corrected at Polish 4 (D-018).** Two rows. **`--teal-50`** read *"Active nav background, selected row, subtle info fill"* — **there is no active nav background.** D-018 removed `.nav__item--active`'s fill and corrected §2.9's nav-item line; this table was missed, and its surviving clauses named 2 of the token's 12 live sites. Measured from every `var(--teal-50)` site in `public/portal/`: **12 sites in 8 stylesheets** — four `[aria-pressed="true"]` toggles (language ×2, day, payment), four chips and badges (`.chip` ×2, `.greet-field__badge`, `.badge--teal`), the ⌘K palette's current row and its focus halo, one info note (`.hist-current-note`), and one hover fill (`.starter:hover`); five further sites reach the same value through the deprecated `--teal-050` alias. **`--teal-700`** read *"active nav text"* — measured at runtime the active label is **`--teal-800`** (`rgb(17,94,89)`) and `--teal-700` (`rgb(15,118,110)`) is the active **icon and bar**, the same drift :547 corrected one line of at §2.9. Polish 4 also made `--teal-700` the active icon's colour on **hover**, which it had not been since D2.
 
 **Rule:** an interface element gets accent colour only if it is (a) the primary action on the screen, (b) the current navigation position, (c) a link, (d) a focus indicator, or (e) the live indicator. Nothing else. No accent-coloured headings, no accent-coloured icons in a resting state, no accent borders on cards.
 
