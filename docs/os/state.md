@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 7d49ec048739380306568a7b72b7ce5ba9a2634b
-Verified-on: 2026-08-24
+Verified-at: fc97326a4cc6f8a2448147fd5662889c7264f2f3
+Verified-on: 2026-08-25
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -629,6 +629,96 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE ACTIVE NAV ITEM DROPS ITS FILL, AND THE SCROLLBAR STOPS SHOUTING —
+  Portal polish 2, built** (`fc97326`). **Three files, +153/−3**:
+  `public/portal/tokens.css` (+43/−2, four hunks, all inside `.side__nav` or
+  `.nav__item--active*`), `docs/design/portal-v2-spec.md`, `docs/os/decisions.md`
+  (**D-018** and **D-019**). No page CSS, no `shell.js`, no HTML, no other page,
+  no backend. Node **1111 / 180 suites / 0 fail / 0 cancelled / 0 skipped** —
+  unmoved. `npm run os:check` exit 0; `shootD3`, `shootD4`, `shootD5a` and
+  `shootD5b` all exit 0 and reach capture, none modified.
+  ⚠️ The Python worker suite was **not re-run**; its **97** is carried forward.
+  **THE FILL WAS CARRYING 2% OF THE SIGNAL IT APPEARED TO CARRY.**
+  `.nav__item--active` no longer sets `background: var(--teal-50)`. The rule's
+  own neighbouring comment, written at D2, had always said a tint carries state
+  in hue only; this session measured it. The fill moved the item's greyscale
+  luminance from **255 to 250 — 2% of the range** — and the greyscale proof at
+  1440 is indistinguishable with and without it. Every active ratio **rose**,
+  because the ground goes from `--teal-50` to `--card`: label **7.27 → 7.58:1**,
+  icon **5.25 → 5.47:1**, bar **5.25 → 5.47:1**. Nothing fell. `--teal-50` the
+  token is untouched — it has eight other consumers.
+  **HOVER NOW MEANS ONE THING.** `.nav__item--active:hover` keeps its `color`
+  and drops its `background`. While the fill existed that rule had to re-assert
+  it, or the generic `.nav__item:hover` would repaint the current page grey — so
+  a background in the nav meant "you are here" on one item and "your pointer is
+  here" on the other eleven. It now means only the second.
+  ⚠️ **A PREMISE IN THE RULING WAS FALSIFIED BY THE MEASUREMENT, AND THE WART IS
+  RECORDED RATHER THAN FIXED.** `.nav__item:hover svg` is **(0,2,1)** and
+  `.nav__item--active svg` is **(0,1,1)** — `:hover` is a pseudo-CLASS and counts
+  in the class column — so the hover rule wins on **specificity**, not source
+  order. The active item's icon has therefore gone `--muted` grey on hover
+  **since D2**. Measured in both directions (grey before, grey after); unchanged
+  by this session and deliberately left alone, the grant being the fill. The fix
+  is one rule: `.nav__item--active:hover svg { color: var(--teal-700); }`.
+  Hovered-state ratios moved with the ground and stayed far above floor: label
+  **7.27 → 7.12:1**, icon **4.56 → 4.47:1**.
+  **THE NAV OVERFLOWS BELOW A 784px-TALL VIEWPORT AND NOT AT ALL ABOVE IT.**
+  Content is a constant **602px**; the container is viewport height **− 182**
+  (brand 75 + foot 107). Swept across twenty heights at width 1440:
+
+  | Viewport height | Container | Overflow | Gutter before → after |
+  |---|---|---|---|
+  | 900 | 718 | **0** | none → none |
+  | 784 | 602 | **0** | none → none |
+  | 782 | 600 | 2 | 15px → **10px** |
+  | 768 | 586 | **16** | 15px → **10px** |
+  | 720 | 538 | 64 | 15px → **10px** |
+  | 620 | 438 | 164 | 15px → **10px** |
+
+  At 1440×900 there is **no scrollbar at all** — the reported sighting was a
+  1440-*wide* window on a laptop whose viewport height is under 784. `.side__nav`
+  gains `scrollbar-width: thin` + `scrollbar-color: var(--faint) transparent`
+  plus a `::-webkit-scrollbar` fallback. **Height was NOT reclaimed**: the
+  container's own padding is the only in-scope lever, yields 18px, clears 768 and
+  not 760 — a cost paid at 100% of heights to win inside one 18px band, and the
+  12px is the last nav item's only separation from the `.side__foot` hairline.
+  ⚠️ **ON CHROME 151 THE STANDARD PROPERTIES PAINT AND THE WEBKIT BLOCK IS
+  INERT.** Verified by removing each mechanism and reading the gutter, not
+  assumed: with the standard properties removed the gutter moves **10 → 8px**
+  (the webkit block taking over); widening the webkit rule to 30px moves
+  **nothing**. The webkit block is a Safari-below-18.2 fallback, not the working
+  mechanism. Never `scrollbar-width: none` and never `display: none` — the nav
+  still scrolls by wheel, keyboard and touch when hidden. Confirmed at 1440×620
+  after the change: `max` 164, programmatic scroll 40, focusing the last nav link
+  scrolls to 164 and leaves it visible, `touch-action: auto`, `overflow-y: auto`.
+  ⚠️ **NO EXISTING TOOL CAN SEE THIS SCROLLBAR AND NONE COULD HAVE FOUND IT.**
+  All **five** portal shoot scripts pass `--hide-scrollbars` (`shoot.js:502`,
+  `shootD3:442`, `shootD4:393`, `shootD5a:501`, `shootD5b:578`), which is why the
+  bar never appeared in a single piece of portal evidence across D1–D5b and
+  Polish 1. The Node suite has **zero** nav assertions. Both changes are
+  therefore invisible to the whole harness: the four shoots staying green is a
+  no-regression result, not a confirmation.
+  ⚠️ **TWO SHOOT REDS DURING THIS SESSION WERE ENVIRONMENTAL, NOT THE DIFF, AND
+  THE CAUSE IS NAMED SO THE NEXT SESSION DOES NOT RE-DERIVE IT.** `shootD5b`
+  failed twice with **different** symptoms (a pricing sticky-header assertion,
+  then a `.kv` selector timeout) with **25 stray `chrome.exe` processes** alive;
+  it and all four pass at 0 on a clean slate. `chrome.kill()` on Windows kills
+  only the parent and leaks the children. Additionally, `shootD5a` and `shootD5b`
+  own DevTools ports **9337** and **9338** — any harness reusing those will
+  attach to the wrong browser.
+  **UNFIXED, DELIBERATELY, AND OUT OF THE SESSION'S GRANT** — three items, all
+  reported rather than touched: (1) `tokens.css:51`'s comment on `--teal-50`
+  still reads *"active nav fill, selected row, subtle info fill"*; the first
+  clause is now false, and correcting it would have been a hunk outside the nav.
+  (2) `.vp__b`, `.content` and every other portal scroll container keep the
+  native scrollbar, so the portal is now inconsistent by exactly one styled
+  container. (3) The inactive nav icon sits at **2.56:1** — pre-existing,
+  `--faint` is declared non-text, and it is redundant beside its own text label.
+  Evidence: `scratchpad/pp2/probe.js`, `sweep.js`, `report-{before,after}.json`,
+  `sweep-before.json`, and `scratchpad/pp2/shots/pp2-{before,after}-*.png`
+  (greyscale proof on all three pages, sidebar at 1440 and 380, hovered active
+  item, and the scrollbar at five viewport heights with `--hide-scrollbars`
+  dropped). Not committed.
 - **THE LANGUAGE CONTROL STOPS BEING THE OPERATING SYSTEM'S, AND THE LEDGER
   HOLDS ITS SECOND COLUMN — Portal polish 3, built** (`7d49ec0`). **Two files,
   +309/−12**: `public/portal/verbatim.js`, `public/portal/verbatim.css`. No
