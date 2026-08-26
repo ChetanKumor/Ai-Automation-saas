@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 606d0694db40c9fd76974de9fc67be3be98271dc
+Verified-at: e0fb53068126163f606f92def44ac600bb2f9c17
 Verified-on: 2026-08-26
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -4900,7 +4900,7 @@ receptionist decide it needs a human* — rather than on code.
 on** — nothing moved, tracked or deleted.
 
 - **`scripts/portal/shots/shootD2.js` (516 lines) is the finding.** A harness
-  living inside the gitignored `scripts/portal/shots/` (`.gitignore:163`),
+  living inside the gitignored `scripts/portal/shots/` (`.gitignore:162`, `:163` before `e0fb530`),
   therefore invisible to every `git grep`, which searches tracked files only.
   Its own header (`:4-7`) says it was put there deliberately, to keep a session's
   *"every changed path under `public/portal/`"* acceptance criterion true. **The
@@ -4914,20 +4914,58 @@ on** — nothing moved, tracked or deleted.
 - **It is the only one.** Repository-wide, the sole non-vendor, non-build
   untracked `.js` inside an ignored directory. The rest are `.venv` and
   `web/.next`.
-- **`scratchpad/` is NOT gitignored.** `git check-ignore -q scratchpad/_probe.js`
-  exits **1**; `git status` reports `?? scratchpad/`, and `??` means untracked,
-  not ignored. Only `*.log` inside it matches a rule (`.gitignore:12`). The
-  standing *"scratchpad/ never committed"* convention is enforced by **nothing
-  but discipline** — a `git add -A` commits the lot. (Caveat for re-checkers:
-  `git check-ignore -v scratchpad/` *does* exit 0 with an **empty** pattern at
-  the blank line 164; that is a trailing-slash artefact, not a match.)
-  **Recommended: add `scratchpad/` to `.gitignore`** — structural, and nothing
-  is tracked from there today.
-- **`.gitignore:156` is a committed merge-conflict marker** —
-  `>>>>>>> 1a7b8f062315057373a66493f1d7fd96cc85c01b`, blamed to `3b438e2`
-  *"Merge remote .gitignore and local files"*. The `<<<<<<<` and `=======`
-  halves are absent. Inert as a pattern; unresolved merge residue in the one
-  file that governs what the repository can see. **Recommended: delete the line.**
+- ~~**`scratchpad/` is NOT gitignored.**~~ **DONE at `e0fb530`** (2026-08-26).
+  It was enforced by **nothing but discipline** — twelve sessions of prompts
+  asserted it as though it were a rule, and a `git add -A` would have committed
+  the lot. Only `*.log` inside it matched anything (`.gitignore:12`). Proven safe
+  to add before adding it: `git log --all -- scratchpad/` is **empty**, so no
+  scratchpad content has ever been committed on any ref. Now `.gitignore:168`.
+  ⚠️ **Caveat that outlived the fix — `git check-ignore -v scratchpad/` WITH A
+  TRAILING SLASH exits 0 with an EMPTY pattern whether or not a rule exists.**
+  It is a trailing-slash artefact on any untracked path, reproducible with a
+  directory that does not exist (`definitely-not-real-xyz/` prints the same
+  bogus 0). Before the fix it printed the blank line 164; it would have printed
+  *something* regardless. **Use the slash-free form** — `git check-ignore -v
+  scratchpad` — which was rc=1 before and is rc=0 at `.gitignore:168` now.
+  Anyone re-checking this with the slash form will conclude it was always
+  ignored, which is how the gap survived twelve sessions.
+- ~~**`.gitignore:156` is a committed merge-conflict marker**~~ — **DONE at
+  `e0fb530`** (2026-08-26). `>>>>>>> 1a7b8f062315057373a66493f1d7fd96cc85c01b`,
+  blamed to `3b438e2` *"Merge remote .gitignore and local files"*.
+  **It hid nothing.** At `3b438e2` the marker was the file's **last line
+  (156 of 156)** — a trailing orphan from a hand-resolved merge, not a
+  truncation; lines 157+ were appended by three later commits. The referenced
+  sha is a **third** *"Initial commit"* whose `.gitignore` is byte-identical to
+  parent `8c75cb7`'s, and it is not a parent of the merge.
+  ⚠️ **It also disabled nothing, contrary to the usual intuition** — gitignore
+  has no syntax errors, so the line parsed as a literal pattern matching a file
+  named `>>>>>>> 1a7b8f06…`, which cannot exist (and `>` is not a legal NTFS
+  filename character). All four rules below it were verified functional before
+  and after removal. Removing it shifted every later line up by one:
+  `scripts/portal/shots/` is now **`.gitignore:162`**, still cited as `:163` in
+  `docs/audit/2026-08-F-H003-untracked-harness-inventory.md` and
+  `docs/audit/2026-08-shootd5b-e-flake-filed.md`, which are dated records and
+  were deliberately not edited.
+
+### Shoot baseline, 2026-08-26 (landing session — the first on a tree that matches a commit)
+
+Run at `e0fb530`, **clean tree**, in order, each minting and dropping its own
+scratch DB. Every previous baseline in this file was measured against a working
+tree carrying the uncommitted §E fix, so no commit held the code that produced
+those numbers. This is the first one where the bytes run and the bytes committed
+are the same.
+
+| Shoot | Exit | Note |
+|---|---|---|
+| `shootD3` | **0** | green, first run |
+| `shootD4` | **0** | green, first run |
+| `shootD5a` | **0** | green, first run — the filed `:589` flake did **not** fire |
+| `shootD5b` | **0** | green, first run — §E reads `[true,56,true,false]` |
+
+**Zero `✗` in all four logs, no re-runs needed, and no Neon transport failure**
+(the previous baseline's `Connection terminated unexpectedly` on the fourth
+consecutive scratch-DB cycle did not recur). Per the amended gate this is a
+clean set: nothing red, at a filed site or otherwise.
 
 ### Shoot baseline, 2026-08-26 (audit session — no portal code touched)
 
@@ -5095,16 +5133,6 @@ all branches fast-forward onto main · one issue per session · runtime evidence
 
 ## Known open risks
 
-- ⚠️ **THE `shootD5b` §E FIX IS IN THE WORKING TREE BUT NOT IN THIS COMMIT.**
-  `scripts/portal/shootD5b.js` carries the prior session's repair (+37/−3: an
-  `afterReady` `waitForSelector` gate before the scroll, and a polled read
-  instead of a 400 ms sleep) and is **uncommitted at this commit**. The
-  conversation-model audit session that wrote the `Verified-at` below was
-  documentation-only by its own brief and did not commit code, so the *Resolved*
-  entry for §E describes work that is real, present on disk, and unlanded. The
-  next session that touches portal code should land it first. Nothing else in
-  the tree depends on it: all four shoots are green at HEAD **with** the working
-  tree as it stands (see the shoot baseline below).
 - ⚠️ **`shootD5a.js:589` IS THE SAME FLAKE AS `shootD5b` §E, REPRODUCED THIS
   SESSION AND NOT FIXED** (untouched file, outside the session's scope). It went
   red on the first clean-slate baseline run — *Home: the ring is what says it
@@ -5253,7 +5281,7 @@ all branches fast-forward onto main · one issue per session · runtime evidence
   UNREACHABLE.** `scripts/portal/shots/shootD2.js` carries this same gate with
   the same constant and a comment naming the same mechanism on `hours.html` —
   but `scripts/portal/shots/` is the screenshot OUTPUT directory and is
-  gitignored (`.gitignore:163`), so that harness is **untracked**: `git ls-files`
+  gitignored (`.gitignore:162`, `:163` before `e0fb530`), so that harness is **untracked**: `git ls-files`
   matches nothing for `shootD2`. §E was written without the gate six sessions
   later. The quoted lines are preserved in the audit file, since the citation
   cannot be followed from a clone.
@@ -5265,6 +5293,17 @@ all branches fast-forward onto main · one issue per session · runtime evidence
   (Fisher exact two-sided **p = 7.5e-7**). The polled read also returns in
   28–158 ms instead of a flat 414 ms, so the fixed test is faster than the flaky
   one. The confirmation runs are recorded as a tally, not as the proof.
+  **LANDED at `7398fb7`** (2026-08-26), `scripts/portal/shootD5b.js` alone,
+  **+34/−3** — not the +37/−3 this file previously recorded, which read the
+  `git diff --stat` bar (34 + 3 = 37 lines touched) as an insertion count. For
+  two sessions the fix existed only in the working tree while this entry
+  described it as done; that gap is closed, and the numbers below were the first
+  measured on a tree that matches a commit. Re-verified from the clean checkout
+  against the **byte-unmodified committed script**, with the server slowed
+  instead of the test edited (`scratchpad/d5b/slow-api.js` via `--require`,
+  delaying `/portal/api/config/pricing` only): **300 ms — the cliff that was
+  9/9 red — exits 0, and 3000 ms exits 0**, both reading
+  `[true,56,true,false]`, with zero `✗` anywhere in either run.
 
 - ~~Test-suite nondeterminism traced to Neon network latency~~ — **resolved** by
   `c673673` (TEST-FLAKE-02). `tests/_support/testEnv.js` is the single seam that
