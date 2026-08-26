@@ -886,20 +886,51 @@ const TARGETS_EXPR = `(function(){
     ] });
 
     // ── E · the sticky page header on mobile ────────────────────────────────
+    //
+    // THE PAGE MUST BE SCROLLABLE BEFORE IT IS SCROLLED, and `waitFor: ready`
+    // does not make it so. `ready` is `.card`, which on pricing.html is
+    // #loadCard — the loading SKELETON. It is in the static HTML at first paint
+    // and is only `hidden = true`d once the config fetch lands (pricing.js:347),
+    // so the gate is satisfied before any data exists. Until the fetch lands the
+    // document is exactly one viewport tall (scrollHeight 820 === innerHeight),
+    // `window.scrollTo(0, 600)` clamps to 0, NO scroll event is dispatched at
+    // all, and shell.js:795 correctly leaves `is-stuck` off because scrollY
+    // really is 0. The read is then [false, 76, true, true] — a working product
+    // reported as a red test. It reproduced on a baseline run at HEAD, and a
+    // 450ms delay on /portal/api/config/pricing makes it happen every time.
+    //
+    // Waiting LONGER after the scroll cannot fix this: scrollTo is
+    // fire-and-forget, so once it has no-opped there is nothing left to arrive.
+    // The gate has to come BEFORE the scroll — that is the whole repair.
+    //
+    // Both waits are `waitForSelector`: bounded at 60 × 150ms and throwing the
+    // expression it gave up on, so a real regression fails loudly instead of
+    // being absorbed by a longer sleep.
     console.log('  E — sticky page header at 380: title stays, description goes:');
     await probe(cdp, { url: base + '/pricing.html', cookie, port, width: 380, height: 820, mobile: true,
-      waitFor: ready, collapsed: true, checks: [
+      waitFor: ready, collapsed: true,
+      afterReady: (c, sid) =>
+        waitForSelector(c, sid, 'document.documentElement.scrollHeight > window.innerHeight + 500'),
+      checks: [
         ['before scroll: description visible',
           "document.querySelector('.page-head__sub').offsetHeight>0", true],
         ['after scroll: header pinned, title visible, description gone',
           `(function(){window.scrollTo(0,600);
-            return new Promise(function(res){setTimeout(function(){
+            // Poll the condition rather than sleeping a guess: the class lands
+            // within one frame of the scroll event: 66/66 instrumented greens
+            // already had the class at the 25ms sample. On the deadline it
+            // resolves anyway, so the assertion reports the state it actually
+            // found instead of hanging.
+            var deadline=Date.now()+3000;
+            return new Promise(function(res){(function poll(){
               var h=document.querySelector('.page-head');
+              if(!h.classList.contains('is-stuck') && Date.now()<deadline)
+                return setTimeout(poll,25);
               var r=h.getBoundingClientRect();
               res([h.classList.contains('is-stuck'),
                    Math.round(r.top),
                    document.querySelector('.page-head__title').offsetHeight>0,
-                   document.querySelector('.page-head__sub').offsetHeight>0]);},400);});})()`,
+                   document.querySelector('.page-head__sub').offsetHeight>0]);})();});})()`,
           [true, 56, true, false]],
       ] });
 
