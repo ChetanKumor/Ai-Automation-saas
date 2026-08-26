@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 4c1a3115770a41b9adf12250778aab5a24ecd01f
-Verified-on: 2026-08-25
+Verified-at: 606d0694db40c9fd76974de9fc67be3be98271dc
+Verified-on: 2026-08-26
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -712,6 +712,10 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   content-readiness race and is **still unexplained and unfiled**. A second full
   sweep after the change was clean: `shootD3`, `shootD4`, `shootD5a`, `shootD5b`
   all exit 0 and reach capture on a verified-clean slate, none modified.
+  ✅ **SUPERSEDED — the flake is now characterised, filed and fixed.** Polish 4's
+  reading above ("a scroll or content-readiness race") was right, and it was the
+  **content-readiness** half. See *`shootD5b` §E — the harness was racing, not the
+  product* under **Resolved**, and `docs/audit/2026-08-shootd5b-e-flake-filed.md`.
   **`--teal-50`'s COMMENT DESCRIBED 2 OF ITS 12 LIVE SITES, AND THE FIRST CLAUSE
   WAS DEAD.** `tokens.css:51` read *"active nav fill, selected row, subtle info
   fill"*. Inventoried from every `var(--teal-50)` occurrence, each selector then
@@ -4774,6 +4778,181 @@ Additions since the original 1–28, all in the plan's Phase 8:
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
 
+### Conversation data model — audited 2026-08-26, nothing built
+
+`docs/audit/2026-08-conversation-model.md`. An audit session for three proposed
+portal screens — Patient Thread, Inbox, Clinic Snapshot. **No schema change, no
+migration, no route, no UI.** Every schema and migration in that document is
+PROPOSED. The three screens already exist as static demo pages
+(`public/demo/index.html`, `inbox.html`, `dashboard.html`), which the audit
+treats as the specification because they are the only concrete statement of
+what the screens contain.
+
+Four findings, each cited in full in the audit:
+
+1. **Voice and WhatsApp ALREADY CONVERGE, and the convergence is forced.** Both
+   channels call the same `conversationService.getOrCreateOpenConversation`
+   (`conversationService.js:3-13`) — WhatsApp at `channels/index.js:71-73`, voice
+   at `internalVoice.js:652-654`. Its `ON CONFLICT` arbiter is
+   `(tenant_id, customer_id) WHERE status = 'open'` and **`channel` is not in the
+   key**, so a voice call from a customer with an open WhatsApp thread *reuses
+   that row*. Both paths also normalise to E.164 before any DB write
+   (`customerService.js:5`, `identityService.js:24-26`, `utils/phone.js:30-45`),
+   so they land on one `customers` row **regardless of
+   `IDENTITY_RESOLUTION_ENABLED`**. *"One patient · one thread · two channels" is
+   expressible today — verdict YES.* What follows from that: **`conversations.channel`
+   records only the CREATING channel and is never updated** (`DO UPDATE` touches
+   only `updated_at`), so it lies on any cross-channel thread.
+   `adminRoutes.js:428` already works around this with
+   `array_agg(DISTINCT m.channel)`; `adminRoutes.js:518` still returns the stale
+   `c.channel`. **Rule for any new query: derive channels from
+   `messages.channel`, never from `conversations.channel`.**
+2. **The English gloss is ABSENT and NOT DERIVABLE.** No column (zero hits for
+   `translat|gloss|english_` across `schema.sql` and all 26 migrations), no
+   producer (the only hits in `src/` are a doc-comment and the endpoint path in
+   `voice/providers/sarvam.js:14,43` — and `:46` reads only `data.transcript`
+   and `data.language_code`), and **the demo fixture's gloss is HAND-AUTHORED**:
+   `scripts/demo/capture_result.json` — the machine-captured artifact — has no
+   `english_gloss` key at all, and it is the one field in `fixture.json`'s
+   provenance block **not marked *REAL***. `public/demo/app.js:106` renders it
+   unconditionally. Under the standing never-invent-translation rule this is a
+   hard blocker on the Patient Thread *as drawn*; the audit recommends shipping
+   the vernacular-only version and scoping the gloss producer separately.
+3. **The portal has NO conversational read surface.** All 34 `/portal/api/*`
+   routes are config / readiness / lifecycle / doctors / FAQs / test-turn /
+   config-history. The only conversation endpoints in the codebase are
+   `/admin/api/conversations` (`adminRoutes.js:398`) and
+   `/admin/api/conversations/:id` (`:475`), behind the single operator password.
+   Both are already the right shape — the list keyset-paginates and filters by
+   channel via `EXISTS` over `messages`; the detail returns ordered messages with
+   per-row `channel` plus linked `call_sessions`. **Porting them tenant-scoped is
+   the cheapest path to Inbox and Patient Thread.**
+4. **Demo isolation is STRUCTURAL in the read direction, CONVENTIONAL in the
+   write direction.** Demo pages cannot reach the database — the only three
+   network calls are `fetch('./fixture.json')` (`app.js:140`),
+   `'./inbox.json'` (`inbox.js:163`), `'./dashboard.json'` (`dashboard.js:93`),
+   all relative static files. **But** `scripts/seed_voice_test_customer.js` and
+   `scripts/demo/capture_turn.js` write fabricated rows to whatever
+   `DATABASE_URL` points at, under hard-coded tenant
+   `11111111-1111-1111-1111-111111111111`, with **no production refusal** — while
+   `scripts/seed-portal-owner.js:92-93` already has exactly that guard, three
+   lines long. No conversational table has an `is_demo`/`source` marker, and
+   `/admin/api/conversations` lists every tenant when `tenant_id` is omitted
+   (`:407`). **The portal is safe today only because it reads no conversational
+   data; that accident ends with the first Inbox route.**
+
+Other verdicts worth carrying forward:
+
+- **`customer_memory` HAS NO WRITER.** Read once (`contextAssembler.js:79`),
+  counted once in the residue check (`scriptedTurnCheck.js:216`), written
+  nowhere in `src/`. The "long-term AI memory" of `schema.sql:256-259` is
+  permanently empty at HEAD.
+- **`aiService.js` performs ZERO database calls.** The brain persists nothing;
+  all writes are at the route boundary, in the trace collector, or in event-bus
+  subscribers.
+- **`handoff_sessions` has exactly one writer and it is not the AI** —
+  `ownerCommands.js:98-104`, `:151-155`, `:224`, all reached only by an owner
+  typing a WhatsApp text command. **There is no automatic AI→human escalation
+  anywhere, and voice can never produce a handoff row.** This is why the Inbox's
+  "Needs staff" filter and the Snapshot's "handled without staff %" — the two
+  elements carrying the product's value proposition — have **no backing data at
+  all**.
+- **The Meta `pricing` object is NOT persisted.** `whatsapp/routes.js:79-84`
+  logs `status` and `recipient_id` from `statuses[0]` and `continue`s; the array
+  is discarded. C-5's requirement does **not** already exist. (C-5 is documented
+  at `docs/analysis/prantivo-pricing-decision-entries.md:159-166` and is **not**
+  in `clocks.md` — `decisions.md:767-772` says so itself. `clocks.md` is
+  founder-supplied and was not written.)
+- **`retention_days` misdescribes itself.** `config/schema.js:376` comments it
+  *"days to retain conversation/customer data"*, but its only consumer,
+  `retentionCron.js:30-35`, deletes from **`turn_traces` and nothing else**. No
+  `DELETE FROM messages|conversations|customers|call_sessions` exists in `src/`
+  outside the synthetic-probe cleanup at `scriptedTurnCheck.js:205`. **Patient
+  conversation text is retained forever, under a config field that says
+  otherwise.** Named, not solved.
+- **`appointments` has no thread link and no actor attribution.** The one INSERT
+  (`appointmentService.js:368-372`, twin at `:514-518`) writes five columns; no
+  `conversation_id`, no `booked_by`. Snapshot's "appointments booked by AI" is
+  impossible without a new column.
+- **Two missing indexes for Snapshot**: there is no `messages(tenant_id,
+  created_at)` and no `call_sessions(tenant_id, started_at)`. Every Snapshot card
+  is a tenant-wide time-range aggregate and neither table has an index for one.
+
+**Genesis window — verified TRUE and narrower than it sounds.** Production
+deployments remain 0 and `docs/deploy/` still holds only `prod-readiness.md` and
+`audit/`. Issue 20 runs `db:genesis`, which bootstraps from `schema.sql` and
+**stamps** `002`–`027` without replaying them. So a conversation model folded
+into `schema.sql` before Issue 20 costs **zero execution** — no ordering, no
+lock, no backfill. Two honest qualifications the audit records: the lockstep
+rule means both files change either way, so *authoring* cost is identical; and
+all five proposed migrations are additive and would be cheap after genesis too.
+**Getting the event vocabulary wrong is far more expensive than running the
+migration six months late** — the window is not a reason to rush the design.
+
+Sizing: **9–13 sessions** for the three screens minus the gloss, of which 3
+(isolation hardening, data foundation, C-5 capture) are meaningfully cheaper
+before Issue 20, and 1–2 are gated on a product decision — *what makes the
+receptionist decide it needs a human* — rather than on code.
+
+### F-H003 — untracked harness inventory, filed 2026-08-26
+
+`docs/audit/2026-08-F-H003-untracked-harness-inventory.md`. **Filed, not acted
+on** — nothing moved, tracked or deleted.
+
+- **`scripts/portal/shots/shootD2.js` (516 lines) is the finding.** A harness
+  living inside the gitignored `scripts/portal/shots/` (`.gitignore:163`),
+  therefore invisible to every `git grep`, which searches tracked files only.
+  Its own header (`:4-7`) says it was put there deliberately, to keep a session's
+  *"every changed path under `public/portal/`"* acceptance criterion true. **The
+  criterion passed by hiding a file from git.** It carries **nine more instances**
+  of the vacuous-`.card`-gate bug at `:185-193` — had it been tracked, the §E
+  enumeration would have shown a pattern rather than one flake.
+  It **asserts nothing about product behaviour**: 12 readiness gates, **0**
+  expected-value checks, against `shootD5b.js`'s 74. Losing it would have lost a
+  reproduction recipe, not a test. **Recommended disposition: TRACK** (move to
+  `scripts/portal/shootD2.js`, where all nine siblings live).
+- **It is the only one.** Repository-wide, the sole non-vendor, non-build
+  untracked `.js` inside an ignored directory. The rest are `.venv` and
+  `web/.next`.
+- **`scratchpad/` is NOT gitignored.** `git check-ignore -q scratchpad/_probe.js`
+  exits **1**; `git status` reports `?? scratchpad/`, and `??` means untracked,
+  not ignored. Only `*.log` inside it matches a rule (`.gitignore:12`). The
+  standing *"scratchpad/ never committed"* convention is enforced by **nothing
+  but discipline** — a `git add -A` commits the lot. (Caveat for re-checkers:
+  `git check-ignore -v scratchpad/` *does* exit 0 with an **empty** pattern at
+  the blank line 164; that is a trailing-slash artefact, not a match.)
+  **Recommended: add `scratchpad/` to `.gitignore`** — structural, and nothing
+  is tracked from there today.
+- **`.gitignore:156` is a committed merge-conflict marker** —
+  `>>>>>>> 1a7b8f062315057373a66493f1d7fd96cc85c01b`, blamed to `3b438e2`
+  *"Merge remote .gitignore and local files"*. The `<<<<<<<` and `=======`
+  halves are absent. Inert as a pattern; unresolved merge residue in the one
+  file that governs what the repository can see. **Recommended: delete the line.**
+
+### Shoot baseline, 2026-08-26 (audit session — no portal code touched)
+
+Recorded, not chased: the session was documentation-only, so the shoots are
+context. Run as a set, in order, against the remote Neon `DATABASE_URL`
+(`ep-dry-bird-…ap-southeast-1.aws.neon.tech`), each minting and dropping its own
+scratch DB.
+
+| Shoot | Exit | Note |
+|---|---|---|
+| `shootD3` | **0** | green |
+| `shootD4` | **0** | green |
+| `shootD5a` | **0** | green — **the filed `:589` flake did NOT fire this run** |
+| `shootD5b` | **1**, then **0** on re-run | see below |
+
+`shootD5b`'s first run failed with `Error: Connection terminated unexpectedly`
+(pg-pool) at `shootD5b.js:525` — the `INSERT INTO users` seed, **before any
+capture and before any assertion**. It is not an assertion failure and not the
+filed `.card` flake; it is transport, on the fourth consecutive scratch-DB
+create/genesis/drop cycle against a remote serverless Postgres. The single
+re-run reached *"all assertions passed"* and exited 0. **Recorded as
+infrastructure, not as a product red** — but it is a distinct failure mode from
+the filed flake and has not been seen before, so it is written down rather than
+waved through.
+
 ## Frontend modernisation program (D-005) — COMPLETE
 
 Authorised by `D-005` (`56e7f46`), specified by `docs/audit/2026-07-frontend.md`
@@ -4916,6 +5095,29 @@ all branches fast-forward onto main · one issue per session · runtime evidence
 
 ## Known open risks
 
+- ⚠️ **THE `shootD5b` §E FIX IS IN THE WORKING TREE BUT NOT IN THIS COMMIT.**
+  `scripts/portal/shootD5b.js` carries the prior session's repair (+37/−3: an
+  `afterReady` `waitForSelector` gate before the scroll, and a polled read
+  instead of a 400 ms sleep) and is **uncommitted at this commit**. The
+  conversation-model audit session that wrote the `Verified-at` below was
+  documentation-only by its own brief and did not commit code, so the *Resolved*
+  entry for §E describes work that is real, present on disk, and unlanded. The
+  next session that touches portal code should land it first. Nothing else in
+  the tree depends on it: all four shoots are green at HEAD **with** the working
+  tree as it stands (see the shoot baseline below).
+- ⚠️ **`shootD5a.js:589` IS THE SAME FLAKE AS `shootD5b` §E, REPRODUCED THIS
+  SESSION AND NOT FIXED** (untouched file, outside the session's scope). It went
+  red on the first clean-slate baseline run — *Home: the ring is what says it
+  instead: false (expected true)* — and green on immediate re-run. Same shape as
+  §E: `waitFor: ready`, where `ready` is `document.querySelector('.card')`, then
+  the default 600 ms settle, then an assertion about content that only exists
+  after the fetch. **`.card` is a vacuous gate**: on these pages the first
+  `.card` is the loading SKELETON, in the static HTML at first paint and only
+  `hidden = true`d once data lands, so the gate is satisfied before any data
+  exists. The repair is §E's: gate on the thing actually asserted, not on
+  `.card`. Every `waitFor: ready` site in `shootD4`, `shootD5a` and `shootD5b` is
+  enumerated in `docs/audit/2026-08-shootd5b-e-flake-filed.md`; they are safe
+  only where the assertion happens to hold on a skeleton too.
 - ⚠️ **`portalLifecycle.integration.test.js:794` FAILS WHEN THE MACHINE IS FAST —
   a latent flake, measured this session and NOT fixed** (untouched file, outside
   this session's scope). The assertion is
@@ -5004,6 +5206,65 @@ all branches fast-forward onto main · one issue per session · runtime evidence
   different cause and is genuinely closed.
 
 ## Resolved
+
+- ~~`shootD5b` §E: *after scroll: header pinned, title visible, description gone*
+  reds intermittently, unexplained~~ — **characterised, filed and fixed this
+  session.** Full evidence in `docs/audit/2026-08-shootd5b-e-flake-filed.md`.
+  **THE HARNESS WAS RACING, NOT THE PRODUCT** — the distinction mattered more than
+  the fix, because a longer wait applied to a sticky-header product race would
+  have hidden a user-facing defect. Settled by instrumenting rather than by
+  counting: a capture-phase `scroll` counter installed at document start, before
+  any page script parses. **Across 92 instrumented observations there were ZERO
+  product-race observations** — not one case of `scrollY > 4` at the read with
+  `is-stuck` absent — and the separation is total: every green had
+  `scrollHeight` 2569–2713, every red had `scrollHeight` **exactly 820**, with no
+  value in between ever observed. `shell.js:795` was correct on every single
+  observation, red ones included.
+  **The mechanism.** `waitFor: ready` is `document.querySelector('.card')`
+  (`shootD5b.js:586`), and on `pricing.html` the first `.card` is `#loadCard`,
+  the loading **SKELETON** — in the static HTML at first paint and never removed,
+  only `hidden = true`d once the fetch lands (`pricing.js:347`). **The gate is
+  vacuous**: satisfied before any data exists. Until the config fetch lands the
+  document is exactly one viewport tall, so `window.scrollTo(0, 600)` clamps to
+  0, **dispatches no scroll event at all**, and `is-stuck` is correctly absent
+  because `scrollY` really is 0. The `76` is just `.page-head`'s natural
+  unscrolled `top`; once the readiness strip lands above it the same unscrolled
+  header reads `220`, which is the other red signature.
+  **Why "wait longer" would have been the wrong fix.** `scrollTo` is
+  fire-and-forget — once it has no-opped there is nothing left in flight to
+  arrive, so no timeout after the scroll can rescue the read. The gate has to
+  precede the scroll. The 400 ms was never the marginal quantity: in all 66
+  greens `is-stuck` was already present at the **25 ms sample**, 16× inside the
+  budget it allowed.
+  **Reproduction, three independent ways.** A document-start shim stalling
+  `/portal/api/`: 9/9 green at ≤200 ms, **2/3 red at 250 ms, 20/20 red at
+  ≥300 ms** — a cliff, not a distribution, with a margin of only ~500–600 ms of
+  extra round-trip latency, which is what "environmental" was pointing at.
+  On the **byte-unmodified** script with the server slowed instead of the test
+  edited (`NODE_OPTIONS=--require`, one route, 900 ms): red. And **naturally,
+  no lever, on a baseline run at HEAD**: `[false,76,true,true]`, the exact
+  signature. Natural rate **2/42 = 4.8%, Wilson 95% CI [1.3%, 15.8%]**.
+  **The fix** (`shootD5b.js` §E only, no other assertion touched): gate on
+  `document.documentElement.scrollHeight > window.innerHeight + 500` via the
+  harness's own `waitForSelector` **before** scrolling, then poll for the class
+  instead of sleeping 400 ms. Both waits are bounded at 60 × 150 ms and throw the
+  expression they gave up on — verified loud at 12 s of injected latency.
+  ⚠️ **THE PRIOR DIAGNOSIS OF THIS EXACT BUG WAS ALREADY IN THE TREE AND
+  UNREACHABLE.** `scripts/portal/shots/shootD2.js` carries this same gate with
+  the same constant and a comment naming the same mechanism on `hours.html` —
+  but `scripts/portal/shots/` is the screenshot OUTPUT directory and is
+  gitignored (`.gitignore:163`), so that harness is **untracked**: `git ls-files`
+  matches nothing for `shootD2`. §E was written without the gate six sessions
+  later. The quoted lines are preserved in the audit file, since the citation
+  cannot be followed from a clone.
+  ⚠️ **STATISTICALLY, TWENTY QUIET RUNS PROVE NOTHING HERE.** Both 20-trial
+  batches of warm back-to-back loads returned 0/20 — that arm's own 95% upper
+  bound is **16.1%**, so at a ~5% rate it cannot tell a fixed flake from an
+  unfixed one. The evidence for the fix is the lever: the identical sweep that
+  was **13/14 red is 0/14 red**, including at 3000 ms, 7.5× beyond the old cliff
+  (Fisher exact two-sided **p = 7.5e-7**). The polled read also returns in
+  28–158 ms instead of a flat 414 ms, so the fixed test is faster than the flaky
+  one. The confirmation runs are recorded as a tally, not as the proof.
 
 - ~~Test-suite nondeterminism traced to Neon network latency~~ — **resolved** by
   `c673673` (TEST-FLAKE-02). `tests/_support/testEnv.js` is the single seam that
