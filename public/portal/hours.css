@@ -17,17 +17,17 @@
 .day {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   flex-wrap: wrap;
-  padding: 12px 0;
+  padding: 14px 0;
   border-top: 1px solid var(--line-2);
 }
 .day:first-child { padding-top: 4px; border-top: none; }
 .day:last-child { padding-bottom: 2px; }
 
-.day__name { flex: 0 0 92px; font-weight: 600; font-size: 14px; color: var(--ink); }
+.day__name { flex: 0 0 92px; font-weight: 600; font-size: 13.5px; color: var(--ink-2); }
 .day__body { flex: 1; min-width: 0; display: flex; align-items: center; }
-.day__times { display: flex; align-items: center; gap: 10px; }
+.day__times { display: flex; align-items: center; gap: 12px; }
 .day__time { width: 128px; }
 .day__to { color: var(--muted); font-size: 13px; }
 .day__closed-label { display: none; color: var(--faint); font-size: 13.5px; font-style: italic; }
@@ -38,12 +38,16 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  min-height: 44px;
+  padding: 0 8px;
+  border-radius: var(--r-full);
   font-size: 13px;
   font-weight: 500;
   color: var(--muted);
   cursor: pointer;
   user-select: none;
 }
+.day__toggle:hover { background: #f0f4f8; color: var(--ink-2); }
 .day__toggle input {
   width: 16px; height: 16px;
   accent-color: var(--teal);
@@ -81,9 +85,9 @@
 .holiday-row {
   display: grid;
   grid-template-columns: 170px minmax(0, 1fr) auto auto;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
-  padding: 8px 0;
+  padding: 10px 0;
   border-top: 1px solid var(--line-2);
 }
 .holiday-row:first-child { border-top: 0; padding-top: 2px; }
@@ -113,14 +117,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--line);
-  background: var(--card);
-  border-radius: var(--radius-xs);
+  border: 1px solid var(--line-2);
+  background: #fbfcfe;
+  border-radius: var(--r-sm);
   color: var(--muted);
   cursor: pointer;
   transition: background .12s, border-color .12s, color .12s;
 }
-.holiday__remove:hover { background: var(--red-050); border-color: var(--red-100); color: var(--red); }
+.holiday__remove:hover { background: var(--red-050); border-color: var(--red-200); color: var(--red); }
 .holiday__remove svg { width: 16px; height: 16px; }
 
 .holiday__error {

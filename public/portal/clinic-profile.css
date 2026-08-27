@@ -10,8 +10,8 @@
 /* Loading / error placeholder (home.css isn't linked here, so define locally) */
 
 /* ── Phone number rows (add / remove) ── */
-.phones { display: flex; flex-direction: column; gap: 8px; }
-.phone-row { display: flex; gap: 8px; align-items: stretch; }
+.phones { display: flex; flex-direction: column; gap: 10px; }
+.phone-row { display: flex; gap: 10px; align-items: stretch; }
 .phone-row .input { flex: 1; min-width: 0; }
 .phone-row__remove {
   flex: none;
@@ -20,14 +20,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--line);
-  background: var(--card);
-  border-radius: var(--radius-xs);
+  border: 1px solid var(--line-2);
+  background: #fbfcfe;
+  border-radius: var(--r-sm);
   color: var(--muted);
   cursor: pointer;
   transition: background .12s, border-color .12s, color .12s;
 }
-.phone-row__remove:hover { background: var(--red-050); border-color: var(--red-100); color: var(--red); }
+.phone-row__remove:hover { background: var(--red-050); border-color: var(--red-200); color: var(--red); }
 .phone-row__remove svg { width: 16px; height: 16px; }
 .phones__add { margin-top: 10px; }
 .phones__add svg { width: 14px; height: 14px; }
@@ -38,16 +38,17 @@
   display: inline-flex;
   align-items: center;
   gap: 9px;
+  min-height: 44px;
   font: 600 13.5px/1 var(--sans);
-  padding: 9px 14px;
-  border: 1px solid var(--line);
+  padding: 9px 15px;
+  border: 1px solid var(--line-2);
   border-radius: 999px;
-  background: var(--card);
+  background: #fbfcfe;
   color: var(--ink-2);
   cursor: pointer;
   transition: background .12s, border-color .12s, color .12s;
 }
-.lang-toggle:hover { background: var(--bg); }
+.lang-toggle:hover { background: var(--card); border-color: var(--line-3); }
 .lang-toggle__check {
   width: 16px; height: 16px;
   flex: none;
@@ -64,8 +65,8 @@
 
 .lang-toggle[aria-pressed="true"] {
   background: var(--teal-50);
-  border-color: var(--teal-100);
-  color: var(--teal-700);
+  border-color: var(--teal-200);
+  color: var(--teal-800);
 }
 .lang-toggle[aria-pressed="true"] .lang-toggle__check {
   background: var(--teal);

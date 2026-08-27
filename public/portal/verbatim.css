@@ -50,13 +50,13 @@
    * the disabled footer button need one step brighter to read against
    * --field-2, which sits above --field. Kept here rather than in tokens.css:
    * D5 owns the token layer, and nothing outside this panel uses an ink line. */
-  --field-line-2: rgba(255, 255, 255, .16);
+  --field-line-2: rgba(255, 255, 255, .14);
   /* The same white-over-ink ramp one step BELOW the line: the ground a control
    * takes under the pointer or under focus. It is a ground, not a border, so it
    * sits under --field-line's .10 rather than over it. Two users only — the
    * language trigger and a listbox row — which is why it is a property and not
    * two literals waiting to drift apart. */
-  --field-3: rgba(255, 255, 255, .07);
+  --field-3: rgba(255, 255, 255, .06);
 
   width: var(--panel-w);
   flex: none;
@@ -66,7 +66,7 @@
   height: 100vh;
   z-index: 15;              /* under the sidebar (40) and the top bar (20) */
   background: var(--field);
-  border-left: 1px solid rgba(15, 23, 42, .16);
+  border-left: 1px solid rgba(15, 23, 42, .12);
   display: flex;
   flex-direction: column;
   color: var(--field-ink);
@@ -91,8 +91,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 44px;
-  padding: 0 16px;
+  height: 48px;
+  padding: 0 18px;
   flex: none;
   border-bottom: 1px solid var(--field-line);
 }
@@ -196,7 +196,7 @@
 .vp__opts {
   flex: none;
   width: max-content;
-  margin: var(--s-2) 16px var(--s-2) auto;
+  margin: var(--s-2) 18px var(--s-2) auto;
   padding: 6px;
   background: var(--field-2);
   border: 1px solid var(--field-line-2);
@@ -251,7 +251,7 @@
 .vp__b {
   flex: 1;
   min-height: 0;
-  padding: 18px 16px;
+  padding: 20px 18px;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -262,9 +262,9 @@
  * Telugu starts looking broken. */
 .vp__bub {
   background: var(--field-2);
-  border: 1px solid var(--field-line-2);
+  border: 1px solid var(--field-line);
   border-radius: var(--r-md);
-  padding: 14px 15px;
+  padding: 15px 16px;
 }
 .vp__te { font: 600 19px/34px var(--te); color: var(--field-ink); }
 .vp__hi { font: 600 19px/34px var(--hi); color: var(--field-ink); }
@@ -289,7 +289,7 @@
   margin-bottom: 3px;
 }
 
-.vp__hr { height: 1px; background: var(--field-line); margin: 18px 0; border: 0; }
+.vp__hr { height: 1px; background: rgba(255, 255, 255, .08); margin: 20px 0; border: 0; }
 
 .vp__k {
   font: 600 11px/1 var(--sans);
@@ -334,7 +334,7 @@
   flex-wrap: nowrap;
   align-items: baseline;
   column-gap: 12px;
-  padding: 6px 0;
+  padding: 7px 0;
   font: 400 13.5px/1.5 var(--sans);
 }
 .vp__fact-l { color: #B4BCC7; }
@@ -373,7 +373,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 16px;
+  padding: 14px 18px;
   flex: none;
   border-top: 1px solid var(--field-line);
 }
@@ -410,7 +410,7 @@
  * most of the people who need to read it. */
 .vp__note {
   margin: 0;
-  padding: 9px 16px;
+  padding: 9px 18px;
   flex: none;
   font: 400 11.5px/1.4 var(--sans);
   color: var(--field-muted);
