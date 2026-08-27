@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 6e8be59e28a9af69d800ba0d83bffbcd9d7d21b1
+Verified-at: 2b3cbfceef7bfa4acc299c54745523fd582a98ff
 Verified-on: 2026-08-27
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -76,9 +76,22 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1121 tests / 183 suites / 0 fail** (`npm test`, raw: `# tests 1121 /
-  # pass 1121 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  Moved at **`conversation_events`** (migration 029, `6e8be59`): **+8 tests, +2
+- Test suite: **1134 tests / 184 suites / 0 fail** (`npm test`, raw: `# tests 1134 /
+  # pass 1134 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  Moved at **the `disposition` deferral** (M-3, DECLINED): **+13 tests, +1 suite**,
+  all of them in ONE new file — `tests/conversation/dispositionDerivation.integration.test.js`,
+  a single `describe` with 13 `it`s. No existing suite gained or lost a test, and
+  no migration was written. The 13: the four returns of `deriveDisposition`
+  (no events → `'open'`; a `handled` event → `'handled'`; an unmapped type →
+  `null`; a non-existent conversation → `undefined`), latest-event-wins across
+  three appended events, the tenant-scoping negative (a second tenant derives
+  `undefined` and cannot tell a foreign thread from a non-existent one), the
+  **wrong-by-design TAKEOVER demonstration**, and five on the reconciliation
+  oracle (detects TAKEOVER on both signals; flags an uninterpretable latest type
+  without calling it drift; still reports the human finding when `derived` is
+  NULL; returns `[]` for a clean tenant; is tenant-scoped) plus one pinning the
+  mapping as the single source of truth for the derivation and the oracle alike.
+  Moved before that at **`conversation_events`** (migration 029, `6e8be59`): **+8 tests, +2
   suites**, and every one of them is in a NEW file — no existing suite gained or
   lost a test. `tests/db/conversationEvents.test.js` is 1 test / 1 suite (the
   migration-029 lockstep guard); `tests/conversation/conversationEvents.integration.test.js`
@@ -87,7 +100,6 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   tenant-scoping negative, an unknown conversation, and the actor CHECK paired
   with its open-set counterpart). The `portalLifecycle` trigger-test repair
   rewrote assertions inside ONE existing test and moved no count.
-  **Measured stable at 1121/183/0 on three consecutive full runs.**
   Moved before that at **the `origin_channel` rename** (`41ed6cd`): **+2 tests, +1 suite**. The
   two tests are the participation derivation (a cross-channel thread returns both
   channels, plus its tenant-scoping negative) added inside `channelStorage.test.js`'s
@@ -4796,17 +4808,112 @@ Additions since the original 1–28, all in the plan's Phase 8:
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
 
+### Conversation model: `conversations.disposition` — **DECLINED** 2026-08-27, no migration
+
+Phase 1c. **M-3 / P-3 was not built, and migration number 030 was not taken.**
+`src/db/migrations/` still ends at `029_conversation_events.sql`; `schema.sql` is
+untouched; no column named `disposition` exists anywhere in the database.
+
+The full argument, and the two conditions for revisiting, are in
+**`docs/audit/2026-08-disposition-deferred.md`**. Four reasons, in the order they
+decided it:
+
+1. **`booked` is the wrong SHAPE, not merely early.** `public/demo/inbox.json` is
+   the only surface that has ever rendered this field, and it renders exactly two
+   statuses, `handled` and `needs_staff`. The **one real captured patient**
+   (Sravani Reddy) booked an appointment and is rendered **`handled`**, with the
+   booking in the snippet. `booked` and `handled` are not on the same axis; a
+   single-valued column holding both encodes an undecided precedence rule, and the
+   rule P-3 implies contradicts the only rendering that exists. That is 029's
+   *expensive* direction — a value needing splitting or merging against live rows —
+   not the cheap widening 007 and 025 paid for.
+2. **A CHECK on `disposition` can destroy `conversation_events` rows.** Trustworthy
+   maintenance must be atomic with the event INSERT. `conversation_events.type` is
+   an OPEN set — asserted at `tests/db/conversationEvents.test.js:172-178` and
+   exercised live at `conversationEvents.integration.test.js:377`, which inserts
+   `escalated` today. Compose the two and a type outside the CHECK domain raises
+   23514 on the UPDATE and **rolls the INSERT back**; both emitters only
+   `logger.error` (`whatsapp/routes.js:269-273`, `internalVoice.js:291`, `:549`),
+   so it vanishes **silently**. 029's central claim — *"the day escalation exists,
+   `escalated` is an INSERT, not a migration"* — would invert.
+3. **The column can agree with the event log and still be wrong.** TAKEOVER
+   (`ownerCommands.js:91`, `:98-104`) flips `mode` to `human` and opens a
+   `handoff_sessions` row and emits **no** event, and the mode gate
+   (`whatsapp/routes.js:160-178`) returns before the emitter, so later turns emit
+   none either. A thread a human is actively working therefore derives `handled`,
+   and the "Needs staff" filter — the one filter carrying the product's value
+   proposition — would not show it.
+4. **No reader.** Zero references to `conversations.disposition` in `src/`,
+   `tests/`, `scripts/`, `public/`, `web/`. A-5 is audit Phase 3, two phases out.
+
+**What shipped instead**, in `src/modules/conversation/conversationService.js`:
+
+- `deriveDisposition(tenantId, conversationId)` — the read a column would have
+  served. Four returns, none collapsing into another: `undefined` (not visible to
+  this tenant, or no such id), `'open'` (visible, zero events), `'handled'` (the
+  one mapped type), `null` (events exist, latest unmapped). An unmapped type is
+  **not** `'open'` (a lie indistinguishable from the honest empty case), **not**
+  `'unknown'` (an invented value, and lossy), and **not the raw type** — pass-through
+  would return EVENT vocabulary where a DISPOSITION is expected, settling the
+  deferred vocabulary question by accident in code.
+- `findDispositionDisagreements(tenantId)` — the reconciliation oracle, and the
+  reason deferring is not "do nothing". A cache is only as good as the query that
+  proves it has not drifted, and **that query has to exist before the column
+  does**. With no column, drift is measured against `conversations.mode` and open
+  `handoff_sessions` rows. It takes the same frozen mapping into SQL as `jsonb`,
+  so the derivation and the oracle cannot drift apart.
+- `EVENT_TYPE_TO_DISPOSITION = { handled: 'handled' }`, frozen. What is
+  deliberately absent: `escalated → needs_staff`. `escalated` is an event,
+  `needs_staff` is a disposition, and deciding they are the same is A-2's call
+  against real rows.
+
+Neither function has a caller in `src/`. This is the read and its proof, not a
+surface.
+
+⚠️ **The TAKEOVER defect is asserted as WRONG-BY-DESIGN, not described.**
+`dispositionDerivation.integration.test.js` asserts the current, wrong behaviour
+in so many words. **When A-2 lands and `ownerCommands.js` emits on the TAKEOVER
+branch, that test MUST FAIL — that is the signal the defect is closed, not a
+regression.** Verified non-vacuous by falsification: adding an `escalated`
+emission to the fixture's `takeover()` turns it red (2 red / 11 green), the
+oracle test reading `derived: null` instead of `handled`.
+
+⚠️ **Two things found along the way.** (a) **`conversation_events` has no
+monotonic sequence.** `created_at` defaults to `NOW()` = *transaction* start, so
+two events in one transaction share it exactly; `id DESC` breaks the tie
+deterministically but `id` is a random `gen_random_uuid()`, so among simultaneous
+events the winner is arbitrary rather than chronological. Latent today — nothing
+writes two events in one transaction. (b) **`'open'` is honest as a derivation and
+misleading as a product statement.** `a550e900` is a real 115-message thread that
+predates 029, has zero events, and derives `'open'`. Every historical thread reads
+`'open'` and **no backfill can fix it**, because the events were never captured.
+
+**The index was not the problem, and that was checked rather than assumed.** On a
+throwaway scratch DB with P-3's column and index added and 2000 `ANALYZE`d rows,
+the "Needs staff" filter plans as an Index Only Scan with no Sort node, exactly as
+P-3 claims; and it does **not** displace `idx_conversations_tenant_updated` for
+the Issue 26 list query pinned by `provisioning.integration.test.js:111-126`
+(checked at 0 rows and 2000 rows, `enable_seqscan=off`). It simply has no query to
+serve, and `needs_staff` would match zero rows on every tenant until A-2 exists.
+
+**Audit corrections made in the same commit:** §9's M-3 row struck through and
+marked declined, with a table recording that the `#` labels are **not filenames**
+and have not been since M-2; a decline banner on §8/P-3 itself; and §10's Phase 3
+dependency corrected — the "Needs staff" filter depends on **A-2**, never on M-3.
+M-3 was only ever the index over an answer A-2 has to supply first.
+
 ### Conversation model: `conversation_events` — landed 2026-08-27 (`6e8be59`)
 
 Phase 1b of the conversation data foundation. Ships **M-2 / P-2** of
 `docs/audit/2026-08-conversation-model.md` — the durable outcome and event log —
-and nothing else from that audit's set. M-1, M-3, M-4 and M-5 are not built.
+and nothing else from that audit's set. M-1, M-4 and M-5 are not built; **M-3 was
+subsequently DECLINED outright** (see the entry above).
 
 **Why this one first, and it is not a preference.** The audit's §5 marks
 `outcome` **ABSENT**: `conversations.status` is `open`/`closed`/`pending`, a
 lifecycle state, and no column distinguishes "Appointment booked" from "Needs
-staff". P-3's `conversations.disposition` (migration 030, not built) is defined
-by the audit as *"strictly a materialised read of the latest
+staff". P-3's `conversations.disposition` (**since DECLINED — 030 was never
+taken**) is defined by the audit as *"strictly a materialised read of the latest
 `conversation_events` row"* — it cannot precede its own source. M-1 is per-turn
 attribution on `messages`; M-4 is booking provenance on `appointments`. **M-2 is
 the only migration in the set that carries outcome at all.**
@@ -5238,6 +5345,26 @@ on** — nothing moved, tracked or deleted.
   `docs/audit/2026-08-shootd5b-e-flake-filed.md`, which are dated records and
   were deliberately not edited.
 
+### Shoot baseline, 2026-08-27 (`disposition` declined — M-3, no migration)
+
+Run twice: once at `7180738` (clean tree, before any edit) and once at `2b3cbfc`
+after the change. Each shoot mints and drops its own scratch DB against the
+remote Neon `DATABASE_URL`. **No portal code was touched this session and no
+migration was written**, so these are a no-regression result and nothing more.
+
+| Shoot | Exit @ `7180738` | Exit @ `2b3cbfc` |
+|---|---|---|
+| `shootD3`  | **0** | **0** |
+| `shootD4`  | **0** | **0** |
+| `shootD5a` | **0** | **0** — the filed `:589` flake did not fire on either pass |
+| `shootD5b` | **0** | **0** — `all assertions passed` |
+
+**Zero `✗` in all eight logs, no re-runs, no Neon transport failure.** Per the
+amended gate both are clean sets, and it is the third and fourth consecutive
+clean set. Notable because the `:589` flake fired twice at the previous baseline:
+eight green runs here are consistent with the machine-load mechanism and do
+**not** constitute a fix — the vacuous `.card` gate is still there.
+
 ### Shoot baseline, 2026-08-27 (`conversation_events`, migration 029)
 
 Run at `6e8be59`, **clean tree**, in order, each minting and dropping its own
@@ -5481,11 +5608,10 @@ all branches fast-forward onto main · one issue per session · runtime evidence
 
 ## Known open risks
 
-- ⚠️ **`shootD5a.js:589` IS THE SAME FLAKE AS `shootD5b` §E, REPRODUCED THIS
-  SESSION AND NOT FIXED** (untouched file, outside the session's scope). It went
-  red on the first clean-slate baseline run — *Home: the ring is what says it
-  instead: false (expected true)* — and green on immediate re-run. Same shape as
-  §E: `waitFor: ready`, where `ready` is `document.querySelector('.card')`, then
+- ⚠️ **`shootD5a.js:589` IS THE SAME FLAKE AS `shootD5b` §E, STILL NOT FIXED**
+  (untouched file, outside every session's scope so far). Signature: *Home: the
+  ring is what says it instead: false (expected true)*. Same shape as §E:
+  `waitFor: ready`, where `ready` is `document.querySelector('.card')`, then
   the default 600 ms settle, then an assertion about content that only exists
   after the fetch. **`.card` is a vacuous gate**: on these pages the first
   `.card` is the loading SKELETON, in the static HTML at first paint and only
@@ -5494,6 +5620,21 @@ all branches fast-forward onto main · one issue per session · runtime evidence
   `.card`. Every `waitFor: ready` site in `shootD4`, `shootD5a` and `shootD5b` is
   enumerated in `docs/audit/2026-08-shootd5b-e-flake-filed.md`; they are safe
   only where the assertion happens to hold on a skeleton too.
+
+  ⚠️ **"Green on immediate re-run" is WITHDRAWN — it is not what this flake
+  does.** This entry carried that claim for two sessions. At the `6e8be59`
+  baseline the shoot went red **twice in a row** and took **six runs to yield
+  four greens**, so one re-run is not a clearing move and a session that treats
+  it as diagnostic will mis-attribute the flake. **The run counts do not settle
+  attribution either**: 2/6 red at `6e8be59` against 0/4 at `7498882` is Fisher
+  exact p ≈ 0.47, which implicates nothing and exonerates nothing. Those numbers
+  must not be cited as evidence in either direction. **What actually excludes
+  migration 029 is structural** — it adds one table and two indexes and touches
+  no portal page, route, stylesheet or readiness query, so no path exists from
+  the change to the assertion — **plus the filed mechanism** (a loaded machine
+  loses the race against the fetch; the reds came straight after three
+  back-to-back full suite runs). The counts are context, not the argument. At
+  the migration-030 baseline (`7180738`, clean tree) it did not fire at all.
 - ✅ **`portalLifecycle.integration.test.js:794` — CLOSED at `6e8be59`, using the
   repair this entry itself prescribed.** Both halves of the test (`knowledge_chunks`
   and `tenant_entities`) now carry the original timestamp across as `::text` and let
