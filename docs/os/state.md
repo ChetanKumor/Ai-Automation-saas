@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: e0fb53068126163f606f92def44ac600bb2f9c17
-Verified-on: 2026-08-26
+Verified-at: 41ed6cd1e9b10b263efe518504263234e9581a3b
+Verified-on: 2026-08-27
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -76,9 +76,17 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1111 tests / 180 suites / 0 fail** (`npm test`, raw: `# tests 1111 /
-  # pass 1111 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  Moved at **the truth audit** (the site stops asserting what is not true):
+- Test suite: **1113 tests / 181 suites / 0 fail** (`npm test`, raw: `# tests 1113 /
+  # pass 1113 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  Moved at **the `origin_channel` rename** (`41ed6cd`): **+2 tests, +1 suite**. The
+  two tests are the participation derivation (a cross-channel thread returns both
+  channels, plus its tenant-scoping negative) added inside `channelStorage.test.js`'s
+  existing `describe`, and the migration-028 lockstep guard in the new
+  `tests/db/conversationsOriginChannel.test.js` — the new file is the whole of the
+  suite delta. The detail route's new `channels` field was covered by extending the
+  existing mixed-thread test rather than adding one, so the route that changed
+  shape cost no test count.
+  Moved before that at **the truth audit** (the site stops asserting what is not true):
   **+2 tests, +0 suites**, both bare `test()` calls in a new
   `tests/design/indexingFlagParity.test.js`. It is the **sixth** Node test with
   purchase over `web/`, and the first that guards a rule written in TWO files:
@@ -4778,6 +4786,101 @@ Additions since the original 1–28, all in the plan's Phase 8:
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
 
+### Conversation model: `origin_channel` — landed 2026-08-27 (`41ed6cd`)
+
+Phase 1a of the conversation data foundation, and the first thing built on the
+audit below. It closes that audit's finding 1: the per-conversation channel column
+lied on every cross-channel thread. **Renamed, not patched around** — the founder's
+ruling was to correct the column rather than fix readers around it.
+
+**The lie, measured before the change, in one request cycle against one thread.**
+`GET /admin/api/conversations/:id` returned `"channel": "whatsapp"` while
+`GET /admin/api/conversations` returned `["voice","whatsapp"]` for the same row.
+The list derived from `messages`; the detail read the column; they disagreed about
+the same conversation. Not a hypothetical — the dev database's
+`a550e900-3f8f-46f2-ae6e-c85f8d03d17f` holds **115 messages on both channels** and
+read `channel = 'whatsapp'`.
+
+**Why the column could never be right.** `getOrCreateOpenConversation`'s
+`ON CONFLICT` arbiter is `(tenant_id, customer_id) WHERE status = 'open'` with
+channel absent from the key, and `DO UPDATE` touches only `updated_at`. The second
+channel to reach a customer's open thread is discarded *by construction*. The
+column is now `origin_channel` and its schema comment says what it means (how the
+thread began) and what it does not (which channels participate).
+
+**Participation is DERIVED from `messages.channel`**, which is per-row
+`NOT NULL DEFAULT 'whatsapp'` and written explicitly at **all eleven** INSERT
+sites — verified live: zero NULL channels on both databases. Two forms of one rule:
+
+- `conversationService.getParticipatingChannels(tenantId, conversationId)` — the
+  singular form. **Tenant-scoped deliberately**: every other query here is, and an
+  id-only read would be the one place a caller could learn about another tenant's
+  thread. An unknown or foreign id returns `[]`.
+- `adminRoutes.js:428`'s `array_agg(DISTINCT m.channel)` — the set-wise form,
+  **kept**. It was never a workaround; it is the same rule for a whole page in one
+  round trip. Routing 25 rows through the singular function would cost 25 extra
+  queries to say the same thing. The `:371` comment now says so.
+
+`adminRoutes.js:518`'s `channel` became **`channels`**, matching the list route's
+field name so the two cannot be read as different questions. It derives from ALL
+messages, **not** from the response's `messages` array — that one is capped at the
+newest 500, so a channel appearing only earlier in a long thread would silently
+drop out. `origin_channel` is deliberately **not** exposed: no client asks how a
+thread began (`public/admin/conversations.js:154` already derived its chips from
+the message stream, so the old field had **zero consumers and zero test coverage**),
+and a scalar `channel` beside a plural one is a trap.
+
+⚠️ **THE HIGHEST-RISK ITEM WAS IN THE TESTS, NOT THE SCHEMA — AND IT IS THE THING
+TO REMEMBER FROM THIS SESSION.** `channelStorage.test.js`'s `ensureSchema()`
+inspected `information_schema` for `channel` and `ALTER TABLE ... ADD COLUMN`ed it
+back when absent. Against a correctly migrated database that **resurrects the dead
+column** on the one long-lived DB `npm test` actually uses, while all 17
+scratch-minting suites — which genesis from `schema.sql` — stay green.
+
+**Verified empirically rather than argued:** with the pre-fix block restored, the
+file ran **14/14 GREEN and recreated the column**. A green suite is precisely what
+that failure mode produces. The proof is therefore `information_schema`, queried
+directly after **two full suite runs** — `channel` absent both times, and absent
+again after the third run that followed the deliberate red. The guard is the column
+name in that block, never a green run.
+
+Swept for a second such site before editing: **exactly one other exists** —
+`identityService.test.js:23-44`'s `ensureChannelIdentifiersTable()`, which
+self-heals the `channel_identifiers` **table** and does not touch `conversations`.
+Not the same hazard. `controlPlane.test.js:139`'s `DROP COLUMN` is a deliberate
+negative fixture inside a scratch DB, and `migrate.test.js` operates on fixture
+files in a temp dir. Nothing in `scripts/` self-heals schema.
+
+**Lockstep.** Migration `028_rename_conversations_origin_channel.sql` plus the
+`schema.sql` edit, per CLAUDE.md. `016` is left alone as history — the runner never
+re-executes a recorded file (`migrate.js:167`). 028 is **NOT idempotent** (Postgres
+has no `RENAME COLUMN IF EXISTS`, and no migration here uses a `DO` block); that is
+unreachable through the runner and documented in the file, with a warning not to
+pick it for `migrate.test.js:261`'s forget-a-migration trick.
+
+Applied to **both** long-lived databases, `db:status` clean on each: local
+`saas_crm_test` and remote Neon `neondb`. `a550e900` survived intact — 115 messages,
+`origin_channel = 'whatsapp'`, derived participation `{voice, whatsapp}`; all 128
+messages preserved.
+
+⚠️ **THE GENERAL LOCKSTEP GUARD STILL DOES NOT EXIST, AND CANNOT BE WRITTEN AS
+THINGS STAND.** `tests/db/conversationsOriginChannel.test.js` proves convergence for
+**migration 028 only**: genesis from `schema.sql`, fabricate the pre-028 state, run
+the real 028 file, assert an identical `conversations` shape down to type,
+nullability and default. A general *schema.sql versus full replay* test has no
+starting point — **migration 001 is folded into `schema.sql` and exists as no
+file**, so "replay every migration from an empty database" cannot be constructed
+without reconstructing the base DDL. `controlPlane.test.js:101-127` covers migration
+020's four objects and nothing else. **This is why this class of drift is invisible**,
+and it is filed here rather than papered over: a rename applied to `schema.sql`
+alone would have left every scratch-DB suite green while both real databases kept
+the old column.
+
+`PR4-channel-agnostic-storage.md:212,333` still name the old column. Left alone:
+it is a dated PR handoff package, the same class as the audit docs, and already
+stale on an unrelated point (it states `wamid` was never dropped — migration 019
+dropped it).
+
 ### Conversation data model — audited 2026-08-26, nothing built
 
 `docs/audit/2026-08-conversation-model.md`. An audit session for three proposed
@@ -4800,13 +4903,14 @@ Four findings, each cited in full in the audit:
    (`customerService.js:5`, `identityService.js:24-26`, `utils/phone.js:30-45`),
    so they land on one `customers` row **regardless of
    `IDENTITY_RESOLUTION_ENABLED`**. *"One patient · one thread · two channels" is
-   expressible today — verdict YES.* What follows from that: **`conversations.channel`
-   records only the CREATING channel and is never updated** (`DO UPDATE` touches
-   only `updated_at`), so it lies on any cross-channel thread.
-   `adminRoutes.js:428` already works around this with
-   `array_agg(DISTINCT m.channel)`; `adminRoutes.js:518` still returns the stale
-   `c.channel`. **Rule for any new query: derive channels from
-   `messages.channel`, never from `conversations.channel`.**
+   expressible today — verdict YES.* What follows from that: the per-conversation
+   channel column **records only the CREATING channel and is never updated**
+   (`DO UPDATE` touches only `updated_at`), so it lied on any cross-channel thread.
+   ✅ **FIXED at `41ed6cd`** — see *Conversation model: `origin_channel`* below.
+   The column is now `conversations.origin_channel` (migration 028) and the stale
+   read at `adminRoutes.js:518` is gone. **Rule for any new query, unchanged and
+   now enforceable by name: derive channels from `messages.channel`, never from
+   `origin_channel`.**
 2. **The English gloss is ABSENT and NOT DERIVABLE.** No column (zero hits for
    `translat|gloss|english_` across `schema.sql` and all 26 migrations), no
    producer (the only hits in `src/` are a doc-comment and the endpoint path in
@@ -4946,6 +5050,24 @@ on** — nothing moved, tracked or deleted.
   `docs/audit/2026-08-F-H003-untracked-harness-inventory.md` and
   `docs/audit/2026-08-shootd5b-e-flake-filed.md`, which are dated records and
   were deliberately not edited.
+
+### Shoot baseline, 2026-08-27 (`origin_channel` rename)
+
+Run at `41ed6cd`, in order, each minting and dropping its own scratch DB against
+the remote Neon `DATABASE_URL`. The portal was not touched this session, so these
+are a regression check on a schema change, not evidence for a UI one.
+
+| Shoot | Exit | Note |
+|---|---|---|
+| `shootD3` | **0** | green, first run |
+| `shootD4` | **0** | green, first run |
+| `shootD5a` | **0** | green, first run — the filed `:589` flake did **not** fire |
+| `shootD5b` | **0** | green, first run |
+
+**Zero `✗` in all four logs, no re-runs, and no Neon transport failure** on the
+fourth consecutive scratch-DB cycle. Same clean set as the previous baseline, and
+the second consecutive one — the `Connection terminated unexpectedly` seen two
+sessions ago has not recurred in eight scratch-DB cycles.
 
 ### Shoot baseline, 2026-08-26 (landing session — the first on a tree that matches a commit)
 
