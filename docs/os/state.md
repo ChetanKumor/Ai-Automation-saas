@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 2b3cbfceef7bfa4acc299c54745523fd582a98ff
+Verified-at: 2673fd3a122e0747553b01cd912a719beb3df2c1
 Verified-on: 2026-08-27
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -76,9 +76,37 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1134 tests / 184 suites / 0 fail** (`npm test`, raw: `# tests 1134 /
-  # pass 1134 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  Moved at **the `disposition` deferral** (M-3, DECLINED): **+13 tests, +1 suite**,
+- Test suite: **1136 tests / 185 suites / 0 fail** (`npm test`, raw: `# tests 1136 /
+  # suites 185 / # pass 1136 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  Moved at **`conversation_events.seq`** (migration 030, `2673fd3`): **+2 tests,
+  +1 suite**, in two places.
+  `tests/db/conversationEventsSeq.test.js` is the whole of the suite delta — 1
+  test / 1 suite, the migration-030 lockstep guard. The other test is a single
+  new `it` inside the EXISTING `describe` in
+  `tests/conversation/dispositionDerivation.integration.test.js` (13 → 14 `it`s),
+  which is why the suite count moves by one and not two.
+  **The new `it` is the determinism proof**: 30 rounds, each inserting two
+  events inside ONE transaction on a checked-out client, then asking
+  `deriveDisposition` which won. It asserts 30/30 for the second event, where
+  the pre-030 ordering was 48.8%. **It carries a non-vacuity rail** — the two
+  rows must still share `created_at` EXACTLY, compared as Postgres renders them
+  rather than as JS `Date`s (`getTime()` is millisecond resolution and would
+  call two rows 900 µs apart identical). Without that rail the test would also
+  pass if someone swapped `NOW()` for `clock_timestamp()`, which is the change
+  030 explicitly rejected; with it, the ordering is proved against a genuine
+  tie rather than against a tie that was engineered away underneath it.
+  **No existing test was deleted, renamed away, or made to pass differently.**
+  The pre-existing latest-wins test (`dispositionDerivation:158`) is unchanged
+  in behaviour and now carries a comment naming why it passes for an incidental
+  reason — `recordEvent` goes through the pool, so its three events land in
+  three separate transactions with three distinct `NOW()`s, and it could never
+  have constructed the same-transaction case. It is kept because it covers
+  latest-wins through the REAL WRITER, which the new test deliberately does not.
+  Two existing files changed shape without moving a count: the 029 lockstep
+  guard now replays the migration CHAIN (029 then 030) instead of 029 alone, and
+  `conversationEvents.integration.test.js`'s `eventsFor()` helper orders by
+  `seq` instead of `created_at, id`.
+  Moved before that at **the `disposition` deferral** (M-3, DECLINED): **+13 tests, +1 suite**,
   all of them in ONE new file — `tests/conversation/dispositionDerivation.integration.test.js`,
   a single `describe` with 13 `it`s. No existing suite gained or lost a test, and
   no migration was written. The 13: the four returns of `deriveDisposition`
@@ -4808,9 +4836,179 @@ Additions since the original 1–28, all in the plan's Phase 8:
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
 
+### Conversation model: `conversation_events.seq` — landed 2026-08-27 (`2673fd3`, migration 030)
+
+Phase 1d. Closes the ordering ambiguity 029 shipped with, while the table is still
+empty. **Migration number 030 IS now taken** — by this, not by the declined
+`disposition` column. The deferral below stands untouched.
+
+**THE DEFECT WAS MEASURED BEFORE IT WAS FIXED, not argued.** Two events inserted
+inside ONE transaction on a scratch database genesised from `schema.sql`, then the
+exact ordering `deriveDisposition` used (`ORDER BY created_at DESC, id DESC LIMIT 1`)
+asked which was "latest". Across **125 fresh id pairs** in two scratch databases:
+
+| | before (`created_at DESC, id DESC`) | after (`seq DESC`) |
+|---|---|---|
+| `created_at` identical within the txn | **125 / 125** | **125 / 125** — still a genuine tie |
+| the FIRST event named latest | 64 (51.2%) | **0 (0.0%)** |
+| the SECOND event named latest | 61 (**48.8%**) | **125 (100.0%)** |
+
+The event that actually happened later was named "latest" 48.8% of the time — a
+coin flip decided by `gen_random_uuid()`. `created_at` differed in **zero** of 125
+pairs, before or after: `seq` resolves the tie, it does not remove it.
+
+**Latent at 029 only because `recordEvent` goes through the pool** (`db.js:34`), so
+each of the one emitter's writes was its own implicit transaction. The first
+second-emitter joining an existing transaction ends that — `appointmentService.js:511`
+already opens one around the booking insert, which is where M-4's `booked` goes.
+
+⚠️ **`clock_timestamp()` WAS REJECTED ON MEASUREMENT, NOT TASTE — and the number is
+the surprising part.** 20,000 successive readings, twice per server:
+
+| server | adjacent ties (of 20,000) |
+|---|---|
+| local PostgreSQL 18.4, x86_64-windows | 0, then 672 (3.4%) |
+| **Neon PostgreSQL 18.6, aarch64-linux** | **11,687 and 11,883 — 58-59%** |
+
+Resolution is 1 µs on both. **On the server shaped like production, two consecutive
+`clock_timestamp()` calls return the SAME microsecond 59% of the time**, so it
+narrows the window from "one transaction" to "one microsecond" and then hands the
+tie straight back to the random UUID on the majority of adjacent writes. A
+narrowing, not a fix. It would also make one column non-transaction-consistent
+where every other timestamp in the schema is `NOW()` — `clock_timestamp()` and
+`statement_timestamp()` appear in none of `schema.sql`'s tables and none of
+migrations 002–029.
+
+**The mechanism: `seq BIGINT GENERATED ALWAYS AS IDENTITY`**, alongside the UUID
+`id` (the PK is unchanged; a `UNIQUE` constraint was deliberately not added — the
+column is unique by construction and a second btree would cost a write per insert
+for a reader that does not exist). `GENERATED ALWAYS` is load-bearing and was
+**proved by refusal, not assumed**: an INSERT supplying `seq` by hand is rejected
+with **SQLSTATE 428C9** on both databases.
+
+⚠️ **THE TRADEOFF, AND IT IS IN THE MIGRATION HEADER BECAUSE THE COLUMN LOOKS LIKE
+COMMIT ORDER.** `seq` is **allocation** order. Across concurrent transactions a
+lower `seq` can become visible AFTER a higher one (A takes 5, B takes 6, B commits
+first). Accepted: unreachable on this read, which is per-conversation and
+serialised by the turn pipeline, and in the case that actually bites — two events
+in one transaction — allocation order IS emission order, always.
+
+⚠️ **THE INDEX HAD TO MOVE WITH THE ORDERING, AND SHIPPING seq WITHOUT THE SWAP
+WOULD HAVE STAYED GREEN.** `EXPLAIN (ANALYZE, BUFFERS)` of the real
+`deriveDisposition` LATERAL on a populated scratch DB (500 conversations × 20
+events = 10,000 rows, `ANALYZE`d), measured before AND re-measured after on the
+shipped schema:
+
+| | ordering | index | plan | rows | buffers |
+|---|---|---|---|---|---|
+| A | `created_at DESC, id DESC` | `(conversation_id, created_at)` | Index Scan Backward + **Incremental Sort** | 2 | 4 |
+| B | `seq DESC` | **unchanged** | Bitmap Heap Scan + **top-N heapsort** | **20** | **22** |
+| C | `seq DESC` | `(conversation_id, seq DESC)` | **Index Scan, no sort node** | 1 | 3 |
+
+**B is the trap**: every event on the thread read into a heapsort, worse as threads
+grow, and nothing in the suite asserts a query plan. **C is better than A too** —
+`id DESC` was never in the index, so even the old ordering paid for a sort. So the
+index is a SWAP, not an addition. `idx_conversation_events_tenant_type_created`
+(`tenant_id, type, created_at DESC`) is unchanged: a different axis, and it keeps
+`created_at` indexed.
+
+**All three order-dependent reads moved**, not just the obvious one:
+`deriveDisposition`'s LATERAL, `findDispositionDisagreements`' LATERAL, and the
+oracle's OUTER presentation `ORDER BY` (now `latest_seq DESC NULLS LAST`, was
+`latest_at`). ⚠️ **The residue there is named in the code rather than hidden**: rows
+flagged with NO events (`mode='human'` or an open handoff, `latest_seq` NULL) sort
+last and then among themselves by `id DESC` on `conversations.id` — also a random
+UUID. `seq` cannot speak about a thread with no events. Left alone deliberately;
+reaching for `conversations.updated_at` would invent a recency semantic the
+function was not asked to have, and the ordering decides nothing — every row in
+that list is a finding regardless of position.
+
+⚠️ **THE 029 GUARD BROKE, AND THE REPAIR IS A RULE, NOT A PATCH.**
+`tests/db/conversationEvents.test.js` fabricates its pre-state by `DROP TABLE`,
+which unwinds **every** later migration that touched the table — so replaying 029
+alone could no longer reproduce what `schema.sql` builds. It now replays a `CHAIN`
+list (029 then 030). **Every future migration altering `conversation_events` must
+be appended to that list**, or the guard does not go red, it goes WRONG: comparing
+`schema.sql` against a half-built table and failing in a way that looks like drift
+in the wrong file. Written into the file's header, not just here.
+
+**The 030 guard is a NEW file and proves the other half.**
+`tests/db/conversationEventsSeq.test.js` fabricates only 030's own delta — drop the
+column, restore the old index — and runs 030 alone, so it proves the MIGRATE path
+for a database already at 029, which both of ours were. It asserts
+`is_identity`/`identity_generation`, because `data_type` reads `bigint` for a plain
+BIGINT, a BIGSERIAL and `GENERATED BY DEFAULT` alike and none of those is what 030
+ships; and it pins the index **definition**, because the swap keeps the NAME and a
+name-list comparison cannot see it.
+
+⚠️ **A fabrication detail worth keeping: `ALTER TABLE ... DROP COLUMN seq` silently
+drops the index that orders by it.** The first draft of the 030 guard issued an
+explicit `DROP INDEX` after it and failed with `42704 index does not exist`. The
+dependency is now asserted rather than worked around.
+
+✅ **FALSIFIED IN BOTH DIRECTIONS AND ON BOTH HALVES — 4 mutations, all red, green
+again restored.** Direction A is "030 written, `schema.sql` forgotten" (the drift
+that ships a wrong PRODUCTION database, since genesis trusts `schema.sql` and never
+replays migrations); direction B is "`schema.sql` updated, 030 wrong" (the drift
+that leaves every EXISTING database behind). Each direction was falsified on the
+column half AND the index half, the latter because the index keeps its name across
+the swap and is the easiest thing to forget.
+
+⚠️ **ONE OF THOSE MUTATIONS WAS INVALID ON THE FIRST PASS AND WOULD HAVE BEEN
+RECORDED AS A FALSIFICATION.** A1's regex anchored on a bare `/,\n\n  --/` and its
+lazy `[\s\S]*?` matched **30,630 characters — 653 lines**, deleting `schema.sql`
+from the `tenants` table down. The guard went red, and it proved nothing: red for
+having destroyed the file, not for detecting drift. Caught by inspecting the mutant
+rather than trusting the exit code. The drill now anchors on the unique string
+`The ordering key` **and** carries a `MAX_DELTA` ceiling that raises rather than
+records a mutation moving more than 900 characters. Real deltas: **637, 2, 36, 103**.
+Re-run, A1 fails on the guard's own assertion message (`schema.sql builds
+conversation_events.seq`). **A falsification drill needs its own falsification
+check** — an over-matching mutation is indistinguishable from a working guard if
+only the exit code is read.
+
+**The determinism proof and its rail.** A new `it` in the existing disposition
+`describe`: 30 rounds, two events per transaction on a checked-out client, and the
+second wins **30/30** where the pre-030 ordering was 48.8%. **It requires the two
+rows to still share `created_at` EXACTLY**, compared as Postgres renders them
+(`::text`) rather than as JS `Date`s — `getTime()` is millisecond resolution and
+would call two rows 900 µs apart identical. Without that rail the test would pass
+just as well if someone swapped `NOW()` for `clock_timestamp()`; with it, the
+ordering is proved against a genuine tie.
+
+⚠️ **`dispositionDerivation:158` PASSES FOR AN INCIDENTAL REASON AND NOW SAYS SO.**
+The pre-existing latest-wins test appends three events through `recordEvent`, which
+uses the pool — three separate transactions, three distinct `NOW()`s, settled by
+`created_at DESC` alone. It would have passed identically before 030, and it did.
+Kept rather than rewritten, because it covers latest-wins through the REAL WRITER,
+which the new test deliberately does not (`recordEvent` takes no client, and
+widening its signature so a test can share a transaction is a production change a
+test should not force). The comment naming this is in the file.
+
+**Both databases held ZERO `conversation_events` rows, which is the whole reason
+this was free.** `ADD COLUMN ... GENERATED ALWAYS AS IDENTITY` rewrites the table
+and assigns `seq` in **physical heap order** — on a populated table it would have
+installed exactly the ambiguity it removes, silently, since the result looks
+perfectly monotonic. Verified 0 rows on both before writing the file; the migration
+header says what to do if it is ever run against rows anyway.
+
+Applied to both: remote Neon `neondb` and local `saas_crm_test`, `db:status` clean
+and 0 pending on each. `information_schema` on both reads
+`seq / bigint / NO / is_identity=YES / identity_generation=ALWAYS`, and both indexes
+in their intended shapes. Fresh genesis on a throwaway: `seq` present, index on
+`(conversation_id, seq DESC)`, 030 recorded **`stamped=true`** — genesis trusts
+`schema.sql` and did not execute it.
+
+`a550e900` survived intact — 115 messages, 112 voice / 3 whatsapp, 0 events, and it
+still derives `'open'` for the reason recorded below.
+
+Suite **1134/184 → 1136/185**, exactly the predicted +2/+1. `os:check` exit 0. Four
+shoots clean, first run, zero `✗`.
+
 ### Conversation model: `conversations.disposition` — **DECLINED** 2026-08-27, no migration
 
-Phase 1c. **M-3 / P-3 was not built, and migration number 030 was not taken.**
+Phase 1c. **M-3 / P-3 was not built, and migration number 030 was not taken** (it is
+now, by `conversation_events.seq` above — see that entry).
 `src/db/migrations/` still ends at `029_conversation_events.sql`; `schema.sql` is
 untouched; no column named `disposition` exists anywhere in the database.
 
@@ -4878,12 +5076,15 @@ regression.** Verified non-vacuous by falsification: adding an `escalated`
 emission to the fixture's `takeover()` turns it red (2 red / 11 green), the
 oracle test reading `derived: null` instead of `handled`.
 
-⚠️ **Two things found along the way.** (a) **`conversation_events` has no
-monotonic sequence.** `created_at` defaults to `NOW()` = *transaction* start, so
+⚠️ **Two things found along the way.** (a) ~~**`conversation_events` has no
+monotonic sequence.**~~ **CLOSED by migration 030 (`2673fd3`) — see the entry
+above.** `created_at` defaults to `NOW()` = *transaction* start, so
 two events in one transaction share it exactly; `id DESC` breaks the tie
 deterministically but `id` is a random `gen_random_uuid()`, so among simultaneous
 events the winner is arbitrary rather than chronological. Latent today — nothing
-writes two events in one transaction. (b) **`'open'` is honest as a derivation and
+writes two events in one transaction. **Measured before it was fixed: 125/125
+same-transaction pairs shared `created_at` to the microsecond, and the later
+event was named "latest" 48.8% of the time.** (b) **`'open'` is honest as a derivation and
 misleading as a product statement.** `a550e900` is a real 115-message thread that
 predates 029, has zero events, and derives `'open'`. Every historical thread reads
 `'open'` and **no backfill can fix it**, because the events were never captured.
@@ -5344,6 +5545,28 @@ on** — nothing moved, tracked or deleted.
   `docs/audit/2026-08-F-H003-untracked-harness-inventory.md` and
   `docs/audit/2026-08-shootd5b-e-flake-filed.md`, which are dated records and
   were deliberately not edited.
+
+### Shoot baseline, 2026-08-27 (`conversation_events.seq`, migration 030)
+
+Run at `2673fd3`, in order, each minting and dropping its own scratch DB against the
+remote Neon `DATABASE_URL`. Migration 030 adds one column and swaps one index on a
+table no portal page, route, stylesheet or readiness query reads, so these are a
+regression check on a schema change, not evidence for a UI one.
+
+| Shoot | Exit | Note |
+|---|---|---|
+| `shootD3` | **0** | green, first run |
+| `shootD4` | **0** | green, first run |
+| `shootD5a` | **0** | green, first run — the filed `:589` flake did **not** fire |
+| `shootD5b` | **0** | green, first run |
+
+**Zero `✗` in all four logs, no re-runs, and no Neon transport failure** — on a
+session that had already cycled roughly a dozen scratch databases through the same
+server for the ordering probes, the EXPLAIN probes and the falsification drill.
+Same clean set as the previous baseline, and the third consecutive one.
+
+A matching baseline was taken at `2739d70` before any file was touched — also
+four green, zero `✗` — so the before/after pair is clean on both sides.
 
 ### Shoot baseline, 2026-08-27 (`disposition` declined — M-3, no migration)
 
