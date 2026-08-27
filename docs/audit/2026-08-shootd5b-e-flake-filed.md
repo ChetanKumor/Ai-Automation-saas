@@ -184,9 +184,32 @@ standing between the read and un-fetched content.
 
 `waitFor: ready` (`.card`) on `index.html`, then the default 600ms settle, then
 `!!document.querySelector('.ring, .ring-sk')`. Red on the first clean-slate
-baseline run, green on immediate re-run — same signature as §E, same vacuous
-gate. **Not fixed** (out of scope: another shoot script). It should get §E's
-treatment: gate on the thing actually asserted, not on `.card`.
+baseline run — same signature as §E, same vacuous gate. **Not fixed** (out of
+scope: another shoot script). It should get §E's treatment: gate on the thing
+actually asserted, not on `.card`.
+
+⚠️ **CORRECTION (2026-08-27, migration 030 session).** This entry originally
+said "green on immediate re-run". **That is not what the flake does, and the
+claim is withdrawn.** At the `6e8be59` baseline it went red **twice in a row**
+and needed **six runs to produce four greens** — an immediate re-run is not a
+reliable clearing move, and a session that treats one as diagnostic will
+mis-attribute this flake. Recorded run counts, both sides of that commit:
+
+| Tree | runs | red |
+|---|---|---|
+| `7498882` (pre-029) | 4 | **0** |
+| `6e8be59` (029) | 6 | **2** |
+
+**Fisher exact p ≈ 0.47 — the counts settle nothing.** They neither implicate
+029 nor exonerate it, and they must not be cited as if they did. The reason 029
+is nonetheless excluded is **structural, not statistical**: 029 adds one table
+and two indexes and touches no portal page, route, stylesheet or readiness
+query, so no path exists from that change to this assertion. The machine-load
+explanation rests on that argument plus the filed mechanism (a loaded machine
+loses the race against the fetch), and on nothing in the run counts.
+
+At the migration-030 baseline (`7180738`, clean tree) it did **not** fire:
+green on the first run, as were all four shoots.
 
 ### 2. Every `waitFor: ready` site, both scripts
 

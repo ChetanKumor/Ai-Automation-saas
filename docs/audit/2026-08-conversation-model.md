@@ -810,6 +810,12 @@ CREATE INDEX idx_conversation_events_tenant_type_created
 
 ### P-3 · `conversations` — the denormalised current disposition (column)
 
+> ⚠️ **DECLINED at `7180738`. This proposal was not built and migration 030 was
+> not taken.** Kept below as written, because the argument against it is an
+> argument about *this text*. See `docs/audit/2026-08-disposition-deferred.md`
+> for the ruling; `conversationService.deriveDisposition` is the read that
+> shipped instead, with `findDispositionDisagreements` as its oracle.
+
 ```sql
 ALTER TABLE conversations
   ADD COLUMN disposition TEXT NOT NULL DEFAULT 'open'
@@ -899,13 +905,34 @@ Numbering continues from `027_password_changed_at.sql`. Per the lockstep rule in
 |---|---|---|---|
 | M-1 | `028_message_language.sql` | P-1: `messages.language`, `messages.content_en` | **XS** — two nullable `ADD COLUMN`s, no rewrite, no backfill |
 | M-2 | `029_conversation_events.sql` | P-2: the table + two indexes | **S** — one new table, no data movement |
-| M-3 | `030_conversation_disposition.sql` | P-3: column + composite index | **S** — `NOT NULL DEFAULT` is metadata-only on PG 11+; the index build is the cost |
+| M-3 | ~~`030_conversation_disposition.sql`~~ | **DECLINED — NOT WRITTEN. 030 was not taken.** See `2026-08-disposition-deferred.md` | — |
 | M-4 | `031_appointment_provenance.sql` | P-4: two columns + `idx_appointments_tenant_created` | **S** |
 | M-5 | `032_conversation_read_indexes.sql` | P-6: the two Snapshot indexes | **S** — pure index build. Note `CREATE INDEX CONCURRENTLY` is **forbidden** by `CLAUDE.md`; the runner wraps each file in a transaction |
 
 M-1 through M-5 are all additive. No column is dropped, no type changed, no
 constraint tightened on existing data. Nothing here can fail on a populated
 table other than by running long.
+
+⚠️ **THE `#` LABELS ARE NOT FILENAMES, and have not been since M-2.** The File
+column above is what this audit *proposed*; `src/db/migrations/` is the only
+authority on what exists. Current mapping, as of `7180738`:
+
+| Label | Reality |
+|---|---|
+| M-1 | **not written.** `028` went to `028_rename_conversations_origin_channel.sql`, a change this audit did not contemplate |
+| M-2 | **LANDED** as `029_conversation_events.sql` — label and filename coincide by luck, not by rule |
+| M-3 | **DECLINED.** No file, and **030 was not taken**. `conversations.disposition` does not exist. The read shipped instead as `conversationService.deriveDisposition` plus a reconciliation oracle. Full argument, and the two conditions for revisiting, in `docs/audit/2026-08-disposition-deferred.md` |
+| M-4 | not written |
+| M-5 | not written |
+
+M-3's decline in one line: two of P-3's four CHECK values have no producer,
+`booked` is contradicted by the only surface that ever rendered the field
+(the one real captured patient booked and is rendered `handled`), a CHECK on a
+column maintained atomically with an INSERT into the OPEN-set
+`conversation_events.type` can roll that INSERT back and silently lose the event,
+and no reader exists — A-5 is two phases out. **§10's Phase 1 is therefore
+incomplete by design; Phase 3's "Needs staff" filter depends on A-2, not on
+M-3.**
 
 ### API changes
 
@@ -960,9 +987,14 @@ deciding what makes the AI say "I need a human", which today it never does.
 `adminRoutes.js:475-531`, which already returns the right shape.
 
 **Phase 3 · Inbox** — A-5, plus its page.
-*Depends on:* M-3 for the "Needs staff" filter, and on Phase 2 for a detail page
-to link to. *Ships with:* three of four filters working on day one; the fourth
-arrives with A-2's events.
+*Depends on:* ~~M-3 for the "Needs staff" filter~~ — **corrected: M-3 is
+declined, and the filter never depended on it.** It depends on **A-2**, which is
+what gives `needs_staff` a producer; M-3 was only ever the index over an answer
+A-2 has to supply first. Until A-2 exists the filter has nothing to show whether
+the column is there or not. *Also depends on:* Phase 2 for a detail page to link
+to. *Ships with:* three of four filters working on day one; the fourth arrives
+with A-2's events. The read is available now as
+`conversationService.deriveDisposition`.
 
 **Phase 4 · Snapshot** — A-7, plus its page.
 *Depends on:* M-4 (card 2), M-2 (card 5), M-5 (indexes on cards 1/3/6), and a
