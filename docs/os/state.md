@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 41ed6cd1e9b10b263efe518504263234e9581a3b
+Verified-at: 6e8be59e28a9af69d800ba0d83bffbcd9d7d21b1
 Verified-on: 2026-08-27
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -76,9 +76,19 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1113 tests / 181 suites / 0 fail** (`npm test`, raw: `# tests 1113 /
-  # pass 1113 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  Moved at **the `origin_channel` rename** (`41ed6cd`): **+2 tests, +1 suite**. The
+- Test suite: **1121 tests / 183 suites / 0 fail** (`npm test`, raw: `# tests 1121 /
+  # pass 1121 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  Moved at **`conversation_events`** (migration 029, `6e8be59`): **+8 tests, +2
+  suites**, and every one of them is in a NEW file — no existing suite gained or
+  lost a test. `tests/db/conversationEvents.test.js` is 1 test / 1 suite (the
+  migration-029 lockstep guard); `tests/conversation/conversationEvents.integration.test.js`
+  is 7 tests / 1 suite (WhatsApp emission, voice emission on the JSON transport,
+  voice emission on the SSE transport, the mode gate emitting nothing, the
+  tenant-scoping negative, an unknown conversation, and the actor CHECK paired
+  with its open-set counterpart). The `portalLifecycle` trigger-test repair
+  rewrote assertions inside ONE existing test and moved no count.
+  **Measured stable at 1121/183/0 on three consecutive full runs.**
+  Moved before that at **the `origin_channel` rename** (`41ed6cd`): **+2 tests, +1 suite**. The
   two tests are the participation derivation (a cross-channel thread returns both
   channels, plus its tenant-scoping negative) added inside `channelStorage.test.js`'s
   existing `describe`, and the migration-028 lockstep guard in the new
@@ -4786,6 +4796,183 @@ Additions since the original 1–28, all in the plan's Phase 8:
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
 
+### Conversation model: `conversation_events` — landed 2026-08-27 (`6e8be59`)
+
+Phase 1b of the conversation data foundation. Ships **M-2 / P-2** of
+`docs/audit/2026-08-conversation-model.md` — the durable outcome and event log —
+and nothing else from that audit's set. M-1, M-3, M-4 and M-5 are not built.
+
+**Why this one first, and it is not a preference.** The audit's §5 marks
+`outcome` **ABSENT**: `conversations.status` is `open`/`closed`/`pending`, a
+lifecycle state, and no column distinguishes "Appointment booked" from "Needs
+staff". P-3's `conversations.disposition` (migration 030, not built) is defined
+by the audit as *"strictly a materialised read of the latest
+`conversation_events` row"* — it cannot precede its own source. M-1 is per-turn
+attribution on `messages`; M-4 is booking provenance on `appointments`. **M-2 is
+the only migration in the set that carries outcome at all.**
+
+⚠️ **THE AUDIT'S MIGRATION NUMBERING IS STALE AND MUST NOT BE TRUSTED.** §9 says
+"numbering continues from `027`" and assigns **M-1 → 028**. 028 is the
+`origin_channel` rename. M-2 landed as **029** because it shipped alone and took
+the next free slot, not because §9's column was right. The remaining M-numbers do
+not map. The audit's front matter was corrected in the same commit: it pointed the
+proposed schema at "§4 and §5", left over from a draft — the delivered document has
+the schema at **§8** and the migrations at **§9**, while §4 is Q4 (identifiers) and
+§5 is Q5 (Patient Thread).
+
+**THE VOCABULARY DECISION — the whole design risk of this table.** `type` and
+`channel` are **unconstrained TEXT**; only `actor` carries a CHECK. Shipped as the
+audit drew it, with the reasoning in the migration header rather than only here.
+
+- The precedent is one-directional. `conversations.mode` and `.status` carry
+  CHECKs; `conversations.origin_channel` and `messages.channel` do not, and
+  `turn_traces.channel` is commented *"(open set)"*. **The unconstrained one is
+  the one that just renamed cleanly** — 028 is a single `ALTER … RENAME COLUMN`,
+  and its header says why: *"there is no CHECK, no enum and no index on it to
+  move."*
+- **This repo has already paid for guessing a vocabulary short, twice.**
+  `007_needs_review_status.sql` widened **two** CHECKs
+  (`payment_schedules.status`, `appointments.reminder_status`);
+  `025_appointment_rescheduled_status.sql` widened `appointments.status`, and its
+  own header reads *"Widening this CHECK is the ENTIRE schema change."* Neither
+  column was renamed or mistyped. The only thing wrong in both cases was the guess
+  about how many values there would be.
+- **Widening is the cheap direction; reshaping is not.** Adding a value costs one
+  DROP/ADD CONSTRAINT — with two sharp edges even so: the constraint name is
+  Postgres's auto-generated guess (025 needed a paragraph to argue the migrate
+  path and a fresh genesis converge on `appointments_status_check`), and
+  `DROP CONSTRAINT IF EXISTS` with a wrong name **silently no-ops, leaving the
+  old narrow constraint enforcing behind a green migration**. The expensive
+  direction is discovering a stored value is the wrong *shape* — needs splitting,
+  merging or renaming — because live rows then violate the replacement and the
+  swap needs a backfill inside it. A guessed outcome vocabulary produces that one.
+- **`actor` is constrained against that grain, deliberately.** It is not a
+  vocabulary guess but a closed enumeration of who can act, already present twice
+  under CHECKs: `messages.sender` and `knowledge_chunks.source`. A fifth actor
+  would be a product rewrite, not a discovered value.
+- The vocabulary settles from real rows, not from argument, and the query that
+  settles it is `SELECT type, COUNT(*) FROM conversation_events GROUP BY type`.
+  **That argument belongs to migration 030**, where `disposition`'s CHECK forces
+  it. It was not had here.
+
+⚠️ **THE HOLE IS DELIBERATE AND IS NAMED RATHER THAN FILLED.** The `type` comment
+lists five values; **exactly one is emitted**, `handled`.
+
+- **`escalated` — absent from the emitters on purpose.** Escalation is a deferred
+  product feature, and it is not merely unbuilt: the audit's A-2 records that it
+  *"needs the AI to have any escalation signal, which today it does not."* Nothing
+  in `aiService` can say "I need a human". **The hole costs nothing precisely
+  because `type` is unconstrained** — the day the signal exists, `escalated` is an
+  INSERT, not a migration. That is the load-bearing argument for the free column,
+  and it is asserted in the test rather than left as intent.
+- `handoff_started` / `handoff_ended` — deferred with handoff, and structurally
+  single-path anyway: `ownerCommands.js` is WhatsApp-only, reachable solely by an
+  owner typing `TAKEOVER`/`DONE`. Emitting them would have failed the both-paths
+  requirement on its own.
+- `booked` — arrives with **M-4**. Emitting it now would mean widening
+  `appointmentService.bookAppointment`'s signature — shared by both channels — to
+  serve an event this migration does not ship.
+
+**ONE HELPER, AND TENANT SCOPING IS STRUCTURAL RATHER THAN CONVENTIONAL.**
+`conversationService.recordEvent(tenantId, conversationId, {…})` sits beside
+`getParticipatingChannels` and is the only writer. It is an `INSERT ... SELECT`
+that reads the conversation row and takes `tenant_id` and `customer_id` **from
+it**, so a caller cannot attach an event to another tenant's thread even holding a
+valid conversation id: the `WHERE` finds no row, nothing is written, and the helper
+returns `undefined` — the same silent-empty shape `getParticipatingChannels` has
+for a foreign id. Proved with a negative against a **real second tenant**, not a
+random UUID, and paired with the positive so the assertion is about the tenant
+filter and not about a broken helper.
+
+**BOTH WRITE PATHS, AND WHY THREE SITES ARE NOT A DOUBLE-COUNT.**
+
+| Site | channel | call_session_id |
+|---|---|---|
+| `whatsapp/routes.js`, after the outbound persist | `whatsapp` | NULL |
+| `internalVoice.js`, JSON branch | `voice` | the session |
+| `internalVoice.js`, SSE branch | `voice` | the session |
+
+`handleTurn` dispatches to `handleTurnSSE` **on its first statement, with a
+`return`**, so one `POST /internal/voice/turn` takes exactly one branch. The two
+voice sites are mutually exclusive per turn — emitting at both covers both
+transports of the same turn rather than counting it twice, and the SSE test
+asserts exactly one row.
+
+**`persistPartialOutbound` does NOT emit**, and that is a judgement, not an
+oversight: a turn the caller interrupted by barge-in or hangup is not a turn the AI
+handled, and claiming it would be the same dishonesty M-4 avoids by defaulting
+`booked_by` to `'unknown'`. If a type ever names that outcome it is a new value in
+an unconstrained column.
+
+**Awaited, not fire-and-forget, and wrapped.** The reply has already reached Meta
+(WhatsApp) or is about to be handed to the worker (voice) by the time the emitter
+runs, so the round trip is off the patient-visible path; an event that silently
+loses a race is worse than a slower turn. Wrapped in `try/catch` so the converse
+also holds: a failed event write must never fail a delivered turn.
+
+**`detail` is NULL at every emitter.** Everything a `handled` event could carry
+already exists elsewhere — the text in `messages`, the timings and tool calls in
+`turn_traces`. A copy here would be a second home for patient-adjacent data with no
+reader, and keeping conversational text confined to `messages` is what makes a
+future retention sweep tractable.
+
+**`ON DELETE`, deliberately unlike `turn_traces`.** `conversation_id` CASCADEs
+where `turn_traces` SET NULLs: these are business events *about* a thread and are
+not evidence of anything once it is gone. `call_session_id` is nullable and SET
+NULL — a WhatsApp event has no call.
+
+**Preflight: the `ensureSchema` trap does not apply, and a control that cannot fire
+is not evidence.** `channelStorage.test.js:33-80` inspects and ALTERs
+`conversations.origin_channel`, `uniq_open_conversation`, `messages.channel` /
+`external_id` / `media_ref` and `uniq_msg_external`; `identityService.test.js:23-44`
+self-heals the `channel_identifiers` table. **029 is CREATE TABLE only** — no
+existing table altered, no column touched — so neither block can fire on it and
+neither can resurrect anything. The falsification drill was **skipped by ruling**,
+with this reasoning recorded in place of a drill that would have proved nothing.
+
+**Applied to both long-lived databases**, `db:status` clean and `Pending (0)` on
+each: local `saas_crm_test` and remote Neon `neondb`. `information_schema` on both
+returns the identical 10 columns, 3 indexes (PK + the two from P-2), 4 foreign keys
+with `CASCADE`/`CASCADE`/`CASCADE`/`SET NULL`, and exactly **one** CHECK — on
+`actor`. `a550e900` intact: **115 messages**, 112 voice / 3 whatsapp,
+`origin_channel = 'whatsapp'`, and zero events on it.
+
+**THE LOCKSTEP GUARD ASSERTS MORE THAN THE 028 ONE, BECAUSE A CREATE TABLE CAN
+DRIFT IN WAYS COLUMNS CANNOT SEE.** `tests/db/conversationEvents.test.js` mirrors
+`conversationsOriginChannel.test.js` — scratch DB, genesis, `029` recorded
+`stamped: true` (genesis trusts `schema.sql` and never replays), then DROP TABLE to
+fabricate the pre-029 state and run the **real 029 file** — but `deepEqual`s **four**
+shapes, not one: columns, **indexes** (via `pg_indexes.indexdef`, so a wrong column
+list or a lost `DESC` is caught), **foreign keys with their `delete_rule`**, and
+**CHECK constraints**. An FK whose `ON DELETE` said CASCADE in one file and SET NULL
+in the other would pass a columns-only comparison and diverge both databases for
+good. It also asserts the vocabulary decision positively — exactly one CHECK, on
+`actor` — so a future session "tidying up" by constraining `type` has to delete a
+line that says why not.
+
+**Falsified in both directions rather than assumed:** deleting one index from
+`schema.sql` alone turned it red on the index shape; flipping `call_session_id`'s
+`ON DELETE` from SET NULL to CASCADE in `schema.sql` alone turned it red on *"a
+WhatsApp event has no call; a deleted call must not delete the event"*. Restored,
+green.
+
+**Scratch-DB prefix `zyon_ce_`**, checked disjoint from all **39** sweep patterns in
+the suite — not merely from the other prefixes. The sweeps use `LIKE` with unescaped
+`_`, which is a single-char wildcard, so disjointness has to be checked against the
+PATTERNS. Nothing reaches `zyon_ce_`.
+
+⚠️ **A GUARD SUITE CAUGHT A REAL DEFECT IN THIS SESSION'S OWN TEST, WHICH IS THE
+POINT OF IT.** The first draft used `'…-eeee00000029'.replace(/e/g, 'a')`, which
+resolves to `…aaaa00000029` — already owned by
+`voiceCancellation.integration.test.js`. `tests/infra/fixtureTenantIds.unit.test.js`
+failed **naming both files and the shared id**, exactly as it was built to. Both ids
+are now plain literals (`…ce2900000029`, `…ce290000002a`) rather than `.replace()`
+expressions, which the guard also prefers.
+
+**NOTHING READS THESE EVENTS YET.** This session writes only. No portal route, no
+admin route, no UI, no read query outside the tests. `conversation_events` is 0 rows
+on both databases after cleanup.
+
 ### Conversation model: `origin_channel` — landed 2026-08-27 (`41ed6cd`)
 
 Phase 1a of the conversation data foundation, and the first thing built on the
@@ -5051,6 +5238,45 @@ on** — nothing moved, tracked or deleted.
   `docs/audit/2026-08-shootd5b-e-flake-filed.md`, which are dated records and
   were deliberately not edited.
 
+### Shoot baseline, 2026-08-27 (`conversation_events`, migration 029)
+
+Run at `6e8be59`, **clean tree**, in order, each minting and dropping its own
+scratch DB against the remote Neon `DATABASE_URL`. No portal code was touched this
+session — the shoots are a no-regression result, not a proof of anything built.
+
+| Shoot | Exit | Note |
+|---|---|---|
+| `shootD3` | **0** | green, first run |
+| `shootD4` | **0** | green, first run |
+| `shootD5a` | **1**, **1**, then **0** ×4 | the filed `:589` flake — see below |
+| `shootD5b` | **0** | green, first run |
+
+⚠️ **NOT A CLEAN SET ON THE FIRST PASS.** `shootD5a` went red **twice in a row** at
+`:589` — *Home: the ring is what says it instead: false (expected true)* — which is
+more than the "green on immediate re-run" this flake was filed with, so it was
+attributed rather than waved through.
+
+**Attribution, measured on both sides of the commit:**
+
+| Tree | runs | red |
+|---|---|---|
+| `7498882` (HEAD~1, pre-029) | 4 | **0** |
+| `6e8be59` (HEAD, 029) | 6 | **2** |
+
+Fisher exact on 2/6 vs 0/4 is p ≈ 0.47 — nowhere near a signal, and the mechanism
+is already filed and understood: `:589` gates on `waitFor: ready` where `ready` is
+`document.querySelector('.card')`, and the first `.card` on these pages is the
+loading SKELETON, present in the static HTML at first paint. The gate is satisfied
+before any data exists, so the assertion races the fetch and a **loaded machine
+loses the race**. The two reds came immediately after three back-to-back full suite
+runs, i.e. at peak machine load; the four greens came once it settled. That is the
+direction the filed mechanism predicts.
+
+Migration 029 adds one table and two indexes to `schema.sql` and touches no portal
+page, route, stylesheet or readiness query, so there is no path from this change to
+that assertion other than machine load. **The repair is still §E's** — gate on the
+thing actually asserted, not on `.card` — and it is still not done.
+
 ### Shoot baseline, 2026-08-27 (`origin_channel` rename)
 
 Run at `41ed6cd`, in order, each minting and dropping its own scratch DB against
@@ -5268,9 +5494,20 @@ all branches fast-forward onto main · one issue per session · runtime evidence
   `.card`. Every `waitFor: ready` site in `shootD4`, `shootD5a` and `shootD5b` is
   enumerated in `docs/audit/2026-08-shootd5b-e-flake-filed.md`; they are safe
   only where the assertion happens to hold on a skeleton too.
-- ⚠️ **`portalLifecycle.integration.test.js:794` FAILS WHEN THE MACHINE IS FAST —
-  a latent flake, measured this session and NOT fixed** (untouched file, outside
-  this session's scope). The assertion is
+- ✅ **`portalLifecycle.integration.test.js:794` — CLOSED at `6e8be59`, using the
+  repair this entry itself prescribed.** Both halves of the test (`knowledge_chunks`
+  and `tenant_entities`) now carry the original timestamp across as `::text` and let
+  **Postgres** do the comparison at microsecond precision, instead of comparing two
+  millisecond-truncated JS `Date`s. Re-measured independently before the fix:
+  **n=400, 60.5% false failures** for the old assertion — matching the 63.7% recorded
+  below — and **0/400** for the new one. **Not vacuous**: with the trigger DROPPED
+  the new assertion caught the failure **20/20**, so it still proves the trigger
+  fires. Widening to `>=` was rejected below and was not used.
+  It fired for real in this session's first full-suite run, which is what forced the
+  fix: migration 029 touches neither `knowledge_chunks` nor `tenant_entities`, and
+  the only thing this change contributed was the extra load of two new test files —
+  enough to make a pre-existing coin flip land. The original finding follows.
+  ⚠️ **(historical, as filed)** The assertion was
   `+e1.updated_at > +e0.updated_at` on `tenant_entities`, comparing two JS `Date`
   objects, which carry MILLISECOND resolution while Postgres timestamps carry
   microseconds. Measured directly at the test's own INSERT→UPDATE cadence, on an
