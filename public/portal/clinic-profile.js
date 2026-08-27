@@ -215,7 +215,7 @@
     form.addEventListener('submit', save);
 
     $('loadCard').hidden = true;
-    $('profileCard').hidden = false;
+    $('profileForm').hidden = false;
     if (data.version) { saveNote.textContent = 'Version ' + data.version; saveNote.className = 'save-note'; }
   }
 

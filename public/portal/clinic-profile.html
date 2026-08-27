@@ -61,10 +61,10 @@
         </section>
 
         <!-- Profile form (revealed by JS once values are loaded) -->
-        <section class="card" id="profileCard" hidden>
-          <form id="profileForm" novalidate>
+        <form id="profileForm" novalidate hidden>
+          <section class="card" id="profileCard">
             <div class="card__title">Clinic details</div>
-            <p class="card__sub">Patients see and hear these, so keep them accurate.</p>
+            <p class="card__sub">Your clinic's name and location — the identity your receptionist uses.</p>
 
             <div class="field" data-field="display_name">
               <label class="field__label" for="display_name">Clinic name</label>
@@ -94,10 +94,15 @@
                      placeholder="https://myclinic.in">
               <div class="field__error" id="err-website"></div>
             </div>
+          </section>
+
+          <section class="card">
+            <div class="card__title">Contact</div>
+            <p class="card__sub">The numbers patients can call to reach your clinic.</p>
 
             <div class="field" data-field="phone_numbers">
               <label class="field__label">Phone numbers</label>
-              <p class="field__help">The numbers patients can call. Include the country code, e.g. +91 98765 43210.</p>
+              <p class="field__help">Include the country code, e.g. +91 98765 43210.</p>
               <div class="phones" id="phones"></div>
               <button class="btn btn--ghost phones__add" id="addPhone" type="button">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -105,6 +110,11 @@
               </button>
               <div class="field__error" id="err-phone_numbers"></div>
             </div>
+          </section>
+
+          <section class="card">
+            <div class="card__title">Language &amp; region</div>
+            <p class="card__sub">Which languages your receptionist speaks and your clinic's timezone.</p>
 
             <div class="field" data-field="languages">
               <label class="field__label">Languages your receptionist speaks</label>
@@ -126,8 +136,8 @@
               <span class="save-note" id="saveNote"></span>
               <button class="btn btn--primary" id="saveBtn" type="submit">Save changes</button>
             </div>
-          </form>
-        </section>
+          </section>
+        </form>
       </main>
     </div>
   </div>
