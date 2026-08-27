@@ -654,6 +654,45 @@ CREATE INDEX idx_turn_traces_correlation    ON turn_traces(correlation_id);
 
 
 -- ============================================================
+--  21. CONVERSATION_EVENTS  — the durable outcome/event log
+--      (migration 029). Audit §8/P-2. Business events ABOUT a
+--      thread: what happened, on which channel, caused by whom.
+--      `type` and `channel` are UNCONSTRAINED TEXT by design —
+--      the vocabulary is settled from real rows, not guessed
+--      before the first patient conversation exists; migrations
+--      007 and 025 exist solely to widen CHECKs that were
+--      guessed short. `actor` IS CHECKed: it is a closed set of
+--      who can act, mirroring messages.sender and
+--      knowledge_chunks.source. Full reasoning lives in the
+--      migration header. conversation_id CASCADEs (unlike
+--      turn_traces): these events are evidence about a thread
+--      and go with it. `detail` never carries patient text.
+--      Today only 'handled' is emitted; 'escalated' has no
+--      signal to fire on and that hole is deliberate.
+-- ============================================================
+CREATE TABLE conversation_events (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id       UUID NOT NULL REFERENCES tenants(id)        ON DELETE CASCADE,
+  conversation_id UUID NOT NULL REFERENCES conversations(id)  ON DELETE CASCADE,
+  customer_id     UUID NOT NULL REFERENCES customers(id)      ON DELETE CASCADE,
+  call_session_id UUID          REFERENCES call_sessions(id)  ON DELETE SET NULL,
+
+  type      TEXT NOT NULL,          -- 'escalated' | 'handled' | 'booked'
+                                    -- | 'handoff_started' | 'handoff_ended'
+                                    -- open set — see the migration header
+  channel   TEXT NOT NULL,          -- 'whatsapp' | 'voice' — open set, as turn_traces.channel
+  actor     TEXT NOT NULL           -- who caused it
+              CHECK (actor IN ('ai', 'agent', 'system', 'customer')),
+  detail    JSONB,                  -- type-specific; never free patient text
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_conversation_events_conversation
+  ON conversation_events(conversation_id, created_at);
+CREATE INDEX idx_conversation_events_tenant_type_created
+  ON conversation_events(tenant_id, type, created_at DESC);
+
+-- ============================================================
 --  SAMPLE DATA (optional) — create your first business to test.
 --  Fill in your real Meta values, then uncomment and run.
 -- ============================================================

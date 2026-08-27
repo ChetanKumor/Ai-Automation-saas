@@ -5,6 +5,7 @@ const db                  = require('../../../db/db');
 const tenantService       = require('../../tenant/tenantService');
 const aiService           = require('../../ai/aiService');
 const { assembleConversationContext } = require('../../conversation/contextAssembler');
+const conversationService = require('../../conversation/conversationService');
 const sender              = require('./sender');
 const ownerCommands       = require('./ownerCommands');
 const adapter             = require('./adapter');
@@ -238,6 +239,38 @@ const handle = async (req, res) => {
                 [envelope.tenantId, conversation.id, customer.id, sentWamid, reply]
               );
               endPersistOut();
+
+              // ── 9b. RECORD THE OUTCOME EVENT (migration 029) ───────
+              // The AI answered this turn without a human: `handled`. Emitted
+              // AFTER the outbound row persists, so an event never claims a
+              // reply that failed to store. Fire-and-forget by design — the
+              // patient already has the reply and an event-log write must not
+              // be able to fail a delivered turn.
+              //
+              // `detail` is NULL, and deliberately: everything a `handled`
+              // event could carry already exists elsewhere — the text in
+              // `messages`, the timings and tool calls in `turn_traces`. A
+              // copy here would be a second home for patient-adjacent data
+              // with no reader.
+              //
+              // call_session_id is NULL on WhatsApp: there is no call.
+              //
+              // AWAITED, not fire-and-forget: the reply reached Meta at the
+              // dispatch above, so every write from there down is already off
+              // the patient-visible path and one more costs nothing they can
+              // see. An event that silently loses its race is worse than a
+              // slower turn. Wrapped so the reverse is also true — a failed
+              // event-log write must never fail a turn that was delivered.
+              try {
+                await conversationService.recordEvent(envelope.tenantId, conversation.id, {
+                  type: 'handled', channel: 'whatsapp', actor: 'ai', detail: null,
+                });
+              } catch (evErr) {
+                logger.error(
+                  { tenantId: envelope.tenantId, err: evErr.message },
+                  'conversation_events: handled emit failed'
+                );
+              }
 
               console.timeEnd(`${tl} total`);
               logger.info({ tenantId: envelope.tenantId, from: envelope.identifier, externalId: envelope.externalId }, 'message processed');

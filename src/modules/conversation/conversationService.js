@@ -47,6 +47,44 @@ const getParticipatingChannels = async (tenantId, conversationId) => {
   return rows.map((r) => r.channel);
 };
 
+// Record a business event about a thread (migration 029, audit §8/P-2).
+//
+// One function so both channels write the same row shape: the WhatsApp path
+// calls it from whatsapp/routes.js after the outbound persist, the voice path
+// from internalVoice.js after each of its two mutually-exclusive outbound
+// persists. Duplicating this INSERT at three sites is how the two channels
+// would drift on column order, actor spelling, or a forgotten tenant filter.
+//
+// TENANT SCOPING IS STRUCTURAL, not a convention. The INSERT ... SELECT reads
+// the conversation row and takes tenant_id/customer_id FROM IT, so a caller
+// cannot attach an event to another tenant's thread even by passing a
+// conversationId it has no business knowing: the WHERE finds no row and the
+// statement inserts nothing. That is why this returns the inserted row or
+// undefined rather than assuming success — a wrong tenant is silently zero
+// rows, exactly as getParticipatingChannels returns [] for one.
+//
+// `type` and `channel` are unconstrained TEXT in the schema on purpose (see
+// the 029 header). `actor` is CHECKed, so a bad actor raises 23514 here rather
+// than storing a value nothing can interpret.
+//
+// `detail` MUST NOT carry patient utterances — conversational text lives in
+// `messages` and nowhere else, which is what keeps a future retention sweep
+// tractable. Pass null when there is nothing structural to record.
+const recordEvent = async (
+  tenantId, conversationId, { type, channel, actor, callSessionId = null, detail = null }
+) => {
+  const { rows } = await db.query(
+    `INSERT INTO conversation_events
+       (tenant_id, conversation_id, customer_id, call_session_id, type, channel, actor, detail)
+     SELECT c.tenant_id, c.id, c.customer_id, $3, $4, $5, $6, $7
+       FROM conversations c
+      WHERE c.id = $1 AND c.tenant_id = $2
+     RETURNING *`,
+    [conversationId, tenantId, callSessionId, type, channel, actor, detail]
+  );
+  return rows[0];
+};
+
 const setMode = async (tenantId, conversationId, mode) => {
   const { rows } = await db.query(
     `UPDATE conversations SET mode = $2 WHERE id = $1 AND tenant_id = $3 RETURNING *`,
@@ -55,4 +93,4 @@ const setMode = async (tenantId, conversationId, mode) => {
   return rows[0];
 };
 
-module.exports = { getOrCreateOpenConversation, getParticipatingChannels, setMode };
+module.exports = { getOrCreateOpenConversation, getParticipatingChannels, recordEvent, setMode };

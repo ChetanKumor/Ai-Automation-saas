@@ -794,32 +794,52 @@ describe('portal lifecycle — go live / pause / resume (route-level)', { skip: 
     it('the trigger moves updated_at and leaves created_at alone, on both tables', async () => {
       const o = await seedOwner();
 
+      // ⚠️ COMPARE AT FULL PRECISION, IN THE DATABASE — never `+updated_at`.
+      // timestamptz holds microseconds; node-pg hands back a JS Date, which
+      // truncates to milliseconds. The INSERT and the UPDATE below are separate
+      // autocommit transactions, and on a local Postgres they land inside the
+      // SAME millisecond about 45% of the time (measured, 400 samples: min
+      // delta 0 µs, p50 1000 µs). So `+c1.updated_at > +c0.updated_at` was a
+      // coin flip that only looked stable because suite-wide load usually
+      // pushed the two statements more than a millisecond apart — it failed
+      // intermittently in full-suite runs and NEVER when this file ran alone,
+      // which is the most expensive shape a flake can have. Carrying the
+      // original across as `::text` keeps the microseconds and lets Postgres do
+      // the comparison. STRICTER than the old assertion, not weaker.
       const chunk = await db.query(
         `INSERT INTO knowledge_chunks (tenant_id, content, source) VALUES ($1, $2, 'faq')
-         RETURNING id, created_at, updated_at`,
+         RETURNING id, created_at::text AS created_raw, updated_at::text AS updated_raw`,
         [o.tenantId, 'Q: Are you open Sunday?\nA: No.']);
       const c0 = chunk.rows[0];
-      assert.equal(+c0.created_at, +c0.updated_at, 'at INSERT both take the same NOW()');
+      assert.equal(c0.created_raw, c0.updated_raw, 'at INSERT both take the same NOW()');
 
       await db.query('UPDATE knowledge_chunks SET content = $2 WHERE id = $1',
         [c0.id, 'Q: Are you open Sunday?\nA: Yes, 10am–2pm.']);
       const c1 = (await db.query(
-        'SELECT created_at, updated_at FROM knowledge_chunks WHERE id = $1', [c0.id])).rows[0];
-      assert.equal(+c1.created_at, +c0.created_at, 'knowledge_chunks.created_at must not move on an UPDATE');
-      assert.ok(+c1.updated_at > +c0.updated_at, 'knowledge_chunks.updated_at must move on an UPDATE');
+        `SELECT created_at::text = $2       AS created_still,
+                updated_at       > $3::timestamptz AS updated_moved
+           FROM knowledge_chunks WHERE id = $1`,
+        [c0.id, c0.created_raw, c0.updated_raw])).rows[0];
+      assert.equal(c1.created_still, true, 'knowledge_chunks.created_at must not move on an UPDATE');
+      assert.equal(c1.updated_moved, true, 'knowledge_chunks.updated_at must move on an UPDATE');
 
+      // Same full-precision comparison: tenant_entities carries the same
+      // trigger and had the same latent coin flip.
       const ent = await db.query(
         `INSERT INTO tenant_entities (tenant_id, type, data) VALUES ($1, 'schedule', $2)
-         RETURNING id, created_at, updated_at`,
+         RETURNING id, created_at::text AS created_raw, updated_at::text AS updated_raw`,
         [o.tenantId, JSON.stringify({ doctor: 'Dr. Trigger', days: ['Mon'], start: '10:00', end: '17:00' })]);
       const e0 = ent.rows[0];
-      assert.equal(+e0.created_at, +e0.updated_at, 'at INSERT both take the same NOW()');
+      assert.equal(e0.created_raw, e0.updated_raw, 'at INSERT both take the same NOW()');
 
       await db.query("UPDATE tenant_entities SET type = 'schedule_archived' WHERE id = $1", [e0.id]);
       const e1 = (await db.query(
-        'SELECT created_at, updated_at FROM tenant_entities WHERE id = $1', [e0.id])).rows[0];
-      assert.equal(+e1.created_at, +e0.created_at, 'tenant_entities.created_at must not move on an UPDATE');
-      assert.ok(+e1.updated_at > +e0.updated_at, 'tenant_entities.updated_at must move on an UPDATE');
+        `SELECT created_at::text = $2       AS created_still,
+                updated_at       > $3::timestamptz AS updated_moved
+           FROM tenant_entities WHERE id = $1`,
+        [e0.id, e0.created_raw, e0.updated_raw])).rows[0];
+      assert.equal(e1.created_still, true, 'tenant_entities.created_at must not move on an UPDATE');
+      assert.equal(e1.updated_moved, true, 'tenant_entities.updated_at must move on an UPDATE');
     });
   });
 

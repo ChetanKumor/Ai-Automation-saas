@@ -4,7 +4,17 @@ Filed: 2026-08-26
 At commit: `474761b` (working tree carries the prior session's uncommitted
 `shootD5b.js` fix and `state.md` edits)
 Scope: **AUDIT ONLY.** No schema change, no migration, no route, no UI. Every
-schema in §4 and every migration in §5 is **PROPOSED**, not written.
+schema in §8 and every migration in §9 is **PROPOSED**, not written.
+
+(This line said §4 and §5 as filed. Those pointers were left over from a draft
+in which the proposal sat there; in the delivered document §4 is Q4 —
+identifiers and §5 is Q5 — what could power Patient Thread today. The proposed
+schema is §8 (P-1…P-6) and the enumerated migrations are §9 (M-1…M-5). Corrected
+when migration 029 shipped §8/P-2, by the session that had to resolve which
+section the brief meant. Note also that §9's file NUMBERING is stale in the
+other direction: it assigns M-1 to 028, but 028 is the conversations.channel →
+origin_channel rename. M-2 landed as 029 because it shipped alone and took the
+next free slot — the remaining M-numbers do not map to §9's column.)
 
 Three portal screens are proposed. They already exist as static demo pages, and
 this audit uses those pages as the specification, because they are the only

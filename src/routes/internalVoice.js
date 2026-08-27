@@ -266,6 +266,32 @@ async function handleTurn(req, res) {
     await db.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1 AND tenant_id = $2`, [conversation_id, tenant_id]);
     endPersistOut();
 
+    // Outcome event (migration 029): the AI answered this turn without a
+    // human. Same shape the WhatsApp path emits, through the same helper —
+    // only `channel` and `call_session_id` differ.
+    //
+    // ── WHY THIS SITE AND handleTurnSSE's, BUT NOT persistPartialOutbound ─
+    // handleTurn dispatches to handleTurnSSE on its FIRST statement and
+    // returns, so one POST /internal/voice/turn takes exactly one branch.
+    // This site and the SSE site are mutually exclusive per turn: emitting at
+    // both does not double-count, it covers both transports of the same turn.
+    // persistPartialOutbound (the barge-in / hangup path) does NOT emit — a
+    // turn the caller interrupted is not a turn the AI handled, and claiming
+    // it would be the same dishonesty M-4 avoids by defaulting booked_by to
+    // 'unknown'. If a type ever names that outcome it is a new value in an
+    // unconstrained column, not a migration.
+    //
+    // `detail` NULL: the text is in `messages`, the timings and tools are in
+    // `turn_traces`; a copy here would be patient-adjacent data with no reader.
+    try {
+      await conversationService.recordEvent(tenant_id, conversation_id, {
+        type: 'handled', channel: 'voice', actor: 'ai',
+        callSessionId: call_session_id, detail: null,
+      });
+    } catch (evErr) {
+      logger.error({ tenant_id, err: evErr.message }, 'conversation_events: handled emit failed');
+    }
+
     if (signal.aborted) {
       // The turn completed despite an abort firing after the last checkpoint
       // (typically past the point of no return). Trace it honestly (V-011);
@@ -506,6 +532,23 @@ async function handleTurnSSE(req, res) {
     );
     await db.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1 AND tenant_id = $2`, [conversation_id, tenant_id]);
     endPersistOut();
+
+    // Outcome event (migration 029) — the SSE twin of the JSON branch's emit.
+    // Mutually exclusive with it: handleTurn returns into this handler, so a
+    // turn reaches one site or the other, never both. See the JSON branch for
+    // why persistPartialOutbound below does not emit.
+    //
+    // Emitted BEFORE sse('done') for the same reason the persist above is:
+    // `done` is the worker's signal that the turn is complete, and nothing
+    // that belongs to the turn should land after it.
+    try {
+      await conversationService.recordEvent(tenant_id, conversation_id, {
+        type: 'handled', channel: 'voice', actor: 'ai',
+        callSessionId: call_session_id, detail: null,
+      });
+    } catch (evErr) {
+      logger.error({ tenant_id, err: evErr.message }, 'conversation_events: handled emit failed');
+    }
 
     sse('done', { reply_text, end_call: false, language: effectiveLanguage });
     finished = true;
