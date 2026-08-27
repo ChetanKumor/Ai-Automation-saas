@@ -16,7 +16,9 @@
 //   1. the four returns of deriveDisposition, each distinct and none collapsing
 //      into another: undefined (not visible), 'open' (visible, no events),
 //      'handled' (the one mapped type), null (events exist, latest unmapped)
-//   2. it is the LATEST event that decides, not the first
+//   2. it is the LATEST event that decides, not the first — both across
+//      separate transactions (the real writer's shape) and WITHIN one
+//      transaction, which is where the pre-030 ordering was a coin flip
 //   3. tenant scoping is structural — a second tenant derives nothing, and gets
 //      the same answer it would get for an id that does not exist
 //   4. THE TAKEOVER DISAGREEMENT — the defect that killed the column, as a
@@ -154,7 +156,28 @@ describe('conversations.disposition — derived, not stored (audit §8/P-3, DECL
 
   // ── 2. Latest wins ─────────────────────────────────────────────────────────
 
-  it('the LATEST event decides, not the first', async () => {
+  // ⚠️ THIS TEST PASSES FOR AN INCIDENTAL REASON, AND CANNOT CATCH THE ORDERING
+  // DEFECT MIGRATION 030 FIXED. Read this before trusting it as ordering
+  // coverage.
+  //
+  // It appends three events through the real writer, and `recordEvent` goes
+  // through `db.query` — the pool (src/db/db.js:34) — so each call is its OWN
+  // implicit transaction with its own NOW(). The three rows therefore get three
+  // DISTINCT `created_at` values, and `ORDER BY created_at DESC` alone settles
+  // them. It would have passed identically before 030, and it did.
+  //
+  // The defect lived one level below that: two events in ONE transaction share
+  // NOW() to the microsecond, and the old tiebreak was `id DESC` on a random
+  // gen_random_uuid() — measured at 48.8% wrong across 125 pairs. Nothing in
+  // this test constructs that case, so nothing in it could ever see it.
+  //
+  // It is kept as-is rather than rewritten, because it covers something the
+  // 030 test below deliberately does not: latest-wins through the REAL WRITER,
+  // across separate turns, which is how events are actually produced. The
+  // same-transaction case is proved immediately after, against raw INSERTs,
+  // because `recordEvent` takes no client and cannot be made to share one
+  // without widening its signature for a test.
+  it('the LATEST event decides, not the first — across SEPARATE transactions', async () => {
     const { conv } = await newThread(TENANT_ID, '+919000000304');
 
     await conversationService.recordEvent(TENANT_ID, conv.id, {
@@ -177,6 +200,93 @@ describe('conversations.disposition — derived, not stored (audit §8/P-3, DECL
     const { rows } = await db.query(
       'SELECT count(*)::int AS n FROM conversation_events WHERE conversation_id = $1', [conv.id]);
     assert.equal(rows[0].n, 3, 'all three rows are still there — the log is append-only');
+  });
+
+  // ── 2b. THE SAME-TRANSACTION CASE — migration 030 ──────────────────────────
+  //
+  // The case the test above cannot construct, and the one the defect lived in.
+  //
+  // Before 030 this was a coin flip: `created_at` is NOW(), i.e. TRANSACTION
+  // START time, so both rows share it exactly, and the tiebreak was `id DESC`
+  // on a random gen_random_uuid(). Measured on a scratch database across 125
+  // same-transaction pairs: created_at identical 125/125, and the SECOND event
+  // — the one that actually happened later — named "latest" only 48.8% of the
+  // time. After 030 the ordering key is `seq`, a BIGINT GENERATED ALWAYS AS
+  // IDENTITY, and ties are impossible by construction.
+  //
+  // ── THE NON-VACUITY RAIL, and why it is the important half ────────────────
+  // Asserting only "the second event wins" would ALSO pass if someone replaced
+  // NOW() with clock_timestamp() and left `id DESC` in place — a change 030
+  // explicitly rejected, because on the Neon server two consecutive
+  // clock_timestamp() readings return the same microsecond 58-59% of the time,
+  // making it a narrowing rather than a fix.
+  //
+  // So this test REQUIRES the two rows to still share `created_at` EXACTLY. If
+  // a future session reaches for a clock, that assertion goes red rather than
+  // the test going quietly green for the wrong reason. What is being proved is
+  // that the ordering survives a genuine tie — not that ties were engineered
+  // away underneath it.
+  //
+  // Raw INSERTs rather than recordEvent: recordEvent takes no client (it uses
+  // the pool), and widening its signature so a test can share a transaction is
+  // exactly the kind of production change a test should not force. The reader
+  // under test — deriveDisposition — is the real one.
+  it('two events in ONE transaction: the second wins, every time (migration 030)', async () => {
+    const { cust, conv } = await newThread(TENANT_ID, '+919000000311');
+
+    const ROUNDS = 30;
+    const insert = `INSERT INTO conversation_events
+                      (tenant_id, conversation_id, customer_id, type, channel, actor)
+                    VALUES ($1, $2, $3, $4, 'whatsapp', $5)
+                    RETURNING id, seq, created_at::text AS ts`;
+
+    const derived = [];
+    let sharedCreatedAt = 0;
+    let seqOrdered = 0;
+
+    const client = await db.getClient();
+    try {
+      for (let i = 0; i < ROUNDS; i++) {
+        await client.query('BEGIN');
+        // FIRST: an unmapped type, so the derivation says null if it wins.
+        const { rows: [first] } = await client.query(insert,
+          [TENANT_ID, conv.id, cust.id, 'escalated', 'system']);
+        // SECOND: the mapped type, so the derivation says 'handled' if it wins.
+        const { rows: [second] } = await client.query(insert,
+          [TENANT_ID, conv.id, cust.id, 'handled', 'ai']);
+        await client.query('COMMIT');
+
+        // THE RAIL: compared as Postgres renders them, not as JS Dates —
+        // Date.getTime() is millisecond resolution and would call two rows
+        // 900 us apart identical.
+        if (first.ts === second.ts) sharedCreatedAt++;
+        if (BigInt(second.seq) > BigInt(first.seq)) seqOrdered++;
+
+        derived.push(await conversationService.deriveDisposition(TENANT_ID, conv.id));
+      }
+    } finally {
+      client.release();
+    }
+
+    assert.equal(sharedCreatedAt, ROUNDS,
+      `created_at must still be IDENTICAL within the transaction in all ${ROUNDS} rounds — ` +
+      'it was in ' + sharedCreatedAt + '. If this fails, NOW() was replaced by a clock and the ' +
+      'ordering below is no longer being proved against a genuine tie');
+
+    assert.equal(seqOrdered, ROUNDS,
+      'seq must strictly increase in emission order within the transaction');
+
+    // 100/0, where the old ordering was 48.8/51.2.
+    const handled = derived.filter((d) => d === 'handled').length;
+    assert.equal(handled, ROUNDS,
+      `the SECOND event must win all ${ROUNDS} rounds — it won ${handled}. ` +
+      'Anything less than 100% is the pre-030 coin flip');
+    assert.equal(derived.filter((d) => d === null).length, 0,
+      'the first event never wins — `null` here means `escalated` was read as the latest');
+
+    const { rows } = await db.query(
+      'SELECT count(*)::int AS n FROM conversation_events WHERE conversation_id = $1', [conv.id]);
+    assert.equal(rows[0].n, ROUNDS * 2, 'every row was written — the log is append-only');
   });
 
   // ── 3. Tenant scoping, structural ──────────────────────────────────────────

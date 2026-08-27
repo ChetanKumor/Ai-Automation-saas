@@ -169,15 +169,24 @@ const EVENT_TYPE_TO_DISPOSITION = Object.freeze({
 // passing another tenant's conversation id sees no row and gets undefined —
 // identical to what an unknown id returns.
 //
-// ── The ordering caveat, named rather than hidden ────────────────────────────
-// `conversation_events` has no monotonic sequence: `created_at` defaults to
-// NOW(), which is TRANSACTION start time, so two events written in one
-// transaction share it exactly. `id DESC` breaks that tie DETERMINISTICALLY —
-// the same query returns the same row every time — but `id` is a random
-// gen_random_uuid(), so among simultaneous events the winner is arbitrary
-// rather than chronological. Today nothing writes two events in one
-// transaction, so this is latent. It is a real gap in 029's shape for anyone
-// deriving "latest" and it is filed with the deferral.
+// ── "Latest" means the highest `seq`, and that is not a detail ───────────────
+// CLOSED by migration 030. Until it landed, this ordering was
+// `created_at DESC, id DESC` and it was UNDEFINED BEHAVIOUR for ties:
+// `created_at` defaults to NOW(), which is TRANSACTION start time, so two
+// events written in one transaction share it to the microsecond, and `id` is a
+// random gen_random_uuid(). Deterministic — the same query returned the same
+// row every time — but arbitrary rather than chronological. Measured at 48.8%
+// wrong across 125 same-transaction pairs.
+//
+// `conversation_events.seq` is BIGINT GENERATED ALWAYS AS IDENTITY, so ties are
+// impossible and no tiebreak column is needed or wanted here: adding one back
+// would imply seq can tie, which it cannot.
+//
+// The residual caveat, which 030 did not remove and could not: seq is
+// ALLOCATION order, not COMMIT order, so across concurrent transactions a lower
+// seq can become visible after a higher one. Unreachable on this read — it is
+// per-conversation, and the turn pipeline serialises writes to one thread — but
+// read the migration 030 header before using seq for anything wider.
 const deriveDisposition = async (tenantId, conversationId) => {
   const { rows } = await db.query(
     `SELECT ($3::jsonb ->> latest.type) AS disposition, latest.type AS latest_type
@@ -187,7 +196,7 @@ const deriveDisposition = async (tenantId, conversationId) => {
            FROM conversation_events e
           WHERE e.conversation_id = c.id
             AND e.tenant_id       = c.tenant_id
-          ORDER BY e.created_at DESC, e.id DESC
+          ORDER BY e.seq DESC
           LIMIT 1
        ) latest ON TRUE
       WHERE c.id = $1 AND c.tenant_id = $2`,
@@ -256,17 +265,18 @@ const findDispositionDisagreements = async (tenantId) => {
        SELECT c.id, c.customer_id, c.mode, c.status,
               latest.type                        AS latest_type,
               latest.created_at                  AS latest_at,
+              latest.seq                         AS latest_seq,
               ($2::jsonb ->> latest.type)        AS mapped,
               CASE WHEN latest.type IS NULL THEN 'open'
                    ELSE ($2::jsonb ->> latest.type) END AS derived,
               h.id                               AS open_handoff_id
          FROM conversations c
          LEFT JOIN LATERAL (
-           SELECT e.type, e.created_at
+           SELECT e.type, e.created_at, e.seq
              FROM conversation_events e
             WHERE e.conversation_id = c.id
               AND e.tenant_id       = c.tenant_id
-            ORDER BY e.created_at DESC, e.id DESC
+            ORDER BY e.seq DESC
             LIMIT 1
          ) latest ON TRUE
          LEFT JOIN handoff_sessions h
@@ -295,7 +305,21 @@ const findDispositionDisagreements = async (tenantId) => {
       WHERE (mode = 'human')
          OR (open_handoff_id IS NOT NULL)
          OR (latest_type IS NOT NULL AND mapped IS NULL)
-      ORDER BY latest_at DESC NULLS LAST, id DESC`,
+      -- Presentation order: most-recently-evented thread first. Keyed on
+      -- latest_seq, not latest_at, for the same reason the LATERAL is — two
+      -- threads whose latest events fall in the same microsecond would
+      -- otherwise fall through to a random-UUID tiebreak.
+      --
+      -- THE RESIDUE, named rather than hidden: rows flagged with NO events at
+      -- all (mode='human' or an open handoff, latest_seq NULL) sort last and
+      -- then among themselves by "id DESC" — conversations.id, also a
+      -- gen_random_uuid(). seq cannot help there; those rows have no event for
+      -- it to speak about. It is deterministic (the same query returns the same
+      -- order) and it decides nothing: this is a diagnostic listing, and every
+      -- row in it is a finding regardless of position. Left alone deliberately
+      -- — reaching for conversations.updated_at to break it would be inventing
+      -- a recency semantic this function was not asked to have.
+      ORDER BY latest_seq DESC NULLS LAST, id DESC`,
     [tenantId, JSON.stringify(EVENT_TYPE_TO_DISPOSITION)]
   );
   return rows;

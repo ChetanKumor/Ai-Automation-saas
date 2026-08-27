@@ -106,11 +106,19 @@ async function eventually(fn, timeoutMs = 6000) {
   }
 }
 
+// Ordered by `seq` (migration 030), not by `created_at, id`.
+//
+// Every call site below asserts on ONE event or on [], so the old ordering was
+// vacuous rather than wrong — which is exactly why it was worth changing before
+// someone asserts on two. `created_at` is NOW(), i.e. transaction start time,
+// and `id` is a random gen_random_uuid(): a caller appending a second event in
+// the same transaction would have got the two rows back in a coin-flip order
+// and written the assertion around whichever order it happened to see.
 async function eventsFor(tenantId, conversationId) {
   const { rows } = await db.query(
     `SELECT * FROM conversation_events
       WHERE tenant_id = $1 AND conversation_id = $2
-      ORDER BY created_at, id`,
+      ORDER BY seq`,
     [tenantId, conversationId]
   );
   return rows;

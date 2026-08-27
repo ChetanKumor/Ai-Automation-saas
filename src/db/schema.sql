@@ -684,11 +684,30 @@ CREATE TABLE conversation_events (
   actor     TEXT NOT NULL           -- who caused it
               CHECK (actor IN ('ai', 'agent', 'system', 'customer')),
   detail    JSONB,                  -- type-specific; never free patient text
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  -- The ordering key (migration 030). NOT created_at: NOW() is transaction
+  -- start time, so two events written in one transaction share it to the
+  -- microsecond, and the old `id DESC` tiebreak is a random gen_random_uuid()
+  -- — measured at 48.8% wrong across 125 same-transaction pairs. Ties are
+  -- impossible here by construction.
+  --
+  -- GENERATED ALWAYS, so no caller can supply a seq by hand. Allocation order,
+  -- which is NOT commit order across concurrent transactions — see the
+  -- migration 030 header before using seq for anything wider than one thread.
+  seq       BIGINT GENERATED ALWAYS AS IDENTITY
 );
 
+-- (conversation_id, seq DESC), not (conversation_id, created_at): with the
+-- ordering key inside the index the "latest event on this thread" read is a
+-- one-row Index Scan with no sort node. Left on created_at it degrades to a
+-- bitmap scan of every event on the thread plus a top-N heapsort — strictly
+-- worse than before seq existed, and silently, since nothing asserts a plan.
+-- EXPLAIN evidence for all three shapes is in the migration 030 header.
 CREATE INDEX idx_conversation_events_conversation
-  ON conversation_events(conversation_id, created_at);
+  ON conversation_events(conversation_id, seq DESC);
+-- Unchanged by 030: a different axis (tenant-wide, by type, on wall-clock
+-- time) serving the GROUP BY that settles the `type` vocabulary.
 CREATE INDEX idx_conversation_events_tenant_type_created
   ON conversation_events(tenant_id, type, created_at DESC);
 

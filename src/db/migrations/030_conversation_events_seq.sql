@@ -1,0 +1,141 @@
+-- Migration 030: conversation_events.seq — the monotonic ordering key.
+--
+-- Closes the ordering ambiguity migration 029 shipped with, while the table is
+-- still empty. 029's own header does not mention it; the gap was named in
+-- conversationService.js:172-180 when the derivation landed, and filed with the
+-- disposition deferral rather than fixed there.
+--
+-- ── THE DEFECT, MEASURED BEFORE IT WAS FIXED ─────────────────────────────────
+-- `created_at` defaults to NOW(), which is TRANSACTION START time. Two events
+-- written in one transaction therefore share it exactly — not approximately,
+-- exactly, to the microsecond. The tiebreak in every "latest event" read was
+-- `id DESC`, and `id` is gen_random_uuid(). So among simultaneous events the
+-- winner was random.
+--
+-- Not asserted — measured. 125 pairs of events, each pair inserted inside ONE
+-- transaction on a scratch database genesised from schema.sql, then asked the
+-- exact ordering deriveDisposition used (`ORDER BY created_at DESC, id DESC
+-- LIMIT 1`) which row was "latest":
+--
+--     created_at identical within the transaction   125 / 125   (zero differing)
+--     the FIRST event named latest                   64 / 125   (51.2%)
+--     the SECOND event named latest                  61 / 125   (48.8%)
+--
+-- The event that actually happened later was named "latest" 48.8% of the time.
+-- A coin flip decided by a random UUID.
+--
+-- Latent at 029 only because exactly one emitter existed ('handled', once per
+-- turn) and recordEvent goes through the pool (src/db/db.js:34), so every write
+-- was its own implicit transaction. It stops being latent at the first second
+-- emitter joining an existing transaction — appointmentService.js:511 already
+-- opens one around the booking insert, which is where M-4's 'booked' goes, and
+-- A-2's escalation work has the same shape.
+--
+-- ── WHY AN IDENTITY COLUMN AND NOT clock_timestamp() ─────────────────────────
+-- The obvious alternative is `created_at DEFAULT clock_timestamp()` — statement
+-- time rather than transaction time. It was rejected on measurement, not taste.
+--
+-- 20,000 successive clock_timestamp() readings, twice per server:
+--
+--     local PostgreSQL 18.4 (x86_64-windows)          0 and 672 adjacent ties
+--     Neon  PostgreSQL 18.6 (aarch64-linux)      11,687 and 11,883 adjacent ties
+--
+-- On the server shaped like production, two consecutive clock_timestamp() calls
+-- return the SAME microsecond 58-59% of the time. Resolution is 1 us on both.
+-- So clock_timestamp() does not close the defect — it narrows the window from
+-- "one transaction" to "one microsecond" and then hands the tie straight back
+-- to the random UUID, on the majority of adjacent writes. A narrowing, not a
+-- fix.
+--
+-- It also costs something this schema should not spend. Every created_at and
+-- updated_at in this database is NOW(): clock_timestamp() and
+-- statement_timestamp() appear in none of schema.sql's ~20 tables and in none
+-- of migrations 002-029. Making this ONE column mean something different in
+-- kind — no longer transaction-consistent, so an event's timestamp can fall
+-- outside its own transaction's NOW() — is a trap for anyone joining events to
+-- messages or appointments on time. Doing both would be the identity column
+-- plus that liability, for nothing.
+--
+-- A sequence makes ties IMPOSSIBLE rather than improbable. That is a property,
+-- not a probability, and it is the whole reason to prefer it.
+--
+-- ── THE TRADEOFF, STATED PLAINLY, BECAUSE seq LOOKS LIKE COMMIT ORDER ────────
+-- READ THIS BEFORE USING seq FOR ANYTHING WIDER THAN ONE THREAD.
+--
+-- An identity column allocates at INSERT time, not at COMMIT time. Across
+-- CONCURRENT transactions the two can disagree:
+--
+--     txn A inserts, takes seq = 5
+--     txn B inserts, takes seq = 6
+--     txn B commits            <- a reader here sees 6 and no 5
+--     txn A commits            <- 5 now appears, "older" than a row that
+--                                 became visible before it
+--
+-- So seq is allocation order, and allocation order is NOT commit order. The
+-- next person to read this column will assume it is; it is not.
+--
+-- This is accepted, for two reasons. It is unreachable on the read it fixes:
+-- deriveDisposition is per-conversation, and the turn pipeline serialises
+-- writes to a single thread — one turn at a time. And in the case that
+-- actually bites, two events inside ONE transaction, allocation order IS
+-- emission order, always. A gap left by a rollback is likewise irrelevant:
+-- seq is an ordering key and nothing counts with it.
+--
+-- ── THE INDEX MUST MOVE WITH THE ORDERING. THIS IS THE TRAP. ─────────────────
+-- Shipping seq and leaving idx_conversation_events_conversation on
+-- (conversation_id, created_at) makes the read STRICTLY WORSE while every test
+-- stays green — nothing in the suite asserts a query plan.
+--
+-- EXPLAIN (ANALYZE, BUFFERS) of the real deriveDisposition LATERAL against a
+-- populated scratch database (500 conversations x 20 events = 10,000 rows,
+-- ANALYZEd):
+--
+--   A  created_at DESC, id DESC   index (conversation_id, created_at)
+--      Index Scan Backward + Incremental Sort   rows=2   4 buffers   0.064 ms
+--      (the sort is there even today: `id DESC` is not in the index)
+--
+--   B  seq DESC                   index UNCHANGED
+--      Bitmap Heap Scan + top-N heapsort       rows=20  22 buffers   0.126 ms
+--      -- reads EVERY event on the thread, and gets worse as threads grow
+--
+--   C  seq DESC                   index (conversation_id, seq DESC)
+--      Index Scan, no sort node                rows=1    3 buffers   0.062 ms
+--
+-- C is better than A, which is why the swap is a swap and not an addition:
+-- with the ordering key wholly inside the index there is no sort node at all.
+-- idx_conversation_events_tenant_type_created is deliberately UNCHANGED — it
+-- serves a different axis (tenant-wide, by type, on wall-clock time, for the
+-- `SELECT type, COUNT(*) ... GROUP BY type` that 029's header names as the
+-- query that settles the vocabulary), and leaving it means created_at is not
+-- orphaned from indexing.
+--
+-- ── THIS MIGRATION IS ONLY CORRECT BECAUSE BOTH DATABASES ARE EMPTY ──────────
+-- ADD COLUMN ... GENERATED ALWAYS AS IDENTITY rewrites the table and assigns
+-- seq in PHYSICAL HEAP ORDER. On a populated table that order is arbitrary —
+-- the migration would install exactly the ambiguity it exists to remove, and
+-- do it silently, since the resulting column looks perfectly monotonic.
+--
+-- Verified live before writing this file: `SELECT count(*) FROM
+-- conversation_events` returned 0 on both the local saas_crm_test and the
+-- remote Neon neondb. The one long-lived thread on the dev database
+-- (a550e900-..., 115 messages) predates 029 and has no events at all.
+--
+-- If this file is ever run against a database with rows in this table, the
+-- resulting seq order is a lie and must be rebuilt from created_at by hand
+-- before anything reads it.
+--
+-- ── Scope ────────────────────────────────────────────────────────────────────
+-- One ADD COLUMN and one index swap. No other table is touched, no constraint
+-- is tightened on existing data, no vocabulary is settled. GENERATED ALWAYS
+-- (not BY DEFAULT, and not BIGSERIAL as channel_identifiers.id uses) so that no
+-- caller can supply a seq by hand and corrupt the order. No UNIQUE constraint:
+-- the column is unique by construction and a second btree would cost a write
+-- per insert for a reader that does not exist. Forward-only, as everything
+-- here is; re-running raises 42701, unreachable through the runner.
+
+ALTER TABLE conversation_events
+  ADD COLUMN seq BIGINT GENERATED ALWAYS AS IDENTITY;
+
+DROP INDEX idx_conversation_events_conversation;
+CREATE INDEX idx_conversation_events_conversation
+  ON conversation_events(conversation_id, seq DESC);

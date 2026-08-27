@@ -17,8 +17,25 @@
 // unread) missing it forever. Either half of the lockstep, broken silently.
 //
 // So: build the shape from schema.sql, fabricate the pre-029 state by DROPping
-// the table, run the REAL 029 file through the runner, and assert the two
-// shapes are identical.
+// the table, run the REAL migration files through the runner, and assert the
+// two shapes are identical.
+//
+// ── WHY PATH B REPLAYS THE CHAIN, NOT JUST 029 ───────────────────────────────
+// It replayed 029 alone until migration 030 added `seq` and swapped
+// idx_conversation_events_conversation onto it. From that moment 029 by itself
+// could not reproduce what schema.sql builds, and this suite went red — as it
+// should have: schema.sql had moved and the fabrication had not.
+//
+// The obligation generalises, so it is written here rather than rediscovered.
+// A CREATE TABLE guard fabricates its pre-state by DROPping the whole table,
+// which unwinds EVERY later migration that touched it too. So the replay must
+// be the whole chain for this table, in order. **Every future migration that
+// alters conversation_events must be appended to CHAIN below** — otherwise this
+// guard does not go red, it goes WRONG: it compares schema.sql against a
+// half-built table and fails for a reason that looks like drift in the wrong
+// file. The 030 guard (conversationEventsSeq.test.js) is the complement — it
+// fabricates only 030's own delta and proves the MIGRATE path for a database
+// that is already at 029.
 //
 // ── Why this asserts INDEXES and CONSTRAINTS, not only columns ───────────────
 // conversationsOriginChannel.test.js compares columns alone, which is complete
@@ -43,6 +60,10 @@ const runner = require('../../src/db/migrate');
 const ADMIN = process.env.DATABASE_URL;
 const REAL_MIGRATIONS = path.join(__dirname, '..', '..', 'src', 'db', 'migrations');
 const MIG_029 = '029_conversation_events.sql';
+
+// Every migration that touches conversation_events, in order. See the header:
+// DROPping the table unwinds all of them, so all of them must be replayed.
+const CHAIN = [MIG_029, '030_conversation_events_seq.sql'];
 
 const SSL = process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false;
 const SILENT = { log() {}, error() {} };
@@ -197,23 +218,25 @@ describe('conversation_events (migration 029)', { skip: ADMIN ? false : 'DATABAS
       assert.equal(deleteRules.tenant_id, 'CASCADE');
       assert.equal(deleteRules.customer_id, 'CASCADE');
 
-      // ── Path B: fabricate pre-029, then run the REAL migration file ──
+      // ── Path B: fabricate pre-029, then replay the REAL chain ────────
       await exec(cs, 'DROP TABLE conversation_events');
       const gone = await shapeOf(cs, 'conversation_events');
       assert.equal(gone.length, 0, 'pre-029 state fabricated');
 
-      const sql = fs.readFileSync(path.join(REAL_MIGRATIONS, MIG_029), 'utf8');
-      await exec(cs, sql);
+      for (const filename of CHAIN) {
+        const sql = fs.readFileSync(path.join(REAL_MIGRATIONS, filename), 'utf8');
+        await exec(cs, sql);
+      }
 
       // ── The lockstep assertions: all four shapes, both paths ─────────
       assert.deepEqual(await shapeOf(cs, 'conversation_events'), colsFromSchema,
-        'the real 029 file reproduces schema.sql\'s COLUMNS — lockstep');
+        'the real migration chain reproduces schema.sql\'s COLUMNS — lockstep');
       assert.deepEqual(await indexesOf(cs, 'conversation_events'), idxFromSchema,
-        'the real 029 file reproduces schema.sql\'s INDEXES — lockstep');
+        'the real migration chain reproduces schema.sql\'s INDEXES — lockstep');
       assert.deepEqual(await fksOf(cs, 'conversation_events'), fksFromSchema,
-        'the real 029 file reproduces schema.sql\'s FOREIGN KEYS and ON DELETE rules — lockstep');
+        'the real migration chain reproduces schema.sql\'s FOREIGN KEYS and ON DELETE rules — lockstep');
       assert.deepEqual(await checksOf(cs, 'conversation_events'), checksFromSchema,
-        'the real 029 file reproduces schema.sql\'s CHECK constraints — lockstep');
+        'the real migration chain reproduces schema.sql\'s CHECK constraints — lockstep');
     });
   });
 });
