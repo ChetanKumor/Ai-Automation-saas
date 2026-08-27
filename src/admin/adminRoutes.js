@@ -8,6 +8,7 @@ const tenantService = require('../modules/tenant/tenantService');
 const lifecycleService = require('../modules/tenant/lifecycleService');
 const { CHECK_NAMES } = require('../modules/validation/validationService');
 const configService = require('../modules/config/configService');
+const conversationService = require('../modules/conversation/conversationService');
 const tracesQuery = require('../modules/traces/queryService');
 const { renderSystemPrompt, estimateTokens } = require('../modules/prompts');
 // Reuse the portal's scrypt hashing for operator-created owner accounts (S3) — the
@@ -369,13 +370,29 @@ router.post('/api/cache/invalidate', requireAuth, apiLimiter, requireAdminHeader
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ── API: Conversations — read-only cross-channel thread view (Issue 26) ──────
-// Topology (verified against 016/017/018 + the voice bridge in internalVoice.js):
+// Topology (verified against 016/017/018/028 + the voice bridge in internalVoice.js):
 // there is ONE open conversation per (tenant, customer) — the voice worker
 // resolves the caller by phone and REUSES their existing open conversation, then
 // bridges the call_session to conversation_id. So a single conversation can hold
-// both WhatsApp and voice messages; `channel` is a per-MESSAGE fact (messages.channel),
-// and call_sessions join cleanly on conversation_id. The UI reflects this: channel
-// chips per message, channel(s) aggregated per row, call-session cards inline.
+// both WhatsApp and voice messages, and call_sessions join cleanly on
+// conversation_id.
+//
+// Channel is a per-MESSAGE fact (messages.channel, NOT NULL, written explicitly
+// at every INSERT site). A thread's participating channels are therefore DERIVED
+// from its messages, in two forms that are the plural and singular of one rule:
+// array_agg(DISTINCT m.channel) below for a whole page in one round trip, and
+// conversationService.getParticipatingChannels for a single thread. The list
+// route keeps the set-wise form deliberately — routing a 25-row page through the
+// singular function would cost 25 extra round trips to say the same thing.
+//
+// conversations.origin_channel is NOT that answer and must never be read as it:
+// it records only which edge created the row and is never updated (migration 028
+// renamed it from `channel` for exactly this reason). Before the rename this
+// route returned it as `channel` on the detail response while the list beside it
+// derived the truth — the two disagreed about the same thread.
+//
+// The UI reflects the derived model: channel chips per message, channel(s)
+// aggregated per row, call-session cards inline.
 //
 // Strictly read-only: GETs only, no send/takeover/status mutation anywhere here.
 const CONV_STATUSES = ['open', 'closed', 'pending'];
@@ -477,7 +494,7 @@ router.get('/api/conversations/:id', requireAuth, async (req, res) => {
   const id = req.params.id;
   try {
     const { rows: metaRows } = await db.query(
-      `SELECT c.id, c.tenant_id, c.channel, c.mode, c.status, c.created_at, c.updated_at,
+      `SELECT c.id, c.tenant_id, c.mode, c.status, c.created_at, c.updated_at,
               t.business_name AS tenant_name,
               cust.name AS customer_name, cust.phone AS customer_phone
        FROM conversations c
@@ -509,13 +526,25 @@ router.get('/api/conversations/:id', requireAuth, async (req, res) => {
       [id]
     );
 
+    // Derived from ALL of this thread's messages, not from the `messages` array
+    // above — that one is capped at the newest 500, so a channel that only
+    // appears earlier in a long thread would silently drop out of the answer.
+    const channels = await conversationService.getParticipatingChannels(meta.tenant_id, id);
+
     res.json({
       id: meta.id,
       tenant_id: meta.tenant_id,
       tenant_name: meta.tenant_name,
       customer_display: meta.customer_name || meta.customer_phone || '—',
       customer_phone: meta.customer_phone,
-      channel: meta.channel,
+      // Plural, and the same field name the list route uses (`channels: []`), so
+      // the two routes cannot drift or be read as answering different questions.
+      // Replaces the pre-028 singular `channel`, which returned the raw column
+      // and was wrong for every cross-channel thread. origin_channel is
+      // deliberately NOT exposed here: no client asks how a thread began, and a
+      // singular channel field beside a plural one is a trap waiting for a
+      // reader in a hurry.
+      channels,
       mode: meta.mode,
       status: meta.status,
       created_at: meta.created_at,

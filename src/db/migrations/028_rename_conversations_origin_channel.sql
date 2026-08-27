@@ -1,0 +1,60 @@
+-- Migration 028: conversations.channel -> conversations.origin_channel
+--
+-- The column was never wrong about what it STORED. It was wrong about what its
+-- name promised. `channel` reads as "the channel this conversation is on";
+-- what it holds is "the channel that happened to create this row", written
+-- once at INSERT and never updated again.
+--
+-- ── Why the two diverge, structurally and not by accident ────────────────────
+-- conversationService.getOrCreateOpenConversation upserts with
+--
+--     ON CONFLICT (tenant_id, customer_id) WHERE status = 'open'
+--
+-- and channel is NOT in that arbiter. Both edges pass one — WhatsApp at
+-- src/modules/channels/index.js:71 ('whatsapp', from the adapter envelope),
+-- voice at src/routes/internalVoice.js:652 ('voice') — but the DO UPDATE
+-- branch touches only updated_at. So the SECOND channel to reach a customer's
+-- open thread is silently discarded, by construction, on every cross-channel
+-- conversation this product exists to support. One patient, one thread, two
+-- channels is not a future feature here; it is what the schema already does.
+--
+-- Measured on the dev database before this migration: conversation
+-- a550e900-3f8f-46f2-ae6e-c85f8d03d17f holds 115 messages on BOTH channels and
+-- read `channel = 'whatsapp'`. GET /admin/api/conversations/:id returned
+-- "channel": "whatsapp" for that thread in the same request cycle in which
+-- GET /admin/api/conversations returned ["voice","whatsapp"] for it — the list
+-- route derives from messages, the detail route read this column, and the two
+-- disagreed about the same row.
+--
+-- ── What replaces it ─────────────────────────────────────────────────────────
+-- Participation is DERIVED from messages.channel, which is per-row, NOT NULL
+-- DEFAULT 'whatsapp', and written explicitly at all eleven INSERT sites. No row
+-- can lack it. conversationService.getParticipatingChannels is the singular
+-- form; the list route's array_agg(DISTINCT m.channel) is the set-wise form.
+-- Both read messages. Nothing derives participation from this column.
+--
+-- ── Why a rename and not a drop ──────────────────────────────────────────────
+-- "How the thread began" is a real fact and worth keeping: it is the only
+-- record of which edge first opened a conversation, and it survives even after
+-- every message is purged by retention. The name now says exactly that much and
+-- promises nothing more.
+--
+-- ── Scope ────────────────────────────────────────────────────────────────────
+-- RENAME COLUMN only. Type (TEXT), NOT NULL, and DEFAULT 'whatsapp' are
+-- unchanged and travel with the column; there is no CHECK, no enum and no index
+-- on it to move. Every stored value is preserved — this migration cannot lose
+-- data. Migration 016, which created the column under its old name, is history
+-- and is deliberately left alone: the runner never re-executes a recorded file
+-- (src/db/migrate.js:167 filters pending against every recorded filename,
+-- stamped or run), so 016 will not undo this.
+--
+-- ⚠️ NOT IDEMPOTENT, unlike 016's ADD COLUMN IF NOT EXISTS and 019's DROP
+-- COLUMN IF EXISTS. Postgres has no RENAME COLUMN IF EXISTS, and a DO block
+-- would be the only way to fake one — no other migration here uses one, and it
+-- is not worth being the first for this. Re-running this file raises 42703
+-- (column "channel" does not exist). That is unreachable through the runner,
+-- which never re-executes a recorded file; it is reachable only by deleting
+-- this row from schema_migrations by hand, as tests/db/migrate.test.js:261
+-- does for 019. Do not pick this file for that trick — pick an idempotent one.
+
+ALTER TABLE conversations RENAME COLUMN channel TO origin_channel;

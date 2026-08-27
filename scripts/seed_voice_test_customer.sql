@@ -49,8 +49,10 @@ SELECT :'tenant_id', c.id, 'whatsapp', :'caller'
 FROM customers c WHERE c.tenant_id = :'tenant_id' AND c.phone = :'caller'
 ON CONFLICT (tenant_id, channel_type, identifier) DO NOTHING;
 
--- 5. The customer's single OPEN conversation (call/start REUSES this row)
-INSERT INTO conversations (tenant_id, customer_id, channel)
+-- 5. The customer's single OPEN conversation, BEGUN on whatsapp (call/start
+--    REUSES this row; origin_channel stays 'whatsapp', and the voice turns
+--    appear in messages.channel — that is where participation is read from)
+INSERT INTO conversations (tenant_id, customer_id, origin_channel)
 SELECT :'tenant_id', c.id, 'whatsapp'
 FROM customers c WHERE c.tenant_id = :'tenant_id' AND c.phone = :'caller'
 ON CONFLICT (tenant_id, customer_id) WHERE status = 'open'

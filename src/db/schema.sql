@@ -165,7 +165,19 @@ CREATE TABLE conversations (
   tenant_id         UUID NOT NULL REFERENCES tenants(id)   ON DELETE CASCADE,
   customer_id       UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
 
-  channel           TEXT NOT NULL DEFAULT 'whatsapp',
+  -- HOW THIS THREAD BEGAN — the channel that created the row. Written once at
+  -- INSERT and never updated (migration 028 renamed it from `channel`, which
+  -- promised more than it held).
+  --
+  -- IT IS NOT WHICH CHANNELS PARTICIPATE. getOrCreateOpenConversation's
+  -- ON CONFLICT arbiter is (tenant_id, customer_id) WHERE status='open' —
+  -- channel is absent from the key — so a customer's open thread is reused
+  -- whichever edge they arrive on, and the second channel is never recorded
+  -- here. Participation is DERIVED from messages.channel (per row, NOT NULL):
+  -- conversationService.getParticipatingChannels for one thread,
+  -- array_agg(DISTINCT m.channel) for a page of them. Never read this column
+  -- to answer "is this thread on voice or WhatsApp?" — it cannot know.
+  origin_channel    TEXT NOT NULL DEFAULT 'whatsapp',
 
   -- AI + Human coexistence
   mode              TEXT NOT NULL DEFAULT 'ai'

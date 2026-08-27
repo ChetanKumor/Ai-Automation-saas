@@ -29,13 +29,21 @@ async function ensureCustomer(tenantId, phone) {
 }
 
 async function ensureSchema() {
-  // Ensure channel column exists on conversations
+  // Ensure origin_channel exists on conversations.
+  //
+  // ⚠️ This block MUST test for `origin_channel`, never for `channel`. Migration
+  // 028 renamed the column; a check that still looked for the old name would
+  // find nothing on a correctly migrated database and ADD IT BACK — resurrecting
+  // the dead column on the one long-lived database `npm test` actually uses,
+  // while every scratch-DB suite (which genesises from schema.sql) stayed green.
+  // The suite passing is exactly what that failure mode looks like, so the guard
+  // is the column name here, not a green run.
   const { rows: convCols } = await db.query(
     `SELECT column_name FROM information_schema.columns
-     WHERE table_name = 'conversations' AND column_name = 'channel'`
+     WHERE table_name = 'conversations' AND column_name = 'origin_channel'`
   );
   if (convCols.length === 0) {
-    await db.query(`ALTER TABLE conversations ADD COLUMN channel TEXT NOT NULL DEFAULT 'whatsapp'`);
+    await db.query(`ALTER TABLE conversations ADD COLUMN origin_channel TEXT NOT NULL DEFAULT 'whatsapp'`);
   }
 
   // Drop old conversation unique if it exists, create new one
@@ -291,7 +299,7 @@ describe('Channel-Agnostic Storage (PR4)', () => {
     await assert.rejects(
       async () => {
         await db.query(
-          `INSERT INTO conversations (tenant_id, customer_id, channel, status)
+          `INSERT INTO conversations (tenant_id, customer_id, origin_channel, status)
            VALUES ($1, $2, 'whatsapp', 'open')`,
           [TENANT_A, customerA.id]
         );
@@ -347,19 +355,61 @@ describe('Channel-Agnostic Storage (PR4)', () => {
     assert.equal(msg.channel, 'whatsapp', 'default channel should be whatsapp');
   });
 
-  // ── getOrCreateOpenConversation channel-aware ─────────────────────
+  // ── getOrCreateOpenConversation origin_channel-aware ──────────────
 
-  it('getOrCreateOpenConversation stores channel', async () => {
+  it('getOrCreateOpenConversation stores origin_channel', async () => {
     const cust = await ensureCustomer(TENANT_A, '919000000300');
     const conv = await conversationService.getOrCreateOpenConversation(
       TENANT_A, cust.id, 'whatsapp'
     );
-    assert.equal(conv.channel, 'whatsapp');
+    assert.equal(conv.origin_channel, 'whatsapp');
   });
 
   it('getOrCreateOpenConversation defaults to whatsapp', async () => {
     const cust = await ensureCustomer(TENANT_A, '919000000400');
     const conv = await conversationService.getOrCreateOpenConversation(TENANT_A, cust.id);
-    assert.equal(conv.channel, 'whatsapp');
+    assert.equal(conv.origin_channel, 'whatsapp');
+  });
+
+  // ── Participation is DERIVED, and disagrees with origin_channel ───
+  //
+  // The one test that justifies migration 028. A thread BEGUN on WhatsApp and
+  // continued by voice reaches the same row through the ON CONFLICT arbiter
+  // (tenant_id, customer_id) WHERE status='open' — channel is not in the key —
+  // so origin_channel still reads 'whatsapp' while the thread is on both.
+  it('getParticipatingChannels returns both channels for a cross-channel thread', async () => {
+    const cust = await ensureCustomer(TENANT_A, '919000000500');
+
+    // Begun on WhatsApp.
+    const first = await conversationService.getOrCreateOpenConversation(TENANT_A, cust.id, 'whatsapp');
+    await db.query(
+      `INSERT INTO messages (tenant_id, conversation_id, customer_id, direction, sender, content, channel, msg_type)
+       VALUES ($1, $2, $3, 'inbound', 'customer', 'Booked me for Tuesday?', 'whatsapp', 'text')`,
+      [TENANT_A, first.id, cust.id]
+    );
+
+    // Continued by voice — same customer, same open thread.
+    const second = await conversationService.getOrCreateOpenConversation(TENANT_A, cust.id, 'voice');
+    assert.equal(second.id, first.id, 'the voice turn reuses the open WhatsApp thread');
+    await db.query(
+      `INSERT INTO messages (tenant_id, conversation_id, customer_id, direction, sender, content, channel, msg_type)
+       VALUES ($1, $2, $3, 'inbound', 'customer', 'Calling to confirm', 'voice', 'text')`,
+      [TENANT_A, second.id, cust.id]
+    );
+
+    assert.deepEqual(
+      await conversationService.getParticipatingChannels(TENANT_A, first.id),
+      ['voice', 'whatsapp'],
+      'derived participation sees both channels'
+    );
+    assert.equal(second.origin_channel, 'whatsapp',
+      'origin_channel still records only how the thread BEGAN — this is the divergence 028 names');
+
+    // Tenant-scoped: another tenant asking about this id learns nothing.
+    assert.deepEqual(
+      await conversationService.getParticipatingChannels(TENANT_B, first.id),
+      [],
+      'a conversation id alone does not cross the tenant boundary'
+    );
   });
 });

@@ -76,10 +76,13 @@ async function seed() {
     [TENANT_ID, customer.id, CALLER]
   );
 
-  // 5. The customer's single OPEN conversation (channel whatsapp). call/start's
-  //    getOrCreateOpenConversation will REUSE this exact row for the voice call.
+  // 5. The customer's single OPEN conversation, BEGUN on whatsapp. call/start's
+  //    getOrCreateOpenConversation will REUSE this exact row for the voice call
+  //    — origin_channel stays 'whatsapp' because that is how the thread began;
+  //    the voice turns show up in messages.channel, which is where a reader
+  //    must look to see that this thread is on both channels.
   const { rows: [conversation] } = await db.query(
-    `INSERT INTO conversations (tenant_id, customer_id, channel)
+    `INSERT INTO conversations (tenant_id, customer_id, origin_channel)
      VALUES ($1, $2, 'whatsapp')
      ON CONFLICT (tenant_id, customer_id) WHERE status = 'open'
      DO UPDATE SET updated_at = NOW()
@@ -118,7 +121,7 @@ seed()
     console.log('✓ Seeded voice test customer (returning, with prior WhatsApp history)\n');
     console.log('  tenant_id            :', TENANT_ID);
     console.log('  customer_id          :', customer.id, `(${customer.name})`);
-    console.log('  open conversation_id :', conversation.id, `(channel=${conversation.channel})`);
+    console.log('  open conversation_id :', conversation.id, `(origin_channel=${conversation.origin_channel})`);
     console.log('  caller / phone       :', CALLER);
     console.log('\nWorker env to match (voice-agent/.env):');
     console.log('  VOICE_TENANT_ID=' + TENANT_ID);

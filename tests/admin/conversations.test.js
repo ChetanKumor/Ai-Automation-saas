@@ -131,11 +131,15 @@ describe('conversations admin API (route-level)', { skip: ADMIN ? false : 'DATAB
       [tenantId, phone, name]);
     return rows[0];
   }
-  async function newConversation(tenantId, customerId, { status = 'open', channel = 'whatsapp', updatedAt = null } = {}) {
+  // `originChannel` is how the thread BEGAN — it is not what the routes report
+  // as the thread's channels. Those are derived from the messages seeded by
+  // newMessage below, which is why every fixture here can leave it at its
+  // default and still exercise both channels.
+  async function newConversation(tenantId, customerId, { status = 'open', originChannel = 'whatsapp', updatedAt = null } = {}) {
     const { rows } = await db.query(
-      `INSERT INTO conversations (tenant_id, customer_id, status, channel, updated_at)
+      `INSERT INTO conversations (tenant_id, customer_id, status, origin_channel, updated_at)
        VALUES ($1, $2, $3, $4, COALESCE($5::timestamptz, NOW())) RETURNING id`,
-      [tenantId, customerId, status, channel, updatedAt]);
+      [tenantId, customerId, status, originChannel, updatedAt]);
     return rows[0].id;
   }
   async function newMessage(convId, tenantId, customerId, o = {}) {
@@ -265,6 +269,18 @@ describe('conversations admin API (route-level)', { skip: ADMIN ? false : 'DATAB
     // The mixed conversation reports both channels in its row.
     const mixRow = wa.body.rows.find((r) => r.id === convMix);
     assert.deepEqual([...mixRow.channels].sort(), ['voice', 'whatsapp']);
+
+    // ...and the DETAIL route agrees with the list about the same thread.
+    // Before migration 028 it did not: detail returned the raw pre-028 column
+    // as `channel` — 'whatsapp' here, since newConversation defaults
+    // origin_channel — while the list beside it derived ['voice','whatsapp'].
+    // Both now read messages.channel, so they cannot disagree.
+    const mixDetail = await req(server, { method: 'GET', path: '/admin/api/conversations/' + convMix, cookie });
+    assert.equal(mixDetail.status, 200);
+    assert.deepEqual([...mixDetail.body.channels].sort(), ['voice', 'whatsapp'],
+      'detail derives participation, it does not report how the thread began');
+    assert.equal(mixDetail.body.channel, undefined,
+      'the singular pre-028 field is gone — a scalar channel beside a plural one is a trap');
   });
 
   // ── Status filter narrows ────────────────────────────────────────────────────
