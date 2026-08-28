@@ -102,7 +102,7 @@
   // one-line fix plus the page that resolves it.
   //   actor:    'owner'    → the owner fixes it, on a portal page
   //             'system'   → derived from saved settings (no direct link)
-  //             'operator' → Prantivo handles it (owner-visible, not owner-actioned)
+  //             'operator' → Veprio handles it (owner-visible, not owner-actioned)
   //   material: true  → counts toward the readiness ring and gates go-live
   //             false → advisory: shown subordinate, never scored
   //
@@ -130,13 +130,13 @@
     'doctor.schedule': { label: 'Doctor and weekly hours added', actor: 'owner', material: true,
                          fix: 'Add a doctor and their weekly hours', link: 'Doctors', href: 'doctors.html' },
     'whatsapp.config': { label: 'WhatsApp connection', actor: 'operator', material: true,
-                         note: 'Handled by Prantivo during onboarding' },
+                         note: 'Handled by Veprio during onboarding' },
     'whatsapp.live':   { label: 'WhatsApp connection verified', actor: 'operator', material: true,
-                         note: 'Handled by Prantivo during onboarding' },
+                         note: 'Handled by Veprio during onboarding' },
     'voice.config':    { label: 'Voice line configured', actor: 'operator', material: true,
-                         note: 'Handled by Prantivo during onboarding' },
+                         note: 'Handled by Veprio during onboarding' },
     'turn.scripted':   { label: 'Test call', actor: 'operator', material: true,
-                         note: 'Run by Prantivo before go-live' },
+                         note: 'Run by Veprio before go-live' },
     // F-F001. This entry survives; the ROW does not — renderChecks omits this
     // check from the rendered list entirely (D3, spec §3.2). It is not a task an
     // owner can complete, and a checklist row implies otherwise. It surfaces as
@@ -390,7 +390,7 @@
     }
 
     // Ineligible. The count names what is left; "0 left" is never rendered —
-    // when nothing is owner-actionable the remaining work is Prantivo's, and
+    // when nothing is owner-actionable the remaining work is Veprio's, and
     // saying so is more use than a zero.
     let tail = '';
     let title = 'Setup checks haven’t passed yet';
@@ -398,8 +398,8 @@
       tail = `<span class="lc__ct">${st.blockers} left</span>`;
       title = 'Finish the highlighted setup items, then go live';
     } else if (st.operatorPending) {
-      tail = `<span class="lc__ct">With Prantivo</span>`;
-      title = 'Prantivo completes the remaining go-live steps with you';
+      tail = `<span class="lc__ct">With Veprio</span>`;
+      title = 'Veprio completes the remaining go-live steps with you';
     }
     host.innerHTML =
       `<div class="golive"><a class="lc lc--draft" href="index.html" title="${title}">
@@ -502,7 +502,7 @@
     } catch (_) {
       setBusy(btn, false);
       await dialog({
-        title: 'Couldn’t reach Prantivo',
+        title: 'Couldn’t reach Veprio',
         sub: 'Check your connection and try again — nothing changed.',
         dismissLabel: 'Close',
       });

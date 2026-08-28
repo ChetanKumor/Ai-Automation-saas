@@ -310,7 +310,7 @@ const BTN_SHEET = `(function(){
     + row('semantic', '<span class="badge badge--ok"><span class="badge__dot"></span>Live</span>'
            + '<span class="badge badge--warn">'+ICONW+'Action needed</span>'
            + '<span class="badge badge--err">'+ICONX+'Failed</span>'
-           + '<span class="badge badge--muted">'+ICONL+'Prantivo runs this</span>'
+           + '<span class="badge badge--muted">'+ICONL+'Veprio runs this</span>'
            + '<span class="badge badge--teal">'+ICONI+'Draft</span>',
            'Status is never colour-only.')
     + '</div>';
@@ -354,7 +354,7 @@ const IN_SHEET = `(function(){
     +   fld('Timezone <span class="field__lock">'+LOCK+'India only for now</span>',
           '<input class="input" value="Asia/Kolkata" readonly>')
     +   fld('WhatsApp number', '<input class="input" value="Not connected yet" disabled>',
-          '<p class="field__note">Prantivo connects this once your Meta verification clears.</p>')
+          '<p class="field__note">Veprio connects this once your Meta verification clears.</p>')
     + '</div>'
     + '<div class="sh__r" style="align-items:flex-start"><span class="sh__l" style="padding-top:26px">prefix segments</span>'
     +   fld('Owner number', '<div class="in-wrap"><span class="pre">+91</span>'

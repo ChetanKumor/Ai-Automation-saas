@@ -59,7 +59,7 @@ export const metadata: Metadata = {
     siteName: siteConfig.siteName,
     title: siteConfig.defaultTitle,
     description:
-      "Patients message your clinic at 11 PM, during a procedure, on a Sunday. Prantivo answers in seconds — in Telugu, Hindi or English — quotes your prices, and books the appointment.",
+      "Patients message your clinic at 11 PM, during a procedure, on a Sunday. Veprio answers in seconds — in Telugu, Hindi or English — quotes your prices, and books the appointment.",
     url: "/",
     images: [
       {
@@ -75,7 +75,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: siteConfig.defaultTitle,
     description:
-      "Patients message. Prantivo answers in seconds, quotes your prices and books the appointment — in Telugu, Hindi or English, on your clinic's own WhatsApp number.",
+      "Patients message. Veprio answers in seconds, quotes your prices and books the appointment — in Telugu, Hindi or English, on your clinic's own WhatsApp number.",
     images: [siteConfig.ogImage],
   },
   icons: {

@@ -1,4 +1,4 @@
-# Prantivo Clinic Portal v1 — Owner-Facing AI Receptionist Configuration
+# Veprio Clinic Portal v1 — Owner-Facing AI Receptionist Configuration
 Product specification + phased Claude Code implementation plan.
 Commit this file as `docs/specs/portal-v1.md`. Every implementation session reads it first; it is the source of truth. Changes to scope are edits to this file, not verbal drift.
 
@@ -66,8 +66,8 @@ Each page below lists: fields → backend mapping → validation → notable sta
   - kb checks → "Add at least 5 FAQs or upload one document" → FAQs
   - numbers/e164 → "Add an escalation phone number" → Safety & handoff
   - doctor-schedule checks → "Add a doctor and their weekly hours" → Doctors
-  - whatsapp config checks → "WhatsApp connection — handled by Prantivo during onboarding" (owner-visible, operator-actioned)
-  - turn.scripted → "Test call — run by Prantivo before go-live" (operator-run in v1)
+  - whatsapp config checks → "WhatsApp connection — handled by Veprio during onboarding" (owner-visible, operator-actioned)
+  - turn.scripted → "Test call — run by Veprio before go-live" (operator-run in v1)
 - Status banner: Draft / Validated / Live / Paused, with one-line meaning.
 
 ### 5.2 Clinic profile → `identity.*`

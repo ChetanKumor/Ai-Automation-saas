@@ -1,6 +1,6 @@
 # Deploying the marketing site (`web/`)
 
-**What this puts up:** a private, un-indexable address serving the Prantivo
+**What this puts up:** a private, un-indexable address serving the Veprio
 marketing site. Not a launch. Nobody outside the people you send the link to
 should be able to find it, and this document's job is to make that true and
 provable rather than hoped for.

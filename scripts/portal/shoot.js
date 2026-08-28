@@ -237,7 +237,7 @@ const adminLoginCookie = (port, password) =>
 
     // Seed: a clinic + owner. Config is clinicDefaults + a real escalation number
     // (numbers.e164 passes) but no FAQs yet (kb checks fail → an owner action item
-    // with a page link) and no WhatsApp creds (operator "handled by Prantivo").
+    // with a page link) and no WhatsApp creds (operator "handled by Veprio").
     const email = 'owner@sunrisedental.test';
     const password = 'demo-portal-pass';
     const t = await db.query("INSERT INTO tenants (business_name, active) VALUES ($1, true) RETURNING id",
@@ -325,7 +325,7 @@ const adminLoginCookie = (port, password) =>
       },
       voice: { sarvam_speaker: 'ritu', pace: 1.05 },
     };
-    await configService.writeTenantConfig(tenantId, seedConfig, 'shoot'); // v1 — Prantivo baseline
+    await configService.writeTenantConfig(tenantId, seedConfig, 'shoot'); // v1 — Veprio baseline
 
     // History (S17): two real owner edits on top of the baseline, so the S17
     // shots below have an actual multi-version timeline — one that changed
@@ -816,8 +816,8 @@ const adminLoginCookie = (port, password) =>
       width: 1280, height: 1600, cookie: freshCookie, port, waitFor: knowsReady });
 
     // S17: History — configuration history + restore. Desktop + 380px show the
-    // 4-version timeline seeded above (Prantivo's baseline write, two real owner
-    // edits, and the owner's own revert) with genuine "You"/"Prantivo"
+    // 4-version timeline seeded above (Veprio's baseline write, two real owner
+    // edits, and the owner's own revert) with genuine "You"/"Veprio"
     // attribution and per-version changed-section summaries. The third shot
     // opens v2's version-detail modal — pricing at ₹600, the value BEFORE the
     // later revert, proof the snapshot reflects THAT version and not the live

@@ -99,7 +99,7 @@ export function Pricing() {
             </div>
             <div className={styles.partName}>Setup</div>
             <p className={styles.partDesc}>
-              ₹10,000 to configure Prantivo for your clinic — your prompts,
+              ₹10,000 to configure Veprio for your clinic — your prompts,
               booking rules, and your WhatsApp number connected and live.
               Waived for the first ten clinics.
             </p>

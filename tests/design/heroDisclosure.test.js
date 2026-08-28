@@ -55,7 +55,7 @@ const collapse = (s) => s.replace(/\s+/g, ' ');
 // word here was authored. Changing it is a copy decision and belongs in a copy
 // session, which is what this assertion makes someone notice.
 const DISCLOSURE =
-  'An example of Prantivo booking a patient appointment on WhatsApp. It ' +
+  'An example of Veprio booking a patient appointment on WhatsApp. It ' +
   'also answers in Hindi and English, and a staff member can take over the ' +
   'chat at any point.';
 
@@ -131,7 +131,7 @@ test('the hero renders its honesty disclosure, and HeroChat is gone', () => {
   // matched Hero.tsx proved nothing about the disclosure.
   const CONTROL =
     'Patients message your clinic at 11 PM, during a procedure, on a Sunday. ' +
-    'Prantivo answers in seconds — in Telugu, Hindi or English — quotes your ' +
+    'Veprio answers in seconds — in Telugu, Hindi or English — quotes your ' +
     'prices, and books the appointment. On your clinic’s own WhatsApp number. ' +
     'Message it in Telugu. It answers in Telugu. Booked before they message ' +
     'another clinic. An example of something else entirely.';

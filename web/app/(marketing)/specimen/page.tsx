@@ -309,7 +309,7 @@ export default function SpecimenPage() {
               </li>
             </ul>
             <p style={{ marginTop: 12 }}>
-              The hairline beside Prantivo&rsquo;s turns is therefore carrying
+              The hairline beside Veprio&rsquo;s turns is therefore carrying
               nothing required. That is precisely what makes it legitimately
               decorative at <code>--rule</code> (1.18:1) instead of a 1.4.11
               failure — a mark only needs 3:1 when losing it would lose
@@ -326,7 +326,7 @@ export default function SpecimenPage() {
               <span className={styles.turnTime}>11:47 PM</span>
             </div>
             <div className={`${styles.turn} ${styles.turnAgent}`}>
-              <span className={styles.turnLabel}>Prantivo</span>
+              <span className={styles.turnLabel}>Veprio</span>
               <span className={styles.turnBody}>
                 <span className={styles.te}>అంతే, ధన్యవాదాలు</span>
               </span>
@@ -364,7 +364,7 @@ export default function SpecimenPage() {
                   Mixed — Telugu, Latin digits, Latin proper noun
                 </span>
                 <div className={`${s.cls} ${styles.te}`} lang="te">
-                  రేపు ఉదయం 10:30 — Prantivo
+                  రేపు ఉదయం 10:30 — Veprio
                 </div>
               </div>
             </div>
@@ -496,9 +496,9 @@ export default function SpecimenPage() {
             Recency is <strong>1.000 / 0.955 / 0.930</strong>, floored — colour
             carries one step and scale carries the rest, so{" "}
             <code>--ink-faint</code> touches no glyph at any position. Only an
-            active <em>Prantivo</em> turn takes <code>--ink-strong</code>; a
+            active <em>Veprio</em> turn takes <code>--ink-strong</code>; a
             patient turn stays <code>--ink-soft</code> whether it is active or
-            not. The hairline is Prantivo-only and decorative.
+            not. The hairline is Veprio-only and decorative.
           </p>
 
           <div className={styles.convStack}>
@@ -566,11 +566,11 @@ export default function SpecimenPage() {
             apart across thirteen seconds. Hindi lands in 4b.
           </p>
           <p className={styles.sectionNote}>
-            <strong>Emergence is Prantivo-only.</strong> A patient turn appears
+            <strong>Emergence is Veprio-only.</strong> A patient turn appears
             whole, in one 150ms fade — the asymmetry is the content:{" "}
-            <em>Prantivo speaks</em>, the patient&rsquo;s message{" "}
+            <em>Veprio speaks</em>, the patient&rsquo;s message{" "}
             <em>arrived</em>. Only <code>t1</code> and <code>t3</code> visibly
-            unfold, because they are the only Prantivo turns with more than one
+            unfold, because they are the only Veprio turns with more than one
             phrase, and they are the two turns where the receptionist is doing
             work. An un-emerged phrase is transparent rather than absent, so it
             holds its space and nothing already on screen moves when it lands.

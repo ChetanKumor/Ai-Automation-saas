@@ -512,7 +512,7 @@ const FAIL = (frag) => `(function(){var f=window.fetch;window.fetch=function(u,o
       ['legacy check is NOT a checklist row',
         "Array.from(document.querySelectorAll('.check__label')).some(function(e){return /custom script|latest instruction|instructions$/i.test(e.textContent);})", false],
       ['group headers', "Array.from(document.querySelectorAll('.checks__group-label')).map(function(e){return e.textContent;}).join('|')",
-        'Needed to go live|Handled by Prantivo'],
+        'Needed to go live|Handled by Veprio'],
     ] });
     // The not-live strip is SUPPRESSED ON HOME, deliberately: D5a/W5, decided
     // and recorded three times over — the rationale at shadow-notice.js:283-290,

@@ -34,9 +34,9 @@ export const FAQ_ITEMS: FaqItem[] = [
       "There’s a 30-day exit. If it isn’t working for your clinic in the first month, you can leave.",
   },
   {
-    question: "Does Prantivo use my own WhatsApp number?",
+    question: "Does Veprio use my own WhatsApp number?",
     answer:
-      "Yes. Prantivo connects to your existing WhatsApp Business number through the official WhatsApp Business Platform. Your patients see the same number they already message.",
+      "Yes. Veprio connects to your existing WhatsApp Business number through the official WhatsApp Business Platform. Your patients see the same number they already message.",
   },
   {
     question: "Can my staff and the AI both reply?",
@@ -56,11 +56,11 @@ export const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Is this allowed by WhatsApp?",
     answer:
-      "Yes. Prantivo is built on Meta’s official WhatsApp Business Platform and follows WhatsApp’s messaging rules. It does not use unofficial automation that can get a number banned.",
+      "Yes. Veprio is built on Meta’s official WhatsApp Business Platform and follows WhatsApp’s messaging rules. It does not use unofficial automation that can get a number banned.",
   },
   {
     question: "What about voice calling?",
     answer:
-      "It’s next, not now. Today Prantivo handles WhatsApp. Voice is in development and you’ll be told the date when there is one, not before.",
+      "It’s next, not now. Today Veprio handles WhatsApp. Voice is in development and you’ll be told the date when there is one, not before.",
   },
 ];

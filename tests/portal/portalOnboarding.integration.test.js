@@ -31,7 +31,7 @@
 //   • completing every wizard-affected fact (hours, a doctor, 5 FAQs, an
 //     escalation number) clears every OWNER-actionable material check
 //     (blockers === 0) — the only gate the wizard itself is responsible for;
-//     whatsapp/voice/turn.scripted stay Prantivo's (operator) gate by design,
+//     whatsapp/voice/turn.scripted stay Veprio's (operator) gate by design,
 //     unaffected by anything the wizard writes,
 //   • tenant scope (INV-1): a crafted tenantId in query/body is inert on both
 //     the onboarding read and write, and never leaks into another tenant's
@@ -369,7 +369,7 @@ describe('portal onboarding wizard — progress + no-duplicate-forms (route-leve
 
       // Profile/Hours/Pricing/Greeting — a full, valid document (mirrors the S6+
       // seeds elsewhere in the suite). whatsapp OFF: this clinic hasn't been
-      // connected by Prantivo yet (a real, honest state), so whatsapp.config/
+      // connected by Veprio yet (a real, honest state), so whatsapp.config/
       // .live gate-skip rather than fail — they are the operator's gate, not
       // anything the wizard touches or claims to fix.
       await configService.writeTenantConfig(done.tenantId, {
@@ -436,7 +436,7 @@ describe('portal onboarding wizard — progress + no-duplicate-forms (route-leve
       // classification the header/Review-step Go-live control uses) is what
       // actually gates the control the wizard shows. whatsapp.config is
       // material+operator and SKIPPED (gated off), so it correctly counts as
-      // "waiting on Prantivo", not an owner blocker.
+      // "waiting on Veprio", not an owner blocker.
       const CHECK_CLASS = {
         'hours.sane': { actor: 'owner', material: true },
         'numbers.e164': { actor: 'owner', material: true },

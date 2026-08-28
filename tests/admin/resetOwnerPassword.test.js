@@ -3,7 +3,7 @@
 // F3-R1 — operator-side owner password reset, and the portal session epoch.
 //
 // public/portal/login.html has promised since F3 that an owner who forgets their
-// password can message Prantivo and have it reset. Nothing could honour that:
+// password can message Veprio and have it reset. Nothing could honour that:
 // the create route 409s when an account exists, and the only `UPDATE users` in
 // the repository was last_login_at.
 //

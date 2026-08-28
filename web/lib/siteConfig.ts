@@ -19,7 +19,7 @@ const isProduction = process.env.NODE_ENV === "production";
  * Trading name. A rename is a change to this line plus display copy — never a
  * code change. This is NOT the registered legal entity; see `legalEntityName`.
  */
-const BRAND = "Prantivo";
+const BRAND = "Veprio";
 
 /** Treat an unset, empty, or whitespace-only variable as absent. */
 function envOrNull(raw: string | undefined): string | null {

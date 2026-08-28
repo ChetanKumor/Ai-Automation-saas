@@ -134,7 +134,7 @@ Every visual element on the approved artboards, mapped to where it is implemente
 | `shell.js:109` label rewrite | `shell.js` | `'Using the latest instruction format'` → states the condition instead of denying it |
 | Check removed from ring list | `shell.js` | it is not a task the owner can complete; putting it in a checklist implies otherwise |
 | `material: false` at `:109` | `shell.js` | **stays false.** Do not lift it. Lifting it without the strip in place gives the owner an unactionable red check. |
-| Grouped checks (`Needed to go live` / `Handled by Prantivo`) | `shell.js` + `.ck__g` | new grouping over the existing copy map |
+| Grouped checks (`Needed to go live` / `Handled by Veprio`) | `shell.js` + `.ck__g` | new grouping over the existing copy map |
 | Ring restyle + `--dur-4` draw | `.ring` rules | `sessionStorage` guard, once per session |
 | Empty states × 10 hooks | `doctors.js:385,419` `faqs.js:266,301` `history.js:251,256` `hours.js:166` `pricing.js:199` `test.js:26,68` | string + markup only |
 | `test.js:68` rewrite | `test.js` | `'No saved config yet'` → *Save your clinic details first — the test uses your real settings.* + link |

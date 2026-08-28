@@ -6,14 +6,14 @@ import styles from "../legal.module.css";
 export const metadata: Metadata = {
   title: "Terms of Service",
   description:
-    "The terms governing use of the Prantivo WhatsApp automation platform.",
+    "The terms governing use of the Veprio WhatsApp automation platform.",
   alternates: {
     canonical: "/terms",
   },
   openGraph: {
-    title: "Terms of Service — Prantivo",
+    title: "Terms of Service — Veprio",
     description:
-      "The terms governing use of the Prantivo WhatsApp automation platform.",
+      "The terms governing use of the Veprio WhatsApp automation platform.",
     url: "/terms",
     siteName: siteConfig.siteName,
     type: "website",
@@ -23,15 +23,15 @@ export const metadata: Metadata = {
         url: siteConfig.ogImage,
         width: 1200,
         height: 630,
-        alt: "Prantivo — books patient appointments on your clinic's own WhatsApp number, in Telugu, Hindi and English",
+        alt: "Veprio — books patient appointments on your clinic's own WhatsApp number, in Telugu, Hindi and English",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Terms of Service — Prantivo",
+    title: "Terms of Service — Veprio",
     description:
-      "The terms governing use of the Prantivo WhatsApp automation platform.",
+      "The terms governing use of the Veprio WhatsApp automation platform.",
     images: [siteConfig.ogImage],
   },
 };
@@ -49,8 +49,8 @@ export default function TermsPage() {
           </div>
           <p className={styles.docIntro}>
             These Terms of Service (&ldquo;Terms&rdquo;) govern your access to
-            and use of the Prantivo platform. By creating an account or using Prantivo,
-            you agree to these Terms. If you are using Prantivo on behalf of a
+            and use of the Veprio platform. By creating an account or using Veprio,
+            you agree to these Terms. If you are using Veprio on behalf of a
             business, you confirm you have authority to bind that business.
           </p>
         </header>
@@ -84,7 +84,7 @@ export default function TermsPage() {
               These Terms form a binding agreement between you (&ldquo;you&rdquo;,
               &ldquo;Customer&rdquo;) and{" "}
               <span className={styles.ph}>[REGISTERED ENTITY NAME]</span>{" "}
-              (&ldquo;Prantivo&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;). They
+              (&ldquo;Veprio&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;). They
               apply together with our{" "}
               <Link href="/privacy">Privacy Policy</Link> and{" "}
               <Link href="/acceptable-use">Acceptable Use Policy</Link>, which
@@ -93,7 +93,7 @@ export default function TermsPage() {
 
             <h2 id="service">2. The service</h2>
             <p>
-              Prantivo provides a software platform that connects to your WhatsApp
+              Veprio provides a software platform that connects to your WhatsApp
               Business number through Meta&rsquo;s WhatsApp Business Platform to
               provide an AI receptionist, workflow automation, AI agents, a CRM,
               and appointment management, along with related features we may add
@@ -106,13 +106,13 @@ export default function TermsPage() {
             <p>
               You must provide accurate information when setting up your account
               and keep it up to date. You are responsible for activity that occurs
-              under your account and for keeping your credentials secure. Prantivo is
+              under your account and for keeping your credentials secure. Veprio is
               intended for businesses, not for personal or consumer use.
             </p>
 
             <h2 id="responsibilities">4. Your responsibilities</h2>
             <p>
-              You are responsible for how you use Prantivo and the messages sent from
+              You are responsible for how you use Veprio and the messages sent from
               your number. In particular, you agree that:
             </p>
             <ul>
@@ -124,14 +124,14 @@ export default function TermsPage() {
               </li>
               <li>
                 You have obtained any consents required to message your customers
-                on WhatsApp and to process their data through Prantivo.
+                on WhatsApp and to process their data through Veprio.
               </li>
               <li>
                 You are responsible for the content of your prompts,
                 configuration, and the messages your customers receive.
               </li>
               <li>
-                You will not use Prantivo to send spam or unsolicited messages, or
+                You will not use Veprio to send spam or unsolicited messages, or
                 for any unlawful, harmful, or deceptive purpose.
               </li>
             </ul>
@@ -140,13 +140,13 @@ export default function TermsPage() {
                 Misuse of WhatsApp can result in your number, and potentially the
                 wider platform, being restricted or banned by Meta. Following
                 these responsibilities protects you and every other business on
-                Prantivo.
+                Veprio.
               </p>
             </div>
 
             <h2 id="fees">5. Fees &amp; payment</h2>
             <p>
-              Prantivo is charged as a one-time setup fee plus a recurring
+              Veprio is charged as a one-time setup fee plus a recurring
               subscription, as agreed with you. WhatsApp messaging charges are
               set and billed by Meta directly, separately from our fees, and are
               your responsibility. Unless stated otherwise, fees are exclusive of
@@ -157,7 +157,7 @@ export default function TermsPage() {
 
             <h2 id="thirdparty">6. Third-party services</h2>
             <p>
-              Prantivo depends on third-party services, including Meta&rsquo;s
+              Veprio depends on third-party services, including Meta&rsquo;s
               WhatsApp Business Platform and our AI provider. Your use of those
               services is also subject to their terms. We are not responsible for
               the availability, changes, pricing, or actions of third-party
@@ -167,7 +167,7 @@ export default function TermsPage() {
 
             <h2 id="ip">7. Intellectual property</h2>
             <p>
-              We own all rights in the Prantivo platform, software, and brand. We
+              We own all rights in the Veprio platform, software, and brand. We
               grant you a limited, non-exclusive, non-transferable right to use
               the platform during your subscription. You may not copy, resell,
               reverse-engineer, or build a competing product from the platform.
@@ -184,7 +184,7 @@ export default function TermsPage() {
 
             <h2 id="ai">9. AI output</h2>
             <p>
-              Prantivo uses AI to generate replies.{" "}
+              Veprio uses AI to generate replies.{" "}
               <strong>
                 AI output can be inaccurate, incomplete, or unsuitable.
               </strong>{" "}
@@ -198,7 +198,7 @@ export default function TermsPage() {
 
             <h2 id="availability">10. Availability &amp; warranties</h2>
             <p>
-              We work to keep Prantivo available and reliable, but the service is
+              We work to keep Veprio available and reliable, but the service is
               provided &ldquo;as is&rdquo; and &ldquo;as available&rdquo;. To the
               maximum extent permitted by law, we disclaim all warranties,
               express or implied, including fitness for a particular purpose, and
@@ -208,7 +208,7 @@ export default function TermsPage() {
 
             <h2 id="liability">11. Limitation of liability</h2>
             <p>
-              To the maximum extent permitted by law, Prantivo will not be liable for
+              To the maximum extent permitted by law, Veprio will not be liable for
               any indirect, incidental, special, or consequential damages, or for
               lost profits, revenue, data, or goodwill. Our total liability
               arising out of or relating to the service in any 12-month period
@@ -225,7 +225,7 @@ export default function TermsPage() {
 
             <h2 id="indemnity">12. Indemnification</h2>
             <p>
-              You agree to indemnify and hold Prantivo harmless from claims, losses,
+              You agree to indemnify and hold Veprio harmless from claims, losses,
               and expenses arising from your use of the service, your content and
               configuration, your breach of these Terms or the Acceptable Use
               Policy, or claims by your customers relating to your messages or

@@ -865,7 +865,7 @@ router.post('/api/tenants/:id/owner',
 
 // ── Owner password reset (F3-R1) ─────────────────────────────────────────────
 // public/portal/login.html tells an owner who has forgotten their password to
-// message Prantivo on WhatsApp and it will be reset for them. These two routes
+// message Veprio on WhatsApp and it will be reset for them. These two routes
 // are how that promise is kept. Reset is OPERATOR-ASSISTED by design: there is no
 // email transport anywhere in the repo, so a self-serve token flow would mean a
 // transport, an issue-and-expiry table and a reset route before a single paying

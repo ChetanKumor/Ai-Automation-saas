@@ -2317,7 +2317,7 @@ router.get('/api/history', requirePortalAuth, async (req, res) => {
       return {
         version: row.version,
         created_at: row.created_at,
-        actor: row.actor_user_id === req.portalUser.id ? 'You' : (row.actor_email || 'Prantivo'),
+        actor: row.actor_user_id === req.portalUser.id ? 'You' : (row.actor_email || 'Veprio'),
         current: row.version === currentVersion,
         sections, fields, summary,
       };
@@ -2376,7 +2376,7 @@ router.get('/api/history/:version', requirePortalAuth, async (req, res) => {
     res.json({
       version: row.version,
       created_at: row.created_at,
-      actor: row.actor_user_id === req.portalUser.id ? 'You' : (row.actor_email || 'Prantivo'),
+      actor: row.actor_user_id === req.portalUser.id ? 'You' : (row.actor_email || 'Veprio'),
       is_current: row.version === currentVersion,
       sections: {
         clinic: {

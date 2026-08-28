@@ -82,7 +82,7 @@ export function to12Hour(hhmm: string): string {
 // reach the accessibility tree.
 const SPEAKER_LABEL: Record<Speaker, string> = {
   patient: "Patient",
-  prantivo: "Prantivo",
+  prantivo: "Veprio",
 };
 
 /* ── The recency ladder ───────────────────────────────────────────────────────

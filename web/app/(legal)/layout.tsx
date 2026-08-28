@@ -42,7 +42,7 @@ export default function LegalLayout({
               <circle cx="11" cy="11" r="1.5" />
               <circle cx="14.5" cy="11" r="1.5" />
             </svg>
-            Prantivo
+            Veprio
           </Link>
           <Link href="/" className={styles.back}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -64,7 +64,7 @@ export default function LegalLayout({
             <Link href="/data-deletion">Data Deletion</Link>
             <Link href="/acceptable-use">Acceptable Use</Link>
           </div>
-          <div className={styles.copy}>&copy; 2026 Prantivo &middot; India</div>
+          <div className={styles.copy}>&copy; 2026 Veprio &middot; India</div>
         </div>
       </footer>
     </div>

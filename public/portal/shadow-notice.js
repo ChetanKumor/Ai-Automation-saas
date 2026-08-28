@@ -180,8 +180,8 @@
     if (isShadowed(run) !== true) return '';
 
     const middle = page.readonly
-      ? `<strong>Shown here but not in use:</strong> ${esc(page.what)}. Your receptionist answers from a script Prantivo wrote by hand, so what it actually says may differ from what you see here.`
-      : `<strong>Saved but not in use:</strong> ${esc(page.what)}. Your receptionist answers from a script Prantivo wrote by hand, so nothing you change here reaches it until Prantivo moves you across.`;
+      ? `<strong>Shown here but not in use:</strong> ${esc(page.what)}. Your receptionist answers from a script Veprio wrote by hand, so what it actually says may differ from what you see here.`
+      : `<strong>Saved but not in use:</strong> ${esc(page.what)}. Your receptionist answers from a script Veprio wrote by hand, so nothing you change here reaches it until Veprio moves you across.`;
 
     const also = page.also ? `<p class="shadow-notice__also">${esc(page.also)}</p>` : '';
 
@@ -192,7 +192,7 @@
         <p class="shadow-notice__text">${middle}</p>
         ${also}
         <p class="shadow-notice__text">${esc(SURVIVES)}</p>
-        <p class="shadow-notice__ask">Ask Prantivo to switch this clinic over to your saved settings.</p>
+        <p class="shadow-notice__ask">Ask Veprio to switch this clinic over to your saved settings.</p>
       </div>
     </div>`;
   }
@@ -220,7 +220,7 @@
   // The reassurance clause is identical across every legacy-condition variant,
   // general or page-specific, so the two never read as different severities of
   // the same fact.
-  const SAFE = 'Prantivo is fixing this — your saved changes are safe.';
+  const SAFE = 'Veprio is fixing this — your saved changes are safe.';
 
   /**
    * Which condition holds, or null for none. Priority is the order of the

@@ -76,7 +76,7 @@ export function Hero() {
 
         <p className={`${styles.sub} ${styles.reveal} ${styles.d5}`}>
           Patients message your clinic at 11 PM, during a procedure, on a
-          Sunday. Prantivo answers in seconds — in Telugu, Hindi or English —
+          Sunday. Veprio answers in seconds — in Telugu, Hindi or English —
           quotes your prices, and books the appointment. On your clinic&rsquo;s
           own WhatsApp number.
         </p>
@@ -130,7 +130,7 @@ export function Hero() {
               no wrapper to hang a label on. This sentence is read as the text
               it is. */}
           <p className={styles.chatCaption}>
-            An example of Prantivo booking a patient appointment on WhatsApp. It
+            An example of Veprio booking a patient appointment on WhatsApp. It
             also answers in Hindi and English, and a staff member can take over
             the chat at any point.
           </p>

@@ -6,14 +6,14 @@ import styles from "../legal.module.css";
 export const metadata: Metadata = {
   title: "Data Deletion",
   description:
-    "How to request deletion of your data from Prantivo, for businesses and end-customers.",
+    "How to request deletion of your data from Veprio, for businesses and end-customers.",
   alternates: {
     canonical: "/data-deletion",
   },
   openGraph: {
-    title: "Data Deletion — Prantivo",
+    title: "Data Deletion — Veprio",
     description:
-      "How to request deletion of your data from Prantivo, for businesses and end-customers.",
+      "How to request deletion of your data from Veprio, for businesses and end-customers.",
     url: "/data-deletion",
     siteName: siteConfig.siteName,
     type: "website",
@@ -23,15 +23,15 @@ export const metadata: Metadata = {
         url: siteConfig.ogImage,
         width: 1200,
         height: 630,
-        alt: "Prantivo — books patient appointments on your clinic's own WhatsApp number, in Telugu, Hindi and English",
+        alt: "Veprio — books patient appointments on your clinic's own WhatsApp number, in Telugu, Hindi and English",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Data Deletion — Prantivo",
+    title: "Data Deletion — Veprio",
     description:
-      "How to request deletion of your data from Prantivo, for businesses and end-customers.",
+      "How to request deletion of your data from Veprio, for businesses and end-customers.",
     images: [siteConfig.ogImage],
   },
 };
@@ -47,16 +47,16 @@ export default function DataDeletionPage() {
             Last updated: <span className={styles.ph}>[DATE]</span>
           </div>
           <p className={styles.docIntro}>
-            You can request deletion of your personal data from Prantivo at any
-            time. This page explains how, both for businesses that use Prantivo and
-            for people who have messaged a business that uses Prantivo.
+            You can request deletion of your personal data from Veprio at any
+            time. This page explains how, both for businesses that use Veprio and
+            for people who have messaged a business that uses Veprio.
           </p>
         </header>
       </div>
 
       <div className={styles.container}>
         <main className={styles.contentSingle}>
-          <h2>If you are a Prantivo business customer</h2>
+          <h2>If you are a Veprio business customer</h2>
           <p>
             You can request deletion of your account and its associated data at
             any time.
@@ -82,7 +82,7 @@ export default function DataDeletionPage() {
           <h3>What is deleted</h3>
           <p>
             Your account, configuration, contacts, conversation records, and CRM
-            data held by Prantivo for your business are deleted. Once deleted, this
+            data held by Veprio for your business are deleted. Once deleted, this
             data cannot be recovered.
           </p>
           <h3>What may be retained</h3>
@@ -93,11 +93,11 @@ export default function DataDeletionPage() {
             purpose.
           </p>
 
-          <h2>If you messaged a business that uses Prantivo</h2>
+          <h2>If you messaged a business that uses Veprio</h2>
           <p>
             If you are a customer who messaged a business on WhatsApp and that
-            business uses Prantivo, your conversation data belongs to that business.
-            The business is the controller of your data, and Prantivo processes it
+            business uses Veprio, your conversation data belongs to that business.
+            The business is the controller of your data, and Veprio processes it
             only on the business&rsquo;s behalf.
           </p>
           <p>You have two options:</p>

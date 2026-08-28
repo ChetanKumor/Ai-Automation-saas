@@ -7,7 +7,7 @@ export function Footer() {
       <div className={styles.container}>
         <div className={styles.footerMain}>
           <div className={styles.footerBrand}>
-            <Link href="/" className={styles.brand} aria-label="Prantivo home">
+            <Link href="/" className={styles.brand} aria-label="Veprio home">
               <svg
                 className={styles.mark}
                 viewBox="0 0 22 22"
@@ -18,7 +18,7 @@ export function Footer() {
                 <circle cx="11" cy="11" r="1.5" />
                 <circle cx="14.5" cy="11" r="1.5" />
               </svg>
-              Prantivo
+              Veprio
             </Link>
             <p className={styles.footerTag}>
               Every patient answered and booked, on your clinic&rsquo;s own
@@ -48,12 +48,12 @@ export function Footer() {
         </div>
 
         <div className={styles.footerBottom}>
-          {/* "Prantivo" is the trading name. Replace with the registered legal entity name before Meta submission if it differs. */}
+          {/* "Veprio" is the trading name. Replace with the registered legal entity name before Meta submission if it differs. */}
           <div className={styles.copy}>
-            &copy; 2026 <span className={styles.copyEntity}>Prantivo</span> &middot; India
+            &copy; 2026 <span className={styles.copyEntity}>Veprio</span> &middot; India
           </div>
           <p className={styles.trademark}>
-            Prantivo is built on the WhatsApp Business Platform. WhatsApp is a
+            Veprio is built on the WhatsApp Business Platform. WhatsApp is a
             trademark of Meta Platforms, Inc., used for identification only.
           </p>
         </div>

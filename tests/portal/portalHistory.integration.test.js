@@ -11,7 +11,7 @@
 //
 // What we assert is the route's contract:
 //   • revisions list newest-first with correct actor attribution (owner email/
-//     "You" vs "Prantivo" for a NULL actor),
+//     "You" vs "Veprio" for a NULL actor),
 //   • the changed-section summary reflects what actually changed between
 //     adjacent versions,
 //   • WIZARD NOISE (mandatory, PORTAL-P6-S16 known gap): onboarding step
@@ -171,7 +171,7 @@ describe('portal history — configuration history + restore (route-level)', { s
 
   // ── List: attribution + section summary ─────────────────────────────────────
   describe('list: attribution + changed-section summary', () => {
-    it('operator/CLI writes attribute to "Prantivo"; portal writes attribute to "You"', async () => {
+    it('operator/CLI writes attribute to "Veprio"; portal writes attribute to "You"', async () => {
       const t = await seedOwner({ tenantName: 'Delta Clinic', email: 'delta@delta-hist.test', password: 'delta-pass-1' });
       await configService.writeTenantConfig(t.tenantId, {}, 'cli'); // v1, actor NULL
       await configService.writeTenantConfig(t.tenantId,
@@ -188,7 +188,7 @@ describe('portal history — configuration history + restore (route-level)', { s
         assert.equal(res.body.revisions[0].actor, 'You');
         assert.equal(res.body.revisions[0].current, true);
         assert.equal(res.body.revisions[1].version, 1);
-        assert.equal(res.body.revisions[1].actor, 'Prantivo');
+        assert.equal(res.body.revisions[1].actor, 'Veprio');
         assert.equal(res.body.revisions[1].current, false);
       } finally { server.close(); }
     });

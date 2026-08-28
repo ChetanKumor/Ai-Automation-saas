@@ -24,7 +24,7 @@
     op:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>',
     arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
     spark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>',
-    // The `Handled by Prantivo` group's badge. A lock is the honest glyph for a
+    // The `Handled by Veprio` group's badge. A lock is the honest glyph for a
     // check the owner can see and cannot action (spec §2.9 badge list).
     lock:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>',
     plug:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6"/><path d="M6 8h12v3a6 6 0 0 1-12 0Z"/><path d="M12 17v5"/></svg>',
@@ -61,7 +61,7 @@
     live:      { label: 'Live', meaning: 'Your receptionist is answering calls and messages.' },
     paused:    { label: 'Paused', meaning: 'Your receptionist is paused — calls and messages aren’t being answered.' },
   };
-  const DRAFT_OPERATOR = 'Your receptionist isn’t live yet. Nothing more is needed from you — Prantivo is finishing the last steps.';
+  const DRAFT_OPERATOR = 'Your receptionist isn’t live yet. Nothing more is needed from you — Veprio is finishing the last steps.';
   const DRAFT_READY = 'Your receptionist isn’t live yet. Everything’s ready — press Go live when you are.';
 
   // NO RUN keeps the baseline line, and that is not caution — render() below
@@ -135,11 +135,11 @@
   // would be two chances to disagree.
   //
   //   owner work outstanding      → attention is needed, and it is the owner's
-  //   owner done, operator to go  → the wait is Prantivo's, and it is named
+  //   owner done, operator to go  → the wait is Veprio's, and it is named
   //   nothing outstanding         → neither claim is true
   //
   // The third arm is the one this file got wrong first time round. A clinic
-  // that is finished, live and waiting on nobody was still being told Prantivo
+  // that is finished, live and waiting on nobody was still being told Veprio
   // was "still finishing" something — a smaller version of the untruth the
   // first arm was fixed for. It says what the list below actually is instead:
   // every check, its state, and which side of the line it sits on.
@@ -155,7 +155,7 @@
   // SUB_TODO is byte-identical to the string in index.html, which is what the
   // page renders until this runs.
   const SUB_TODO = "What's ready and what still needs your attention before your receptionist goes live.";
-  const SUB_OPERATOR = "What's ready, and what Prantivo is still finishing.";
+  const SUB_OPERATOR = "What's ready, and what Veprio is still finishing.";
   const SUB_SETTLED = "What's ready, and who handles each part.";
 
   function renderSectionSub(run) {
@@ -185,7 +185,7 @@
   // check is not outstanding — it is a channel this clinic does not use ("Not
   // in use", see the skipped branch of the row-state map below), and the run
   // passes with it skipped. Counting one as outstanding would tell every live
-  // clinic with its voice line switched off that Prantivo is still finishing
+  // clinic with its voice line switched off that Veprio is still finishing
   // something.
   function operatorFails(run) {
     return (run.checks || []).filter((c) => {
@@ -202,7 +202,7 @@
   // The denominator is now exactly the rows rendered under "Needed to go live".
   // renderChecks has grouped by `actor !== 'operator'` since PORTAL-P6-S18
   // while the ring scored by `material` alone, so the ring counted rows the
-  // owner was shown under a different heading, told they were Prantivo's, and
+  // owner was shown under a different heading, told they were Veprio's, and
   // given no link to act on: a clinic whose own work was finished read "8 of
   // 11" beside a list of 8. Nothing about eligibility moves — `run.passed` is
   // the only signal deriveGoLive reads and it is the server's.
@@ -299,17 +299,17 @@
   // for an owner to be waiting on, not two.
   const concernOf = (name) => String(name).split('.')[0];
 
-  // The note for a finished owner setup with Prantivo still working. It names
+  // The note for a finished owner setup with Veprio still working. It names
   // the outstanding item only when there is exactly ONE concern — two or more
   // stops being a sentence and starts being a list, and the "Handled by
-  // Prantivo" rows immediately below already ARE that list, named exactly. The
+  // Veprio" rows immediately below already ARE that list, named exactly. The
   // label is the one from CHECK_META, so this sentence and the row it refers to
   // can never call the same thing two different things.
   function operatorNote(fails) {
     const concerns = new Set(fails.map((c) => concernOf(c.name)));
     return concerns.size === 1
-      ? `Nothing more is needed from you. Prantivo is finishing the last step — ${metaFor(fails[0].name).label} — and your receptionist can go live once that’s done.`
-      : 'Nothing more is needed from you. Prantivo is finishing the last steps — your receptionist can go live once that’s done.';
+      ? `Nothing more is needed from you. Veprio is finishing the last step — ${metaFor(fails[0].name).label} — and your receptionist can go live once that’s done.`
+      : 'Nothing more is needed from you. Veprio is finishing the last steps — your receptionist can go live once that’s done.';
   }
 
   // `opts.cardEl`/`opts.checksEl` let a caller render into different elements
@@ -356,7 +356,7 @@
       // complete highlighted items that do not exist would be worse than this.
       note = ownerTodo
         ? 'Complete the highlighted items below, then your receptionist can go live.'
-        : 'The remaining items are handled by Prantivo before go-live.';
+        : 'The remaining items are handled by Veprio before go-live.';
     }
 
     // ── Stale (F1) ────────────────────────────────────────────────────────────
@@ -432,7 +432,7 @@
       data = await res.json().catch(() => null);
     } catch (_) {
       window.Portal.setBusy(btn, false);
-      window.Portal.toast('Couldn’t reach Prantivo. Nothing changed.', false);
+      window.Portal.toast('Couldn’t reach Veprio. Nothing changed.', false);
       return;
     }
     if (res.status === 401) { window.location.replace('login.html'); return; }
@@ -467,7 +467,7 @@
     const failed = c.severity === 'fail';
     // A check the run SKIPPED never made a claim, and for an operator check the
     // reason is always that the channel is switched off for this clinic (the
-    // catalog's own gate). Saying "Operator-run" there would imply Prantivo has
+    // catalog's own gate). Saying "Operator-run" there would imply Veprio has
     // something outstanding to do — so a skipped row says what's actually true:
     // it isn't part of this setup (PORTAL-P6-S18).
     if (c.severity === 'skipped') {
@@ -518,7 +518,7 @@
       // told an owner nothing they could act on or even worry about correctly;
       // what they need to know is that their saved settings aren't being read.
       sub = c.severity === 'warn'
-        ? '<div class="check__fix">Your saved settings aren’t reaching your receptionist yet — Prantivo can switch this over.</div>' : '';
+        ? '<div class="check__fix">Your saved settings aren’t reaching your receptionist yet — Veprio can switch this over.</div>' : '';
     } else if (st.skipped) {
       sub = '<div class="check__fix">Not part of your current setup.</div>';
     } else if (m.actor === 'owner' && c.severity === 'fail' && m.fix) {
@@ -587,7 +587,7 @@
     });
 
     // Operator checks that were SKIPPED still appear (owner should know they exist
-    // and that Prantivo owns them — §5.1). Skipped owner/system checks are omitted:
+    // and that Veprio owns them — §5.1). Skipped owner/system checks are omitted:
     // they're prerequisite noise the config rows already explain.
     const skippedOps = (run.skipped || [])
       .filter((s) => metaFor(s.name).actor === 'operator' && !ran.has(s.name))
@@ -602,7 +602,7 @@
 
     return '<div class="checks">'
       + group('Needed to go live', needed)
-      + group('Handled by Prantivo', operator.concat(skippedOps), ' checks__group-label--later')
+      + group('Handled by Veprio', operator.concat(skippedOps), ' checks__group-label--later')
       + group('Advisory', advisory, ' checks__advisory-label')
       + '</div>';
   }
@@ -882,9 +882,9 @@
   function render(data) {
     window.Portal.renderLifecycle(data.status, window.Portal.deriveGoLive(data.run));
     // The status banner is GONE from Home (D-017). On a finished clinic its
-    // Draft meaning was "Nothing more is needed from you — Prantivo is
+    // Draft meaning was "Nothing more is needed from you — Veprio is
     // finishing the last steps", printed one card above the readiness card
-    // saying "Nothing more is needed from you. Prantivo is finishing the last
+    // saying "Nothing more is needed from you. Veprio is finishing the last
     // step — WhatsApp connection". Two cards, one fact, and the vaguer of the
     // two came first. The lifecycle state itself is not lost: it is the pill in
     // the top bar, on every page, which is where a persistent state belongs.

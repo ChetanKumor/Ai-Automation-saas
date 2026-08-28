@@ -1,4 +1,4 @@
-# Prantivo Portal — Product Design Specification v2
+# Veprio Portal — Product Design Specification v2
 
 **Author:** Lead Product Design
 **Status:** Proposal. Requires a `docs/os/decisions.md` override before scheduling (see §0.2).
@@ -98,7 +98,7 @@ So: **ruled, legible, verifiable.** Hairline rules as the primary structural dev
 
 ### 1.3 The one risk, and its justification
 
-**The Verbatim panel inverts the product's ground.** Everywhere else, Prantivo is a calm near-white tool. In one docked panel it becomes an ink field carrying Telugu and Devanagari at display size, showing what the receptionist will actually say.
+**The Verbatim panel inverts the product's ground.** Everywhere else, Veprio is a calm near-white tool. In one docked panel it becomes an ink field carrying Telugu and Devanagari at display size, showing what the receptionist will actually say.
 
 Justification: it makes the highest-consequence rendering detail in the product — vernacular glyph fidelity, per the audit's C-1 and Preserve-As-Is #1 — the most visible thing in the interface, where a tofu box would be caught in the first five seconds instead of in a demo. It converts the product's core promise from a claim into a continuously visible fact. And it means the portal's memorable element is something no competitor's dashboard has, because no competitor's dashboard has to render Telugu.
 
@@ -480,7 +480,7 @@ A full-width band directly beneath the top bar, above the page header. **It appe
 | Condition | Tone | Copy | Action |
 |---|---|---|---|
 | Not live | neutral | Your receptionist isn't answering calls yet. Changes are saved and will apply when you go live. | `See what's left` → Home |
-| **Legacy prompt set (F-F001)** | **amber** | **Some of your settings aren't reaching your receptionist yet. Prantivo is fixing this — your saved changes are safe.** | `What this affects` → modal listing the inert sections |
+| **Legacy prompt set (F-F001)** | **amber** | **Some of your settings aren't reaching your receptionist yet. Veprio is fixing this — your saved changes are safe.** | `What this affects` → modal listing the inert sections |
 | Paused | amber | Your receptionist is paused. Calls and messages aren't being answered. | `Resume` |
 | Partially connected | amber | WhatsApp is connected. Phone calls aren't set up yet. | `See status` |
 
@@ -676,7 +676,7 @@ Each screen states only what differs from §2. Shared behaviour — focus rings,
 > Statements elsewhere in this document that say "all 14 pages" about the **stylesheet or the file sweep** are correct — `tokens.css` genuinely is linked by all 14 `.html` files, `login.html` included. Only claims about *navigation* were wrong.
 
 ```
-◆ Prantivo                      brand mark, --teal-700, 30px, --r-sm
+◆ Veprio                        brand mark, --teal-700, 30px, --r-sm
   AI Receptionist               --t-micro, --faint
 
   ⌂  Home
@@ -746,9 +746,9 @@ The first thing a prospective customer's owner ever sees, and currently the scre
 
 The ink pane is the same surface as the Verbatim panel — the owner meets the product's signature before they sign in, and recognises it afterwards.
 
-**Form.** `Sign in` at `--t-h1`. One `--muted` line: `Manage your clinic's AI receptionist.` Email · password with a show/hide ghost toggle · full-width 44px primary `Sign in`. Beneath, in `--t-help`: `Forgot your password? Contact Prantivo and we'll reset it for you.` — accurate, since v1 reset is operator-assisted. No sign-up link; there is no self-signup, and a link to a page that says "contact us" is a dead end.
+**Form.** `Sign in` at `--t-h1`. One `--muted` line: `Manage your clinic's AI receptionist.` Email · password with a show/hide ghost toggle · full-width 44px primary `Sign in`. Beneath, in `--t-help`: `Forgot your password? Contact Veprio and we'll reset it for you.` — accurate, since v1 reset is operator-assisted. No sign-up link; there is no self-signup, and a link to a page that says "contact us" is a dead end.
 
-**States.** Loading: button to `Signing in…`, both fields read-only, form does not shift. Invalid credentials: one `--red-50` banner above the form, `Email or password is incorrect.` — never which one, and both fields take the error border. Rate-limited (5/15min, existing): `Too many attempts. Try again in 12 minutes.` with a live-counting minute value and the button disabled — the count is the honest version of a lockout. Session expired: an amber banner, `Your session ended. Sign in to continue.` Offline: `Can't reach Prantivo. Check your connection.` with the button held rather than errored.
+**States.** Loading: button to `Signing in…`, both fields read-only, form does not shift. Invalid credentials: one `--red-50` banner above the form, `Email or password is incorrect.` — never which one, and both fields take the error border. Rate-limited (5/15min, existing): `Too many attempts. Try again in 12 minutes.` with a live-counting minute value and the button disabled — the count is the honest version of a lockout. Session expired: an amber banner, `Your session ended. Sign in to continue.` Offline: `Can't reach Veprio. Check your connection.` with the button held rather than errored.
 
 **Mobile (<900px).** Ink pane drops entirely — not stacked. The form centres with `--s-9` top padding, and the brand mark sits above it on `--bg`. A hero image above a login form on a phone pushes the password field under the keyboard.
 
@@ -788,9 +788,9 @@ To its right at `--s-5`: a `--t-h2` state line (`Almost ready` / `Ready to go li
 
 Animation: draws 0 → value over `--dur-4` with `--ease-out`, once per session, tracked in `sessionStorage`. Under reduced motion it paints final. This is the product's only orchestrated moment and it is spent here because it is the one screen an owner sees every day.
 
-**Checks list.** One row per check: 20px status icon · friendly label · state word · a right-aligned ghost link to the page that fixes it. Grouped under two `--t-micro` headers, `Needed to go live` and `Handled by Prantivo`. The second group carries the lock badge and no link — the honest presentation of an operator-run check, and it stops the owner hunting for a control that does not exist.
+**Checks list.** One row per check: 20px status icon · friendly label · state word · a right-aligned ghost link to the page that fixes it. Grouped under two `--t-micro` headers, `Needed to go live` and `Handled by Veprio`. The second group carries the lock badge and no link — the honest presentation of an operator-run check, and it stops the owner hunting for a control that does not exist.
 
-The copy map from portal-v1 §5.1 is binding and unchanged (`kb` → *Add at least 5 FAQs or upload one document*, `numbers/e164` → *Add an escalation phone number*, `turn.scripted` → *Test call — run by Prantivo before go-live*).
+The copy map from portal-v1 §5.1 is binding and unchanged (`kb` → *Add at least 5 FAQs or upload one document*, `numbers/e164` → *Add an escalation phone number*, `turn.scripted` → *Test call — run by Veprio before go-live*).
 
 **One deliberate correction.** `shell.js:109` currently renders `tenant.legacy_prompt` as `Using the latest instruction format` — affirmative and unconditional, on exactly the tenants where it is warning that the renderer is dormant. Under this spec that check does not appear in the list at all. It surfaces as the **truth strip** (§2.9), because it is not a task the owner can complete and putting it in a checklist implies otherwise. The label is rewritten to state the condition rather than deny it.
 
@@ -908,7 +908,7 @@ Deleting a doctor with future appointments requires typing the doctor's name, an
 
 **Voice card.** The bounded Sarvam bulbul:v3 speaker list as radio rows: name, a one-word character descriptor, a `▸ Hear` ghost button. No provider selection — that is an architecture invariant, not a setting, and it is not shown as a disabled control either, because a disabled control implies it will one day be enabled.
 
-**The gap notice stays.** `receptionist.html:99`'s existing copy — *"These settings are saved to your account, but Prantivo hasn't finished connecting them to live phone calls yet…"* — is preserved verbatim, restyled as the standard amber inset. The audit marks it Preserve-As-Is #4 and it is the voice this whole product should use about its own limits.
+**The gap notice stays.** `receptionist.html:99`'s existing copy — *"These settings are saved to your account, but Veprio hasn't finished connecting them to live phone calls yet…"* — is preserved verbatim, restyled as the standard amber inset. The audit marks it Preserve-As-Is #4 and it is the voice this whole product should use about its own limits.
 
 #### Safety & handoff → `escalation.*`, `handoff.*`
 
@@ -983,7 +983,7 @@ Expanded, it names the FAQs used and the tools called. This line is the product 
 
 *Blocked state:* if config has never been saved, the composer is disabled with the reason adjacent: `Save your clinic details first — the test uses your real settings.` and a link to Clinic profile. This replaces `test.js:68`'s `'No saved config yet'`, the one string the audit flagged as describing emptiness without inviting the fix.
 
-*Errors:* a failed turn renders as a receptionist-side `--red` bubble: `Couldn't get a reply. Your settings are unchanged.` with `Try again`. On a free-tier Gemini quota error, the honest message: `Prantivo's testing limit was reached. This doesn't affect your live receptionist.`
+*Errors:* a failed turn renders as a receptionist-side `--red` bubble: `Couldn't get a reply. Your settings are unchanged.` with `Try again`. On a free-tier Gemini quota error, the honest message: `Veprio's testing limit was reached. This doesn't affect your live receptionist.`
 
 *Mobile:* chat full-height, composer fixed above the keyboard, Verbatim panel as a sheet. Provenance collapsed by default.
 
@@ -1093,7 +1093,7 @@ Period selector: 7 / 30 / 90 days. No custom ranges, no cohorts, no funnels, no 
 
 #### Connections ("Integrations")
 
-**Not a marketplace. A status page.** Three rows — Phone, WhatsApp, Calendar (`Soon`) — each with a status badge, the connected identifier, and either a detail link or the honest operator line: `Prantivo sets this up for you. We'll email when it's connected.`
+**Not a marketplace. A status page.** Three rows — Phone, WhatsApp, Calendar (`Soon`) — each with a status badge, the connected identifier, and either a detail link or the honest operator line: `Veprio sets this up for you. We'll email when it's connected.`
 
 Self-serve connection is gated on G-PAY and on the Meta Tech-Provider path, neither of which exists. An integrations directory before either is fiction.
 
@@ -1208,7 +1208,7 @@ Five. Each blocks a session.
 
 Stated so it can be checked rather than assumed.
 
-- **If the first ten clinic owners never open the portal.** The distribution model is channel-based, through dental supply distributors, with manual onboarding of customer #1 and supervised monitoring. If the realistic path is that Prantivo configures every clinic for the first year, the portal is an internal tool with one user, and every hour of this document is misspent. **Cheapest test:** at the first three clinic conversations, ask whether they want to change their own prices or have someone do it. Two of three saying "you do it" kills Tier 1 down to D1 and D3.
+- **If the first ten clinic owners never open the portal.** The distribution model is channel-based, through dental supply distributors, with manual onboarding of customer #1 and supervised monitoring. If the realistic path is that Veprio configures every clinic for the first year, the portal is an internal tool with one user, and every hour of this document is misspent. **Cheapest test:** at the first three clinic conversations, ask whether they want to change their own prices or have someone do it. Two of three saying "you do it" kills Tier 1 down to D1 and D3.
 - **If Telugu renders badly on the owner's actual device.** The audit is explicit that real glyph rendering cannot be verified from source and is owed to a session with a running render on a real device after Issue 20. The Verbatim panel makes vernacular rendering the most prominent element in the product, which is an asset if the faces are right and a liability if they are not. **Test before D4, not after.**
 - **If owners configure on desktop, not mobile.** The 45-minute-on-a-phone criterion drives the sticky save bar, the table→card conversions, and the sheet form of the panel. If clinic owners in fact sit at a reception computer, that effort is misallocated. Observable at the first onboarding.
 - **If the product's centre of gravity moves from configuration to monitoring.** Tier 2's Conversations page would then be the real product and the config pages become setup. The IA reserves the `TODAY` group for exactly this, so the correction costs a nav change rather than a rewrite.

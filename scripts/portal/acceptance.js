@@ -286,7 +286,7 @@ function must(cond, msg) { if (!cond) { throw new Error('ACCEPTANCE FAILED: ' + 
 
     // ── 4. Readiness ─────────────────────────────────────────────────────────
     // The wizard's own tenant has WhatsApp enabled by default and no operator
-    // credentials, so the honest state here is "waiting on Prantivo". This run
+    // credentials, so the honest state here is "waiting on Veprio". This run
     // asserts the OWNER's side is green — every check an owner can action.
     const readiness = (await call(port, { method: 'GET', path: '/portal/api/readiness', cookie })).body;
     mark('readiness read', `status=${readiness.status}, run=${readiness.run ? 'present' : 'none'}`);
@@ -303,8 +303,8 @@ function must(cond, msg) { if (!cond) { throw new Error('ACCEPTANCE FAILED: ' + 
       friction.push(
         'Go-live is blocked on operator-provisioned checks (' + names.join(', ') + '). ' +
         'This is correct — without WhatsApp credentials the receptionist cannot receive a message — ' +
-        'but it means an owner CANNOT self-serve go-live until Prantivo finishes provisioning. ' +
-        'The portal says so honestly ("Handled by Prantivo during onboarding"), and the owner ' +
+        'but it means an owner CANNOT self-serve go-live until Veprio finishes provisioning. ' +
+        'The portal says so honestly ("Handled by Veprio during onboarding"), and the owner ' +
         'has nothing left to do.');
 
       // Prove the rest of the chain on the same tenant by switching it to the
