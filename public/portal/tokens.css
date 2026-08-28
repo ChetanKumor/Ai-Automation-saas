@@ -255,7 +255,7 @@ a { color: var(--teal-700); }
   position: fixed;
   inset: 0 auto 0 0;
   width: var(--sidebar-w);
-  background: #fbfcfe;
+  background: #f9fafb;
   border-right: 1px solid var(--line-2);
   display: flex;
   flex-direction: column;
@@ -661,7 +661,7 @@ a { color: var(--teal-700); }
   align-items: start;
   column-gap: var(--s-4);
   padding-bottom: 0;
-  margin-bottom: 26px;
+  margin-bottom: 32px;
   border-bottom: 0;
 }
 .page-head__title {
@@ -693,11 +693,11 @@ a { color: var(--teal-700); }
  * reference products a resting surface is drawn, not floated. */
 .card {
   background: var(--card);
-  border: 1px solid var(--line-2);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 24px 26px;
+  padding: 28px 30px;
 }
-.card + .card { margin-top: 18px; }
+.card + .card { margin-top: 22px; }
 .card__title {
   font: var(--t-h2);
   letter-spacing: var(--ls-h2);
@@ -711,7 +711,7 @@ a { color: var(--teal-700); }
 }
 .card__sub + .field,
 .card__sub + .days {
-  margin-top: 20px;
+  margin-top: 24px;
 }
 
 /* ============================================================================
@@ -1153,7 +1153,7 @@ select.input { padding-right: var(--s-2); }
   gap: var(--s-3);
   margin-top: 26px;
   padding-top: 18px;
-  border-top: 1px solid var(--line-2);
+  border-top: 1px solid var(--line);
 }
 .card__foot .btn { margin-left: auto; }
 .save-note {
