@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 4c8f28817a5265d43715f469d6d586cce4af43d6
+Verified-at: b308280f0e4f07ad75a1e177291a971769112ac3
 Verified-on: 2026-08-29
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -171,9 +171,13 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1136 tests / 185 suites / 0 fail** (`npm test`, raw: `# tests 1136 /
-  # suites 185 / # pass 1136 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  **UNMOVED by the four commits `2673fd3`..`55833c9`** — re-run at `55833c9` on
+- Test suite: **1137 tests / 185 suites / 0 fail** (`npm test`, raw: `# tests 1137 /
+  # suites 185 / # pass 1137 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  **+1 test / +0 suites at `b308280`**, the tokenDrift repair: one bare `test()`
+  pinning the parser against synthetic CSS. A bare `test()` registers a test and no
+  suite, which is why `# suites` did not move and why a +1/+1 here would have meant a
+  `describe()` added for no reason but the counter.
+  Before that, **UNMOVED by the four commits `2673fd3`..`55833c9`** — re-run at `55833c9` on
   2026-08-29: 1136 / 185 / 0, byte-identical counters, 276 s. The portal-polish and
   rename work touched no test count in either direction. `4dc2876` edited five test
   files and moved nothing, because it only swapped a string inside assertions that
@@ -354,7 +358,9 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   the shape `tokenDrift.test.js` uses, for the reason stated in its header: the
   suite total is a tracked number, and a per-assertion block would move it every
   time a turn or a language is added. **A bare `test()` registers a test but no
-  suite**; run alone, `tokenDrift.test.js` reports `# tests 1 / # suites 0`. A
+  suite**; run alone, `tokenDrift.test.js` reported `# tests 1 / # suites 0` at the
+  time this was written, and `# tests 2 / # suites 0` since `b308280` added a second
+  bare `test()` to it. The illustration holds; only the first number moved. A
   +1/+1 delta here would have meant a `describe()` wrapper added for no reason
   other than to move a counter.
   ⚠️ **THE FIRST RUN OF THE BASELINE WAS RED AND WAS NOT A DEFECT.** Three tests
@@ -3187,6 +3193,14 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   property list; `.brand` declares none and was read at the interpolation
   start, `rgba(0,0,0,0) 0px 0px 0px 0px` twice over. The ring must be allowed
   to settle after `CSS.forcePseudoState` before it is read.
+  ⚠️ **SUPERSEDED AT `b308280` in one respect only:** the `rootBlock()` +
+  `declarations()` pair used below no longer exists — it is a brace-matching scanner
+  now, and the placement finding it produced (a media block appended after the base
+  rule is never parsed) was the first sighting of the defect repaired there. The
+  conclusion this paragraph reaches is unchanged and was re-verified at `b308280`:
+  `--rule-strong` is declared by `web` alone, still needs no row, and `globals.css`
+  still parses as ONE top-level `:root` — the `@media (prefers-contrast: more)`
+  block at `:441` is excluded deliberately now rather than accidentally.
   **--rule-strong NEEDS NO `brand-values.md` ROW, AND THAT WAS VERIFIED WITH
   THAT FILE'S OWN PARSER.** `tokenDrift` demands a canonical row only for
   tokens declared by more than one of its four surfaces, and would flag a row
@@ -4939,6 +4953,88 @@ Additions since the original 1–28, all in the plan's Phase 8:
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
 
+### tokenDrift repaired, brand-values corrected — 2026-08-29 (`b308280`)
+
+**The guard was green on drift it could not see, and it is not any more.** No stylesheet
+changed: `git diff --name-only` on the implementation commit is two files, zero `.css`.
+The session made the guard tell the truth about the stylesheets as they already are.
+
+**Two parser defects, both from the surface A–D manifest, both repaired.**
+`rootBlock()` matched `/:root\s*{([\s\S]*?)\n}/` — non-global, so it returned the
+**first** `:root` and stopped at the first line-initial `}`. `tokens.css` has three
+blocks: the base at `:17`, the five-token override pass at `:177`, and `--save-bar-h`
+alone at `:1194`. `declarations()` matched one declaration **per line**, non-globally,
+and five rows in `tokens.css` carry two each. Together they read **93** of the portal's
+**99** reachable names.
+
+**The replacement, and why it is a scanner rather than a bigger regex.** Comments are
+blanked first — length- and newline-preserving, so a `}` in a comment or a string can
+no longer end a block — then blocks are brace-matched, and only **top-level** `:root`
+is collected. That last restriction is load-bearing in the other direction:
+`globals.css:441` redeclares five tokens inside `@media (prefers-contrast: more)`, and
+those are **conditional, not shadowing**. Counting them would make the canonical table
+describe a display mode almost nobody is in. Verified by mutation: removing the depth-0
+filter makes `globals.css` parse as **2** top-level blocks and reds the suite.
+
+**RED BEFORE GREEN, and the set was predicted before the run.** The repaired parser
+against the **unchanged** `brand-values.md` failed on exactly five names, all `portal`,
+and nothing else:
+
+```
+- --bg on portal: #f7f8fb != canonical #f6f8fa
+- --line on portal: #dbe3eb != canonical #e2e8f0
+- --r-lg on portal: 12px != canonical 14px
+- --r-md on portal: 8px != canonical 10px
+- --radius on portal: 8px != canonical 10px
+```
+
+Four are direct shadowing. `--radius` is not shadowed itself: `tokens.css:111` aliases
+it to `--r-md`, which the old `resolve()` followed to block #1's `10px` and the browser
+follows to block #2's `8px`. Re-run at the end of the session against the pre-session
+table, with the final parser, and the set was byte-identical — so the later edits did
+not move it.
+
+**`brand-values.md` corrected — and two of the corrections were not on the worklist.**
+The five canonical rows took the values in force. Then:
+
+- **`--line` needed two NEW divergence rows.** The demo pair declare `#e2e8f0` and had
+  no rows, because they agreed with the portal's **shadowed** value. Moving the canonical
+  to `#dbe3eb` makes that agreement a divergence — it always was one, in the browser.
+  This is the shape of the whole defect: a table can be wrong by being silent.
+- **`--r-md` and `--r-lg` divergence rows for `web` were DELETED, not renumbered.** Block
+  #2 moved the portal onto `8px`/`12px` — `web/`'s own two values. Zero divergence, not
+  a smaller one. `--r-sm` (portal `6px`, web `4px`) is the last of the three left, and
+  its rationale, written as one decision covering all three, was rewritten to stand alone.
+- `--line-2` is shadowed too and deliberately gets **no** row: it is portal-private, and
+  the file's rule is that a property on one surface is not listed.
+- The `--bg` divergence note cited `tokens.css:19-20` — the **shadowed** declaration. It
+  now names both: the reasoning there, the value in force at `:178`.
+
+**The `>= 15` floor is gone, and its own comment was the argument against it.** That
+comment said an exact count "would red the suite every time anyone adds a token". The
+floor was green on **both** defects (93 ≥ 15) and green on the truncation case it was
+written for (36 ≥ 15, recorded in its own text). What replaces it is two exact counts,
+because the two defects do different damage: losing a shared line costs **names** (93 vs
+99), while losing a whole block costs one name and five **values** (98 vs 99 — nearly
+invisible to a name count). Hence `EXPECTED_NAMES` **and** `EXPECTED_ROOT_BLOCKS`.
+
+⚠️ **`portal: 99` is not the manifest's 102, and the difference is not an error.**
+`public/portal/verbatim.css` declares three more names — `--vp-sheet-h` in its own
+`:root`, `--field-3` and `--field-line-2` under `.vp`. That file is **not in
+`SURFACES`**, and two of its three are not in a `:root` at all, so no `:root` parser can
+reach them however it is written. 99 is every portal name this test can see: 104
+declarations across three blocks, five of them shadowed.
+
+**Nothing here is vacuous, and that was checked rather than assumed.** Five mutations
+were run against scratch copies of the final file, each reintroducing one defect:
+per-line `declarations()` (→ 94 names, red), first-block-only `rootBodies()` (→ 1 block,
+red), comments no longer blanked (→ 0 blocks, red), depth-0 filter removed (→ `web` 2
+blocks, red), strings blanked like comments (→ `--hi` reads `' ', ' ', system-ui`, red).
+**All five red both test blocks.**
+
+**Suite 1136 → 1137, suites unmoved at 185.** The new `test()` is bare, and a bare
+`test()` registers a test but no suite. `os:check` exit 0.
+
 ### Portal UI polish + the Veprio rename — 2026-08-27→28 (`0881e75`, `95b754f`, `4dc2876`, `55833c9`)
 
 Reconciled 2026-08-29 by a docs-only session. **Read off `git show`, not off the commit
@@ -5032,7 +5128,12 @@ the legacy alias) is substituted at use time, so it now resolves to **8px**, not
 That is how `.card`'s corner radius changed (`tokens.css:697`) in a commit that never
 edits `.card`'s `border-radius` line.
 
-⚠️ **`tests/design/tokenDrift.test.js` IS BLIND TO ALL SIX, AND STAYS GREEN.** Its
+⚠️ **SUPERSEDED AT `b308280`: it is blind to none of them now, and the parser
+described in this paragraph no longer exists.** What follows is the finding as it
+stood on 2026-08-29, and it is the finding the repair was built from — including the
+count, 93, which the repair moved to 99. See the `b308280` session entry above.
+
+⚠️ **`tests/design/tokenDrift.test.js` WAS BLIND TO ALL SIX, AND STAYED GREEN.** Its
 `rootBlock()` is `css.match(/:root\s*{([\s\S]*?)\n}/)` — a **non-global** match that takes
 the **first** `:root` and stops at the first line-initial `}` (line 173). Reproduced
 directly by running that parser over the file at HEAD: it returns **93 declarations** and
@@ -6142,25 +6243,6 @@ all branches fast-forward onto main · one issue per session · runtime evidence
 
 ## Known open risks
 
-- ⚠️ **`tokenDrift` cannot see a second `:root`, and one is now in the tree.**
-  `95b754f` appended a second `:root` at `public/portal/tokens.css:177` that overrides
-  `--bg`, `--line`, `--line-2`, `--r-md`, `--r-lg` — and, through the alias
-  `--radius: var(--r-md)`, `--radius` too. `rootBlock()` in
-  `tests/design/tokenDrift.test.js` is a **non-global** `match()` that stops at the first
-  line-initial `}`, so the guard reads the pre-override values and stays green.
-  **Five canonical rows in `docs/design/brand-values.md` now record values the portal does
-  not use**, and two of them (`--r-md`, `--r-lg`) have converged on `web`'s *recorded
-  divergence* values while the table still explains why the surfaces differ.
-  **This is the second sighting of the same parser defect** — the first was a
-  `@media` block appended to `web/app/globals.css` under HERO-1 P6 — so it is a property
-  of the parser, not of one stylesheet. The `>= 15` declaration floor cannot close it (93
-  survive), and neither can the stale-row checks, because the stale rows still resolve
-  from the first block. **The repair is structural**: match `:root` globally and merge in
-  source order, or verify that `:root`'s closing brace is the block's last rather than the
-  first line-initial `}`. The test's own comment already says a count-based floor cannot
-  do this; that comment is now describing a live case rather than a hypothetical one.
-  **Open. Filed 2026-08-29, not acted on — the reconciliation session was `docs/os/`-only.**
-
 - ⚠️ **`scripts/portal/shoot.js:528,531,535` — three S4 gates went vacuous at `0881e75`.**
   They wait on `!document.getElementById('profileCard').hidden`, but `0881e75` moved the
   `hidden` attribute to `#profileForm`; `#profileCard` is now an inner `<section>` with no
@@ -6325,6 +6407,22 @@ all branches fast-forward onto main · one issue per session · runtime evidence
   different cause and is genuinely closed.
 
 ## Resolved
+
+- ~~⚠️ `tokenDrift` cannot see a second `:root`, and one is now in the tree.~~ —
+  **CLOSED 2026-08-29 at `b308280`.** `rootBlock()`'s non-global match was replaced by a
+  comment-blanking scanner that brace-matches every **top-level** `:root` and merges in
+  source order, and `declarations()` is global, so the two-per-line rows parse. The
+  portal now reads **99** names across **3** blocks where it read 93 across 1. The
+  filed consequence was real and is repaired: five canonical rows in
+  `docs/design/brand-values.md` recorded values the portal does not use, and they now
+  record the values in force. **The filing understated it in one place and overstated it
+  in none.** It said `--r-md`/`--r-lg` "have converged on `web`'s recorded divergence
+  values" — correct, and the fix is to **delete** both rows, not restate them. It did not
+  notice that `--line` needed two divergence rows it never had: the demo pair agreed with
+  the portal only against the shadowed declaration. **The repair was structural, as the
+  filing predicted it must be** — a count-based floor could not close it, and the `>= 15`
+  floor is gone, replaced by exact name and block counts plus a second `test()` pinning
+  the parser on synthetic CSS. Full derivation in the `b308280` session entry above.
 
 - ~~`shootD5b` §E: *after scroll: header pinned, title visible, description gone*
   reds intermittently, unexplained~~ — **characterised, filed and fixed this
