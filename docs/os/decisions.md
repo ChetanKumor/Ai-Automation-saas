@@ -960,3 +960,41 @@ Reason: WABA queue creates a 3–10 business day window with no clock work avail
 Prediction: the next three clinic owners shown the portal do not ask whether the
 product is finished; and the first live production call occurs on or before 2026-09-19.
 Review: 2026-09-19.
+
+## D-021 — Trading name is Veprio; "Prantivo" is superseded
+Date: 2026-08-29
+Overrides: `docs/decisions/2026-07-24-product-name-prantivo.md` ("Status: Locked"),
+which itself superseded "Zyon". That file is left byte-unchanged — it is the record
+of what was true between 2026-07-24 and 2026-08-28, and rewriting it would destroy
+the only evidence that the name has now moved twice in five weeks.
+Reason: founder renamed the user-facing trading name; the rename is already in the
+tree, so the decision log is recording a fact, not authorising one.
+
+Evidence: `4dc2876` — 37 files, **172 insertions / 172 deletions**. Verified as a pure
+token swap: every changed line in that commit matches `/prantivo|veprio/i`, so no copy,
+markup or logic changed alongside the name. The rename reached `web/lib/siteConfig.ts`'s
+`BRAND` constant, both portal `actor` fallbacks in `src/portal/routes.js:2320,2379`, the
+login page, the marketing site, and all four test files it touches, in lockstep.
+
+What this decision does NOT do, and the distinction is the whole risk:
+- It does **not** change the domain. `prantivo.com` is still the only origin named
+  anywhere in the repo (`web/.env.example:21,29,35,39`); `veprio.com` appears in
+  **zero** files at `55833c9`.
+- It does **not** change `legalEntityName`, which was never set.
+- It does **not** reach internal identifiers. `Speaker` is still
+  `"patient" | "prantivo"` (`web/components/sections/conversation/types.ts:7`), the
+  hero fixture still ships `"speaker": "prantivo"` (`meta.json:9,19,29`), and
+  `Conversation.tsx:85` maps that key to the display string `"Veprio"`. **25 residual
+  hits across 8 tracked files under `public/ src/ web/ scripts/ tests/`.** None is
+  user-visible; one is inside applied migration `027_password_changed_at.sql` and must
+  never be edited (its checksum is recorded in `schema_migrations`).
+
+Prediction: the Meta WABA submission filed 2026-08-29 (C-3) is **not** rejected for a
+name mismatch — i.e. the display name submitted to Meta, the entity name on the C-1
+documents, and the name on whatever origin the site is served from are one string on
+the day the reference number arrives. `docs/os/clocks.md` C-1 names document mismatch
+as the single most common Meta rejection cause, and this rename put the brand and the
+only known domain out of step three weeks before filing.
+Review: 2026-09-19 — the same date D-020 predicts the first live production call, so
+both are settled in one sitting.
+Outcome: pending

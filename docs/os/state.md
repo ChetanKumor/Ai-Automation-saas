@@ -23,13 +23,62 @@ remains untouched.
 
 ## Product
 
-- **Prantivo** (formerly Zyon) — vernacular AI receptionist for Indian SMB dental clinics.
+- **Veprio** (formerly Prantivo, formerly Zyon) — vernacular AI receptionist for Indian SMB dental clinics.
 - Channels: **voice and WhatsApp**. Languages: Telugu, Hindi, English.
 - Wedge: Hyderabad-area dental clinics.
 - Product name in every surface and pitch: **AI Receptionist**. Retired framings: "AI Operating System for Businesses", "AI Employees".
 
-Corroborated by `docs/decisions/2026-07-24-product-name-prantivo.md` and the `web/`
-repositioning in `c8b1b9e`. Positioning itself is a founder judgement, not a repo fact.
+**The name moved on 2026-08-28** (`4dc2876`). `docs/decisions/2026-07-24-product-name-prantivo.md`
+still reads *"Status: Locked"* and still says Prantivo — deliberately. It is the record of
+what was true for five weeks and is **superseded, not corrected**, by **D-021** in
+`docs/os/decisions.md`. Positioning itself is a founder judgement, not a repo fact; the
+`web/` repositioning in `c8b1b9e` still stands, only the name in it changed.
+
+**What the rename is, exactly, measured rather than assumed.** `4dc2876` is 37 files and
+**172 insertions / 172 deletions** — line-for-line. Every changed line in it matches
+`/prantivo|veprio/i`: **zero** lines of copy, markup, logic or config changed alongside
+the name. It is a trading-name swap and nothing else.
+
+⚠️ **The domain did NOT move, and this is the live risk, not a tidiness note.**
+`veprio.com` appears in **zero** files at HEAD. `prantivo.com` is still the only origin
+named anywhere in the repo (`web/.env.example:21,29,35,39`, as the worked examples for
+`NEXT_PUBLIC_SITE_URL` and the support address). `docs/os/clocks.md` C-1 states that the
+entity name propagates to Plivo KYC, Meta Business Manager and the website footer, and
+that **name mismatch across documents is the single most common Meta rejection cause**.
+C-3 was filed on 2026-08-29 with the brand and the only known domain out of step. This is
+recorded as D-021's falsifiable prediction; it is not something this session can fix from
+`docs/os/`.
+
+⚠️ **The rename did not reach internal identifiers, and one of them is a data-model
+value.** **25 residual `Prantivo`/`prantivo` hits across 8 tracked files** under
+`public/ src/ web/ scripts/ tests/`:
+`web/components/sections/conversation/types.ts:7` still declares
+`Speaker = "patient" | "prantivo"`; `meta.json:9,19,29` still ships `"speaker": "prantivo"`
+in the shipped hero fixture; `Conversation.tsx:85` maps that key to the display string
+`"Veprio"`, which is why nothing user-visible leaks. The rest are a CSS class
+(`.turnPrantivo`), comments in `cadence.ts`/`usePlayback.ts`/`Conversation.tsx`, the four
+`web/.env.example` examples, and **one comment inside applied migration
+`027_password_changed_at.sql` — which must never be edited**, because its sha256 is
+recorded in `schema_migrations` and `db:status` WARNs on a mismatch.
+**The suite pins the new name in all four test files `4dc2876` touched**
+(`resetOwnerPassword`, `heroDisclosure`, `portalHistory`, `portalOnboarding`), so the
+display strings cannot silently revert.
+
+**How to read every "Prantivo" still below this line.** There are ~20 more in the dated
+session entries further down. They are **verbatim quotes of the copy as it stood at the
+commit each entry records**, and they are left alone for the same reason the July decision
+doc is: a session ledger that gets retro-edited stops being evidence. Every quoted *copy*
+string among them now reads "Veprio" at HEAD (`4dc2876` changed them all, and four test
+files pin the result). **Three kinds of "prantivo" below are NOT stale and were correct to
+leave**, because the rename did not touch them:
+
+- the domain — `https://prantivo.com`, `https://prantivo.com/specimen` (state.md:1734-1735)
+  is still exactly what `web/` emits at HEAD;
+- document paths — `docs/design/prantivo-mockups-batch1.html`,
+  `docs/analysis/prantivo-pricing-decision-entries.md`, `prantivo-tier-pricing.md`, all
+  still named that on disk;
+- the internal identifiers listed above (`speaker: "prantivo"`, `.turnPrantivo`,
+  `Speaker`), which are code, not copy, and still say Prantivo at HEAD.
 
 ## Customers
 
@@ -43,10 +92,39 @@ repositioning in `c8b1b9e`. Positioning itself is a founder judgement, not a rep
 
 | Gate | Status |
 |---|---|
-| G-CLOCK | ❌ false — no external clock filed (`docs/os/clocks.md`: C-1/C-2/C-3 all `Filed: —`, `Reference: —`) |
+| G-CLOCK | ⚠️ **the recorded basis is now false and the gate has no written definition** — see below |
 | G-PROOF | ❌ false — no production, no live call |
 | G-PAY | ❌ false |
 | G-TEN | ❌ false |
+
+**G-CLOCK, stated honestly rather than resolved.** Its recorded justification was *"no
+external clock filed"*. That justification is **dead**: founder-supplied on 2026-08-29,
+**C-2 (Plivo India voice KYC + DID) is APPROVED**, and **C-3 (Meta WABA) was FILED on
+2026-08-29 and is awaiting its reference number**. C-2 cannot have been approved without
+C-1's entity documents, so **C-1 has cleared too** — that one is an inference from C-2's
+approval, not a founder statement, and is marked as such.
+
+The gate's truth value is **not asserted here, because the repo does not define the gate**.
+Searched: `G-CLOCK` appears in `clocks.md` (as a thing C-1 blocks), in D-005's
+`Overrides:` line, in three RAG audit headers quoting this table, and nowhere else. No
+file states its condition. Under the two readings the repo makes available it resolves
+differently, and the difference is not cosmetic:
+
+- **"a clock is filed"** → **true**. Two of three are filed; one is approved.
+- **"a clock is running"** → **false**, on `clocks.md`'s own rule that *a clock is running
+  only when a reference number exists*. C-3 has no reference number yet. C-2 is not
+  running either — it is **closed**, which is past running, not a weaker form of it.
+
+**Resolving this is a founder call, not a repo fact.** Whichever reading is chosen should
+be written into `clocks.md` as the gate's condition so the next session cannot re-open it.
+
+⚠️ **`docs/os/clocks.md` still reads `⛔ NOT STARTED` and `Filed: —` / `Reference: —` for
+all three, and `Last reviewed: 2026-07-24`.** It is **founder-supplied and this session is
+forbidden to write it** (CLAUDE.md: *"Never write to `clocks.md`"*). The divergence between
+that file and the three facts above is real, is a month wide, and is the founder's to
+close. Until it is closed, `clocks.md` is the stale document and this section is the
+current one — the reverse of the normal precedence, which is itself a reason to fix it
+quickly.
 
 ## Launch gates (from `docs/deploy/audit/2026-07-production-readiness.md` §2)
 
@@ -58,7 +136,7 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 |---|---|---|---|---|
 | 1 | Genesis bootstrap works | PASS | **PASS** | `src/db/migrate.js`; `db:genesis`/`db:migrate`/`db:status` in `package.json`. Unchanged since the audit's live throwaway-DB run. |
 | 2 | Live WhatsApp round-trip on prod | PENDING | **PENDING** | No production deploy; no prod evidence log in the repo. Blocked on Issue 20. **Issue 20's scope is incomplete:** as scoped today it deploys the Express app and `public/**` and says nothing about `web/`, leaving the surface a prospect sees *first* un-deployed by any reviewable process. Issue 20 is not closeable until it carries a `web/` deploy line item — see F-F004 and the `web/` bullet under *Stack (frozen)*. **The `web/` half now has a reviewable process** (`d811910`): `docs/deploy/marketing-site.md`, and `web/` measured to need nothing outside itself. That is preparation, not a deploy — this gate still needs the founder to put it at an address, and the site goes up noindexed until the 24 legal placeholders are filled. |
-| 3 | Issue 14 voice gate | PENDING-DID | **PENDING-DID** | **Issue 11 is now done** (`9be2382`) but is **unwired** — the resolver has no caller. Issues 12–13 still absent. External clock C-2 unfiled. |
+| 3 | Issue 14 voice gate | PENDING-DID | **PENDING** | **Issue 11 is now done** (`9be2382`) but is **unwired** — the resolver has no caller. Issues 12–13 still absent. **The `-DID` suffix is retired: C-2 is approved (founder-supplied 2026-08-29), so a DID is no longer the blocker.** What blocks this gate now is entirely repo-side — wiring the Issue 11 resolver to a caller, then 12–14. ⚠️ A-009 still applies: `voice.did` has no write surface, so an approved DID cannot yet be recorded against a tenant. |
 | 4 | Tenant isolation audit clean | PASS | **PASS** | Unchanged. The two F-016 letter-violations (`appointmentService.js:171`; dead `identityService.getTimeline`) remain open with zero tenant-facing exposure. |
 | 5 | Issue 18 closed | PASS | **PASS** | Plus `3584240`, which closed the audit's noted `SESSION_SECRET` → `ADMIN_PASSWORD` fallback residual. |
 | 6 | Backups exist with a tested restore | **FAIL** | **PASS** (repo side) | Closed by `e071f69`: `scripts/db/backup.sh`, `scripts/db/restore.sh`, `docs/runbooks/backup-restore.md`, live restore drill. ⚠️ Residue: enabling backups on the *production* provider is unverifiable until Issue 20. |
@@ -78,6 +156,14 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   set the verdict — see the V1a note below for the mechanism and the red-check.
 - Test suite: **1136 tests / 185 suites / 0 fail** (`npm test`, raw: `# tests 1136 /
   # suites 185 / # pass 1136 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  **UNMOVED by the four commits `2673fd3`..`55833c9`** — re-run at `55833c9` on
+  2026-08-29: 1136 / 185 / 0, byte-identical counters, 276 s. The portal-polish and
+  rename work touched no test count in either direction. `4dc2876` edited five test
+  files and moved nothing, because it only swapped a string inside assertions that
+  already existed. **This is the expected result, not a reassuring one:** three of those
+  four commits changed rendered output and one of them broke a screenshot gate
+  (see the session entry below), and the Node suite is structurally unable to see any
+  of it.
   Moved at **`conversation_events.seq`** (migration 030, `2673fd3`): **+2 tests,
   +1 suite**, in two places.
   `tests/db/conversationEventsSeq.test.js` is the whole of the suite delta — 1
@@ -4836,6 +4922,214 @@ Additions since the original 1–28, all in the plan's Phase 8:
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
 
+### Portal UI polish + the Veprio rename — 2026-08-27→28 (`0881e75`, `95b754f`, `4dc2876`, `55833c9`)
+
+Reconciled 2026-08-29 by a docs-only session. **Read off `git show`, not off the commit
+subjects** — two of the four subjects ("Polish portal visual system", "Checkpoint portal
+UI polish") name none of what their diffs actually do, and one of the four introduced a
+defect its subject does not hint at. No migration, no route, no schema, no dependency.
+Suite unmoved at 1136 / 185 / 0.
+
+#### `0881e75` — one card became three, and three shoot gates went vacuous
+
+`public/portal/clinic-profile.html` (+16/−6) and `clinic-profile.js` (+1/−1).
+
+**The nesting was inverted.** It was one `<section class="card" id="profileCard" hidden>`
+wrapping one `<form id="profileForm">`. It is now `<form id="profileForm" hidden>`
+wrapping **three** `<section class="card">`s: *Clinic details* (name, address, website),
+*Contact* (phone numbers), *Language & region* (languages, timezone, and the save
+footer). **No field was added, removed, renamed or reordered** — the same controls in the
+same sequence, split across three surfaces.
+
+**The lockstep held, and it had to.** The `hidden` attribute moved from `#profileCard` to
+`#profileForm`, so `clinic-profile.js:218` moved with it in the same commit
+(`$('profileCard').hidden = false` → `$('profileForm').hidden = false`). Had the JS not
+moved, the form would have stayed hidden after a successful load and the page would be
+blank below the loader. It did move. This half is correct.
+
+⚠️ **WHAT DID NOT MOVE: `scripts/portal/shoot.js:528,531,535`.** All three S4
+clinic-profile shots still gate on
+
+```
+document.getElementById('profileCard') && !document.getElementById('profileCard').hidden
+```
+
+**That gate is now vacuous.** `#profileCard` is no longer the element carrying `hidden` —
+it is an inner `<section>` that carries no `hidden` attribute at all
+(`clinic-profile.html:65`), and `Element.hidden` reflects only the element's **own**
+attribute; it is not inherited from the hidden ancestor `<form>`. Both conjuncts are
+therefore satisfied **at first paint**, before the config fetch resolves, on a page where
+the whole point of the gate was to wait for that fetch.
+
+**This is the same bug class already filed under *Known open risks*** as the
+`shootD5a.js:589` / `shootD5b` §E flake and the nine instances in `shootD2.js:185-193`:
+a `waitFor` satisfied by markup that is present before any data exists. The difference is
+that these three were **sound before this commit** — `hidden` was in the static HTML at
+`0881e75^` and removed by JS after load — so `0881e75` converted three good gates into
+bad ones. It is a fourth site of a pattern that was filed as a pattern.
+
+**What now stands between navigation and capture:** for `s4-profile-desktop.png` and
+`s4-profile-mobile.png`, only the fixed `await sleep(1300)` at `shoot.js:170`, which will
+usually cover the fetch on an idle machine and is exactly the load-sensitive shape the
+filed flake has. For `s4-profile-error.png` it is worse: `afterReady` runs **before** that
+sleep (`shoot.js:169-170`), so the script can blank `display_name`, corrupt a phone row
+and click Save **against a form `fill(data.identity)` has not populated yet**. The
+subsequent wait for `.field.is-invalid` (`shoot.js:545`) would still succeed — an empty
+name errors either way — so the shot can look right while never having exercised the
+loaded state at all.
+
+**Not fixed here.** This session is `docs/os/`-only. The repair is the one §E already
+prescribes: gate on the thing actually asserted. `#profileForm` is the element that now
+carries `hidden`, so `!document.getElementById('profileForm').hidden` restores the
+original meaning with a one-word change in three places.
+`scripts/portal/shots/shootD2.js:183` gates on existence only and was already vacuous
+before this commit — unchanged, still open under F-H003.
+
+**Copy, two changes.** The *Clinic details* sub went from *"Patients see and hear these,
+so keep them accurate."* to *"Your clinic's name and location — the identity your
+receptionist uses."* The phone help lost its opening sentence (*"The numbers patients can
+call."*) because that sentence was promoted to the new *Contact* card's sub — moved, not
+deleted.
+
+#### `95b754f` — a second `:root`, and the token guard cannot see it
+
+`tokens.css` (+87/−50), `clinic-profile.css`, `hours.css`, `verbatim.css`. Its subject
+says "visual system"; its content is a **second, later-winning `:root` block plus a
+partial de-tokenisation of the layer it overrides.**
+
+**The block.** `public/portal/tokens.css:175-183` appends a second `:root` — captioned
+*"Enterprise polish pass: token overrides only, kept separate from the historical token
+notes above so the visual adjustment is easy to audit"* — redeclaring five properties. It
+is a later declaration at equal specificity, so it wins:
+
+| token | first `:root` (lines 17-173) | second `:root` (line 177) | effective |
+|---|---|---|---|
+| `--bg` | `#f6f8fa` | `#f7f8fb` | `#f7f8fb` |
+| `--line` | `#e2e8f0` | `#dbe3eb` | `#dbe3eb` |
+| `--line-2` | `#eef2f6` | `#edf2f7` | `#edf2f7` |
+| `--r-md` | `10px` | `8px` | `8px` |
+| `--r-lg` | `14px` | `12px` | `12px` |
+
+**A sixth token moved without being named.** `--radius: var(--r-md)` (`tokens.css:111`,
+the legacy alias) is substituted at use time, so it now resolves to **8px**, not 10px.
+That is how `.card`'s corner radius changed (`tokens.css:697`) in a commit that never
+edits `.card`'s `border-radius` line.
+
+⚠️ **`tests/design/tokenDrift.test.js` IS BLIND TO ALL SIX, AND STAYS GREEN.** Its
+`rootBlock()` is `css.match(/:root\s*{([\s\S]*?)\n}/)` — a **non-global** match that takes
+the **first** `:root` and stops at the first line-initial `}` (line 173). Reproduced
+directly by running that parser over the file at HEAD: it returns **93 declarations** and
+reports `--bg` as `#f6f8fa`, `--line` as `#e2e8f0`, `--r-md` as `10px`, `--r-lg` as
+`14px` — the values the portal **no longer** uses. This is the **exact mechanism**
+already recorded for `web/app/globals.css` under HERO-1 P6 (*"a media block APPENDED
+after the base rule is never parsed"*). It has now fired a second time, on a different
+surface, in a different form — a plain `:root`, not a media query — which makes it a
+property of the parser, not a quirk of one stylesheet.
+
+**What that costs, concretely.** `docs/design/brand-values.md` carries canonical rows
+naming **portal** as a sharing surface for `--bg` (`#f6f8fa`), `--line` (`#e2e8f0`),
+`--r-md` (`10px`), `--r-lg` (`14px`) and `--radius` (`10px`). **Five canonical rows now
+record values the portal does not use**, and the test whose entire purpose is to make
+that record binding cannot see it. Sharper still: `web`'s *recorded divergences* for
+`--r-md` and `--r-lg` are `8px` and `12px` — **exactly the portal's new effective
+values**. The two surfaces have silently converged while the table still explains why
+they differ. The floor check (`>= 15` declarations) cannot catch this: 93 ≫ 15. **The
+blind spot the test's own comment documents — "brace BELOW the shared tokens, GREEN
+before and GREEN after" — is a narrower case of this one, and this one is now realised in
+the tree rather than hypothetical.**
+
+⚠️ **The focus treatment was reversed, and the comment above it still argues the
+opposite.** `tokens.css:991-998` reads, unchanged by this commit:
+
+> *"Inputs (spec §2.9) … **40px tall** (44px mobile, below), --r-sm. Focus takes the
+> border to --teal-700 PLUS the shared ring. **No fill change and no glow**: the old 3px
+> --teal-050 halo was a soft tint doing the ring's job badly, and it is the one focus
+> treatment in the portal that a low-vision user on a cheap screen could miss entirely."*
+
+The rule underneath it is now `height: 42px` and
+`:focus { background: var(--card); box-shadow: 0 0 0 3px rgba(15,118,110,.16); }` — a
+fill change **and** a 3px 16 %-alpha glow, in place of the previous
+`0 0 0 2px var(--card), 0 0 0 4px var(--teal-700)` solid double ring. The commit
+**re-instated the treatment the comment says was removed for being missable**, and left
+the comment asserting it had not been. `.in-wrap:focus-within` and `.input--invalid:focus`
+took the same change. **Nothing in the repo measures portal focus contrast** — the
+contrast sweeps that exist are `web/`-side — so no gate went red and none would.
+**Unverified either way by this session:** whether the new ring meets 3:1 non-text
+contrast is a measurement, and this session did not run a browser. It is the
+comment/code contradiction that is established, not the verdict on the ring.
+
+**De-tokenisation, counted.** The commit adds **17 hard-coded colours outside the token
+layer** across the four stylesheets: `#fbfcfe` ×6 (the new control/sidebar ground),
+`#f3f6f9` ×2, `#f0f4f8` ×2, `#111827` ×2 (a heading ink darker than `--ink`'s `#0f172a`),
+`#7b8797`, plus seven `rgba()` literals. `verbatim.css` also swaps `.vp__hr` from
+`var(--field-line)` (`.10` alpha) to a literal `rgba(255,255,255,.08)`, and `.vp__bub`'s
+border from `--field-line-2` down to `--field-line`. **The portal previously routed
+colour through the token layer; after this commit it partly does not**, which is the
+condition `brand-values.md` and `tokenDrift` were built to prevent.
+
+**Geometry and type, the visible part.** Control height 40 → 42px (the mobile 44px rules
+at `tokens.css:1797-1834` are untouched, so only the desktop figure moved and only the
+comment is stale). `.card` padding 22/24 → 24/26px; `.content` padding 28/24/64 →
+34/28/72px and max-width +16px. `.page-head` **lost its bottom border and padding
+entirely** (`border-bottom: 1px solid var(--line)` → `0`), so page headings are now
+separated by space alone. `.card__title` was re-tokenised from a literal `15px/700` to
+`var(--t-h2)` = `600 17px/1.4` — 2px larger and one weight lighter. `.nav__item` 32 →
+34px tall, font 13.5 → 13.25px.
+
+**One real accessibility gain, and it is unconditional.** `.lang-toggle`
+(`clinic-profile.css`) and `.day__toggle` (`hours.css`) gained `min-height: 44px` in the
+base rule. Both already had it at the mobile breakpoint (`tokens.css:1819-1820`); they
+now meet the 44px touch target at **every** width, and those two mobile declarations are
+consequently redundant.
+
+**One small inconsistency introduced.** The two remove-buttons in `clinic-profile.css`
+and `hours.css` moved from `var(--radius-xs)` (→ `--r-xs`, 4px) to `var(--r-sm)` (6px).
+`--radius-xs` is still used by **nine other portal sites** (`booking-rules`, `doctors`,
+`faqs` ×2, `history`, `login.html` ×2, `pricing`, `safety`, `test`), so two buttons now
+round differently from their siblings for no recorded reason.
+
+#### `4dc2876` — Prantivo → Veprio, and nothing else
+
+Fully described under *Product* above and decided in **D-021**. In one line: 37 files,
+172 insertions / 172 deletions, every changed line matching `/prantivo|veprio/i`, all
+four touched test files updated in lockstep, the domain untouched, 25 identifier-level
+residuals left behind. The only non-name artefact in the whole diff is two lines of shifted indentation
+in `public/portal/login.html:87-89`, which changes no markup structure.
+
+#### `55833c9` — a second nudge pass, and the first file under `.agent/`
+
+`tokens.css` (+7/−7): the sidebar ground `#fbfcfe` → `#f9fafb` (set by the *previous*
+commit, so this is a same-day revision of a same-day decision); `.card` border
+`--line-2` → `--line` (i.e. back to the darker of the pair, on the value `95b754f` had
+just changed) and padding 24/26 → 28/30px; `.card + .card` 18 → 22px; `.page-head`
+margin 26 → 32px; `.card__sub + .field` 20 → 24px; `.card__foot` top border `--line-2` →
+`--line`. **No new token, no structural change** — spacing and the border pair only.
+
+⚠️ **`.agent/skills/frontend-developer/SKILL.md` (171 lines) is the first tracked file
+under `.agent/` in this repository's history** (`git log -- .agent` returns this commit
+and nothing else; `git ls-files .agent` returns this one file). It is a generic
+React 19 / Next.js 15 agent skill carrying `Use PROACTIVELY` in its description — it
+asserts nothing about this product and constrains nothing about it. **It is harness, and
+it arrived inside a commit whose subject says "portal UI polish".** Two remarks, both
+material:
+
+- It is at least **tracked**, which is the disposition F-H003 recommends for
+  `scripts/portal/shots/shootD2.js` and which that file still has not received. A new
+  harness directory appearing while the filed harness finding is unacted-on is worth
+  noticing.
+- Its guidance is `web/`-shaped (React, RSC, hooks). **The portal is not React** — it is
+  static HTML plus vanilla IIFE scripts under `public/portal/`. A skill scoped
+  `PROACTIVELY` across a repo where much of the frontend is not React is a mis-aimed
+  default. Not changed here; `docs/os/`-only session.
+
+#### What this session did not do
+
+No code was read for correctness beyond the four diffs and the files they touch. **No
+browser was run**, so every claim about rendered appearance above is a claim about CSS
+source, not about pixels: the geometry and colour changes are stated as declarations that
+changed, and the one place a measurement would settle a question — the new focus ring's
+contrast — is explicitly left unmeasured.
+
 ### Conversation model: `conversation_events.seq` — landed 2026-08-27 (`2673fd3`, migration 030)
 
 Phase 1d. Closes the ordering ambiguity 029 shipped with, while the table is still
@@ -5830,6 +6124,59 @@ Verified at HEAD:
 all branches fast-forward onto main · one issue per session · runtime evidence closes a session.
 
 ## Known open risks
+
+- ⚠️ **`tokenDrift` cannot see a second `:root`, and one is now in the tree.**
+  `95b754f` appended a second `:root` at `public/portal/tokens.css:177` that overrides
+  `--bg`, `--line`, `--line-2`, `--r-md`, `--r-lg` — and, through the alias
+  `--radius: var(--r-md)`, `--radius` too. `rootBlock()` in
+  `tests/design/tokenDrift.test.js` is a **non-global** `match()` that stops at the first
+  line-initial `}`, so the guard reads the pre-override values and stays green.
+  **Five canonical rows in `docs/design/brand-values.md` now record values the portal does
+  not use**, and two of them (`--r-md`, `--r-lg`) have converged on `web`'s *recorded
+  divergence* values while the table still explains why the surfaces differ.
+  **This is the second sighting of the same parser defect** — the first was a
+  `@media` block appended to `web/app/globals.css` under HERO-1 P6 — so it is a property
+  of the parser, not of one stylesheet. The `>= 15` declaration floor cannot close it (93
+  survive), and neither can the stale-row checks, because the stale rows still resolve
+  from the first block. **The repair is structural**: match `:root` globally and merge in
+  source order, or verify that `:root`'s closing brace is the block's last rather than the
+  first line-initial `}`. The test's own comment already says a count-based floor cannot
+  do this; that comment is now describing a live case rather than a hypothetical one.
+  **Open. Filed 2026-08-29, not acted on — the reconciliation session was `docs/os/`-only.**
+
+- ⚠️ **`scripts/portal/shoot.js:528,531,535` — three S4 gates went vacuous at `0881e75`.**
+  They wait on `!document.getElementById('profileCard').hidden`, but `0881e75` moved the
+  `hidden` attribute to `#profileForm`; `#profileCard` is now an inner `<section>` with no
+  `hidden` of its own, and `Element.hidden` does not inherit from a hidden ancestor. The
+  condition is true at first paint. **These three were sound before that commit**, which
+  makes this a regression rather than another instance of the pre-existing pattern — but
+  it is the same pattern (`shootD5a:589`, `shootD5b` §E, `shootD2:185-193`), now at a
+  fourth site. Consequence: two shots are protected only by the fixed `sleep(1300)` at
+  `shoot.js:170`, and the third runs its `afterReady` mutation **before** that sleep
+  (`shoot.js:169-170`), so it can drive a form that has not been populated and still
+  produce a plausible-looking error shot. **One-word repair**: gate on `profileForm`.
+  Full derivation in the `0881e75` session entry above. **Open, filed 2026-08-29.**
+
+- ⚠️ **The brand and the only known domain are out of step, three weeks before a Meta
+  decision.** The trading name became **Veprio** at `4dc2876`; `veprio.com` exists in zero
+  files, and `prantivo.com` is still the only origin the repo names
+  (`web/.env.example:21,29,35,39`). `docs/os/clocks.md` C-1 records that the name
+  propagates to Plivo KYC, Meta Business Manager and the website footer, and that document
+  mismatch is *"the single most common rejection cause on the Meta side"*. **C-3 was filed
+  2026-08-29.** Nothing in the repo can fix this — it needs a domain decision and, if the
+  registered entity carries the old name, a founder call about which string goes on the
+  WABA display name. Tracked as **D-021**'s falsifiable prediction, review 2026-09-19.
+
+- ⚠️ **The portal's focus ring changed and nothing measures it.** `95b754f` replaced the
+  solid `0 0 0 2px var(--card), 0 0 0 4px var(--teal-700)` double ring on `.input`,
+  `.in-wrap` and `.input--invalid` with a 3px `rgba(15,118,110,.16)` glow plus a background
+  change — re-instating, in substance, the treatment the comment four lines above it says
+  was removed because *"a low-vision user on a cheap screen could miss [it] entirely"*.
+  The comment was not updated and now contradicts the code. **Whether the new ring passes
+  3:1 non-text contrast is unmeasured**: the contrast sweeps in this repo are all `web/`-
+  side, the portal has none, and this session ran no browser. Two things are needed and
+  neither is a guess: measure it, then make the comment and the code agree in whichever
+  direction the measurement points. **Open, filed 2026-08-29.**
 
 - ⚠️ **`shootD5a.js:589` IS THE SAME FLAKE AS `shootD5b` §E, STILL NOT FIXED**
   (untouched file, outside every session's scope so far). Signature: *Home: the
