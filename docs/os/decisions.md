@@ -953,3 +953,10 @@ scrollbar was not enough affordance, the 602px should have been cut instead, and
 is wrong.
 
 Review: 2027-02-25
+
+## D-020 — 2026-08-29 — Veprio frontend transformation (founder override)
+Overrides: G-PROOF for portal/admin surface work. H5 ranking.
+Reason: WABA queue creates a 3–10 business day window with no clock work available.
+Prediction: the next three clinic owners shown the portal do not ask whether the
+product is finished; and the first live production call occurs on or before 2026-09-19.
+Review: 2026-09-19.
