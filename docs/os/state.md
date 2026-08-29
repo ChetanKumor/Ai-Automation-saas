@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 44a6e606b5b7941a8d1bf4410709555c1f206fc0
+Verified-at: 4c8f28817a5265d43715f469d6d586cce4af43d6
 Verified-on: 2026-08-29
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -39,25 +39,39 @@ what was true for five weeks and is **superseded, not corrected**, by **D-021** 
 `/prantivo|veprio/i`: **zero** lines of copy, markup, logic or config changed alongside
 the name. It is a trading-name swap and nothing else.
 
-⚠️ **The domain did NOT move, and this is the live risk, not a tidiness note.**
-`veprio.com` appears in **zero** files at HEAD. `prantivo.com` is still the only origin
-named anywhere in the repo (`web/.env.example:21,29,35,39`, as the worked examples for
-`NEXT_PUBLIC_SITE_URL` and the support address). `docs/os/clocks.md` C-1 states that the
+⚠️ **The domain moved in the repo on 2026-08-29 (`4c8f288`). It has not moved in
+the world, and that half is the live risk.** `web/.env.example:21,29,35,39` now name
+**`veprio.com`** — the worked examples for `NEXT_PUBLIC_SITE_URL`, the support address and
+the two social profiles. Those four comments were the **entire** live surface: there is no
+hardcoded origin anywhere in the tree, `resolveSiteUrl()` (`web/lib/siteConfig.ts:72-80`)
+resolves it from the environment, and every variable in that file is still blank. Verified
+from build output rather than source — with the origin set, `next build` prerenders
+`https://veprio.com` as the canonical, `og:url`, `og:image`, JSON-LD `url`/`logo`,
+robots.txt `Sitemap:` and all five `sitemap.xml` `<loc>` entries, and **zero**
+`prantivo.com` survives in any emitted route or static chunk.
+
+⚠️ **What that does NOT establish, and the distinction is the whole remaining risk.**
+Whether `veprio.com` is registered, to whom, and whether DNS points anywhere is
+**founder-supplied and unverified here** — a repository asserting an origin is not the
+same as owning one. `docs/os/clocks.md` C-1 states that the
 entity name propagates to Plivo KYC, Meta Business Manager and the website footer, and
 that **name mismatch across documents is the single most common Meta rejection cause**.
-C-3 was filed on 2026-08-29 with the brand and the only known domain out of step. This is
-recorded as D-021's falsifiable prediction; it is not something this session can fix from
-`docs/os/`.
+C-3 was filed on 2026-08-29 and **stays open**: the repo half is done, the registration,
+DNS and — if the registered entity carries the old name — the WABA display-name call are
+not. Recorded as D-021's falsifiable prediction, review 2026-09-19.
 
 ⚠️ **The rename did not reach internal identifiers, and one of them is a data-model
-value.** **25 residual `Prantivo`/`prantivo` hits across 8 tracked files** under
-`public/ src/ web/ scripts/ tests/`:
+value.** **24 residual `Prantivo`/`prantivo` occurrences on 22 lines across 7 tracked
+files** under `public/ src/ web/ scripts/ tests/`, measured at `4c8f288`. (The prior
+"25 across 8" did not reconcile with any metric: at `e99f891` it was 28 occurrences on
+26 lines across 8 files. `4c8f288` removed the four `web/.env.example` examples, which
+is the whole delta — the identifiers themselves have not moved.)
 `web/components/sections/conversation/types.ts:7` still declares
 `Speaker = "patient" | "prantivo"`; `meta.json:9,19,29` still ships `"speaker": "prantivo"`
 in the shipped hero fixture; `Conversation.tsx:85` maps that key to the display string
 `"Veprio"`, which is why nothing user-visible leaks. The rest are a CSS class
-(`.turnPrantivo`), comments in `cadence.ts`/`usePlayback.ts`/`Conversation.tsx`, the four
-`web/.env.example` examples, and **one comment inside applied migration
+(`.turnPrantivo`), comments in `cadence.ts`/`usePlayback.ts`/`Conversation.tsx`,
+and **one comment inside applied migration
 `027_password_changed_at.sql` — which must never be edited**, because its sha256 is
 recorded in `schema_migrations` and `db:status` WARNs on a mismatch.
 **The suite pins the new name in all four test files `4dc2876` touched**
@@ -72,8 +86,11 @@ string among them now reads "Veprio" at HEAD (`4dc2876` changed them all, and fo
 files pin the result). **Three kinds of "prantivo" below are NOT stale and were correct to
 leave**, because the rename did not touch them:
 
-- the domain — `https://prantivo.com`, `https://prantivo.com/specimen` (state.md:1734-1735)
-  is still exactly what `web/` emits at HEAD;
+- ~~the domain — `https://prantivo.com`, `https://prantivo.com/specimen`
+  (state.md:1734-1735) is still exactly what `web/` emits at HEAD~~ — **superseded
+  2026-08-29 by `4c8f288`**; `web/` now emits `veprio.com`. The dated entry at
+  state.md:1768-1769 still reads `prantivo.com` and is **correct as written**: it records
+  a measurement taken on the wire at that commit, not a claim about today;
 - document paths — `docs/design/prantivo-mockups-batch1.html`,
   `docs/analysis/prantivo-pricing-decision-entries.md`, `prantivo-tier-pricing.md`, all
   still named that on disk;
@@ -6157,14 +6174,18 @@ all branches fast-forward onto main · one issue per session · runtime evidence
   produce a plausible-looking error shot. **One-word repair**: gate on `profileForm`.
   Full derivation in the `0881e75` session entry above. **Open, filed 2026-08-29.**
 
-- ⚠️ **The brand and the only known domain are out of step, three weeks before a Meta
-  decision.** The trading name became **Veprio** at `4dc2876`; `veprio.com` exists in zero
-  files, and `prantivo.com` is still the only origin the repo names
-  (`web/.env.example:21,29,35,39`). `docs/os/clocks.md` C-1 records that the name
+- ⚠️ **The brand and the domain are in step in the repo. Nobody has checked the world.**
+  ~~The trading name became **Veprio** at `4dc2876`; `veprio.com` exists in zero files, and
+  `prantivo.com` is still the only origin the repo names.~~ **The repo half closed
+  2026-08-29 at `4c8f288`**: `web/.env.example:21,29,35,39` name `veprio.com`, and a
+  `next build` prerenders it as the canonical on `/`, `/specimen`, `/privacy` and `/terms`,
+  and as the `og:url`, `og:image`, JSON-LD, robots.txt sitemap pointer and every
+  `sitemap.xml` entry. **Still open, and it is the part that matters to C-3**: nothing in
+  the repository can register a domain. `docs/os/clocks.md` C-1 records that the name
   propagates to Plivo KYC, Meta Business Manager and the website footer, and that document
   mismatch is *"the single most common rejection cause on the Meta side"*. **C-3 was filed
-  2026-08-29.** Nothing in the repo can fix this — it needs a domain decision and, if the
-  registered entity carries the old name, a founder call about which string goes on the
+  2026-08-29 and remains open** — it needs the registration itself and, if the registered
+  entity carries the old name, a founder call about which string goes on the
   WABA display name. Tracked as **D-021**'s falsifiable prediction, review 2026-09-19.
 
 - ⚠️ **The portal's focus ring changed and nothing measures it.** `95b754f` replaced the
