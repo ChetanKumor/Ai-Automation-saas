@@ -1,0 +1,23 @@
+FAIL      1.77:1 needs 4.5  rgb(148, 163, 184) on rgb(247,248,251) @op0.68
+FAIL      1.80:1 needs 4.5  rgb(148, 163, 184) on rgb(251,252,254) @op0.68
+FAIL      2.28:1 needs 4.5  rgb(148, 163, 184) on rgb(237,242,247)
+FAIL      2.41:1 needs 4.5  rgb(148, 163, 184) on rgb(247,248,251)
+FAIL      2.45:1 needs 4.5  rgb(148, 163, 184) on rgb(249,250,251)
+FAIL      2.50:1 needs 4.5  rgb(148, 163, 184) on rgb(251,252,254)
+FAIL      2.56:1 needs 4.5  rgb(148, 163, 184) on rgb(255,255,255)
+FAIL      3.08:1 needs 4.5  rgb(90, 100, 114) on rgb(12,20,32)
+FAIL      3.49:1 needs 4.5  rgb(123, 135, 151) on rgb(249,250,251)
+FAIL      3.61:1 needs 4.5  rgb(15, 118, 110) on rgb(243,253,251) @op0.8
+FAIL      4.08:1 needs 4.5  rgb(110, 119, 132) on rgb(12,20,32)
+FAIL      4.23:1 needs 4.5  rgb(100, 116, 139) on rgb(237,242,247)
+FAIL      4.48:1 needs 4.5  rgb(100, 116, 139) on rgb(247,248,251)
+UNDET     background-image in the backdrop stack  rgb(15, 23, 42) on rgb(251,252,254)
+RING      PASS 4.86  [outline 4.86 vs outer backdrop  2px solid rgb(15, 118, 110) @ 2px]
+RING      PASS 5.15  [outline 5.15 vs outer backdrop  2px solid rgb(15, 118, 110) @ -1px | glow 1.13 vs inner fill  0px 1px 2px 0px rgba(15, 23, 42, 0.06)]
+RING      PASS 5.15  [outline 5.15 vs outer backdrop  2px solid rgb(15, 118, 110) @ -1px]
+RING      PASS 5.15  [outline 5.15 vs outer backdrop  2px solid rgb(15, 118, 110) @ 2px]
+RING      PASS 5.24  [outline 5.24 vs outer backdrop  2px solid rgb(15, 118, 110) @ 2px]
+RING      PASS 5.47  [border 5.47/5.47 vs inner fill / outer backdrop  1px rgb(15, 118, 110) (rest rgb(219, 227, 235)) | glow 1.13 vs outer backdrop  0px 0px 0px 3px rgb(204, 251, 241)]
+RING      PASS 5.47  [outline 5.47 vs outer backdrop  2px solid rgb(15, 118, 110) @ 2px]
+RING      PASS 5.47  fill@1.03  [border 5.47/5.47 vs inner fill / outer backdrop  1px rgb(15, 118, 110) (rest rgb(219, 227, 235)) | glow 1.25 vs outer backdrop  0px 0px 0px 3px rgba(15, 118, 110, 0.16)]
+RING      PASS 7.42  [outline 7.42 vs outer backdrop  2px solid rgb(20, 184, 166) @ 2px | glow 1.00 vs outer backdrop  0px 0px 0px 2px rgb(12, 20, 32)]

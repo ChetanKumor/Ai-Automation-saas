@@ -1,6 +1,14 @@
 'use strict';
 
-// The offline half of the portal contrast instrument (tests/design/portalContrast.js).
+// The offline half of the portal contrast instrument.
+//
+// Two files under test, since S6a split them: tests/design/contrast/core.js is
+// the surface-agnostic measurement engine, and tests/design/portalContrast.js is
+// the portal's binding of it — the baseline the portal is held to, plus the
+// public surface scripts/portal/shoot.js imports. The split exists because the
+// engine was bound to one surface and a second surface would have had to fork
+// it. These blocks test the engine THROUGH the binding, and separately pin that
+// the binding really is a re-export rather than a copy that can drift.
 //
 // WHAT THIS FILE IS FOR. The instrument's live half needs Chrome, a Postgres
 // scratch DB and a signed-in portal, so it runs from `node scripts/portal/
@@ -32,8 +40,10 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const kit = require('./portalContrast');
+const core = require('./contrast/core');
 const ROOT = path.join(__dirname, '..', '..');
 const PORTAL = path.join(ROOT, 'public', 'portal');
 
@@ -171,6 +181,68 @@ test('the contrast instrument computes what WCAG says, on the values it will mee
   assert.strictEqual(glowOnly.fillChanged, true, '#fbfcfe -> #ffffff is a fill change');
   near(glowOnly.fillRatio, 1.03, 0.01, '...and an imperceptible one');
   assert.strictEqual(AA_NON_TEXT, 3, 'SC 1.4.11 floor');
+
+  // ── the extraction is a re-export, not a second copy ───────────────────
+  // S6a moved the engine to contrast/core.js so a second surface can reuse it
+  // instead of forking it. A fork is exactly what this pins against: identity,
+  // not deep-equality, so re-inlining any of these into portalContrast.js —
+  // where it would drift the first time either file is touched — fails here.
+  for (const name of ['parseColor', 'compositeOver', 'contrastRatio', 'isLargeText',
+    'parseBoxShadow', 'judge', 'judgeRing', 'uniquePairs', 'signature',
+    'buildSource', 'sweepPage', 'blurActive', 'tagFocusables', 'readFocusRing']) {
+    assert.strictEqual(kit[name], core[name], `${name} must BE the core's, not a copy of it`);
+  }
+  for (const name of ['TEXT_SWEEP_SOURCE', 'BLUR_SOURCE', 'TAG_FOCUSABLES_SOURCE', 'READ_RING_SOURCE']) {
+    assert.strictEqual(kit[name], core[name]);
+    assert.ok(kit[name].length > 500, `${name} must be real serialised source, not "undefined"`);
+  }
+  // The core must not have learnt about the portal on the way out: it is handed
+  // its gates and its rows, and knows no URL, no page and no panel. Comment
+  // lines are stripped first and deliberately so — the header has to be able to
+  // SAY "this file does not know what a Verbatim panel is" without that sentence
+  // tripping the check that makes the claim true.
+  const coreSrc = fs.readFileSync(path.join(__dirname, 'contrast', 'core.js'), 'utf8');
+  const coreCode = coreSrc.split('\n').filter((l) => !/^\s*(\/\*|\*|\/\/)/.test(l)).join('\n');
+  assert.ok(coreCode.includes('function sweepPage'), 'the comment strip must leave the code behind');
+  // ('index.html' survives, in `location.pathname.split('/').pop() || 'index.html'`
+  //  — a label for a row measured at a directory root, not a page the core knows.)
+  for (const surfaceWord of ['loadCard', 'erbatim', 'vpLive', 'wizReview', 'readinessOnce',
+    'getElementById', 'localhost', '127.0.0.1', 'portal']) {
+    assert.ok(!coreCode.includes(surfaceWord),
+      `contrast/core.js must be surface-agnostic; its code names "${surfaceWord}"`);
+  }
+
+  // ── signature(): shapes, never counts ──────────────────────────────────
+  // The invariant a refactor of the engine is judged on. S2 measured five
+  // sweeps of one unchanged tree at 2302/2325/2339/2347 rows — readiness races,
+  // since closed — and the distinct-shape signature was byte-identical across
+  // all five. So multiplicity must not reach the hash, and shape must.
+  const rowA = { color: 'rgb(148, 163, 184)', bg: { r: 255, g: 255, b: 255 }, px: 13, weight: 400, role: 'text' };
+  const rowB = { color: 'rgb(100, 116, 139)', bg: { r: 237, g: 242, b: 247 }, px: 13, weight: 400, role: 'text' };
+  const one = kit.signature(judge([rowA, rowB]));
+  const many = kit.signature(judge([rowA, rowB, rowA, rowA, rowB]));
+  assert.strictEqual(many.md5, one.md5, 'multiplicity must not move the signature');
+  assert.strictEqual(kit.signature(judge([rowB, rowA])).md5, one.md5, 'nor must row order');
+  assert.strictEqual(one.lines.length, 2, 'two distinct failing pairs, five rows');
+  const moved = kit.signature(judge([rowA, { ...rowB, bg: { r: 12, g: 20, b: 32 } }]));
+  assert.notStrictEqual(moved.md5, one.md5, 'a different backdrop IS a different shape');
+  // Every verdict channel reaches the hash: a contract violation and an
+  // unresolvable backdrop each move it on their own, or the signature would
+  // certify a run in which only those two changed.
+  assert.notStrictEqual(
+    kit.signature(judge([rowA, rowB, { ...rowA, color: INK_FAINT }])).md5, one.md5,
+    'a D-016 contract violation must move the signature'
+  );
+  assert.notStrictEqual(
+    kit.signature(judge([rowA, rowB, { ...rowA, imageBacked: true }])).md5, one.md5,
+    'an undeterminable backdrop must move the signature'
+  );
+  assert.notStrictEqual(
+    kit.signature({ failures: [], contract: [], undeterminable: [], rings: [outlined] }).md5,
+    kit.signature({ failures: [], contract: [], undeterminable: [], rings: [glowOnly] }).md5,
+    'focus indicators are part of the signature — their ratios run through the same backdrop walk'
+  );
+  assert.strictEqual(kit.signature({}).md5, kit.signature({ failures: [] }).md5, 'an empty run has one signature');
 });
 
 /* ========================================================================== */
@@ -215,6 +287,34 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
   const notFaint = judge([{ color: 'rgb(148, 163, 184)', bg: { r: 255, g: 255, b: 255 }, px: 13, weight: 400, role: 'text' }]);
   assert.strictEqual(notFaint.contract.length, 0, 'and must not fire on a different failing colour');
   assert.strictEqual(notFaint.failures.length, 1, '--faint is a threshold failure, not a contract one');
+
+  // ── the live baseline, re-hashable without a browser ──────────────────
+  // The live sweep needs Chrome, a scratch Postgres and a signed-in portal, so
+  // its verdict cannot run here. Its SIGNATURE can: contrast/portal.signature.txt
+  // is the distinct-shape reduction of the run recorded in PORTAL_BASELINE,
+  // checked in verbatim, and re-hashed on every `npm test`. That is what keeps
+  // the file and the md5 beside it from drifting apart — the failure mode that
+  // left D-016's own "532 pairs" as a number nobody can re-run.
+  const sig = kit.readPortalSignature();
+  assert.strictEqual(
+    crypto.createHash('md5').update(sig, 'utf8').digest('hex'),
+    kit.PORTAL_BASELINE.signatureMd5,
+    'portal.signature.txt no longer hashes to PORTAL_BASELINE.signatureMd5'
+  );
+  const sigLines = sig.trim().split('\n');
+  assert.strictEqual(sigLines.filter((l) => l.startsWith('FAIL ')).length, 13,
+    'the portal baseline is 13 distinct failing pairs');
+  assert.strictEqual(sigLines.filter((l) => l.startsWith('CONTRACT ')).length, 0,
+    'D-016: zero --ink-faint glyphs on the live portal, measured');
+  assert.strictEqual(kit.PORTAL_BASELINE.contract, 0);
+  assert.strictEqual(kit.PORTAL_BASELINE.ringFailures, 0, 'SC 1.4.11: no ring below 3:1');
+  assert.ok(sigLines.every((l) => /^(FAIL|CONTRACT|UNDET|RING) /.test(l)),
+    'the signature body carries only verdict lines — anything else is not hashable evidence');
+  // Not one FAIL line may be #A8A199: the contract is enforced by judge(), and a
+  // faint glyph reaching the live portal would show up here as a threshold
+  // failure even on a ground where it clears 4.5:1 and the contract fires alone.
+  assert.ok(!/#a8a199|rgb\(\s*168,\s*161,\s*153\s*\)/i.test(sig),
+    '--ink-faint appears in the measured portal baseline');
 
   // ── the static net ────────────────────────────────────────────────────
   // The live sweep is the real instrument, but it needs a browser and a
