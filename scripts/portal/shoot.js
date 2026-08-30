@@ -73,6 +73,15 @@ const OUT = path.join(__dirname, 'shots');
 const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const DEVPORT = 9333;
 
+// S2: `node scripts/portal/shoot.js --contrast` measures instead of capturing.
+// Same scratch DB, same seeded tenant, same session cookie — the instrument
+// is worth nothing against a page that is not the page an owner sees.
+const CONTRAST = process.argv.includes('--contrast');
+const CONTRAST_OUT = (function () {
+  const i = process.argv.indexOf('--out');
+  return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : path.join(OUT, 'contrast.json');
+})();
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function swapDb(cs, name) { const u = new URL(cs); u.pathname = '/' + name; return u.toString(); }
 
@@ -181,6 +190,252 @@ async function shoot(cdp, { url, out, width, height, mobile, cookie, port, waitF
   console.log('  ✓', path.basename(out), `(${Math.round(size.width)}×${Math.round(size.height)})`);
 }
 
+// ── Contrast instrument (S2) ─────────────────────────────────────────────────
+// The measuring half lives in tests/design/portalContrast.js so the colour
+// arithmetic is unit-tested offline by tests/design/portalContrast.test.js and
+// this file only drives it. Everything below collects RAW computed values; not
+// one ratio is computed here.
+const kit = require('../../tests/design/portalContrast');
+
+// Per-page readiness. Ten of the fourteen pages hide a shared #loadCard on a
+// successful load and render their error INTO it on a failed one, so
+// `loadCard.hidden` is a genuine data-dependent gate rather than a markup
+// witness — which is the distinction the S4 gate above got wrong.
+const LOADED = "(function(){"
+  + "var c=document.getElementById('loadCard'); if(!c || !c.hidden) return false;"
+  // Eight of these pages also host the Verbatim panel, which loads on its OWN
+  // fetch and paints 18 more glyphs on the one dark ground in the product. The
+  // loadCard gate alone let the sweep run before it, and clinic-profile then
+  // measured 78 rows on one run and 96 on the next.
+  + "var vp=document.getElementById('verbatim');"
+  + "if(!vp || getComputedStyle(vp).display==='none' || !vp.getClientRects().length) return true;"
+  + "return !!vp.querySelector('#vpLive *');"
+  + "})()";
+const WIZARD_READY = "(function(){"
+  + "var w=document.getElementById('wiz'); if(!w || w.hidden) return false;"
+  + "var t=document.getElementById('wizTitle'); if(!t || !t.textContent.trim()) return false;"
+  + "var rv=document.getElementById('wizReview');"
+  + "if(rv && !rv.hidden) return !!rv.querySelector('.readiness, .checks');"
+  + "var fw=document.getElementById('wizFrameWrap');"
+  + "if(fw && !fw.hidden){ try {"
+  + "  var d=document.getElementById('wizFrame').contentDocument;"
+  + "  var lc=d && d.getElementById('loadCard');"
+  + "  return !!lc && lc.hidden;"
+  + "} catch(e) { return true; } }"
+  + "return true;"
+  + "})()";
+const CONTRAST_PAGES = [
+  { file: 'login.html', auth: false, gate: "document.getElementById('form')" },
+  { file: 'index.html', gate: "document.querySelector('.ring')||document.querySelector('.emp')" },
+  { file: 'clinic-profile.html', gate: LOADED },
+  { file: 'hours.html', gate: LOADED },
+  { file: 'doctors.html', gate: LOADED },
+  { file: 'pricing.html', gate: LOADED },
+  { file: 'faqs.html', gate: LOADED },
+  { file: 'receptionist.html', gate: LOADED },
+  { file: 'booking-rules.html', gate: LOADED },
+  { file: 'safety.html', gate: LOADED },
+  { file: 'knows.html', gate: LOADED },
+  { file: 'history.html', gate: LOADED },
+  { file: 'test.html', gate: "document.body.dataset.testReady === '1'" },
+  // The wizard reveals #wiz before its step has finished rendering. On the
+  // Review step that costs 45 glyphs: loadReview() is a separate fetch, and at
+  // 380 the sweep measured 80 rows on two runs and 35 on a third, the delta
+  // being the whole readiness pane. The iframe branch reuses the wizard's OWN
+  // readiness rule for an embedded step (wizard.js:265-274, "#loadCard hidden
+  // means the page has wired its submit listener") rather than inventing one.
+  //
+  // NOTE: this sweep does not descend into #wizFrame. Same-origin or not, a
+  // document is its own tree and querySelectorAll does not cross it — the six
+  // embedded step pages are swept directly, on their own rows above.
+  { file: 'wizard.html', gate: WIZARD_READY },
+];
+const CONTRAST_WIDTHS = [{ width: 1280, height: 900, mobile: false },
+                         { width: 380, height: 820, mobile: true }];
+
+async function pressTab(cdp, sid) {
+  const k = { windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9, key: 'Tab', code: 'Tab' };
+  await cdp.send('Input.dispatchKeyEvent', Object.assign({ type: 'rawKeyDown' }, k), sid);
+  await cdp.send('Input.dispatchKeyEvent', Object.assign({ type: 'keyUp' }, k), sid);
+}
+
+async function evalIn(cdp, sid, expression) {
+  const r = await cdp.send('Runtime.evaluate', { expression, returnByValue: true }, sid);
+  if (r.exceptionDetails) {
+    const e = r.exceptionDetails;
+    throw new Error('in-page error: ' + ((e.exception && e.exception.description) || e.text));
+  }
+  return r.result && r.result.value;
+}
+
+async function sweepOnePage(cdp, opts) {
+  const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
+  const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
+  try {
+    await cdp.send('Page.enable', {}, sessionId);
+    await cdp.send('Network.enable', {}, sessionId);
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: opts.width, height: opts.height, deviceScaleFactor: 1, mobile: !!opts.mobile,
+    }, sessionId);
+    if (opts.cookie) {
+      await cdp.send('Network.setCookie',
+        { name: opts.cookie.name, value: opts.cookie.value, url: `http://127.0.0.1:${opts.port}/` }, sessionId);
+    }
+    const loaded = new Promise((res) => {
+      cdp.on((m) => { if (m.method === 'Page.loadEventFired' && m.sessionId === sessionId) res(); });
+    });
+    await cdp.send('Page.navigate', { url: opts.url }, sessionId);
+    await loaded;
+    await waitForSelector(cdp, sessionId, opts.gate);
+    // Every per-page gate above races the SHELL. The lifecycle strip and the
+    // truth strip are painted from one /api/readiness fetch that no page gate
+    // knows about: doctors.html at 380 measured 131 glyph rows on one run and
+    // 127 on the next, the delta being exactly the two `.lc` strip glyphs.
+    // Portal exposes that fetch as a memoised promise; await the real thing
+    // rather than sleeping and hoping. login.html has no shell, hence the guard.
+    await cdp.send('Runtime.evaluate', {
+      expression: '(window.Portal && window.Portal.readinessOnce)'
+        + ' ? window.Portal.readinessOnce().then(function(){ return true; }, function(){ return true; })'
+        + ' : true',
+      returnByValue: true, awaitPromise: true,
+    }, sessionId);
+    // Trap 5: measure SETTLED. A glyph caught mid-transition composites at a
+    // fractional opacity and reports a ratio it never holds at rest. Chrome is
+    // already on --force-prefers-reduced-motion; this covers the fetch-driven
+    // renders that follow the gate.
+    await sleep(700);
+
+    const rows = await evalIn(cdp, sessionId, kit.TEXT_SWEEP_SOURCE) || [];
+
+    // Focus indicators, walked in REAL tab order. A programmatic .focus() does
+    // not reliably match :focus-visible on a button, and :focus-visible is what
+    // the portal-wide ring at tokens.css:227 is keyed on.
+    await evalIn(cdp, sessionId, kit.BLUR_SOURCE);
+    await sleep(220); // past --dur-1: a rest style read in the same turn as the
+                      // blur() returns the TRANSITION START, i.e. the focused value
+    const rest = await evalIn(cdp, sessionId, kit.TAG_FOCUSABLES_SOURCE) || [];
+    const restBy = new Map(rest.map((r) => [String(r.i), r]));
+    const rings = [];
+    const seen = new Set();
+    for (let t = 0; t < Math.min(rest.length + 2, 60); t++) {
+      await pressTab(cdp, sessionId);
+      await sleep(160); // past --dur-1 (120ms), or the ring is read mid-transition
+      const ring = await evalIn(cdp, sessionId, kit.READ_RING_SOURCE);
+      if (!ring) continue;
+      const key = ring.i === null || ring.i === undefined ? ring.sel : String(ring.i);
+      if (seen.has(key)) break; // tab order wrapped
+      seen.add(key);
+      rings.push(kit.judgeRing(ring, restBy.get(String(ring.i))));
+    }
+    return { rows, rings, focusables: rest.length };
+  } finally {
+    await cdp.send('Target.closeTarget', { targetId });
+  }
+}
+
+async function runContrastSweep(cdp, base, cookie, port) {
+  const allRows = [];
+  const allRings = [];
+  console.log('contrast sweep (measure only — nothing is captured):');
+  for (const page of CONTRAST_PAGES) {
+    for (const vp of CONTRAST_WIDTHS) {
+      const got = await sweepOnePage(cdp, {
+        url: `${base}/${page.file}`, gate: page.gate, port,
+        cookie: page.auth === false ? null : cookie,
+        width: vp.width, height: vp.height, mobile: vp.mobile,
+      });
+      for (const r of got.rows) { r.page = page.file; r.vw = vp.width; allRows.push(r); }
+      for (const r of got.rings) { r.page = page.file; r.vw = vp.width; allRings.push(r); }
+      const v = kit.judge(got.rows);
+      const ringFail = got.rings.filter((r) => !r.pass).length;
+      console.log(`  ${page.file.padEnd(20)} ${String(vp.width).padStart(4)}  `
+        + `${String(got.rows.length).padStart(4)} glyph rows  `
+        + `${String(v.pairs).padStart(3)} pairs  `
+        + `${String(v.failures.length).padStart(3)} fail  `
+        + `${String(got.rings.length).padStart(3)} rings  `
+        + `${String(ringFail).padStart(2)} ring-fail`);
+    }
+  }
+
+  const verdict = kit.judge(allRows);
+  const ringFails = allRings.filter((r) => !r.pass);
+
+  console.log('');
+  console.log('── TOTALS ─────────────────────────────────────────────────');
+  console.log('  glyph rows measured   :', verdict.measured.length);
+  console.log('  unique colour/backdrop:', verdict.pairs);
+  console.log('  threshold failures    :', verdict.failures.length);
+  console.log('  D-016 contract        :', verdict.contract.length,
+    '(--ink-faint as a glyph colour; MUST be 0)');
+  console.log('  undeterminable        :', verdict.undeterminable.length);
+  console.log('  focus indicators      :', allRings.length, 'measured,', ringFails.length, 'below 3:1');
+
+  const byKey = new Map();
+  for (const f of verdict.failures) {
+    const k = f.color + ' on rgb(' + [f.bg.r, f.bg.g, f.bg.b].map(Math.round).join(',') + ')'
+      + (f.large ? ' [large]' : '') + (f.opacity !== 1 ? ' @op' + f.opacity : '');
+    if (!byKey.has(k)) byKey.set(k, { ratio: f.ratio, floor: f.floor, n: 0, ex: [] });
+    const e = byKey.get(k);
+    e.n += 1;
+    if (e.ex.length < 3) e.ex.push(f.page + ' ' + f.vw + ' ' + f.sel + (f.text ? '  "' + f.text + '"' : ''));
+  }
+  if (byKey.size) {
+    console.log('');
+    console.log('── THRESHOLD FAILURES, by distinct pair ───────────────────');
+    const sorted = [...byKey.entries()].sort((a, b) => a[1].ratio - b[1].ratio);
+    for (const [k, e] of sorted) {
+      console.log(`  ${e.ratio.toFixed(2)}:1  (needs ${e.floor})  x${e.n}  ${k}`);
+      for (const x of e.ex) console.log('        ' + x);
+    }
+  }
+  if (verdict.contract.length) {
+    console.log('');
+    console.log('── D-016 CONTRACT VIOLATIONS ──────────────────────────────');
+    for (const c of verdict.contract) {
+      console.log(`  ${c.page} ${c.vw}  ${c.sel}  ${c.ratio}:1  ${c.why}`);
+    }
+  }
+
+  // Focus indicators are a separate instrument at a separate floor (SC 1.4.11,
+  // 3:1). Reported in full for `.input` because tokens.css:995-998 makes two
+  // claims about that rule that the rule does not keep.
+  const inputRings = allRings.filter((r) => /input/.test(r.sel));
+  const shown = new Set();
+  console.log('');
+  console.log('── FOCUS INDICATORS (SC 1.4.11, floor 3:1) ────────────────');
+  for (const r of inputRings.concat(allRings)) {
+    const k = r.sel + '|' + r.indicators.map((x) => x.kind + x.css).join('|') + '|' + r.fillChanged;
+    if (shown.has(k)) continue;
+    shown.add(k);
+    if (shown.size > 24) break;
+    console.log(`  ${r.pass ? 'PASS' : 'FAIL'} ${String(r.best.toFixed ? r.best.toFixed(2) : r.best).padStart(5)}:1  ${r.page} ${r.vw}  ${r.sel}`);
+    for (const ind of r.indicators) {
+      console.log(`        ${ind.kind.padEnd(7)} ${ind.ratio}:1 vs ${ind.against}`
+        + (ind.ratioOuter !== undefined ? ` / ${ind.ratioOuter}:1 vs outer` : '')
+        + `   ${ind.css}`);
+    }
+    if (r.fillChanged) console.log(`        FILL CHANGED on focus (rest->focus contrast ${r.fillRatio}:1)`);
+    if (!r.indicators.length) console.log('        no indicator found');
+  }
+
+  fs.writeFileSync(CONTRAST_OUT, JSON.stringify({
+    at: new Date().toISOString(),
+    rows: verdict.measured.length,
+    pairs: verdict.pairs,
+    failures: verdict.failures,
+    contract: verdict.contract,
+    undeterminable: verdict.undeterminable,
+    rings: allRings,
+  }, null, 2));
+  console.log('');
+  console.log('report →', CONTRAST_OUT);
+
+  if (verdict.contract.length) {
+    throw new Error(`D-016 contract violated: --ink-faint resolved as a glyph colour on `
+      + `${verdict.contract.length} element(s)`);
+  }
+  return { verdict, rings: allRings };
+}
 // ── HTTP login → session cookie ──────────────────────────────────────────────
 // Generic over both auth surfaces: `path` + the cookie name we expect back.
 function loginCookieVia(port, path, cookieName, body) {
@@ -507,6 +762,12 @@ const adminLoginCookie = (port, password) =>
     const cdp = new CDP(ws);
 
     const base = `http://127.0.0.1:${port}/portal`;
+
+    if (CONTRAST) {
+      await runContrastSweep(cdp, base, cookie, port);
+      return; // measure-only: the finally below still tears the scratch DB down
+    }
+
     console.log('capturing:');
     await shoot(cdp, { url: `${base}/login.html`, out: path.join(OUT, 'login-desktop.png'),
       width: 1280, height: 860, port, waitFor: "document.getElementById('form')" });
@@ -519,20 +780,38 @@ const adminLoginCookie = (port, password) =>
       width: 380, height: 820, mobile: true, cookie, port,
       waitFor: "document.querySelector('.ring')||document.querySelector('.emp')" });
 
+    // All three S4 shots need one precondition: the profile form REVEALED and
+    // CARRYING the seeded tenant’s values. The gate used to read
+    // `!profileCard.hidden`, and 0881e75 made that vacuous — it moved `hidden`
+    // from #profileCard onto the #profileForm that now wraps it, and
+    // Element.hidden reflects only its OWN attribute: it does NOT inherit from a
+    // hidden ancestor. The gate has therefore been a constant `true` since first
+    // paint. The two still shots got away with it on the 1300ms settle below;
+    // the error shot did not, because its afterReady runs BEFORE that sleep and
+    // was injecting into a form /api/config/identity had not filled yet — which
+    // is why s4-profile-error.png has been failing outright at HEAD.
+    // clinic-profile.js reveals at :218, strictly after fill() at :211, so
+    // `!hidden` already implies filled; the value and phone-row terms are here so
+    // that a future reveal-before-fill cannot quietly re-open the same hole.
+    const profileReady =
+      "(function(){var f=document.getElementById('profileForm');"
+      + "return !!f && !f.hidden"
+      + " && document.getElementById('display_name').value !== ''"
+      + " && !!document.querySelector('.phone-row .input');})()";
     // S4: clinic profile — the first config-write page. Desktop + 380px show the
     // loaded form (the seeded tenant carries real identity values); the third shot
     // captures the field-level validation state (empty name + a malformed phone →
     // Save → inline errors that name the fix).
     await shoot(cdp, { url: `${base}/clinic-profile.html`, out: path.join(OUT, 's4-profile-desktop.png'),
       width: 1280, height: 1000, cookie, port,
-      waitFor: "document.getElementById('profileCard') && !document.getElementById('profileCard').hidden" });
+      waitFor: profileReady });
     await shoot(cdp, { url: `${base}/clinic-profile.html`, out: path.join(OUT, 's4-profile-mobile.png'),
       width: 380, height: 900, mobile: true, cookie, port,
-      waitFor: "document.getElementById('profileCard') && !document.getElementById('profileCard').hidden" });
+      waitFor: profileReady });
     await shoot(cdp, {
       url: `${base}/clinic-profile.html`, out: path.join(OUT, 's4-profile-error.png'),
       width: 1280, height: 1000, cookie, port,
-      waitFor: "document.getElementById('profileCard') && !document.getElementById('profileCard').hidden",
+      waitFor: profileReady,
       afterReady: async (c, sid) => {
         await c.send('Runtime.evaluate', {
           expression:
