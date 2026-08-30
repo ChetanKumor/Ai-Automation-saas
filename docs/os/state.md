@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: ecb049bbc563a3d24711c686b0b6ccd2f613daed
+Verified-at: f6dc28f9ea3b29df40f49a7f4eeab35d9a94a5bd
 Verified-on: 2026-08-30
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -173,7 +173,12 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   set the verdict — see the V1a note below for the mechanism and the red-check.
 - Test suite: **1139 tests / 185 suites / 0 fail** (`npm test`, raw: `# tests 1139 /
   # suites 185 / # pass 1139 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  **+2 tests / +0 suites at `a59368d`**, the portal contrast instrument:
+  **UNMOVED at `f6dc28f`**, the contrast-core extraction — a pure refactor whose
+  predicted delta was 0 and whose delta was 0. `tests/design/contrast/core.js` is
+  not a `.test.js` and is never loaded by `npm test`;
+  `tests/design/portalContrast.test.js` grew assertions and no `test()` block,
+  under the same house rule the previous entry got wrong.
+  Before that, **+2 tests / +0 suites at `a59368d`**, the portal contrast instrument:
   `tests/design/portalContrast.test.js`, two bare `test()` blocks — the colour
   arithmetic, and the D-016 `--ink-faint` contract with a static stylesheet scan
   behind it. **Two blocks and not twelve, deliberately.** The session predicted +12
@@ -385,6 +390,17 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   recorded intermittent, alongside `traces.integration.test.js:247` and
   TEST-FLAKE-03 — and unlike those two it is load-induced, so it is provoked by
   running anything heavy beside the suite rather than by a date or an ordering.
+  **Seen a third time at `f6dc28f` (S6a), with the same fingerprint to the line**
+  — `blocked.out` was the dotenv banner and nothing else after 30 s — and green
+  on the immediate re-run with nothing else changed. Two things that narrow it:
+  the provocation was **three consecutive `shoot.js --contrast` sweeps**, each
+  creating and dropping a Neon scratch database, finishing minutes before; and
+  **the CONTROL child spawned by the same `before()` booted normally** and
+  `ok 5`. So it is the FIRST child of the hook that starves, not the harness and
+  not the port-holding fixture — consistent with a cold remote database on the
+  first connection and warm by the second. No stray Chrome was involved: the
+  five `chrome.exe` alive afterwards were the developer's own profile, not the
+  headless shot instances, which had exited.
   Re-measured at **Phase 2 S2** (the whole site on Warm Paper):
   `# tests 1103 / # suites 180 / # pass 1103 / # fail 0 / # cancelled 0 /
   # skipped 0 / # todo 0`, all seven counters identical to the runs at
@@ -5027,8 +5043,10 @@ content and would fail. `.ring-sk` no longer exists at all (`home.css:288`).
 
 #### The portal contrast instrument
 
-`tests/design/portalContrast.js` (measuring half) + `--contrast` mode on `shoot.js`
-(driver) + `tests/design/portalContrast.test.js` (the offline half).
+`tests/design/contrast/core.js` (the engine, surface-agnostic — extracted at `f6dc28f`,
+see *The contrast core, extracted* below) + `tests/design/portalContrast.js` (the portal's
+binding of it) + `--contrast` mode on `shoot.js` (the browser driver, and the owner of
+every readiness gate) + `tests/design/portalContrast.test.js` (the offline half).
 
 ⚠️ **D-016's own harness is gone.** `decisions.md:801` closes on *"532 colour/backdrop
 pairs measured on the live DOM, zero failures"*. That harness is **not in this repository
@@ -5149,6 +5167,89 @@ character above U+00FF to a single low byte.** An em dash in a patch script's co
 payload became a `0x14` control byte inside `shoot.js`. `latin1` round-trips a *read*
 byte-for-byte, which is why it looked safe. Read and write **`utf8`** — it round-trips a
 valid UTF-8 file exactly and leaves CRLF alone.
+
+#### The contrast core, extracted — 2026-08-30 (`f6dc28f`)
+
+**One issue: the measurement engine was bound to one surface and could not be reused
+without forking it.** `web/`, and any later admin panel, would have had to copy it, and a
+copied instrument is two instruments that disagree the first time either is touched —
+which is exactly how `SwatchRatio.tsx` and the vanished D-016 harness came to disagree.
+The engine is now `tests/design/contrast/core.js`: colour maths, the ancestor backdrop
+walk, the opacity walk, accumulated scale, the rest-vs-focus separation, the thresholds,
+the D-016 contract and signature emission. `tests/design/portalContrast.js` is the
+portal's binding of it — the baseline, and the public surface both callers import, every
+name re-exported explicitly and checked at load. `scripts/portal/shoot.js` was **not
+edited and did not need to be**, which is the point of the binding.
+
+⚠️ **The split is NOT clean along file boundaries, and a reader who assumes it is will
+look in the wrong place.** The portal's URLs, its fourteen-page list, its two viewports
+and **all three readiness gates** — `LOADED` (`#loadCard` + the Verbatim panel's own
+fetch), `WIZARD_READY` (`#wiz` + `loadReview`), and the shell-wide
+`await Portal.readinessOnce()` — live in `scripts/portal/shoot.js:200-260` and stayed
+there: S6a's allowed file set did not include `shoot.js`. They belong beside
+`portalContrast.js`, and that file's header now names the whole set so the next session
+moving them does not fix two of the three races and leave the third.
+
+**PURE, proven rather than asserted.** The live sweep was run four times — before the
+extraction, after it, with a deliberate defect, and after reverting it:
+
+| run | signature md5 | rows / pairs / failures / contract / undet / rings |
+| --- | --- | --- |
+| before (`ecb049b`) | `1c51c92ad7586e239e6cb0e2de5a057b` | 2347 / 47 / 558 / 0 / 2 / 712, 0 rings <3:1 |
+| after the extraction | `1c51c92ad7586e239e6cb0e2de5a057b` | 2347 / 47 / 558 / 0 / 2 / 712, 0 rings <3:1 |
+| composite-over-white reintroduced | **`2d115f011c4f34f273f3ffe07e469ea1`** | 2347 / **31** / **634** / 0 / 2 / 712 |
+| reverted (byte-identical file) | `1c51c92ad7586e239e6cb0e2de5a057b` | 2347 / 47 / 558 / 0 / 2 / 712, 0 rings <3:1 |
+
+**Red-before-green on the extracted core**, on `backdropOf()` — the one function the whole
+instrument turns on. Replacing the ancestor walk with `tokens.ts:145-148`'s shortcut (the
+element's own `background-color` composited over **white**, no walk, no opacity scaling)
+moved **12 of the signature's 23 lines**. Both Verbatim ink-panel pairs — 3.08:1 and
+4.08:1 on `rgb(12,20,32)` — **disappeared entirely**, and light-on-dark surfaced instead as
+`rgb(232,237,242)` on white at **1.18:1**: the "light-on-dark button labels read 1:1"
+failure mode the header describes, reproduced on demand. Reverted to an md5-identical
+file (`2546dd2f…`), grep-verified in both directions, signature restored.
+
+**The signature is shape-only, and that is a decision, not an omission.** It hashes the
+distinct failing pairs, contract violations, undeterminable backdrops and focus-indicator
+shapes — never a count. S2 measured five sweeps of one unchanged tree whose row counts
+read 2302 / 2325 / 2339 / 2347 while the distinct-pair signature stayed byte-identical, so
+multiplicity is a fact about page content and shape is the fact about the visual system.
+`tests/design/contrast/portal.signature.txt` is that 23-line body checked in and re-hashed
+on every `npm test` — the live baseline is now auditable, and re-derivable, without a
+browser, a database or a Chrome. That is the specific failure that left D-016's own "532
+pairs" as a number nobody can re-run.
+
+**Two traps, both caught before landing.**
+
+1. ⚠️ **`core.autocrlf=true` with no `.gitattributes` would have broken the golden hash on
+   every fresh clone.** The signature file is stored LF and checked out **CRLF** on
+   Windows. Hashing it as it lands on disk passes in the tree that wrote it and fails
+   everywhere else — a green-here/red-there defect with no symptom locally.
+   `readPortalSignature()` CRLF-normalises, the same normalisation `src/db/migrate.js`
+   applies to its own checksums and for the same reason. Proven by rewriting the file
+   CRLF and re-hashing: unchanged.
+2. **The surface-agnostic assertion tripped on its own documentation.** The check that
+   `core.js` names no surface fired on the header sentence *"nothing below knows what a
+   Verbatim panel is"*. Comment lines are stripped before the check, so the file can state
+   the claim that the check makes true. `index.html` survives deliberately, in
+   `location.pathname.split('/').pop() || 'index.html'` — a label for a row measured at a
+   directory root, not a page the core knows.
+
+**Suite unmoved: 1139 / 185 / 0**, exactly the predicted delta of 0. The extraction adds no
+`test()` block: `core.js` is not a `.test.js` and is never loaded by `npm test`, and
+`portalContrast.test.js` grew assertions only — the house rule `tokenDrift.test.js:10-14`
+states. The new assertions pin (a) that the binding re-exports the core by **identity**,
+so re-inlining any of it fails; (b) that the core's code names no surface; (c) that
+`signature()` ignores multiplicity and order but moves on every one of its four verdict
+channels; and (d) that the checked-in signature hashes to the recorded md5 and carries
+zero `CONTRACT` lines.
+
+⚠️ **Found dirty in the working tree at the end of the session and NOT touched:**
+`.env.example:98` reads `# ── Local dev/cripts only ───` — a dropped `s` in "scripts". It
+was clean at this session's Phase 0 (`git status --porcelain` empty) and modified at
+16:19 IST by something outside this session's allowed file set, so it was left alone
+rather than reverted. Comment-only, no variable affected. Whoever owns that edit should
+finish or discard it.
 
 ### tokenDrift repaired, brand-values corrected — 2026-08-29 (`b308280`)
 
