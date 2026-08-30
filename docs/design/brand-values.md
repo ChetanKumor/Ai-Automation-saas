@@ -31,14 +31,21 @@ Comparison is on normalised values — case-folded, whitespace-collapsed, and
 Every custom property declared by more than one surface. A property on exactly
 one surface is that surface's private business and is not listed.
 
-The portal's value is the one the **browser** resolves, which is not always
-the first one written. `public/portal/tokens.css` declares `:root` three times:
-the base block at `:17`, a five-token override pass at `:177` (`--bg`, `--line`,
-`--line-2`, `--r-md`, `--r-lg`), and `--save-bar-h` alone at `:1194`. Equal
-specificity, so the last declaration wins. Five rows in this table recorded the
-**shadowed** value for as long as the guard's parser could see only the first
-block — the document and the parser shared one blind spot, so they agreed with
-each other and neither agreed with the browser. Corrected on 2026-08-29.
+The portal's value is the one the **browser** resolves. That used to be a
+warning rather than a truism. `public/portal/tokens.css` declared `:root` three
+times — a base block, a five-token override pass 160 lines below it (`--bg`,
+`--line`, `--line-2`, `--r-md`, `--r-lg`), and `--save-bar-h` alone near the
+bottom — and at equal specificity the last declaration wins, so five rows in
+this table recorded the **shadowed** value for as long as the guard's parser
+could see only the first block. The document and the parser shared one blind
+spot, so they agreed with each other and neither agreed with the browser.
+
+The values were corrected on 2026-08-29 and the blocks were collapsed into one
+on 2026-08-30, so a token now reads in that file as what it resolves to. The
+collapse moved no value: every token kept the value the browser was already
+using, which is why not one number in the tables below changed with it.
+`tests/design/tokenDrift.test.js` pins the block count at 1 in every surface,
+so the shadowing cannot come back without reddening the suite.
 
 | Token | Canonical value | Surfaces |
 |---|---|---|
@@ -83,9 +90,9 @@ just as loudly as an undocumented change.
 
 | Token | Surface | Value | Why |
 |---|---|---|---|
-| `--bg` | demo/shared | `#eef2f6` | The portal's ground is a hair lighter so its white sidebar and cards read as calm rather than boxed-in. The reasoning is written at `tokens.css:19-20` and dates from PORTAL-P1-S2; the value in force is the override at `tokens.css:178`, which moved the portal from `#f6f8fa` to `#f7f8fb` and left that comment describing the shadowed line. |
+| `--bg` | demo/shared | `#eef2f6` | The portal's ground is a hair lighter so its white sidebar and cards read as calm rather than boxed-in. That reasoning dates from PORTAL-P1-S2, which wrote `#f6f8fa`; the enterprise polish pass carried the same argument one step further to `#f7f8fb`. They were two declarations, and the comment explaining the first was left describing a line the browser never used — the collapse of 2026-08-30 makes it one declaration carrying both halves of the reasoning. |
 | `--bg` | demo/styles | `#eef2f6` | Same as above — the demo pair share a ground. |
-| `--line` | demo/shared | `#e2e8f0` | The demo pair keep the pre-polish hairline. `tokens.css:179` darkened the portal's to `#dbe3eb` so that a 1px border still reads against the lighter `#f7f8fb` ground that landed in the same override block; the demo ground is `#eef2f6` and needs no such compensation. The demo is a frozen sales surface and was not migrated. |
+| `--line` | demo/shared | `#e2e8f0` | The demo pair keep the pre-polish hairline. The enterprise polish pass darkened the portal's to `#dbe3eb` so that a 1px border still reads against the lighter `#f7f8fb` ground that moved in the same pass; the demo ground is `#eef2f6` and needs no such compensation. The demo is a frozen sales surface and was not migrated. |
 | `--line` | demo/styles | `#e2e8f0` | Same reason as `demo/shared`: the demo pair share one hairline and were not carried along by the portal's enterprise polish pass. |
 | `--teal-700` | demo/shared | `#0f5f59` | The demo still uses the pre-v2 convention where `--teal-600`/`--teal-700` are darker steps *below* the base `--teal`. The portal adopted the standard 50–900 ramp in D1, where `--teal-700` **is** the base (spec §2.1, plan §0.1). Same name, two conventions — which is exactly why the portal's consumers were migrated to `--teal-hover`/`--teal-press` rather than being left to resolve differently. |
 | `--sans` | demo/shared | `system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif` | The portal self-hosts Noto Sans Latin (D1) so Latin, Telugu and Devanagari are one family on one baseline grid. The demo has no Latin face and correctly falls through to the system stack rather than declaring a font it does not ship — which is the untruth D1 removed from the portal. |
@@ -100,13 +107,13 @@ just as loudly as an undocumented change.
 | `--radius-sm` | demo/styles | `10px` | Same reason as `--radius`: the v2 control radius tightened to 6px and the demo was not migrated. |
 | `--shadow` | demo/shared | `0 1px 2px rgba(15, 23, 42, .04), 0 6px 16px rgba(15, 23, 42, .06)` | v2 restructured elevation into sm/md/lg and removed the card shadow (spec §2.5); the demo keeps the pre-v2 float. |
 | `--shadow` | demo/styles | `0 1px 2px rgba(15, 23, 42, .04), 0 6px 16px rgba(15, 23, 42, .06)` | Same reason as `demo/shared`: the demo keeps the pre-v2 float and its cards still cast. |
-| `--r-sm` | web | `4px` | `web/` has its own radius scale predating the v2 spec (4/8/12 against the portal's 6/10/14). It is the **last** of the three radius names still divergent: `tokens.css:181-182` moved the portal's `--r-md`/`--r-lg` onto `8px`/`12px`, which are `web/`'s own two values, so those two rows are gone. `--r-sm` did not move — portal `6px` against web `4px`. Phase 1b parked a dormant `--rad-sm`/`--rad-md`/`--rad-lg` (2/6/10) beside this scale rather than repointing it, precisely so that no existing consumer moves; this last collision resolves at **Phase 2**, when `web/`'s components take the new scale. |
+| `--r-sm` | web | `4px` | `web/` has its own radius scale predating the v2 spec (4/8/12 against the portal's 6/10/14). It is the **last** of the three radius names still divergent: the enterprise polish pass moved the portal's `--r-md`/`--r-lg` onto `8px`/`12px`, which are `web/`'s own two values, so those two rows are gone. `--r-sm` did not move — portal `6px` against web `4px`. Phase 1b parked a dormant `--rad-sm`/`--rad-md`/`--rad-lg` (2/6/10) beside this scale rather than repointing it, precisely so that no existing consumer moves; this last collision resolves at **Phase 2**, when `web/`'s components take the new scale. |
 
 **Two rows retired on 2026-08-29: zero divergence, not a smaller one.** `--r-md`
 (web `8px`) and `--r-lg` (web `12px`) recorded a deliberate difference from a
-portal value that no longer exists. The override block at `tokens.css:181-182`
-moved the portal to `8px`/`12px` — the same two values — so portal and `web/`
-now agree on both and there is nothing left to record. The rows were not
+portal value that no longer exists. The enterprise polish pass moved the portal
+to `8px`/`12px` — the same two values — so portal and `web/` now agree on both
+and there is nothing left to record. The rows were not
 rewritten with new numbers; they were removed, because a divergence table that
 lists agreements is the same defect pointing the other way.
 

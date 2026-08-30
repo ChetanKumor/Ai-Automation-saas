@@ -72,12 +72,21 @@ const EXPECTED_NAMES = {
   web: 55,
 };
 
-// tokens.css:17 base, :177 override pass, :1194 --save-bar-h. The other three
-// surfaces declare :root once. A drop here is defect (1) returning: the parser
-// stopped seeing a block, and every token that block overrides silently reverts
-// to a value the browser does not use.
+// All four surfaces declare :root exactly once. The portal declared it THREE
+// times until the blocks were collapsed — a base block, a five-token override
+// pass 160 lines below it, and --save-bar-h alone near the bottom — which is the
+// history the rest of this file is written against.
+//
+// 1 is an assertion, not a formality. It fails in BOTH directions: a fourth
+// surface growing an override pass reds here, and so does the portal growing a
+// second block again. That is the point — a second block at equal specificity
+// silently overrides the first, so every token it redeclares reads one value in
+// the file and paints another, which is exactly the state this number now
+// forbids. If a block is ever added on purpose, update EXPECTED_ROOT_BLOCKS and
+// EXPECTED_NAMES together and re-derive the canonical values from what the
+// BROWSER resolves, not from what the first block reads.
 const EXPECTED_ROOT_BLOCKS = {
-  portal: 3,
+  portal: 1,
   'demo/shared': 1,
   'demo/styles': 1,
   web: 1,

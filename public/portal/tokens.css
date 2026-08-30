@@ -12,19 +12,36 @@
  * calm than a dashboard template's noise. ONE accent (teal). No gradients, no
  * decoration, no second accent. The ONLY bold element portal-wide is the
  * readiness ring on Home. Everything else stays quiet.
+ *
+ * ONE :root, and deliberately one. This file used to declare three — the base
+ * block, an "enterprise polish pass" that redeclared five tokens 160 lines
+ * below it, and --save-bar-h alone near the bottom. Equal specificity means the
+ * LAST declaration wins, so five tokens read one value here and painted
+ * another, and --radius read as 10px while resolving to 8px. The polish pass's
+ * values are the ones in force and are written inline below, each with the
+ * reasoning that moved it; tests/design/tokenDrift.test.js pins the block count
+ * at 1 so a second block cannot reappear unnoticed.
  * ========================================================================== */
 
 :root {
   /* ── Surfaces & ink ── */
-  --bg: #f6f8fa;        /* app background — a hair lighter than the demo's #eef2f6
-                           so the white sidebar/cards read as calm, not boxed-in */
+  --bg: #f7f8fb;        /* app background — a hair lighter than the demo's #eef2f6
+                           so the white sidebar/cards read as calm, not boxed-in.
+                           PORTAL-P1-S2 wrote #f6f8fa for that reason; the polish
+                           pass carried the same argument one step further, and
+                           #f7f8fb is the value that has been painting since. */
   --card: #ffffff;
   --ink: #0f172a;       /* primary text */
   --ink-2: #334155;     /* secondary text */
   --muted: #64748b;     /* labels, meta, help text */
   --faint: #94a3b8;     /* disabled / de-emphasised — non-text only (2.8:1) */
-  --line: #e2e8f0;      /* hairline borders — the primary structural device */
-  --line-2: #eef2f6;    /* softer inner dividers */
+  --line: #dbe3eb;      /* hairline borders — the primary structural device.
+                           Darkened from #e2e8f0 by the polish pass so a 1px
+                           hairline still reads against the lighter --bg that
+                           moved with it. The demo pair kept #e2e8f0 on the
+                           darker #eef2f6 ground and needed no such compensation
+                           (docs/design/brand-values.md records both). */
+  --line-2: #edf2f7;    /* softer inner dividers — polish pass, from #eef2f6 */
   --line-3: #cbd5e1;    /* border darkening on hover */
 
   /* ── Ink field — the one dark ground in the product (Verbatim panel, D4) ── */
@@ -101,14 +118,23 @@
   --amber-050: var(--amber-50);
   --red-050:   var(--red-50);
 
-  /* ── Radius (spec §2.4) — smaller elements take smaller radii ── */
+  /* ── Radius (spec §2.4) — smaller elements take smaller radii ───────────────
+   * --r-md and --r-lg are 8px/12px, not the 10px/14px spec §2.4 names: the
+   * polish pass tightened both and those values have been in force ever since.
+   * That is also why they no longer diverge from web/'s own 4/8/12 scale —
+   * --r-sm is the last radius name still recording a divergence. */
   --r-xs: 4px;      /* badges, tags, checkboxes */
   --r-sm: 6px;      /* buttons, inputs, selects, nav items, row hover */
-  --r-md: 10px;     /* cards, banners, dropdown menus, toasts */
-  --r-lg: 14px;     /* modals, mobile sheets, the Verbatim panel */
+  --r-md: 8px;      /* cards, banners, dropdown menus, toasts */
+  --r-lg: 12px;     /* modals, mobile sheets, the Verbatim panel */
   --r-full: 999px;  /* pills, avatars, the readiness ring, toggle knobs */
 
-  --radius: var(--r-md);      /* legacy aliases — no existing rule breaks */
+  /* Legacy aliases — no existing rule breaks. --radius follows --r-md, so it
+   * resolves to 8px. Before the blocks were collapsed it READ as 10px on this
+   * line and still resolved to 8px in the browser, because the override pass
+   * redeclared --r-md 70 lines below: the clearest instance of the defect the
+   * collapse removes. */
+  --radius: var(--r-md);
   --radius-sm: var(--r-sm);
   --radius-xs: var(--r-xs);
 
@@ -144,6 +170,12 @@
   --sidebar-w: 232px;
   --content-max: 760px;
   --panel-w: 360px;   /* Verbatim panel, D4 */
+  /* The sticky save bar: --s-3 padding top and bottom + a 44px touch target +
+   * the 1px top border. The border counts — without it the Verbatim sheet,
+   * which is positioned off this token, lands one pixel inside the bar. The
+   * .save-bar rule near the bottom of this file explains why the height is a
+   * token at all rather than measured in JS. */
+  --save-bar-h: calc(2 * var(--s-3) + 44px + 1px);
 
   /* ── Type ───────────────────────────────────────────────────────────────────
    * ONE family across all three scripts. The six Telugu/Devanagari faces are
@@ -170,16 +202,6 @@
   --t-label:   500 13px/1.38 var(--sans);
   --t-help:    400 12.5px/1.44 var(--sans);
   --t-micro:   600 11px/1.27 var(--sans);     --ls-micro: .05em;
-}
-
-/* Enterprise polish pass: token overrides only, kept separate from the historical
- * token notes above so the visual adjustment is easy to audit. */
-:root {
-  --bg: #f7f8fb;
-  --line: #dbe3eb;
-  --line-2: #edf2f7;
-  --r-md: 8px;
-  --r-lg: 12px;
 }
 
 * { box-sizing: border-box; }
@@ -1184,14 +1206,12 @@ select.input { padding-right: var(--s-2); }
  * the page's own submit handler runs — there is ONE save path, not two, and
  * `fill(data.section)` still refills the server's returned value.
  *
- * `--save-bar-h` is declared here rather than measured in JS so that the
+ * `--save-bar-h` is a token rather than a number measured in JS so that the
  * scroll container's bottom padding and the bar's own height can never disagree:
- * both are computed from the same token.
+ * both are computed from the same token. It is declared with the other layout
+ * tokens in the single :root at the top of this file, where the arithmetic
+ * behind it is written out.
  * ========================================================================== */
-/* --s-3 padding top and bottom + a 44px touch target + the 1px top border. The
- * border counts: without it the Verbatim sheet, which is positioned off this
- * token, lands one pixel inside the bar. */
-:root { --save-bar-h: calc(2 * var(--s-3) + 44px + 1px); }
 
 .save-bar {
   position: fixed;
