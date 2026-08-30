@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: f6dc28f9ea3b29df40f49a7f4eeab35d9a94a5bd
+Verified-at: fd14d9924bb0b0ff56144e0f7c61ce7724443004
 Verified-on: 2026-08-30
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -171,9 +171,15 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1139 tests / 185 suites / 0 fail** (`npm test`, raw: `# tests 1139 /
-  # suites 185 / # pass 1139 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  **UNMOVED at `f6dc28f`**, the contrast-core extraction — a pure refactor whose
+- Test suite: **1145 tests / 185 suites / 0 fail** (`npm test`, raw: `# tests 1145 /
+  # suites 185 / # pass 1145 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  **+6 tests / +0 suites at `83320c6`** (S6b), the marketing contrast driver: six bare
+  top-level `test()` blocks in `tests/design/contrast/webContrast.test.js`, exactly the
+  predicted delta. A bare `test()` registers a test and no suite, which is why
+  `# suites` did not move. `tests/design/contrast/web.js` is the instrument and is NOT a
+  `.test.js`, so `npm test` never loads it — it needs Chrome, a production `next build`
+  and a `next start`, and runs from `npm run design:web-contrast`.
+  Before that, **UNMOVED at `f6dc28f`**, the contrast-core extraction — a pure refactor whose
   predicted delta was 0 and whose delta was 0. `tests/design/contrast/core.js` is
   not a `.test.js` and is never loaded by `npm test`;
   `tests/design/portalContrast.test.js` grew assertions and no `test()` block,
@@ -5250,6 +5256,507 @@ was clean at this session's Phase 0 (`git status --porcelain` empty) and modifie
 16:19 IST by something outside this session's allowed file set, so it was left alone
 rather than reverted. Comment-only, no variable affected. Whoever owns that edit should
 finish or discard it.
+
+#### The marketing contrast driver — 2026-08-30 (S6b)
+
+**This session MEASURED. It changed no CSS, no component and no token**, and the diff
+says so: three files, `tests/design/contrast/web.js`, `tests/design/contrast/webContrast.test.js`
+and one line of `package.json`. Zero `.css`, zero `.tsx`. Everything below is `web/`'s
+before-state, not this session's work.
+
+`web/` is the second surface on `tests/design/contrast/core.js`, which is the whole reason
+S6a extracted it. The engine was not edited: `git diff` on `core.js` is empty, and
+`webContrast.test.js` asserts the binding re-exports it by **identity** and that `web.js`
+defines no engine function and contains none of the sRGB coefficients. **Unlike the portal,
+whose driving half lives in `scripts/portal/shoot.js` and whose readiness gates are
+therefore in a different file from its binding, `web.js` is both** — the marketing gates
+and the surface they gate cannot drift apart.
+
+Run it with `npm run design:web-contrast` (`--build`, `--runs N`, `--only=/specimen`,
+`--prove-interlock`).
+
+##### The build-id interlock, and the fact it exists to catch
+
+⚠️ **`next start` SERVES THE BUILD IT BOOTED ON AND NEVER NOTICES A REBUILD UNDERNEATH
+IT.** Measured twice on this machine, not inferred: a server started on
+`4YgyE87fx1jhek9Fn7Vkp`, then `next build` run **without restarting it**, kept serving
+`4YgyE87fx1jhek9Fn7Vkp` while `.next/BUILD_ID` on disk read `Xeaq2Ybs0OXwOabDCgVau`. The
+server survives the rebuild — it does not crash, it does not warn, it answers 200. Every
+row a sweep collected from it would belong to the previous build.
+
+That is one half of the hazard. The other is reaping: `taskkill` is **not on PATH** in this
+environment (it is at `C:\Windows\System32\taskkill.exe` and must be called by absolute
+path), so a harness that fails to reap falls back to `child.kill()`, and a server started
+through `npm run start` is a process TREE whose leaf survives. An orphan then holds the
+port, the next run's server never binds, and the sweep reports a PASS for code that is not
+on disk.
+
+Six gates. No signature is emitted unless all six hold:
+
+| | gate | what it catches |
+| --- | --- | --- |
+| G0 | no `next dev` owns this project's `.next` | a dev server clears `.next`, rewrites it on demand and writes no `BUILD_ID` — see below |
+| G1 | a build this driver ran MOVED `.next/BUILD_ID` | Next derives the id randomly per build, so an unchanged id means nothing was rebuilt |
+| G2 | the port is FREE before we start | the instrument never adopts a server it did not spawn — asking an orphan which build it is on is asking the suspect for an alibi |
+| G3 | every swept document's own build id equals `.next/BUILD_ID` | the stale server above |
+| G4 | `.next/BUILD_ID` has not moved between the first gate and the last row | a rebuild racing the sweep, which would split one signature across two builds |
+| G5 | `--ink-faint` resolved to ONE value within a media state | a page overriding a `:root` token, which would make the D-016 contract unjudgeable run-wide |
+
+**The refusal, pasted from `node tests/design/contrast/web.js --prove-interlock`** — build,
+start, rebuild without restarting:
+
+```
+── INTERLOCK DEMONSTRATION ────────────────────────────────
+  rebuilding WITHOUT restarting the server …
+  BUILD_ID on disk now : R6hjrB7Zfi7Yk-_NSbawQ (was ISokeKQoboDA0pnTi7vZ9)
+  / still served by    : ISokeKQoboDA0pnTi7vZ9
+  server alive         : yes
+
+  INTERLOCK G3 — REFUSED: / was served by build ISokeKQoboDA0pnTi7vZ9 while
+  .next/BUILD_ID reads R6hjrB7Zfi7Yk-_NSbawQ. `next start` serves the build it
+  booted on and does not notice a rebuild underneath it — this is a STALE
+  SERVER, and every row measured from it belongs to a build that is not on
+  disk. Restart the server.
+
+  Interlock fires. No signature emitted.
+```
+
+**The id is read from the RSC flight payload (`"b":"…"` inside `self.__next_f`), not from
+a `/_next/static/<id>/` href** — app-router chunk URLs do not carry the build id, and
+hunting for one that does is how a previous session convinced itself a stale server was
+fresh. The payload reaches the browser inside a JavaScript string literal, so the raw HTML
+carries `\"b\":\"…\"` and `__next_f` carries `"b":"…"`; both forms are parsed and both are
+pinned in the test against the exact bytes measured, not a reconstruction.
+
+⚠️ **`interlockServed()` reads the disk id as a PARAMETER, not by reaching for the
+filesystem mid-comparison.** The first version did reach for it, and the G3 test then
+raised G4 instead — a gate that can only be exercised in whatever state the disk happens
+to be in is a gate nobody can test one case at a time.
+
+##### The nine prerendered routes
+
+Derived from `.next/prerender-manifest.json`, then probed on the running server. Content
+type is asked, never assumed:
+
+| route | status | content-type | build id in the document |
+| --- | --- | --- | --- |
+| `/` | 200 | text/html | yes |
+| `/_not-found` | 404 | text/html | yes |
+| `/acceptable-use` | 200 | text/html | yes |
+| `/data-deletion` | 200 | text/html | yes |
+| `/privacy` | 200 | text/html | yes |
+| `/robots.txt` | 200 | **text/plain** | **no flight payload** |
+| `/sitemap.xml` | 200 | **application/xml** | **no flight payload** |
+| `/specimen` | 200 | text/html | yes |
+| `/terms` | 200 | text/html | yes |
+
+**Seven are ours. Two are Chrome's.** `robots.txt` and `sitemap.xml` carry no authored CSS
+— Chrome renders them with its own stylesheet — so a ratio measured there is a fact about
+Chrome, and they carry no flight payload, so G3 cannot verify them individually (the
+run-level probe of `/` covers the server they came from). They are swept anyway and
+reported separately, because *we did not look* and *there was nothing to see* must not be
+the same entry: `robots.txt` yields **1 row** at 21.00:1 (the UA `<pre>`), `sitemap.xml`
+**6 rows**, worst 6.55:1 (the UA XML viewer). Neither has a focusable.
+
+##### The matrix, and what is degenerate in it
+
+routes × languages × {default, `prefers-reduced-motion: reduce`, `prefers-contrast: more`},
+at **1280×900**. Every axis is derived from the running site, not authored: routes from the
+manifest, languages from `[data-lang-option]` in the live DOM, and all four media features
+set explicitly on every cell so a previous cell's emulation cannot leak into the next.
+Emulation verified per cell rather than assumed — each cell records what the page's own
+`matchMedia` returned and which value `--ink-faint` resolved to.
+
+⚠️ **THE BRIEF'S `hi` COLUMN DOES NOT EXIST AND CANNOT BE SWEPT.**
+`web/components/sections/conversation/index.ts:66` builds `LANGS` as `{ en: EN, te: TE }`;
+`LANGUAGES` is derived from it, the selector is built from `LANGUAGES`, and
+`getConversation("hi")` type-checks and **throws** — a seam phase 4b opens, deliberately,
+gated on a native speaker. There is no `hi.json`. The live DOM offers `en, te` and nothing
+else. The matrix is therefore **2 languages, not 3**, and the test fails if `hi.json` ever
+appears, because the baseline would then be measured over a matrix that is missing a
+column.
+
+**Degenerate cells, and why they collapse.** Seven of the nine routes have no language
+control in the DOM at all — nothing on them a language could change — so their language
+axis collapses to one pass. Only `/` and `/specimen` mount the player (`/` has one
+conversation region, `/specimen` five: four static plus the live one). That gives
+**33 cells**: 2 routes × 2 langs × 3 modes + 7 routes × 1 × 3 modes.
+
+⚠️ **THE LANGUAGE AXIS IS DEGENERATE FOR CONTRAST TOO — MEASURED, NOT ASSUMED.**
+**6 of 6** `en`/`te` cell-signature pairs are byte-identical, with identical row counts and
+identical pair counts. The mechanism is worth recording because it is not
+guaranteed to hold: a language changes glyphs and font metrics, not colours, and Telugu's
+own optical bump (`Conversation.module.css:126`, `clamp(1.125rem, 1.6vw, 1.4375rem)` →
+**20.48px** at 1280) stays inside the same size band as the Latin body scale, so not even a
+floor moves. A future language whose optical scale crossed 24px WOULD move a floor from 4.5
+to 3, so the axis is kept rather than collapsed in code.
+
+⚠️ **`prefers-reduced-motion` IS DEGENERATE AT THE MEASURED STATE, AND THAT IS THE POINT
+OF MEASURING AT REST.** **11 of 11** reduced-motion cells produced the same signature as
+their default twin. It was genuinely exercised — the cell records the page's own
+`matchMedia('(prefers-reduced-motion: reduce)')` reading back **true** there and **false**
+in the default cell — and the reason nothing moved is structural: `globals.css:364-381`
+collapses durations, flips `scroll-behavior` to `auto` and un-hides `.reveal-hidden`, and
+**not one of those is a colour**. Under playback the two paths converge as well: at
+`complete` no turn is emerging in either mode, so the phrase-opacity difference that
+reduced motion exists to remove is already absent. Both readings — 40 revealed / 0 still
+hidden — are identical. The axis is kept rather than collapsed in code, because "no
+reduced-motion rule currently changes a colour" is a measurement of today's stylesheets,
+not a property of the system.
+
+**`prefers-contrast: more` is the one axis that moves anything — on ONE page.** Of the
+eleven route/language combinations, **nine** carry the same signature in all three media
+states; the two that differ are `/specimen` in each language, and they differ only between
+{default, reduced-motion} and high-contrast. That is precisely the page where
+`--ink-faint` paints a glyph, and the token has two values. Everywhere else, high contrast
+changes colours that were already passing — see finding 4.
+
+**The three degeneracies, and how each was decided.** The language axis on seven routes is
+collapsed **structurally** — the control does not exist in the DOM, so there is nothing to
+vary. The language axis on `/` and `/specimen`, and the reduced-motion axis everywhere,
+are **measured** degenerate and are NOT collapsed: they are swept every run, and a future
+stylesheet that made either of them matter would move the signature rather than go unseen.
+
+**The width axis is not in the brief's matrix and was not measured.** That is a scope
+boundary, not a claim of coverage. What it leaves out is quantified rather than waved at:
+exactly one rule on the whole surface makes a colour depend on width —
+`Problem.module.css:184` `@media (max-width: 480px) { .enq { opacity: 1 } }` — and it moves
+contrast **up** (7.75:1 against 4.81:1 at `.82`). 1280 is the conservative point.
+
+##### The two things that make a marketing sweep non-deterministic
+
+Neither is solved by sleeping longer.
+
+1. ⚠️ **SCROLL REVEAL MAKES A NAIVE SWEEP MEASURE THE FOLD AND CALL IT THE PAGE.**
+   `useScrollReveal` adds `.reveal-hidden` (`opacity: 0`) to every `<Reveal>` on mount and
+   removes it only when an IntersectionObserver fires. At 1280×900 everything below the
+   fold stays at opacity 0 **forever**, and `core.sweepPage` skips a row at opacity 0 — so
+   the rows simply are not there, and nothing says so. The driver walks the whole document
+   with `behavior: "instant"` (required: `globals.css:313` sets `scroll-behavior: smooth`,
+   and a plain `scrollTo` under it reads a mid-flight scrollY that looks exactly like a
+   layout shift), returns to the top, and then **counts what is still hidden**. On `/`:
+   **40 revealed, 0 still hidden**, in every cell. An instrument that cannot see part of a
+   page has to say so rather than return fewer rows.
+
+2. **PLAYBACK IS MEASURED AT ONE DEFINED STATE.** The conversation walks six turns over
+   13.2 s and every intermediate frame is a different set of glyphs at a different recency
+   scale. The driver clicks the control and **polls `[data-playback]` until it reads
+   `complete`** — never a timer, never mid-emergence — then settles past `--dur-enter`.
+   Reached in **12 of 12** playback cells. The two languages' totals came back
+   **13203.33 ms (en) / 13207.5 ms (te)**, the 4 ms apart that phase 4.1 recorded, which is
+   independent proof the language switch actually took effect rather than the label moving
+   alone.
+
+##### Determinism — and what the first five runs found
+
+**THE FIRST ATTEMPT AT THIS PROOF FAILED, AND THAT IS THE ONLY REASON THE INSTRUMENT IS
+CORRECT.** Five runs were taken over one unchanged tree on build
+`R6hjrB7Zfi7Yk-_NSbawQ`. Four agreed. **Run 3 did not**, on exactly one cell:
+
+```
+/ [en/high-contrast]
+  run 1:  245 rows, 24 receded, 17 pairs, 0 fail, 42 rings   sig fc6a6de4…
+  run 3:  245 rows, 24 receded, 17 pairs, 0 fail, 42 rings   sig 76b2c55f…
+```
+
+Every count identical, the signature different — so the moved shape was a **focus
+indicator**, the only remaining channel with 0 failures and 0 contract violations in that
+cell. ⚠️ **The cause was the instrument, not the site: the ring read slept exactly
+`180 ms` after each Tab, and `Button.module.css:61` declares
+`transition: all var(--ease-out) .18s`.** In the `transition` shorthand a lone time is the
+DURATION, so a focused `.btn` grows its `box-shadow` ring over exactly 180 ms and the read
+was landing on the boundary — sometimes after it, once during. One occurrence in 5 × 33 =
+165 cells, which is precisely the frequency a single fixed sleep at a transition boundary
+should produce, and precisely the kind of thing a single run cannot see.
+
+**Sleeping longer would not have been a fix.** The right number is a property of whichever
+stylesheet is loaded, and the next component to declare a 300 ms focus transition would
+silently restore the flake. The read now **polls the focused element's own indicator
+properties — outline colour/style/width/offset, box-shadow, border, background, colour —
+until two consecutive samples agree**, with the first sample deliberately taken *after* the
+transition has started (two equal reads taken before the style recalc would agree on the
+RESTING value, which is the same trap running backwards, and is why `blurActive()` and
+`tagFocusables()` are two exports rather than one). A ring that never settles inside 1.5 s
+raises rather than being measured. The `blur → rest` settle moved from 260 ms to **420 ms**
+for the same reason: past the longest transition any focusable declares (`.3s` on the nav
+bar), not past the shortest.
+
+⚠️ **G4 ALSO FIRED, TWICE, ON A REAL EVENT NOBODY STAGED — AND THE CAUSE IS A STANDING
+CONFLICT ON THIS MACHINE.** Run 5 died three cells in with *"BUILD_ID moved mid-run:
+pinned R6hjrB7Zfi7Yk-_NSbawQ, disk now null"*, and a later attempt died the same way.
+`.next/trace` named the culprit — `setup-dev-bundler`, `start-dev-server`, `next-dev`
+spans at **18:08:59** and again at **18:19:51** — and the process table identified it
+exactly:
+
+```
+pid 7744  npm run dev                                    (VS Code terminal, 18:19:49)
+pid 7212  next dev --port 3100   E:\saas-crm\web          (its child)
+```
+
+**`next dev` and `next build`/`next start` share one `.next`.** A dev server clears the
+directory at startup, rewrites it on demand, and writes **no `BUILD_ID`** — dev mode has
+none. `.next/server/app` was left holding `(marketing)` alone, with `index.html` gone.
+`webContrast.test.js` went red at the same moment and for the same reason: its route
+enumeration compares `.next/prerender-manifest.json` to the recorded list, and a dev
+manifest is not a production one.
+
+**That is a developer's running work, so it was NOT killed.** It was turned into a gate
+instead. **G0** now enumerates processes before anything else happens, refuses if a
+`next dev` owns *this* project's `.next`, and names the pid:
+
+```
+INTERLOCK G0 — REFUSED: a `next dev` is running against this project and owns .next:
+    pid 7212  "node"   "E:\saas-crm\web
+ode_modules\.bin\..
+ext\distin
+ext" dev --port 3100
+  `next dev` clears .next at startup, rewrites it on demand and writes no BUILD_ID, so a
+  production build and a sweep cannot share the directory with it. Stop that dev server
+  (or wait for it) and re-run. It is NOT killed here — it is someone's running work.
+```
+
+It runs **before** the build, because finding this out after spending two and a half
+minutes compiling is two and a half minutes of the wrong answer. It is scoped to this
+project's `web/` path, so a `next dev` for another repository does not block a sweep — a
+gate that refuses on somebody else's unrelated process gets switched off, and a gate that
+is switched off is not a gate. **On a non-Windows host it returns UNKNOWN and says so**,
+rather than reporting clear from a place it cannot see.
+
+**G0 IS OVERRIDABLE, AND THE DISTINCTION MATTERS.** `--allow-dev-server` proceeds anyway,
+because G0 is a **fail-fast** gate, not a correctness gate: all it buys is not spending a
+two-and-a-half-minute build on a directory something else may clear. G3 and G4 hold
+unconditionally either way, so an overridden run that *does* get clobbered refuses
+mid-sweep instead of emitting a wrong signature. **It costs time, never truth** — and the
+baseline below was in fact measured under that override, with the founder's dev server
+still up and G3 re-verifying the served build id on every HTML document of every cell of
+every run.
+
+⚠️ **G5 REFUSED ITS FIRST RUN, AND IT WAS RIGHT ABOUT THE FACT AND WRONG ABOUT THE CAUSE.**
+It reported `--ink-faint` resolving to both `#857F79` and `#A8A199` inside the
+high-contrast state. The second value was not a page overriding the token — it was
+`/robots.txt` and `/sitemap.xml`, which carry no stylesheet of ours, resolving the token to
+the **empty string** and falling back to the engine's default. *"This page has no such
+token"* and *"this page uses the default"* had been collapsed into one value. The gate now
+compares only what a page actually resolved; a missing token is excluded, because a missing
+token is not a second value of one.
+
+⚠️ **G0's FIRST VERSION REPORTED "none" WITH THE DEV SERVER RUNNING IN FRONT OF IT.** The
+process listing was emitted as `pid` + `"	"` + command line from PowerShell — and
+**PowerShell escapes with a backtick, not a backslash**, so that was the two characters
+backslash-t, not a tab. Node then split on a real tab, matched nothing on every line, and
+the gate printed clear. Caught by running it against the live machine rather than by
+reading it. The parser is now a pure exported function, pinned in `webContrast.test.js`
+against the **real** `Win32_Process` listing captured above — including the npm wrapper
+that never names the directory, this instrument's own `next start`, and a dev server for
+an unrelated repo, none of which may match.
+
+⚠️ **A THIRD TIMING BUG, CAUGHT BY A GUARD I ADDED IN THE SAME SESSION.** The driver now
+refuses if selecting a language leaves the shell on a different one — a cell labelled `en`
+while measuring Telugu is a mislabelled measurement, which is worse than a missing one.
+The first version of that guard read `[data-conversation-lang]` **in the same evaluation as
+the `click()`** and failed on every cell, correctly, against a switch that was in fact
+working: the attribute is rendered from React state, so it still held the previous language
+when the click handler returned. Verification is now a separate evaluation after a settle
+— the same shape as the `blurActive()`/`tagFocusables()` split, for the same reason.
+
+**Three of this instrument's five defects have been one species: a value read in the same
+turn as the thing that changes it** — the ring at its transition boundary, the language
+attribute before React committed it, and (in `interlockServed`) a disk read taken in the
+middle of a comparison it was supposed to be a parameter of. The other two were gates that
+could not read their own input.
+
+**The proof, re-run after the fix, on a fresh build:**
+
+```
+── DETERMINISM ────────────────────────────────────────────
+  run 1  2bc2998236c8422a7407f6ffaf85d394  rows  4245  pairs  34  fail    6  rings  549
+  run 2  2bc2998236c8422a7407f6ffaf85d394  rows  4245  pairs  34  fail    6  rings  549
+  run 3  2bc2998236c8422a7407f6ffaf85d394  rows  4245  pairs  34  fail    6  rings  549
+  run 4  2bc2998236c8422a7407f6ffaf85d394  rows  4245  pairs  34  fail    6  rings  549
+  run 5  2bc2998236c8422a7407f6ffaf85d394  rows  4245  pairs  34  fail    6  rings  549
+  IDENTICAL across 5 run(s).
+```
+
+**165 cells, and the COUNTS held too — which the portal's never did.** S2 recorded five
+portal sweeps of an unchanged tree whose row counts read 2302 / 2325 / 2339 / 2347 while
+only the signature stayed fixed, and that is why the signature is the invariant and the
+counts are not asserted. Here rows, pairs, failures and rings were identical as well. That
+is a stronger result than the contract requires and it is **not** promoted into an
+assertion: the reason the portal's counts moved was page content arriving late, and this
+sweep waits for `complete` and for every observer rather than being immune by nature.
+
+**The same signature has now been produced under three different build ids** —
+`R6hjrB7Zfi7Yk-_NSbawQ`, `I3WZI49rGcziBYeJx9MlB` and `g8Mr1VFnv9b199Pt854GU` — which is
+what establishes it as a fact about the source rather than about one compilation.
+
+⚠️ **The proving run began with G0 overridden and the dev server still up; it was stopped
+by the founder partway through.** That changes nothing about the result and the record
+should not pretend otherwise: G3 re-verified the served build id on every HTML document of
+every cell, `.next/BUILD_ID` never moved from `g8Mr1VFnv9b199Pt854GU`, and G4 confirmed it
+at the end. Had the dev server touched `.next`, the run would have refused rather than
+reported.
+
+##### The baseline, at `0b4bce8`, build `g8Mr1VFnv9b199Pt854GU`
+
+| | |
+| --- | --- |
+| cells | **33** |
+| glyph rows | **4245** — 612 inside receded turns, 3633 body copy / controls / navigation |
+| distinct colour/backdrop/band/opacity | **34** |
+| threshold failures | **6** — 2 distinct shapes |
+| D-016 contract violations | **6** — 2 distinct shapes |
+| undeterminable | **6** — one `background-image` stack, in each of the six `/` cells |
+| focus indicators | **549** walked in real tab order, **0** below SC 1.4.11's 3:1 |
+| signature | `2bc2998236c8422a7407f6ffaf85d394` (10 lines) |
+
+The 10-line signature body is checked in as `WEB_BASELINE.signatureLines` in
+`tests/design/contrast/web.js` and **re-hashed on every `npm test`**, so the body and the
+md5 beside it cannot drift apart. It lives in the module rather than in a sibling `.txt`
+(which is where the portal keeps its) only because this session's allowed file set was two
+files; the invariant is identical either way. Counts are recorded so a run that moves them
+is **noticed**, not failed — S2 measured five portal sweeps of one unchanged tree whose row
+counts read 2302 / 2325 / 2339 / 2347 while the signature stayed byte-identical.
+
+##### §5 — the two failure sets, reported separately
+
+**SET ONE — receded-turn design intent: EMPTY, and the emptiness is a measurement.**
+**0 failures out of 612 rows** collected inside `stepNear`/`stepFloor` turns across the
+matrix. The floor of that bucket reads **7.31:1** against a 4.5 floor — the `--ink-soft`
+figure `Conversation.tsx:94` claims for the whole ladder, reproduced independently on the
+live DOM, and **8.81:1** under `prefers-contrast: more`, which is the documented
+`#57524A → #4B4640` move, also reproduced.
+
+**There is nothing for the founder to rule on.** The premise of the question — that recency
+may be sitting below 4.5:1 — does not hold on this surface: recency here is carried by
+**scale**, not by ink (`stepActive` 1.0 → `stepNear` .955 → `stepFloor` .93), and colour
+carries exactly one step (only an ACTIVE Prantivo turn takes `--ink-strong`; everything
+else, receded or not, is `--ink-soft`). Nothing recedes below the floor because nothing
+recedes in colour at all.
+
+**AND THE CONTENT SIDE OF THE PARTITION IS NOT EMPTY OF CONVERSATION EITHER.**
+`/specimen` renders four STATIC instances at `activeIndex` 0, 2, 5 and 6
+(`specimen/page.tsx:151-154`) plus the live player, so three `stepActive` turns exist on
+that page in every cell and their glyphs are classified as content, measured, and held to
+the body floor. The receded bucket's 78 rows per `/specimen` cell reconcile against the
+markup: 0 + 2 + 5 + 6 receded turns across the four static instances and 6 more in the
+live one at `complete` — 19 turns, at the three-to-five glyph rows a turn carries.
+
+⚠️ **The partition is structural and the classifier is pinned, because "0 failures out of 0
+rows" and "0 failures out of 612 rows" look identical in a report.** `receded` is the
+`Conversation_stepNear__` / `Conversation_stepFloor__` prefix appearing anywhere in the
+row's ancestor path (the hash suffix Next appends changes every build; the prefix does
+not). **`stepActive` is deliberately NOT receded** — it is the turn the reader is on, held
+to the body floor like any other copy, and folding it into the design-intent bucket would
+hide the one failure that would matter most. At `complete` no turn is active (the record
+card is), so the settled end state is five `stepFloor` turns and one `stepNear`.
+
+**SET TWO — body copy, controls, navigation: 6 failures, and all six are one element.**
+
+```
+FAIL  2.21:1 needs 4.5  rgb(168, 161, 153) on rgb(242,238,232)   x4 cells
+FAIL  3.42:1 needs 4.5  rgb(133, 127, 121) on rgb(242,238,232)   x2 cells
+  /specimen  …specimen_faintDemo__ > div.specimen_faintBad__   "Ravi Kumar · 11:47 PM"
+```
+
+That is `/specimen`'s own counterexample: the page that documents D-016 prints the same
+string in `--ink-faint` and `--ink-soft` side by side and labels the first **WRONG**. Both
+values of the token appear because the page is swept in both contrast modes. **Every other
+route, in every mode, in both languages: zero.** The baseline asserts
+`failingRoutes === ['/specimen']`, so a failure anywhere else fails `npm test`.
+
+##### §6 — the D-016 contract on marketing
+
+`--ink-faint` is NON-TEXT ONLY. Asserted three ways, and the third is the one that would
+have been missed:
+
+1. **Anchored to the decision.** The test reads `decisions.md` and fails if D-016 no longer
+   states the contract, rather than going on enforcing a retired rule.
+2. **A static net over every stylesheet under `web/`** — 20 sheets, scanned for a
+   text-colour declaration reaching `--ink-faint` by name, by either hex, or one hop through
+   a local custom property. Result: **exactly one**, asserted as an equality rather than a
+   ceiling, and it is `app/(marketing)/specimen/specimen.module.css: color: var(--ink-faint)`.
+3. ⚠️ **THE TOKEN HAS TWO VALUES ON THIS SURFACE, AND A SINGLE-HEX CHECK WOULD HAVE PASSED
+   THE CONTRACT BY ACCIDENT IN A THIRD OF THE MATRIX.** `globals.css:265` declares
+   `#A8A199`; `globals.css:446` re-declares it `#857F79` under `prefers-contrast: more`.
+   `core.judge()` compares the DECLARED glyph colour to one hex. The driver therefore
+   resolves `--ink-faint` **from the live page, per cell**, and the eleven high-contrast
+   cells were judged against `#857F79`. Had they been judged against core's portal default,
+   the `.faintBad` glyph — `rgb(133, 127, 121)` — would have been invisible to the contract
+   and those cells would have reported **0 violations**. The test pins both directions.
+
+Both values are re-derived rather than trusted: 2.41 / 2.21 on `--ground` / `--ground-sunk`,
+3.42 / 3.96 under high contrast — matching `globals.css:432` to the second decimal, and
+**3.96 < 4.5** is asserted, because a high-contrast value that passed AA would invite the
+first glyph and turn the contract into a comment.
+
+##### Four things found while measuring, none of them fixed here
+
+1. ⚠️ **`/_not-found` IS NEXT'S STOCK ERROR PAGE, NOT A VEPRIO PAGE.** Two glyph rows, no
+   nav, no footer, no brand, and an inlined `<style>` that overrides the Warm Paper ground
+   to `body{color:#000;background:#fff}` — which is why it measures **21.00:1**, pure black
+   on pure white, on a site whose ground is `#FAF8F5`. It also inlines
+   `@media (prefers-color-scheme: dark){body{color:#fff;background:#000}}`, making it the
+   only surface on a light-only site that flips to dark. The sweep pinned
+   `prefers-color-scheme: light`, so the dark branch is **unmeasured** — it is visible in
+   the markup, not in these numbers. Not a contrast defect. A route a prospect can reach
+   that is not the product's.
+
+2. ⚠️ **THE MARKETING BRAND LINK HAS NO FOCUS RING; THE LEGAL ONE DOES.** Of the 549
+   indicators walked, exactly two elements report Chrome's UA ring
+   (`outline 1px auto rgb(16, 16, 16)`): `Nav.brand` and `Footer.brand`, both *"Veprio
+   home"*, on `/` and `/specimen`. Everything else on the site reports one of its two
+   authored idioms — `outline: 2px solid rgb(23, 21, 15)` at a 2px offset, or the paper/ink
+   double `box-shadow` (`0 0 0 2px var(--ground), 0 0 0 4px var(--ink-strong)`). **The
+   legal route group's own `.brand` carries the second idiom** at
+   `legal.module.css:69-73`; the identical link in `Nav.module.css` and
+   `Footer.module.css` carries neither. There is **no global `:focus-visible` rule in
+   `globals.css`** — the six that exist are per-component (`Nav .navLinks a`, `.menuBtn`,
+   `.mobileMenu a`, `Footer .social`, `.fcol a`, `Button .btn`) and none selects `.brand`.
+   Not an SC 1.4.11 failure — the UA ring measures **17.95:1** — a design-system gap on
+   the most prominent link on the page, and one the legal group has already closed.
+
+3. ⚠️ **`Problem.module.css:48-53`'s DERIVATION TABLE IS COMPUTED ONE LAYER SHORT.** The
+   comment records *".78 gives 4.42:1 … .80 gives 4.64:1 … .82 gives 4.88:1"*; the live DOM
+   reads **4.81:1** at `.82`. Reproduced exactly: the comment composites the glyph at
+   `opacity: .82` over `--ground` and leaves the card's own `--surface-1` fill out of the
+   group, but `opacity` on `.enq` composites the WHOLE subtree — the card's white fill
+   included — so the glyph sits on 82% white over paper, not on paper. Re-derived under the
+   correct model the table is **4.35 / 4.57 / 4.81** against the comment's 4.42 / 4.64 /
+   4.88. **The decision it supports is unchanged** — `.78` fails and `.82` clears under
+   either model — but every number under it is ≈0.07 optimistic, and `opacity: 1 → 7.75:1`
+   is the one entry that is exactly right, because at opacity 1 there is no group to
+   composite.
+
+4. **THE SIGNATURE IS BLIND TO A COLOUR THAT MOVED AND STILL PASSES, BY DESIGN.** `/` reads
+   the same cell signature `fc6a6de4…` at default and at `prefers-contrast: more`, while the
+   tightest content row on that page moved **4.81 → 5.45** and `--ink-soft` moved
+   `#57524A → #4B4640` underneath it. The signature hashes the distinct shapes of
+   *problems* — failing pairs, contract violations, uncertifiable backdrops, focus
+   indicators — so an accommodation that improves a passing row is correctly invisible to
+   it. **That is what it is for, and it is also what it cannot do**: it will not catch a
+   high-contrast mode silently ceasing to apply, as long as nothing crosses a floor. The
+   per-cell `--ink-faint` value, `matchMedia` readback and worst-ratio-per-bucket are
+   recorded beside it precisely to cover that blind spot.
+
+⚠️ **One caveat on the worst-ratio diagnostics.** The tightest CONTENT row under high
+contrast on `/` (5.45:1, the `.lpAvatar` initial in the FinalCta live pill) is a row the
+engine **refuses to certify** — its backdrop stack contains a `background-image`, so it is
+reported and excluded from the failure list. The worst-row record now carries a `certified`
+flag for exactly this reason: *the floor is 5.45:1* and *the floor is 5.45:1 and we do not
+know what is behind it* are different statements.
+
+##### Suite
+
+**+6 tests / +0 suites**, exactly the predicted delta: six bare top-level `test()` blocks in
+`tests/design/contrast/webContrast.test.js`, under the house rule
+`tokenDrift.test.js:10-14` states. `tests/design/contrast/web.js` is **not** a `.test.js`
+and is never loaded by `npm test` — it needs Chrome, a production build and a `next start`.
+The six cover: the binding re-exports the engine by identity and defines none of it; the
+the interlock's gates — G0's process parser against a real
+`Win32_Process` listing, G3 and G4 told apart, and both byte-forms of the served id; the nine routes and the language
+axis (including that `hi.json` must not exist); the receded/content partition, with
+`stepActive` pinned on the content side; D-016 in both of the token's values; and the
+recorded baseline re-hashing with its two failure sets.
 
 ### tokenDrift repaired, brand-values corrected — 2026-08-29 (`b308280`)
 
