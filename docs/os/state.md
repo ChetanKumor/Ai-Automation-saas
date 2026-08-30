@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: fd14d9924bb0b0ff56144e0f7c61ce7724443004
-Verified-on: 2026-08-30
+Verified-at: 3134e0499fed882cb11fd65c4bfa3405a55d3b8c
+Verified-on: 2026-08-31
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -1245,6 +1245,12 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   green because their `owner@sri.test` fixture is incomplete and the FIRST
   selector matches; neither script was modified. There is no remaining renderer
   for `.ring-sk` anywhere in `public/`.
+  **Superseded at S3b-pre.** shootD5a's copy is gone: that check reads `.ring`
+  alone now, behind Home's real render gate rather than the static `.card` it
+  used to wait on. `shootD5b.js:644` still carries the dead alternate. The line
+  above also mis-describes the fixture — `owner@sri.test` is seeded by shootD5a
+  itself into its own `zyon_d5a_*` scratch DB (`shootD5a.js:484`), not read from
+  a dev DB; the conclusion (incomplete tenant, ring renders) is unaffected.
   Evidence: `scratchpad/pp1/p1a-before.txt`, `scratchpad/pp1/p1a-after.txt` and
   `scratchpad/pp1/shots/p1a-*` (skeleton held open at 1440 and 380, before and
   after, plus all four fixtures at both widths). Not committed.
@@ -1334,6 +1340,11 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   always fails and its ring always renders. `f1.js` only opens Home while its run
   is stale/incomplete and its two `.ring` reads are null-safe and never asserted.
   `shots/shootD2.js:182` has a `#readinessCard` fallback. **None was modified.**
+  ⚠️ **Partly superseded at S3b-pre**: `shootD5a.js:591` was modified — the dead
+  `.ring-sk` alternate is gone and the probe now gates on home.js's own render.
+  Everything else in this paragraph still stands, including the `shoot.js` line
+  reference, which was already stale before that session (the `getRelevantChunks`
+  stubs are at `shoot.js:654,717` as of `fd14d99`, not `:517,520`).
   **WHAT IT BOUGHT, MEASURED.** Complete Home **1560 → 1376px** at 1440 (−184);
   live **1560 → 1355** (−205); stale **1627 → 1474** (−153); incomplete
   **1667 → 1570** (−97, the banner alone). Readiness card **234 → 146px**
@@ -5757,6 +5768,129 @@ the interlock's gates — G0's process parser against a real
 axis (including that `hi.json` must not exist); the receded/content partition, with
 `stepActive` pinned on the content side; D-016 in both of the token's values; and the
 recorded baseline re-hashing with its two failure sets.
+
+#### `shoot.js` was not an instrument: 23 of 54 shots moved between two identical runs
+
+**Nothing rendered changed.** `git diff --name-only` over this session is
+`scripts/portal/shoot.js`, `scripts/portal/shootD5a.js`,
+`tests/design/tokenDrift.test.js`, `tests/design/portalContrast.js` and this
+file — **zero `.css`, zero `.html`**.
+The suite is unmoved at **1145 / 185 / 0** and the portal contrast signature is
+unmoved at `1c51c92ad7586e239e6cb0e2de5a057b`, whose 23-line body is
+byte-identical to the checked-in `tests/design/contrast/portal.signature.txt`.
+
+**The premise.** Two runs of `node scripts/portal/shoot.js` at `fd14d99`, same
+tree, same tenant, produced different bytes for **23 of the 54** captures. A
+byte size could not distinguish a regression from a run, so no shot could be
+compared to a baseline. Four independent causes were found; three are the
+portal's and one is Chrome's.
+
+**1. Two renders land after every page's own gate, and nothing waited for
+either.** Each `waitFor` in the capture block is a PAGE gate — it fires when that
+page's script has painted that page's data. The shell's memoised readiness fetch
+(`shell.js:672` header lifecycle, `shell.js:739` truth strip) and the Verbatim
+panel's own fetch on the nine pages that host it both land afterwards.
+**Neither moves a pixel dimension** — both paint into chrome whose space is
+already reserved — which is exactly why this survived: all 54 captures reported
+the same dimensions on every run of this session, before the repair and after.
+Only the byte size noticed. `s4-profile-desktop` swung **126691 bytes** between
+two identical runs at a constant 1280×1628, and `s9-booking-error` **20119** at a
+constant 1280×1757. `settleShell()` now awaits both, reusing S2's own
+expressions rather than re-deriving them, so the measuring path and the capture
+path share one definition of each gate.
+
+⚠️ **The brief blamed the truth strip for `s9-booking-error`, and the strip
+cannot be the cause.** `#truthStrip` is in NORMAL FLOW — y=56, 40.94px tall,
+`.content` starting at 96.94 — so a capture that caught it late would be 41px
+shorter, and every capture of that page measured 1280×1757. What settles that
+shot is the other half of `settleShell()`: booking-rules hosts the Verbatim
+panel, the panel is fixed-width chrome, and it is the only unsettled render on
+that page that can move the picture without moving the shape.
+
+**2. The blinking caret, which no gate can fix.** `login.html:67` carries
+`autofocus`, so the email field owns the caret from first paint and it blinks on
+a ~750ms cycle for as long as the page is open. Ten captures 250ms apart produce
+exactly **two** hashes — 63833 bytes with the caret drawn, 63816 without — and
+those are precisely the two sizes `login-desktop.png` read on the two baseline
+runs. Every error shot inherits it: a failed save focuses the first invalid
+`.input`, which is the state those shots exist to document. There is no moment to
+wait for, so the caret is suppressed at capture time (`caret-color:transparent`,
+which paints a 1px insertion bar and nothing else — focus ring, error state and
+every glyph untouched). Same category as `--force-prefers-reduced-motion` on the
+command line: a capture-time normalisation owned by the instrument, which is why
+it is injected from the tool and not written into `tokens.css`.
+
+**3. Scroll offset at capture time.** A full-page capture is taken wherever the
+interaction left the page, and `.side` is `position: fixed` (`tokens.css:276`).
+
+**4. `captureBeyondViewport: true` does not always paint the same picture, and
+this one is Chrome's.** Fourteen consecutive loads of `test.html` in ONE run —
+same tenant, same cookie — returned a **byte-identical geometry dump** on all
+fourteen: scrollY 0, `.content` at y=96.94, strip 40.94px, fonts `loaded/14`,
+zero running animations, dpr 2, visual viewport 1280×900. The captures split
+**12/2** across two hashes, 340548 and 327439 bytes. Correlating the two images
+puts the whole content column **exactly 16 device pixels — 8 CSS px — lower in
+one than the other**, at a layout both pages agree is identical to a hundredth of
+a pixel. **It is the paint that moves, not the DOM.**
+`--disable-partial-raster` does not touch it (18 loads, still split). Dropping
+the flag does: 18 consecutive loads, one hash — and it is the hash of the state
+**without** the 8px displacement, so the majority reading was the wrong one, not
+merely a different one. The flag is now asked for only when the document
+genuinely exceeds the emulated viewport.
+
+**WHERE IT LANDS, measured over five consecutive runs at an unchanged tree: 40 of
+the 54 byte-identical on every run, 14 moved.** Eleven of the 14 print a
+different value in EVERY run and **no gate can settle them** — and the reason is
+not a race. Ten display **a timestamp of a row the run itself wrote**: the
+readiness run behind Home's *"Last checked 31 Aug 2026, 12:08 AM"* (`fmtDate`,
+`home.js:78-86`, rendered at `:386`) and the config revisions the S17 and S18
+sequences create and then list (`history.js:30-33`). `home.js:383` is worse
+still — `fmtAge` (`:93-103`) is relative to `Date.now()`, so it moves even when
+the row does not. The eleventh, `s3-admin-create-owner`, displays a
+server-generated one-time password.
+
+The other three are Chrome's artefact, and the correlation is exact:
+**every shot that still needs the flag has two states** — `s9-booking-error`
+(1757px on a 1200px viewport), `s13-receptionist-error` (1938 on 1400),
+`s15-knows-telugu-greeting` (716 on 500) — **and every shot that no longer needs
+it has one.** `s4-profile-error` (1694 on 1000) is in the same class and happened
+to read one hash across those five: the flip is probabilistic per run, not a
+fixed property of a shot.
+
+**Red before green.** One word into `booking-rules.html`'s `<h1>` moved
+`s9-booking-desktop` 530137→570716, `-mobile` 324546→337771 and `-error`
+586810→591930. After the revert all three read their baseline value again in five
+consecutive runs, and **39 of the 40 stable shots are byte-identical to the
+pre-mutation baseline**.
+
+⚠️ **The 40th is `login-mobile`**, which read 53056 on one baseline run and 53684
+on the other eleven runs of this session, at a constant 380×820 on a page with no
+data and no beyond-viewport expansion. Not root-caused; it did not recur inside
+the five-run window. Whoever pins these baselines should expect it.
+
+**Not fixed, and deliberately.** Sizing each viewport to its content would remove
+the flag everywhere, but `.side` is `position: fixed` and would then paint down
+the whole page rather than one viewport — a change to what ~30 shots show, and a
+larger decision than this repair.
+
+##### Three corrections to earlier records
+
+`shootD5a.js:591` carried a copy of the `.ring-sk` alternate that
+`docs/os/state.md` recorded as unmodified; it is gone, and that check now reads
+`.ring` alone behind Home's real render gate rather than the static `.card` it
+used to wait on. `shootD5b.js:644` still carries the dead alternate.
+
+`tokenDrift.test.js`'s `EXPECTED_NAMES` note still described the portal as *104
+declarations across three `:root` blocks, five of them shadowed*. It has been one
+block, 99 declarations, none shadowed, since the collapse — and the name count
+never moved across that collapse, which is precisely why `EXPECTED_NAMES` could
+not see it and `EXPECTED_ROOT_BLOCKS` had to.
+
+`tests/design/portalContrast.js:32` pointed at `shoot.js:200-260` for the portal's
+page list, viewports and gates. **This session's own +265 lines staled it** — the
+list is at `:470-495` and the gates at `:219-223` and `:447-469`. Corrected in
+place, with a note that two of the three gates are now shared constants the
+capture path awaits as well. Comment-only; the signature is unaffected.
 
 ### tokenDrift repaired, brand-values corrected — 2026-08-29 (`b308280`)
 
