@@ -127,7 +127,19 @@ function openWs(url) {
   });
 }
 
-async function waitForSelector(cdp, sid, expr, tries = 60) {
+// The ceiling was 60 tries — 9 seconds — and 9 seconds is a bet on the database
+// being nearby. It is not: DATABASE_URL points at Neon in ap-southeast-1, and
+// every gate below is waiting on a page that is waiting on a query that crosses
+// the internet. Three consecutive runs died here inside one hour on gates that
+// resolve in well under a second when the link is quiet — `.ring||.emp`,
+// `profileReady` — losing a whole 54-shot run to a slow round trip rather than
+// to anything about the portal.
+//
+// 200 tries is 30 seconds. It does NOT weaken a gate: a condition that becomes
+// true at 400ms is still observed at 400ms, and this is a deadline, not a sleep.
+// All it changes is how long the harness waits before declaring that a page
+// never got there — and the message it prints when it does is unchanged.
+async function waitForSelector(cdp, sid, expr, tries = 200) {
   for (let i = 0; i < tries; i++) {
     const r = await cdp.send('Runtime.evaluate', { expression: `!!(${expr})`, returnByValue: true }, sid);
     if (r.result && r.result.value) return;
@@ -135,6 +147,153 @@ async function waitForSelector(cdp, sid, expr, tries = 60) {
   }
   throw new Error('selector never appeared: ' + expr);
 }
+
+/* ── The settle every capture was missing (S3b-pre) ───────────────────────────
+ *
+ * Every `waitFor` in the capture block below is a PAGE gate: it fires when that
+ * page's own script has painted that page's own data. TWO more renders land
+ * after it, on fetches no page gate knows about, and until this session nothing
+ * in `shoot()` waited for either — so all 54 captures raced them and a byte
+ * size could not tell a regression from a run. Two identical runs at fd14d99
+ * moved 23 of the 54.
+ *
+ *   • THE SHELL'S READINESS FETCH. `renderHeaderLifecycle` (shell.js:672) and
+ *     `renderShadowNotice` (shell.js:739) both await one memoised promise, and
+ *     between them they paint the header Go-live control and the full-width
+ *     truth strip.
+ *   • THE VERBATIM PANEL'S OWN FETCH, on the nine pages that host it
+ *     (booking-rules, clinic-profile, doctors, faqs, hours, pricing,
+ *     receptionist, safety, test). It paints the greeting and the fact rows into
+ *     #vpLive on a ground no page gate observes.
+ *
+ * Neither shows up as a height change, which is exactly why this survived: all
+ * 54 captures reported the SAME pixel dimensions on every run of this session,
+ * before the repair and after it. Both renders land inside chrome that already
+ * has its space reserved, so what moves is the picture, not the shape, and the
+ * only thing that noticed was the byte size. s4-profile-desktop swung 126691
+ * bytes between two identical runs at a constant 1280x1628, and s9-booking-error
+ * 20119 at a constant 1280x1757. The two gates below stopped both dead: neither
+ * has differed between two runs of a fixed tree since they were added.
+ *
+ * s9-booking-error is worth one more line, because the brief that commissioned
+ * this repair blamed the truth strip for it and the strip cannot be the answer.
+ * The strip is in NORMAL FLOW — `#truthStrip` sits at y=56 and is 40.94px tall,
+ * and `.content` starts at 96.94 — so a shot that caught it late would be 41px
+ * shorter, and every capture of that page measured 1280x1757. What settles it is
+ * the other half of settleShell(): booking-rules.html hosts the Verbatim panel,
+ * the panel is fixed-width chrome, and it is the only unsettled render on that
+ * page that can move the picture without moving the page.
+ *
+ * Both expressions are S2's, reused rather than rewritten: `sweepOnePage()` has
+ * awaited READINESS_SETTLED since the contrast instrument was built, and
+ * VERBATIM_PAINTED is the second clause of its LOADED gate, lifted out so the
+ * measuring path and the capture path settle on ONE definition of each. Two
+ * copies of a gate is how a gate drifts.
+ *
+ * Two things worth writing down about the Verbatim clause:
+ *   – `#verbatim` is INJECTED by verbatim.js, not static markup, so "no panel ⇒
+ *     nothing to wait for" would be a lie if it were evaluated early. It is not:
+ *     verbatim.js appends the panel synchronously in its module body
+ *     (verbatim.js:453-502) and only then kicks off main(), and `shoot()` does
+ *     not reach here until Page.loadEventFired. On a hosting page the element is
+ *     therefore already present, and the branch is reached only by a page that
+ *     genuinely has no panel.
+ *   – #vpLive is filled by render(), which runs on success AND on failure
+ *     (main() only bails on a 401, where the shell has already redirected). So
+ *     the gate cannot hang on a fresh tenant with an empty config — which is
+ *     what s11-faqs-empty and s14-test-limited shoot.
+ *
+ * HOME is the one asymmetry, and it is worth naming rather than hiding. shell.js
+ * returns early at BOTH readinessOnce() call sites when activeId === 'home', so
+ * awaiting it here starts a round trip Home would not otherwise make. It is
+ * harmless — GET /portal/api/readiness is read-only and NEVER triggers a
+ * validation run (routes.js:186-196), so it cannot disturb the S18 lifecycle
+ * sequence, which depends on exactly which runs got persisted. And it is not the
+ * load-bearing gate there: home.js renders through one function that dispatches
+ * `portal:readiness` BEFORE it paints (home.js:898, then :900-901), and the
+ * shell applies the strip synchronously in that listener — so Home's own gates
+ * (`.ring||.emp`, `#checks .check`) already imply a settled strip, strictly
+ * more than readinessOnce does. It is kept because a settle that is identical on
+ * every page is a settle nobody has to re-derive per page.
+ * ────────────────────────────────────────────────────────────────────────── */
+const READINESS_SETTLED = '(window.Portal && window.Portal.readinessOnce)'
+  + ' ? window.Portal.readinessOnce().then(function(){ return true; }, function(){ return true; })'
+  + ' : true';
+
+const VERBATIM_PAINTED = "(function(){"
+  + "var vp=document.getElementById('verbatim');"
+  + "if(!vp || getComputedStyle(vp).display==='none' || !vp.getClientRects().length) return true;"
+  + "return !!vp.querySelector('#vpLive *');"
+  + "})()";
+
+async function settleShell(cdp, sid) {
+  await cdp.send('Runtime.evaluate',
+    { expression: READINESS_SETTLED, returnByValue: true, awaitPromise: true }, sid);
+  await waitForSelector(cdp, sid, VERBATIM_PAINTED);
+}
+
+/* The OTHER thing that moved byte sizes, and the one no gate can settle: the
+ * blinking text caret.
+ *
+ * login.html:67 carries `autofocus`, so the email field owns the caret from
+ * first paint and it blinks on a ~750ms cycle for as long as the page is open.
+ * Ten captures of that page 250ms apart produce exactly TWO hashes —
+ * 63833 bytes with the caret drawn, 63816 without — and those are precisely the
+ * two sizes login-desktop.png read on the two baseline runs. Every error shot
+ * below inherits the same problem: a failed save focuses the first invalid
+ * `.input` (pricing.js:119 and the same shape in every sibling page script),
+ * which is the state those shots exist to document.
+ *
+ * A gate cannot fix this, because there is no moment to wait for — the page is
+ * never at rest. Suppressing the caret is the only deterministic answer, and it
+ * costs the evidence nothing: `caret-color` paints a 1px insertion bar and
+ * nothing else, so the focus RING, the field's error state and every glyph are
+ * untouched. The suppressed capture is byte-identical to the caret-off frame the
+ * page already spends half its time in. Same category as
+ * `--force-prefers-reduced-motion` on the Chrome command line above: a
+ * capture-time normalisation owned by the instrument, not a change to the
+ * product — which is why it is injected from here and not written into
+ * tokens.css. */
+const CARET_OFF = "(function(){"
+  + "if(document.getElementById('shootCaretOff')) return;"
+  + "var s=document.createElement('style'); s.id='shootCaretOff';"
+  + "s.textContent='*{caret-color:transparent!important}';"
+  + "document.head.appendChild(s);"
+  + "})()";
+
+/* And the third one, the least obvious of the four this session found: a
+ * full-page capture is taken at whatever SCROLL OFFSET the interaction left the
+ * page at, and `.side` is `position: fixed; inset: 0 auto 0 0` (tokens.css:276).
+ *
+ * A fixed element is painted ONCE under captureBeyondViewport, at the current
+ * scroll offset — so the sidebar lands as a viewport-tall block starting at
+ * `scrollY`, and two runs that stop the scroll a few pixels apart put that block
+ * in two different places. On s10-safety-error the failing save calls
+ * `firstEl.scrollIntoView({block:'center', behavior:'smooth'})` (pricing.js:120
+ * and its siblings) and the capture caught it at two different offsets: the diff
+ * mask is a solid rectangle exactly one viewport tall over the sidebar, every
+ * text line in the content column re-rasterised at a different sub-pixel phase
+ * (deviceScaleFactor 2 — half a CSS pixel is a whole device pixel), and the
+ * sticky preview panel on the right IDENTICAL. 19496 bytes, alternating between
+ * exactly two values across runs.
+ *
+ * Scroll position is not evidence in a whole-page shot: every pixel of the
+ * document is captured either way, and the only thing the offset decides is
+ * where the fixed chrome gets stamped. Pinning it to 0 is what the forty-odd
+ * shots that never scroll already do, so this makes the scrolling ones agree
+ * with them rather than inventing a new convention. It is written as a GATE, not
+ * an assignment: the expression re-issues the scroll on every poll and only
+ * reports true once the page reads back 0, which is also what defeats a smooth
+ * scroll still in flight — a single scrollTo() would be read back mid-animation,
+ * which looks exactly like a layout shift. */
+const SCROLL_HOME = "(function(){"
+  + "var e=document.scrollingElement||document.documentElement;"
+  + "if(window.scrollY!==0||e.scrollTop!==0){"
+  + "  try{ window.scrollTo({top:0,left:0,behavior:'instant'}); }catch(_){ window.scrollTo(0,0); }"
+  + "  return false;"
+  + "}"
+  + "return true;"
+  + "})()";
 
 async function shoot(cdp, { url, out, width, height, mobile, cookie, port, waitFor, afterReady }) {
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
@@ -174,16 +333,103 @@ async function shoot(cdp, { url, out, width, height, mobile, cookie, port, waitF
   await cdp.send('Page.navigate', { url }, sessionId);
   await loaded;
   await waitForSelector(cdp, sessionId, waitFor);
+  // Both shell-owned renders, BEFORE the interaction: an afterReady that clicks
+  // Save on a page whose truth strip has not landed is clicking at coordinates
+  // that are about to move, which is the same race one layer up.
+  await settleShell(cdp, sessionId);
   // Optional interaction (e.g. fill a form + click) driven over CDP before capture.
   if (afterReady) await afterReady(cdp, sessionId);
+  await cdp.send('Runtime.evaluate', { expression: CARET_OFF }, sessionId);
+  await waitForSelector(cdp, sessionId, SCROLL_HOME);
   await sleep(1300); // ring fill (.9s) + fonts settle
+  // Asserted a second time, after the settle: a focus() or a late render inside
+  // that 1300ms can scroll the page again, and the offset that matters is the
+  // one in force when the frame is rasterised, not the one 1300ms earlier.
+  await waitForSelector(cdp, sessionId, SCROLL_HOME);
 
+  // Opt-in geometry dump, the instrument that attributed the last defect below.
+  // Everything a page could plausibly be doing differently at capture time, read
+  // in the same turn as the frame: scroll, the rects of every structural box to
+  // 0.01px, the font-loading verdict, the running-animation count, the device
+  // pixel ratio and the visual viewport. It is what proved the DOM was NOT the
+  // variable — fourteen consecutive loads of the same page returned this line
+  // byte-identical while the captures split into two hashes.
+  if (process.env.SHOOT_DEBUG) {
+    const d = await cdp.send('Runtime.evaluate', { returnByValue: true, expression:
+      "(function(){function r(s){var e=document.querySelector(s);if(!e)return null;var b=e.getBoundingClientRect();"
+      + "return [Math.round(b.x*100)/100,Math.round(b.y*100)/100,Math.round(b.width*100)/100,Math.round(b.height*100)/100];}"
+      + "return JSON.stringify({sy:window.scrollY,sx:window.scrollX,"
+      + "st:(document.scrollingElement||document.documentElement).scrollTop,"
+      + "dh:document.documentElement.scrollHeight,bh:document.body.scrollHeight,"
+      + "side:r('.side'),main:r('.main'),content:r('.content'),head:r('.page-head'),"
+      + "strip:r('#truthStrip'),ts:r('#truthStrip .ts'),vp:r('#verbatim'),app:r('.app'),"
+      + "vpcls:(document.getElementById('verbatim')||{}).className||'',"
+      + "appcls:(document.querySelector('.app')||{}).className||'',"
+      + "bodycls:document.body.className,"
+      + "fonts:document.fonts.status+'/'+document.fonts.size,"
+      + "dpr:window.devicePixelRatio,"
+      + "vv:window.visualViewport?[visualViewport.pageTop,visualViewport.offsetTop,visualViewport.scale,visualViewport.width,visualViewport.height]:null,"
+      + "anim:(document.getAnimations?document.getAnimations().length:-1)});})()" }, sessionId);
+    console.log('  [probe]', path.basename(out), d.result && d.result.value);
+  }
   const metrics = await cdp.send('Page.getLayoutMetrics', {}, sessionId);
   const size = metrics.cssContentSize || { width, height };
+  const clipH = Math.ceil(size.height);
+  const clipW = Math.ceil(size.width);
+
+  /* The fourth defect, and the only one that was not the page's fault at all:
+   * `captureBeyondViewport: true` does not always paint the same picture.
+   *
+   * Fourteen consecutive loads of test.html in ONE run, same tenant, same
+   * cookie, same everything — and the geometry dump above came back
+   * byte-identical on all fourteen: scrollY 0, `.content` at y=96.94, the strip
+   * 40.94px tall, fonts `loaded/14`, zero running animations, dpr 2, the visual
+   * viewport at 1280x900. The captures split 12/2 across two hashes, 340548 and
+   * 327439 bytes. Correlating the two images puts the whole content column
+   * **exactly 16 device pixels — 8 CSS px — lower in one than the other**, at a
+   * layout that both pages agree is identical to a hundredth of a pixel. It is
+   * the paint that moves, not the DOM.
+   *
+   * `--disable-partial-raster` does not touch it (18 loads, still split).
+   * Dropping captureBeyondViewport does: eighteen consecutive loads, one hash,
+   * and it is the hash of the state WITHOUT the 8px displacement — so the
+   * majority reading was the wrong one, not merely a different one.
+   *
+   * The flag is only ever needed when the document is bigger than the emulated
+   * viewport. Thirty-odd of these shots size their viewport to the page and are
+   * exactly the content height, and for those the flag was doing nothing except
+   * offering Chrome an opportunity to paint them wrong. Asking for it only when
+   * it is load-bearing costs nothing and closes four shots outright
+   * (s11-faqs-empty, s14-test-desktop, s14-test-limited, s18-golive-ready — all
+   * 1280x900 on a 900px viewport).
+   *
+   * It does NOT close the shots that genuinely need the expansion, and five
+   * consecutive runs of the finished tool draw that boundary exactly. Of the 54,
+   * 40 are byte-identical on every run and 14 move. ELEVEN of the 14 print a
+   * different value in every run, and not because of a race: ten display a
+   * TIMESTAMP OF A ROW THE RUN ITSELF WROTE — the readiness run behind Home's
+   * "Last checked 31 Aug 2026, 12:08 AM" (fmtDate, home.js:78-86, rendered at
+   * :386) and the config revisions the S17/S18 sequences create and then list
+   * (history.js:30-33). home.js:383 is worse still: fmtAge (:93-103) is relative
+   * to Date.now(), so it moves even when the row does not. The eleventh,
+   * s3-admin-create-owner, displays a server-generated one-time password. The other THREE are this artefact, and they are exactly the three
+   * that still ask for the flag — s9-booking-error (1757px on a 1200px
+   * viewport), s13-receptionist-error (1938 on 1400), s15-knows-telugu-greeting
+   * (716 on 500). Every shot that no longer needs it went to one hash.
+   * s4-profile-error (1694 on 1000) is in the same class and happened to read
+   * one hash across those five runs: the flip is probabilistic per run, not a
+   * fixed property of a shot.
+   *
+   * Sizing the viewport to the content would remove the flag everywhere, but
+   * `.side` is `position: fixed` and would then paint down the whole page rather
+   * than one viewport, which is a change to what ~30 shots show and a decision
+   * above this repair's pay grade. */
+  const beyond = clipH > height || clipW > width;
+
   const shotRes = await cdp.send('Page.captureScreenshot', {
     format: 'png',
-    captureBeyondViewport: true,
-    clip: { x: 0, y: 0, width: size.width, height: Math.ceil(size.height), scale: 1 },
+    captureBeyondViewport: beyond,
+    clip: { x: 0, y: 0, width: size.width, height: clipH, scale: 1 },
   }, sessionId);
   fs.writeFileSync(out, Buffer.from(shotRes.data, 'base64'));
   await cdp.send('Target.closeTarget', { targetId });
@@ -206,10 +452,10 @@ const LOADED = "(function(){"
   // Eight of these pages also host the Verbatim panel, which loads on its OWN
   // fetch and paints 18 more glyphs on the one dark ground in the product. The
   // loadCard gate alone let the sweep run before it, and clinic-profile then
-  // measured 78 rows on one run and 96 on the next.
-  + "var vp=document.getElementById('verbatim');"
-  + "if(!vp || getComputedStyle(vp).display==='none' || !vp.getClientRects().length) return true;"
-  + "return !!vp.querySelector('#vpLive *');"
+  // measured 78 rows on one run and 96 on the next. The clause itself now lives
+  // above as VERBATIM_PAINTED, because the capture path needs the same one and a
+  // second copy of a gate is a gate that will drift.
+  + "return " + VERBATIM_PAINTED + ";"
   + "})()";
 const WIZARD_READY = "(function(){"
   + "var w=document.getElementById('wiz'); if(!w || w.hidden) return false;"
@@ -293,10 +539,10 @@ async function sweepOnePage(cdp, opts) {
     // 127 on the next, the delta being exactly the two `.lc` strip glyphs.
     // Portal exposes that fetch as a memoised promise; await the real thing
     // rather than sleeping and hoping. login.html has no shell, hence the guard.
+    // Hoisted to READINESS_SETTLED above so `shoot()` awaits the identical
+    // expression — this line is unchanged in every byte that reaches the page.
     await cdp.send('Runtime.evaluate', {
-      expression: '(window.Portal && window.Portal.readinessOnce)'
-        + ' ? window.Portal.readinessOnce().then(function(){ return true; }, function(){ return true; })'
-        + ' : true',
+      expression: READINESS_SETTLED,
       returnByValue: true, awaitPromise: true,
     }, sessionId);
     // Trap 5: measure SETTLED. A glyph caught mid-transition composites at a

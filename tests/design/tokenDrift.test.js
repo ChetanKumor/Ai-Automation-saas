@@ -60,7 +60,13 @@ const SURFACES = {
 // verbatim.css declares three more — --vp-sheet-h in its own :root, --field-3
 // and --field-line-2 under .vp — and that file is not in SURFACES; two of the
 // three are not in a :root at all. 99 is every portal name this parser can
-// reach: 104 declarations across three :root blocks, five of them shadowed.
+// reach: 99 declarations in ONE :root block, none of them shadowed. It read
+// "104 declarations across three :root blocks, five of them shadowed" until the
+// blocks were collapsed — the five DUPLICATE declarations went with the two
+// blocks that carried them, and the name count never moved, which is the whole
+// reason EXPECTED_NAMES could not see that collapse and EXPECTED_ROOT_BLOCKS
+// had to. The history is not lost: it is the note under EXPECTED_ROOT_BLOCKS
+// below, which is where it belongs.
 //
 // web is 55, from one base :root. The five redeclarations at globals.css:441
 // sit inside @media (prefers-contrast: more) and are deliberately not counted —

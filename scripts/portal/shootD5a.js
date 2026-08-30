@@ -507,6 +507,15 @@ const IN_SHEET = `(function(){
     const base = 'http://127.0.0.1:' + port + '/portal';
     const px = (n) => path.join(OUT, n);
     const ready = "document.querySelector('.card')";
+    // Home's REAL gate, and the reason `ready` is not it. `.card` is static
+    // markup — index.html:96 is `<section class="card" id="readinessCard">`,
+    // present from first paint — so `waitFor: ready` on Home resolves before
+    // home.js has fetched anything, and any check that depends on the payload is
+    // then asserting against an unpopulated page. `#checks .check` and
+    // `#readinessCard .emp` are the two things home.js paints from the readiness
+    // response and are mutually exclusive, which is exactly the shape shoot.js
+    // uses for the same page (shoot.js `homeReady`).
+    const homeReady = "document.querySelector('#checks .check, #readinessCard .emp')";
 
     console.log('\nASSERTIONS');
 
@@ -586,9 +595,40 @@ const IN_SHEET = `(function(){
 
     // ── W5 · the not-live strip, Home vs everywhere else ───────────────────
     console.log('  W5 — the not-live strip is suppressed on Home ONLY:');
-    await probe(cdp, { url: base + '/index.html', cookie: ckClean, port, waitFor: ready, checks: [
+    // Both checks were born vacuous and the second one has since decayed twice.
+    //
+    // `waitFor: ready` is `.card`, static markup (see homeReady above), and this
+    // is the ONE probe on this page whose checks are readiness-dependent — so
+    // check 1 was reading "no strip yet" and calling it "no strip", and check 2
+    // was satisfied by the ring-shaped LOADING SKELETON: `.ring-sk` was the
+    // skeleton circle, present in the markup before any fetch. It asserted
+    // nothing about the payload in either direction.
+    //
+    // Then D-017 deleted the skeleton circle (home.css:288 keeps the note where
+    // the rule was), and `.ring-sk` stopped matching anything at all — leaving
+    // check 2 to be carried entirely by probe()'s 500ms sleep racing home.js's
+    // fetch. `.ring-sk` is dropped from the selector here rather than left in as
+    // a harmless alternative: kept, it re-opens the same hole the moment anyone
+    // reintroduces a skeleton ring, which is precisely how this check came to be
+    // vacuous the first time.
+    //
+    // Repaired: gate on home.js's own render, and take probe()'s awaitReady
+    // (:211-217) as well. On Home readinessOnce() is a SECOND round trip — the
+    // shell skips its own when activeId === 'home' — so it is not what settles
+    // the strip; homeReady is, because home.js dispatches `portal:readiness`
+    // (home.js:898) and the shell applies the strip synchronously in that
+    // listener BEFORE the checks are painted. awaitReady earns its place by
+    // bounding the shell's own `Portal.me`-gated chrome, which is what mounts
+    // the #truthStrip host that check 1 counts into.
+    //
+    // Both checks now assert something. Check 1: with a real payload rendered
+    // and the host mounted, Home genuinely suppresses a strip its own ring is
+    // already saying. Check 2: the ring genuinely ARRIVES for this tenant —
+    // ckClean is not live, so a ring is the correct outcome (a complete tenant
+    // gets none, D-017).
+    await probe(cdp, { url: base + '/index.html', cookie: ckClean, port, waitFor: homeReady, awaitReady: true, checks: [
       ['Home: strip absent', "document.querySelectorAll('#truthStrip .ts').length", 0],
-      ['Home: the ring is what says it instead', "!!document.querySelector('.ring, .ring-sk')", true],
+      ['Home: the ring is what says it instead', "!!document.querySelector('.ring')", true],
     ] });
     await probe(cdp, { url: base + '/pricing.html', cookie: ckClean, port, waitFor: ready, awaitReady: true, checks: [
       ['Pricing, same tenant: exactly one strip', "document.querySelectorAll('#truthStrip .ts').length", 1],

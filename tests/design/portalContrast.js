@@ -29,8 +29,8 @@
  *   THIS FILE                       the portal's binding of it: the baseline
  *                                   the portal is held to, and the public
  *                                   surface both callers import
- *   scripts/portal/shoot.js:200-260 the portal's URLs, its fourteen-page list,
- *                                   its two viewports, and all three readiness
+ *   scripts/portal/shoot.js         the portal's URLs, its fourteen-page list,
+ *     :447-495 and :219-223         its two viewports, and all three readiness
  *                                   gates — LOADED (#loadCard + the Verbatim
  *                                   panel's own fetch), WIZARD_READY (#wiz +
  *                                   loadReview), and the shell-wide
@@ -40,6 +40,14 @@
  * S6a's allowed file set did not include `scripts/portal/shoot.js`, so they
  * stayed put. They are named here so the next session moving them knows the
  * whole set and does not fix two of the three races.
+ *
+ * S3b-pre changed where two of them LIVE without changing what they mean. The
+ * capture path had the same two races as the measuring path, so the Verbatim
+ * clause and the `readinessOnce()` await were lifted out of the sweep into
+ * `VERBATIM_PAINTED` and `READINESS_SETTLED` (`shoot.js:219-223`), which LOADED
+ * and `sweepOnePage()` now both reference. That is why the reference above is
+ * two spans rather than one, and it is deliberate: two copies of a gate is how
+ * a gate drifts.
  *
  * ── THE PUBLIC SURFACE ────────────────────────────────────────────────────
  * Everything the engine exports is re-exported UNCHANGED. `shoot.js` and the
