@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: b308280f0e4f07ad75a1e177291a971769112ac3
-Verified-on: 2026-08-29
+Verified-at: a59368de0d16a8354536d5efd1f1a4e60bacaf80
+Verified-on: 2026-08-30
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -171,9 +171,22 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1137 tests / 185 suites / 0 fail** (`npm test`, raw: `# tests 1137 /
-  # suites 185 / # pass 1137 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  **+1 test / +0 suites at `b308280`**, the tokenDrift repair: one bare `test()`
+- Test suite: **1139 tests / 185 suites / 0 fail** (`npm test`, raw: `# tests 1139 /
+  # suites 185 / # pass 1139 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  **+2 tests / +0 suites at `a59368d`**, the portal contrast instrument:
+  `tests/design/portalContrast.test.js`, two bare `test()` blocks — the colour
+  arithmetic, and the D-016 `--ink-faint` contract with a static stylesheet scan
+  behind it. **Two blocks and not twelve, deliberately.** The session predicted +12
+  before reading the design suite; `tokenDrift.test.js:10-14` and
+  `heroDisclosure.test.js:32-34` both state the house rule in their own headers —
+  the suite total is a tracked number, so a per-assertion block would move it every
+  time an assertion is added. The prediction was wrong about the shape, not about
+  the work: the assertion count grew, the block count did not.
+  The instrument itself is `tests/design/portalContrast.js`, which is NOT a
+  `.test.js` and is therefore never loaded by `npm test` — it needs Chrome, a
+  scratch DB and a signed-in portal, and runs from
+  `node scripts/portal/shoot.js --contrast`.
+  Before that, **+1 test / +0 suites at `b308280`**, the tokenDrift repair: one bare `test()`
   pinning the parser against synthetic CSS. A bare `test()` registers a test and no
   suite, which is why `# suites` did not move and why a +1/+1 here would have meant a
   `describe()` added for no reason but the counter.
@@ -4953,6 +4966,190 @@ Additions since the original 1–28, all in the plan's Phase 8:
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
 
+### Evidence instruments for the portal ground flip — 2026-08-30 (`a59368d`)
+
+**No rendered pixel changed.** `git diff --name-only a59368d^..a59368d | grep -E '\.(css|html)$'`
+is empty; the commit is one script and two test files. Two instruments were built and
+one pre-existing RED was found and closed.
+
+#### The S4 shot gates were asserting nothing, and `shoot.js` was already red
+
+`shoot.js:528,531,535` gated all three clinic-profile shots on
+`!document.getElementById('profileCard').hidden`. `0881e75` moved `hidden` off
+`#profileCard` and onto the `#profileForm` that now wraps it (`clinic-profile.html:64-65`),
+leaving `#profileCard` an inner `<section>`. **`Element.hidden` reflects only its own
+attribute and does not inherit from a hidden ancestor**, so the predicate has been a
+constant `true` since first paint — satisfied by static markup before
+`/api/config/identity` returned. Nothing else in the tree references `#profileCard`.
+
+**It was not latent. `node scripts/portal/shoot.js` fails at HEAD `df32aeb`**, on
+`s4-profile-error.png`: *"selector never appeared: `.field.is-invalid`"*, 43 s in. That
+shot's `afterReady` runs BEFORE the 1300 ms settle, so it was injecting into a form the
+config fetch had not filled. Its IIFE dereferences a null `.phone-row .input` and throws,
+and **a `Runtime.evaluate` exception is returned in the result rather than broadcast as
+`Runtime.exceptionThrown`** — so `SHOOT_DEBUG=1` showed four clean 200s and no error at
+all. The `[response]` lines were the only trace.
+
+**Repaired to one named `profileReady`**: form revealed, `#display_name` non-empty, at
+least one phone row present. `clinic-profile.js` reveals at `:218`, strictly after
+`fill()` at `:211`, so `!hidden` already implies filled; the other two terms exist so a
+future reveal-before-fill cannot re-open the hole silently.
+
+**Red-before-green, with the vacuity shown rather than argued.** The mutation pointed
+`clinic-profile.js:202`'s load fetch at `/portal/api/config/identity-MUTANT`, so the page
+renders its error card and never populates:
+
+| | `s4-profile-desktop.png` |
+| --- | --- |
+| old gate, load broken | **✓ 1280×1000** — an error card, photographed and reported as a pass |
+| new gate, load broken | **RED**: *selector never appeared: `(function(){var f=…`* |
+| new gate, load restored | **✓ 1280×1628**, and the whole run green: 54/54 shots, exit 0 |
+
+The 628 px height difference is the form itself. The old gate could not tell those two
+pages apart. Mutation applied and reverted with `git checkout --`, grep-verified in both
+directions.
+
+**The `afterReady` / `sleep(1300)` ordering is NOT a separate defect.** `sleep` already
+runs after `afterReady` (`shoot.js:169-170`), and that `afterReady` already ends in its
+own `waitForSelector`. The gate was the entire fault: repairing it took
+`s4-profile-error.png` from failing to passing with the ordering untouched.
+
+**`shootD5a.js:589` does NOT share this root cause** — reported as instructed, not fixed.
+Its `ready` (`:509`) is `document.querySelector('.card')`, and `index.html:96` ships
+`<section class="card" id="readinessCard">` in the static HTML. That gate was **born** a
+markup witness; the S4 gate was **made** vacuous by a later commit. The repairs differ
+too: `probe()` already owns `awaitReady` (`:213-219`, `Portal.readinessOnce()`), used
+three call sites later at `:593` and not at `:589`. Of the twelve `probe()` calls in that
+file, three pass it. One detail worth keeping: the `:589` pair is **accidentally**
+half-protected — its first check asserts an ABSENCE (`#truthStrip .ts` length 0), which a
+premature gate satisfies trivially, while its second (`.ring, .ring-sk`) needs JS-injected
+content and would fail. `.ring-sk` no longer exists at all (`home.css:288`).
+
+#### The portal contrast instrument
+
+`tests/design/portalContrast.js` (measuring half) + `--contrast` mode on `shoot.js`
+(driver) + `tests/design/portalContrast.test.js` (the offline half).
+
+⚠️ **D-016's own harness is gone.** `decisions.md:801` closes on *"532 colour/backdrop
+pairs measured on the live DOM, zero failures"*. That harness is **not in this repository
+and not on this machine**: no tracked file outside `scripts/portal/shootD4.js` and
+`shootD5b.js` even names `backgroundColor` (and both use it for single-element equality
+checks, not a sweep); `git log --all -S"backdrop" -- '*.js'` returns two portal feature
+commits and no harness; every per-session scratchpad still on disk was enumerated and
+none contains it. It was scratchpad tooling of the kind **F-H003** was filed about, and
+the scratchpads were cleaned. **The 532 is now an assertion nobody can re-run.**
+
+**What survived is its descendant, and the port is built against it rather than from it.**
+`web/app/(marketing)/specimen/SwatchRatio.tsx:66-71` reads `node.parentElement` — one
+element, one hop, no ancestor walk — and `tokens.ts:145-148` states in its own comment
+that it composites alpha *"over white rather than over the true backdrop"*. Both choices
+are correct for the two deliberately-opaque swatches it labels and wrong for a page.
+
+**What the new instrument measures.** Every glyph's computed `color`, its alpha
+multiplied by the accumulated `opacity` of itself and every ancestor, composited over the
+actual backdrop: each ancestor `background-color` alpha-composited from `el` **itself**
+upward until the stack goes opaque, terminating on the canvas. Font size carries
+accumulated ancestor `transform` scale, because computed `font-size` does not. A
+`background-image` anywhere in the stack marks the row **undeterminable** — reported,
+never certified. 4.5:1 body, 3:1 large, 3:1 focus indicators, each floor selected by the
+row rather than passed in.
+
+**Baseline on the CURRENT cool ground, `a59368d`, 14 pages × {1280, 380}:**
+
+```
+glyph rows measured   : 2347
+unique colour/backdrop: 47
+threshold failures    : 558   (13 distinct failing pairs)
+D-016 contract        : 0     (--ink-faint as a glyph colour)
+undeterminable        : 2
+focus indicators      : 712 measured, 0 below 3:1
+```
+
+**The portal already fails, and it is one token doing nearly all of it.** Reported, not
+fixed — this is S3's before-state. Nine of the thirteen failing pairs are
+`--faint` **#94a3b8**, whose own token comment at `tokens.css:25` already says
+*"non-text only (2.8:1)"* and which is nonetheless painting placeholders (×102 at 2.50:1),
+the readiness timestamp and the ⌘K hint (×110 at 2.56:1), the nav's "Soon" items (×53 at
+2.28:1) and `knows.html`'s `#metaLine` (2.41:1). The worst two are 1.77:1 and 1.80:1 —
+`--faint` under the past-holiday row's `opacity: .68`, which is exactly the
+ancestor-opacity compounding a probe without the walk cannot see. The remaining four are
+`--muted` #64748b at 4.23 and 4.48 (both just under 4.5), the nav group headings at 3.49,
+and two colours on the Verbatim ink ground at 3.08 and 4.08.
+The two undeterminable rows are `select#insuranceStance` on `pricing.html`, whose chevron
+is a `background-image`; its ratio computes to 17.39 and is withheld anyway.
+
+**The D-016 contract is a hard assertion, and it is not yet load-bearing — by design.**
+`#A8A199` is not in the portal's token layer today, so the live count is 0 and the static
+scan finds nothing. It becomes load-bearing at the flip. It is written as a **contract
+rather than a threshold** because the portal already owns a ground on which `--ink-faint`
+passes: on `--field` **#0c1420** (the Verbatim panel) it reads **7.24:1**, clearing 4.5
+outright. A threshold-only gate would wave it onto body text there. Re-derived from the
+hexes rather than trusted: **2.41:1** on paper #FAF8F5 — D-016's own figure — and
+**2.55:1** on a white card.
+
+**Focus rings, measured separately at SC 1.4.11's 3:1, walked in REAL tab order** (a
+programmatic `.focus()` does not reliably match `:focus-visible` on a button, so the
+driver dispatches `Input.dispatchKeyEvent` Tab presses). 712 indicators, **0 below 3:1**.
+
+⚠️ **The `tokens.css:995-998` contradiction is now MEASURED. Nothing was changed, and the
+entry under Known open risks is updated rather than closed.** The comment claims the focus
+treatment is *"No fill change and no glow"*. Both halves are false in the code, and both
+are visually inert:
+
+- the **glow** `0 0 0 3px rgba(15,118,110,.16)` composites to **1.25:1** against the app
+  ground — a quarter of the way to the 3:1 floor, contributing nothing;
+- the **fill change** `#fbfcfe → #ffffff` is **1.03:1** — below any perceptual threshold;
+- what actually carries the ring is the third thing the comment does mention: the border
+  to `--teal-700`, **5.47:1** against both the inner fill and the outer backdrop.
+
+So the ring passes 1.4.11 comfortably, and it passes on the one component the comment
+credits — while the two components the comment denies exist are real, measurable and
+doing nothing. That is a copy/code disagreement and a dead rule, not an accessibility
+defect. **Left for a session that may change CSS.**
+
+**Red-before-green for the contrast instrument.** `tokens.css:708` `.card__sub`'s
+`color: var(--muted)` → `color: #A8A199`, one line, reverted with `git checkout --` and
+grep-verified in both directions:
+
+| | live sweep | offline suite |
+| --- | --- | --- |
+| mutated | **exit 1** — 34 contract violations, distinct failing pairs 13 → 14, the new one `rgb(168,161,153)` on white at **2.55:1** against a 4.5 floor | **`not ok 2`** — the static scan names `tokens.css: color: #A8A199` |
+| reverted | **exit 0**, 558 failures, signature byte-identical to baseline | `ok 2` |
+
+⚠️ **THE INSTRUMENT WAS WRONG THREE TIMES BEFORE IT WAS RIGHT, ALL THREE THE SAME SPECIES
+AS THE S4 GATE.** Each produced a plausible number, which is why they are recorded:
+
+1. **A rest style read in the same turn as `blur()` returns the TRANSITION START — i.e.
+   the FOCUSED value.** `login.html:26` and `tokens.css:1008` both carry
+   `transition: border-color .12s`. `login.html:67` (`autofocus`) and `test.js:203`
+   (`input.focus()`) take focus on load, so the rest snapshot equalled the focus
+   snapshot, the border indicator diffed to "unchanged", and both fields reported a
+   phantom **"glow only, 1.13:1 FAIL"** against a ring that is really 5.47:1. This is the
+   known "forced `:focus-visible` reads the transition start" trap running backwards. The
+   fix is a separate evaluation plus a 220 ms sleep, not a `blur()` in the same turn —
+   **which was tried first and changed nothing.**
+2. **`#loadCard` hidden fires before the Verbatim panel's own fetch.** `clinic-profile`
+   measured 78 glyph rows on one run and 96 on the next; the delta is the whole ink
+   panel, which is where the 3.08:1 and 4.08:1 failures live.
+3. **`#wiz` is revealed before `loadReview()` lands.** `wizard.html` at 380 measured 80
+   rows twice and 35 once — the missing 45 being the entire readiness pane.
+   Plus an explicit `await Portal.readinessOnce()` on every page, because the shell's
+   lifecycle strip is painted from a fetch no per-page gate knows about (`doctors.html`
+   at 380: 131 rows vs 127, the delta being exactly the two `.lc` glyphs).
+
+**Determinism, measured rather than assumed.** With all four gates in place, two
+consecutive runs are identical to the row: 2347 / 47 / 558 / 13 / 0 / 0, and the per-page
+table diffs clean. **The right invariant for S3 to compare against is the 13-pair
+signature, not the row count** — across five runs spanning three different gate sets and
+row counts of 2302, 2325, 2339 and 2347, the distinct-pair signature was byte-identical
+every time.
+
+**Trap for the next session: writing `latin1` from Node silently truncates every
+character above U+00FF to a single low byte.** An em dash in a patch script's comment
+payload became a `0x14` control byte inside `shoot.js`. `latin1` round-trips a *read*
+byte-for-byte, which is why it looked safe. Read and write **`utf8`** — it round-trips a
+valid UTF-8 file exactly and leaves CRLF alone.
+
 ### tokenDrift repaired, brand-values corrected — 2026-08-29 (`b308280`)
 
 **The guard was green on drift it could not see, and it is not any more.** No stylesheet
@@ -6275,13 +6472,35 @@ all branches fast-forward onto main · one issue per session · runtime evidence
   `.in-wrap` and `.input--invalid` with a 3px `rgba(15,118,110,.16)` glow plus a background
   change — re-instating, in substance, the treatment the comment four lines above it says
   was removed because *"a low-vision user on a cheap screen could miss [it] entirely"*.
-  The comment was not updated and now contradicts the code. **Whether the new ring passes
-  3:1 non-text contrast is unmeasured**: the contrast sweeps in this repo are all `web/`-
-  side, the portal has none, and this session ran no browser. Two things are needed and
-  neither is a guess: measure it, then make the comment and the code agree in whichever
-  direction the measurement points. **Open, filed 2026-08-29.**
+  The comment was not updated and now contradicts the code.
+  ✅ **MEASURED at `a59368d`; the accessibility half is CLOSED and the copy half is not.**
+  The portal now has a contrast instrument (`tests/design/portalContrast.js`, driven by
+  `shoot.js --contrast`), and it walked **712 focus indicators in real tab order across 14
+  pages × two widths: 0 below 3:1.** The ring passes SC 1.4.11 — but it passes on the one
+  component the comment credits and not on either of the two it denies. Border to
+  `--teal-700`: **5.47:1** against both the inner fill and the outer backdrop, and it is
+  the whole indicator. Glow `rgba(15,118,110,.16)` at 3px: **1.25:1** against the app
+  ground. Fill `#fbfcfe → #ffffff`: **1.03:1**. So the comment is wrong on both counts and
+  the two treatments it says were removed are real, measurable and doing nothing.
+  **STILL OPEN, narrowed:** make the comment and the code agree. That needs a CSS edit and
+  the S2 session was forbidden one, so nothing was changed. Whichever direction it goes,
+  the numbers above are what it has to answer to. Filed 2026-08-29, measured 2026-08-30.
 
 - ⚠️ **`shootD5a.js:589` IS THE SAME FLAKE AS `shootD5b` §E, STILL NOT FIXED**
+  ✅ **CONFIRMED and separated at `a59368d`, still not fixed** (out of that session's
+  scope by instruction). It does **not** share a root cause with the `shoot.js:528`
+  S4-gate defect repaired in the same session, and the distinction decides the repair.
+  The S4 gate was **correct when written** and made vacuous by `0881e75` moving a `hidden`
+  attribute onto an ancestor — `Element.hidden` does not inherit. `:589`'s `.card` gate was
+  **born** vacuous: `index.html:96` ships `<section class="card" id="readinessCard">` in
+  the static HTML, so it was never a load gate at all. The S4 repair had to invent a
+  data-dependent predicate; `:589`'s does not — `probe()` already owns `awaitReady`
+  (`shootD5a.js:213-219`, awaiting `Portal.readinessOnce()`), and it is used three call
+  sites later at `:593`. Three of that file's twelve `probe()` calls pass it.
+  The `:589` pair is **accidentally half-protected**: its first check asserts an ABSENCE
+  (`#truthStrip .ts` length 0), which a premature gate satisfies trivially, while its
+  second needs JS-injected content. Note `.ring-sk` in that second check no longer exists
+  anywhere (`home.css:288` records its removal), so only `.ring` can match it.
   (untouched file, outside every session's scope so far). Signature: *Home: the
   ring is what says it instead: false (expected true)*. Same shape as §E:
   `waitFor: ready`, where `ready` is `document.querySelector('.card')`, then
