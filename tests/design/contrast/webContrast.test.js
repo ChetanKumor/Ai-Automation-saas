@@ -17,7 +17,7 @@
  *     is re-tested here; the engine is one file and testing it twice is how two
  *     copies of a rule start disagreeing.
  *   THIS FILE                            owns the MARKETING BINDING — what
- *     web.js adds: four interlock gates, a partition, a two-valued token, a
+ *     web.js adds: six interlock gates, a partition, a two-valued token, a
  *     recorded baseline, and a static net over web/'s stylesheets.
  *
  * WHY THE BASELINE LIVES IN web.js AND NOT IN A .txt. The portal keeps its
