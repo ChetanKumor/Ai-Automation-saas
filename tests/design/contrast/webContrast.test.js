@@ -403,49 +403,56 @@ test('the recorded baseline re-hashes, and its two failure sets are what it says
   assert.strictEqual(WEB_BASELINE.worstRecededRatio, 7.31);
   assert.ok(WEB_BASELINE.worstRecededRatio >= 4.5);
 
-  // ── SET TWO: body copy, controls, navigation. THIRTY-SIX failures, and the
-  // whole of the assertion is that they are these three SHAPES and no others.
+  // ── SET TWO: body copy, controls, navigation. SIX failures, and the whole
+  // of the assertion is that they are these two SHAPES and no others.
   //
-  // Until S3b-3 this read `failingRoutes === ['/specimen']`, and it was true:
-  // the only thing failing on marketing was /specimen's own printed
-  // counterexample. Teaching the sweep :hover found a real one — 30 rows of it,
-  // across the four legal routes — so the route set moved to five and that
-  // assertion could not be kept.
+  // The route list has now been ['/specimen'] TWICE, and the two are not the
+  // same claim. Before S3b-3 it meant "the only thing we can see failing is
+  // /specimen's own printed counterexample", and the sweep could not see
+  // :hover at all. S3b-3 taught it :hover, found 30 real rows across the four
+  // legal routes, and the list went to five. S3c-2 FIXED those rows, so the
+  // list is back to one — this time with the instrument that found them still
+  // looking. A number returning to what it was is worth distrusting; this one
+  // is re-earned, and the way to tell is that `pairs` did NOT return with it
+  // (62 -> 61, because the shape is gone rather than hidden).
   //
-  // It is NOT replaced by "the legal routes may fail". Those four pages carry
-  // the compliance copy, and an exemption written at ROUTE granularity would
-  // swallow the next real defect on exactly the pages that can least afford
-  // one. It is replaced by a pin on the exact signature line, so a 31st
-  // failure, or a different shape on any route, adds a line here and reds.
-  assert.strictEqual(WEB_BASELINE.contentFailures, 36);
+  // It is still not "the legal routes may fail". Those four pages carry the
+  // compliance copy, and an exemption at ROUTE granularity would swallow the
+  // next real defect on exactly the pages that can least afford one. The gate
+  // is the shape pin below, unchanged in kind: a 7th failure, or a different
+  // shape on any route, adds a line and reds.
+  assert.strictEqual(WEB_BASELINE.contentFailures, 6);
   assert.strictEqual(WEB_BASELINE.contentFailures, WEB_BASELINE.failures);
-  assert.deepStrictEqual([...WEB_BASELINE.failingRoutes],
-    ['/acceptable-use', '/data-deletion', '/privacy', '/specimen', '/terms'],
+  assert.deepStrictEqual([...WEB_BASELINE.failingRoutes], ['/specimen'],
     'recorded, not the gate — the gate is the shape pin below');
 
-  // The gate. Three shapes, exactly, in order.
+  // The gate. Two shapes, exactly, in order.
   const fails = lines.filter((l) => l.startsWith('FAIL '));
   assert.deepStrictEqual(fails, [
     'FAIL      2.21:1 needs 4.5  rgb(168, 161, 153) on rgb(242,238,232)',
     'FAIL      3.42:1 needs 4.5  rgb(133, 127, 121) on rgb(242,238,232)',
-    WEB_BASELINE.knownDefect.shape,
-  ], 'marketing fails in exactly three shapes: --ink-faint in both its values on '
-    + "/specimen's own counterexample, and F-F010");
+  ], 'marketing fails in exactly two shapes, and both are --ink-faint in its two '
+    + "values on /specimen's own counterexample — a page whose job is to PRINT a "
+    + 'failing sample. Nothing on the site fails by accident.');
 
-  // F-F010, named where the number is, because a count nobody can attribute is
-  // how a defect becomes a baseline. The MECHANISM is the point: `opacity: 0.8`
-  // on `.content a:hover` cannot preserve contrast — fading a colour toward its
-  // backdrop reduces the ratio by construction, whatever the colour is. The fix
-  // is a DARKER hover colour, never a faded one. Same species as --faint under
-  // the portal's `.holiday-row--past { opacity: .68 }`, which reads 1.77:1.
-  assert.strictEqual(WEB_BASELINE.knownDefect.id, 'F-F010');
-  assert.strictEqual(WEB_BASELINE.knownDefect.count, 30);
-  assert.match(WEB_BASELINE.knownDefect.site, /legal[.]module[.]css/);
-  assert.match(WEB_BASELINE.knownDefect.shape, /^FAIL[ ]+3[.]57:1 needs 4[.]5 /);
-  assert.match(WEB_BASELINE.knownDefect.shape, /@op0[.]8 :hover/,
-    'F-F010 is an opacity-on-hover defect; a shape without @op is a different bug');
-  assert.strictEqual(WEB_BASELINE.failures - WEB_BASELINE.knownDefect.count, 6,
-    "every failure on marketing is either /specimen's counterexample or F-F010");
+  // F-F010 IS CLOSED, and this is the assertion that says so in the one place
+  // it could come back. Not a `knownDefect` field with the count zeroed: a
+  // closed defect keeping its exemption is how the next one gets in behind it.
+  //
+  // The MECHANISM is what must not return. `opacity: 0.8` on a link hover
+  // cannot preserve contrast — fading a colour toward its backdrop reduces the
+  // ratio BY CONSTRUCTION, whatever the colour is, which is why the fix was a
+  // darker hover and never a lighter fade. legal.module.css already had that
+  // right in three other rules (.back, .toc a, .legalLinks a, all of them
+  // --ink-soft -> --ink-strong at opacity 1) and wrong in these two.
+  assert.ok(!lines.some((l) => /@op[0-9.]+ :hover/.test(l)),
+    'an opacity-faded hover has come back to marketing. F-F010 was 30 rows of '
+    + 'exactly this shape across the four legal routes; give the element a '
+    + 'DARKER colour at full opacity, the way .back:hover already does.');
+  assert.ok(!Object.prototype.hasOwnProperty.call(WEB_BASELINE, 'knownDefect'),
+    'WEB_BASELINE.knownDefect is back. It existed to make ONE open defect '
+    + 'legible; if there is a new one, give it its own name and its own shape '
+    + 'pin rather than reviving the field F-F010 vacated.');
   assert.strictEqual(lines.filter((l) => l.startsWith('CONTRACT ')).length, 2);
 
   // SC 1.4.11. 549 focus indicators walked in real tab order, none under 3:1.
@@ -470,3 +477,41 @@ test('the recorded baseline re-hashes, and its two failure sets are what it says
   assert.ok(WEB_BASELINE.rows > 4000);
   assert.strictEqual(WEB_BASELINE.rows, WEB_BASELINE.recededRows + WEB_BASELINE.contentRows);
 });
+
+/* ══ THE MARKETING FADE NET IS NOT HERE, AND THAT IS A FINDING ════════════
+ *
+ * S3c-1 gave the portal a static rule — read every stylesheet, refuse
+ * `opacity` below 1 on anything that could carry a glyph, name the exceptions
+ * (portalContrast.test.js, "NO GLYPH ON THE LIGHT GROUND"). Marketing has no
+ * counterpart, and F-F010 is the argument that it should: `opacity: 0.8` shipped
+ * on the compliance copy of four routes and the live sweep reported the site as
+ * clean for as long as the engine could not see `:hover`. The guard above
+ * closes that exact shape off the measured signature; it cannot close the
+ * MECHANISM, because a fade that still passes today never reaches a signature.
+ *
+ * S3c-2 built the net, ran it, and REMOVED it rather than ship it. The scanner
+ * works — it finds six fades in web/, all six enumerated below — but the
+ * allowlist it needs was four entries carried over from the portal's shape, and
+ * not one of them matched a single marketing declaration. An allowlist written
+ * from another surface's components is exactly the lapsed exemption this
+ * session deleted twice (`sidebar-nav-icon`, `knownDefect`); shipping four more
+ * to make a new test green would have been the same defect, authored knowingly.
+ *
+ * Adjudicating the six is the work, and it is a session's worth: two of them
+ * are plainly safe, at least three need a measurement, and any that turn out to
+ * be real are CSS changes on sections this session's file set did not include.
+ * They are measured and named here so that work starts from evidence:
+ *
+ *   FinalCta.module.css     .6   @keyframes ping / 0%     keyframe step, safe
+ *   HowItWorks.module.css   .8   .connector svg           SVG paint — SCORED by
+ *                                                         the sweep since S3b-3,
+ *                                                         and passing
+ *   HowItWorks.module.css   .7   .mvScan                  unmeasured
+ *   Problem.module.css      .82  .enq                     unmeasured
+ *   Problem.module.css      .92  .enq @prefers-contrast    fades LESS under
+ *                                                         high contrast, so it
+ *                                                         is a considered value
+ *   Why.module.css          .5   .mpBox                   unmeasured
+ *
+ * The scanner itself is thirty lines and is in the portal's copy verbatim; the
+ * expensive half was never the parser. */

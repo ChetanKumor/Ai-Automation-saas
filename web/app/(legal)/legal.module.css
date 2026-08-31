@@ -263,11 +263,24 @@
 .content a {
   color: var(--accent-on-ground);
   text-decoration: none;
-  transition: opacity 0.2s var(--ease-out);
+  transition: color 0.2s var(--ease-out);
 }
 
+/* F-F010, CLOSED (S3c-2). This was `opacity: 0.8`, and a fade cannot preserve
+   contrast by construction: it walks the colour toward its backdrop, so the
+   ratio falls whatever the colour is. --accent-on-ground is 5.16:1 on --ground
+   and read 3.57:1 through the fade — 30 failing rows across the four legal
+   routes, the compliance copy, on every link in it.
+
+   The fix is this file's OWN idiom, not a new colour: .back:hover, .toc a:hover
+   and .legalLinks a:hover already go to --ink-strong with `opacity: 1`, and
+   have since the flip. Three rules had it right and two did not. 17.22:1.
+
+   The transition moves to `color` with it — it was animating a property that no
+   longer changes. */
 .content a:hover {
-  opacity: 0.8;
+  color: var(--ink-strong);
+  opacity: 1;
 }
 
 /* Was `0 0 0 3px var(--accent-glow)` — a second, weaker focus idiom that
@@ -336,11 +349,13 @@
 .contentSingle a {
   color: var(--accent-on-ground);
   text-decoration: none;
-  transition: opacity 0.2s var(--ease-out);
+  transition: color 0.2s var(--ease-out);
 }
 
+/* Same close as .content a:hover above, same reason, same idiom. */
 .contentSingle a:hover {
-  opacity: 0.8;
+  color: var(--ink-strong);
+  opacity: 1;
 }
 
 /* Same glow-ring replacement as .content a above, same reason. */

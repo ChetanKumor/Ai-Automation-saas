@@ -275,13 +275,13 @@ function bucketStats(measured) {
  * ────────────────────────────────────────────────────────────────────────── */
 
 const WEB_BASELINE = Object.freeze({
-  at: '8c37822+S3b-3',               // HEAD plus this session's core, which is the
-                                     // change that moved every number below
+  at: 'cb14223+S3c-2',               // HEAD plus F-F010's close. ONE rule pair in
+                                     // legal.module.css moved every number below.
   // The build it was served from. Recorded, and deliberately NOT asserted: the
   // same signature has now been reproduced across three different build ids
   // (`R6hjrB7Zfi7Yk-_NSbawQ`, `I3WZI49rGcziBYeJx9MlB`, this one), which is what
   // establishes that it is a fact about the source rather than about one build.
-  buildId: 'g8Mr1VFnv9b199Pt854GU',
+  buildId: '43RRI7YH3unK7AbTSr49Y',
 
   /** All nine, from `.next/prerender-manifest.json`. */
   routeList: Object.freeze([
@@ -315,20 +315,29 @@ const WEB_BASELINE = Object.freeze({
   rows: 5452,                   // glyph rows measured
   recededRows: 612,             // …of which sat inside a stepNear/stepFloor turn
   contentRows: 4840,            // …body copy, controls, navigation
-  pairs: 62,                    // distinct colour/backdrop/band/opacity
-  failures: 36,                 // threshold failures, 3 distinct shapes
+  pairs: 61,                    // distinct colour/backdrop/band/opacity. Was 62:
+                                // the `@op0.8 :hover` key went with F-F010 and
+                                // NOTHING replaced it. The hover resolves to
+                                // --ink-strong on --ground now, and the body
+                                // copy on those same four pages was already
+                                // sitting in that key.
+  failures: 6,                  // threshold failures, 2 distinct shapes. Was 36.
   recededFailures: 0,           // §5 set one — EMPTY, out of 612 rows measured
-  contentFailures: 36,           // §5 set two — 6 /specimen demo + 30 F-F010
-  failingRoutes: Object.freeze(['/acceptable-use', '/data-deletion', '/privacy',
-    '/specimen', '/terms']),
-  /** The one real defect on this surface. Recorded so the assertion that lets
-   *  it through can name the SHAPE rather than wave four routes past. */
-  knownDefect: Object.freeze({
-    id: 'F-F010',
-    shape: 'FAIL      3.57:1 needs 4.5  rgb(15, 118, 110) on rgb(250,248,245) @op0.8 :hover',
-    count: 30,
-    site: 'web/app/(legal)/legal.module.css:269-271 and :342-344',
-  }),
+  contentFailures: 6,           // §5 set two — /specimen's own printed
+                                // counterexample, and nothing else on the site.
+  failingRoutes: Object.freeze(['/specimen']),
+  /* `knownDefect` WAS HERE, AND IS GONE — S3c-2 CLOSED F-F010 rather than
+   * re-describing it. It named the 30-row `@op0.8 :hover` shape on the four
+   * legal routes so the assertion letting it through had to name a SHAPE
+   * rather than wave four routes past, and that was the right way to carry an
+   * open defect. It is the wrong way to carry a closed one: an exemption that
+   * outlives the thing it excuses keeps reading as a live decision, which is
+   * exactly why S3c-1 deleted `sidebar-nav-icon` from PORTAL_EXEMPT instead of
+   * relaxing it. The mechanism it recorded is not lost — the argument moved to
+   * legal.module.css:269, where the next person reaching for `opacity` on a
+   * hover is actually standing. The SHAPE is also pinned without a browser now:
+   * webContrast.test.js refuses any `@op… :hover` line in this signature. The
+   * MECHANISM is not yet pinned — see the note that closes that file. */
   worstRecededRatio: 7.31,      // --ink-soft on --ground, against a 4.5 floor
   contract: 6,                  // D-016 --ink-faint as a glyph colour
   undeterminable: 6,            // background-image in the backdrop stack
@@ -338,7 +347,6 @@ const WEB_BASELINE = Object.freeze({
   signatureLines: Object.freeze([
     "FAIL      2.21:1 needs 4.5  rgb(168, 161, 153) on rgb(242,238,232)",
     "FAIL      3.42:1 needs 4.5  rgb(133, 127, 121) on rgb(242,238,232)",
-    "FAIL      3.57:1 needs 4.5  rgb(15, 118, 110) on rgb(250,248,245) @op0.8 :hover",
     "CONTRACT  --ink-faint resolved as a glyph colour  rgb(133, 127, 121) on rgb(242,238,232)  3.42:1",
     "CONTRACT  --ink-faint resolved as a glyph colour  rgb(168, 161, 153) on rgb(242,238,232)  2.21:1",
     "UNDET     background-image in the backdrop stack  rgb(143, 163, 173) on rgb(32,44,51)",
@@ -348,7 +356,7 @@ const WEB_BASELINE = Object.freeze({
     "RING      PASS 17.95  [outline 17.95 vs outer backdrop  1px auto rgb(16, 16, 16) @ 1px]",
     "RING      PASS 18.25  [glow 1.06 vs outer backdrop  0px 0px 0px 2px rgb(250, 248, 245) | glow 18.25 vs outer backdrop  0px 0px 0px 4px rgb(23, 21, 15)]",
   ]),
-  signatureMd5: 'b88356698dacf4f40c361f366b362b6e',
+  signatureMd5: '2bc2998236c8422a7407f6ffaf85d394',
 });
 
 /** md5 of a signature body built from `lines`, LF-joined and LF-terminated —
