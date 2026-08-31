@@ -959,6 +959,32 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   three instances of the species and the marketing one still stands, with
   `WEB_BASELINE` unmoved and its three pinned lines intact.
 
+
+  ⚠️ **A RING FLAKE REDS THE LIVE GATE, SEEN ONCE IN SEVEN RUNS, UNATTRIBUTED.**
+  One `os:check` during S3c-1 failed with a **13th** signature line —
+  `RING      FAIL 0.00  [no indicator]` — while **all twelve baseline lines
+  matched**. `ringShape` prints that when `judgeRing` found no outline, no
+  border change and no box-shadow on `document.activeElement`, so the focused
+  element read back with no focus style at all. Six other runs of the same tree
+  (two direct sweeps, two more, and two `npm test`) gave 712 rings / 0 failing
+  and `9227cbc5…` exactly.
+
+  **Not attributed to S3c-1, and not claimed to pre-date it either.** The shape
+  is colour-independent by construction — no ink value can remove an element's
+  focus ring, and this session changed no `:focus` rule, no `display`, no
+  `visibility` and no markup. But it was observed only after the change, in 1 of
+  7 runs, against 2 pre-change observations, which is nowhere near enough to
+  call it old.
+
+  **Why it matters more than a normal flake:** `portalLive.test.js` asserts
+  `ringFailures === 0` as a hard gate — correctly, since it is SC 1.4.11 — so
+  this reds `npm test` whenever it fires, and the failing report is deleted in
+  that test's `finally`, so **the element is not recoverable after the fact.**
+  Whoever chases this should have the sweep persist its report on failure, or
+  loop `shoot.js --contrast` retaining every run, and read `sel` off the ring
+  with `indicators.length === 0`. Expect roughly one hit in six runs at ~5
+  minutes each.
+
   **Shots: all 54 moved**, which is the point — every page's glyph colour changed.
   Determinism across two runs at the new tree: **11 of 54 move**, and all 11 are
   inside the documented 14 (`shoot.js:406-417`) — the ten that print a timestamp
