@@ -837,6 +837,131 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **BOTH GROUNDS AT ZERO, AND THE NON-TEXT INK SPLITS IN TWO — S3c-2.** The
+  portal's last 29 threshold failures are closed and F-F010 is closed with them.
+  `2bbeb39` (portal) + `a753c0b` (marketing), **not pushed**. Tests **1146 / 185
+  unmoved**, `os:check` exit 0 first run at both ends. CSS + `tests/design/` only:
+  **zero `.html`, zero `.js` outside `tests/design/`.**
+
+  **The ink ground did not need a scale. It needed its literals pointed at the
+  one it had.** `--field-ink` 15.69:1 and `--field-muted` 7.21:1 already mirror
+  `--ink` 17.22 and `--ink-2` 7.31 to within a step. The four hardcoded greys in
+  `verbatim.css` were not two missing steps — they were values that drifted below
+  the secondary because nothing named the secondary at the point of use, and every
+  role involved is `--ink-2`'s role on paper.
+
+  ⚠️ **There were FIVE literals, not the four the brief counted, and the fifth is
+  the instructive one.** `#B4BCC7` on `.vp__fact-l` measured **9.64:1** — between
+  the two named steps, passing AA, and therefore never in a failure count. A step
+  no instrument can fail is exactly the step that survives the session sent to
+  remove the others. It was found by reading the file, not by measuring it, and
+  nothing in the toolchain would ever have raised it.
+
+  **Pair accounting, isolated rather than assumed.** `pairs` went 83 -> 79, and
+  the prediction written before editing was 80 — three retired colours, three
+  keys. The key is `colour|backdrop|band|opacity|state`, so one colour held two.
+  Two one-variable probes against the live sweep settled which: reverting only
+  `.vp__fact-l` reads 80 (`#B4BCC7` = 1 key), reverting only `.vp__btn[disabled]`
+  reads 81, so **`#5A6472` held TWO**. It is the only one of the five that is a
+  CONTROL: it carries an `<svg>`, which the sweep scores in the `N` band against
+  1.4.11's 3:1 rather than the `B` band against 4.5. That icon sat at **3.08:1 —
+  over the non-text floor by 0.08** — so it passed, and was invisible in
+  `failures` while the label beside it in the same colour failed. Zero keys were
+  added: `--field-muted` already held every key the merged glyphs landed in.
+
+  **`--faint-strong` `#857F79`** is `web/`'s own `--ink-faint` under
+  `prefers-contrast: more` (`globals.css:446`), taken verbatim. It splits the
+  non-text ink on SC 1.4.11 — `--faint` stays decoration at 2.55:1 on `--card`,
+  and the fills that encode STATE move to 3.96:1. Four moved: both
+  `.switch__track` copies, `.banner__dot`, and `.lang-toggle__check` /
+  `.pay-toggle__check` (the last two extend the brief's two by one class — same
+  defect, same file set, unchecked-state indicators at 2.55:1). The switch failed
+  on **either** reading of 1.4.11: its `#fff` knob against its own track is the
+  same 2.55:1, symmetric. The scrollbar thumb and `.think-dot` stay on `--faint`;
+  no state in either.
+
+  ⚠️ **NEITHER INSTRUMENT CAN SEE THAT HALF, AND THEY ARE BLIND FOR DIFFERENT
+  REASONS.** The sweep measures glyphs and SVG paint, so a `background-color` on
+  an empty `<span>` cannot move it — the signature is byte-identical across those
+  four declarations, which the brief predicted. **The 54-shot corpus is blind
+  too, which it did not:** zero pixels of `#A8A199` appear in **any** of the 54
+  before the change, and zero of `#857F79` in any of them after, because the
+  seeded tenant is validated with its protections on and so never renders an off
+  toggle or a draft dot. This is a new FIXTURE blind spot in the same family as
+  the four already recorded below. The prescribed pixel census therefore returned
+  *"the state is not in the corpus"*, and saying so is the finding. What stands as
+  evidence instead: a `getComputedStyle` read-back in a real headless Chrome over
+  the real stylesheets returns `rgb(133, 127, 121)` for all four selectors, and a
+  pixel census of **that** render counts 368 px of it against 0 px of `#A8A199`.
+
+  **The `tokens.css` line-count freeze is real, and it is now priced.**
+  `brand-values.md` recorded that naming a step was blocked because eight comments
+  in five files cite the file by line number. Measured this session: those eight
+  are at `111, 177, 227, 276, 995-998, 1008, 1014, 1694`, and **three are in
+  `scripts/portal/shoot.js`**, outside the session's file set. So the declaration
+  was paid for out of the comment above it — six lines to five — and the file is
+  2004 lines before and after, with all eight anchors verified byte-identical
+  against HEAD. **Naming a token is not blocked; it costs one comment line.**
+
+  **`.page-head.is-stuck` was the last stale-slate shadow** (`tokens.css:1888`,
+  `0 4px 8px rgba(15, 23, 42, .06)` — S3b-2's flip missed it, so one shadow
+  painted in two hues). ⚠️ **The brief called it "byte-for-byte `--shadow-lg`'s
+  first layer" and that premise is wrong in a way that changed the fix:** the
+  triple is reversed, and `--shadow-lg` is TWO layers reserved by
+  `tokens.css:1597-1599` for the tier that floats furthest (modal, ⌘K, drawer).
+  Pasting it would have put a 48px blur under a sticky sub-header. It takes
+  `var(--shadow-sm)`, which is a one-line reversal if the 4px/8px weight is
+  wanted. **Three slate literals remain and are deliberately open** —
+  `rgba(15, 23, 42, .45)` at `:1587` and `:1653`, `rgba(15, 23, 42, .4)` at
+  `:1858`. All three are SCRIMS, which is a different argument from a shadow.
+
+  **F-F010 is CLOSED, and `WEB_BASELINE.knownDefect` is DELETED rather than
+  zeroed.** `legal.module.css`'s two `opacity: 0.8` link hovers are
+  `--ink-strong` at `opacity: 1` — which is what `.back:hover`, `.toc a:hover`
+  and `.legalLinks a:hover` in the same file have done since the flip. Three rules
+  had it right and two did not; no new colour was needed, and `globals.css`, which
+  carries twelve line citations of its own, was not touched. Marketing:
+  **failures 36 -> 6**, `contentFailures` 36 -> 6, `failingRoutes` back to
+  `['/specimen']`, signature `b8835669` -> `2bc29982` (11 lines -> 10). `pairs`
+  62 -> 61 did **not** return with the route list, which is how you tell the shape
+  is gone rather than hidden.
+
+  ⚠️ **FOUND, NOT FIXED: marketing has no static fade net.** The portal grew one
+  in S3c-1. This session wrote the mirror, ran it, and **removed it rather than
+  ship it**: the scanner works and finds six fades in `web/`, but the allowlist it
+  needed was four entries carried over from the portal's components and **not one
+  of them matched a single marketing declaration**. Shipping four invented
+  exemptions to make a new test green is the same defect this session deleted
+  twice over (`sidebar-nav-icon` before it, `knownDefect` within it). The six are
+  enumerated at the foot of `webContrast.test.js`; two are plainly safe, three are
+  unmeasured, and any that turn out to be real are CSS changes on sections this
+  file set did not include.
+
+  **Item 3 was already done and needed no diff.** The brief asked to correct a
+  `"2.8:1 on --card"` claim in two places. Both were corrected by S3c-1 at
+  `7d274a4`: `tokens.css` reads 2.41 / 2.55 for `#A8A199` (re-measured: 2.4092 /
+  2.5538) and `home.css:260` reads 2.56 for the historical `#94a3b8`
+  (re-measured: 2.5640). No `2.8:1` claim survives in `public/portal/*.css`.
+
+  **Shots.** 33 of 54 moved against the committed baseline. Determinism across two
+  runs at the new tree: **11 of 54 move, all 11 inside the documented 14**
+  (`shoot.js:406-417`) — the ten timestamp shots plus `s3-admin-create-owner`'s
+  one-time password. The three `captureBeyondViewport` artefacts did not flip
+  across this pair, which two runs cannot distinguish from settled.
+
+  ⚠️ **THE `.env.example` TYPO DOES NOT EXIST, AND NEVER DID.** The brief asked for
+  a third commit fixing `dev/cripts` -> `dev/scripts`, on the grounds that
+  ` M .env.example` had dirtied `git status` for five sessions. `git log -S` for
+  that string against the file returns **nothing**; `dev/scripts` landed correct at
+  `c673673` and has not moved; `git diff HEAD -- .env.example` is empty, and a
+  tracked-file grep finds the typo in no file at all. The ` M` was a **phantom
+  modification from a stale index stat cache** — `core.autocrlf=true` with no
+  `.gitattributes`, so the entry reads dirty on size/mtime until something forces
+  a content read. This session's first `git status` was that read, and it cleared
+  on its own. **There was no third commit because there was nothing to commit,**
+  and the five sessions of dirty status were five sessions of nobody running a
+  command that compared bytes.
+
 - **THE LIGHT-GROUND INK SCALE, RE-DERIVED — S3c-1.** Four text steps became two,
   every `opacity` fade on a light-ground glyph was deleted, and the portal's
   contrast failures went **713 -> 29**. CSS only: `git diff --stat` is 12
@@ -950,14 +1075,18 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   **no quiet text colour left** — the next session wanting one has nowhere to put
   it, which is precisely the pressure D-016 predicts and dates to 2027-02-16.
 
-  ⚠️ **NOT FIXED, and the instrument cannot see it.** `.switch__track` (the OFF
-  state of a toggle) and `.banner__dot` (draft) paint `--faint` as MEANINGFUL
-  non-text state at ~2.4:1, under SC 1.4.11's 3:1. The sweep measures text and
-  SVG paint, never element FILLS, so these fail invisibly — and did so before this
-  session too. An instrument gap, not a colour bug. **F-F010 itself is untouched**
-  — it is in `web/`, outside this session's file set; S3c-1 fixed the portal's
-  three instances of the species and the marketing one still stands, with
-  `WEB_BASELINE` unmoved and its three pinned lines intact.
+  ✅ **BOTH CLOSED BY S3c-2 (`2bbeb39`, `a753c0b`).** `.switch__track` (the OFF
+  state of a toggle) and `.banner__dot` (draft) painted `--faint` as MEANINGFUL
+  non-text state at 2.55:1 on `--card`, under SC 1.4.11's 3:1; two more of the
+  same species (`.lang-toggle__check`, `.pay-toggle__check`) were found by the
+  same measurement and went with them. All four are `--faint-strong` `#857F79`
+  at 3.96:1. The instrument gap named here is REAL and is unchanged — the sweep
+  measures text and SVG paint, never element FILLS — and S3c-2 added a second
+  one to it: the 54-shot corpus carries zero pixels of `--faint` in ANY shot,
+  because the seeded tenant never enters either state. Verified by hand instead;
+  see the S3c-2 entry. **F-F010 is closed too**, in `web/`, which S3c-1 could
+  not reach: `WEB_BASELINE` moved, `knownDefect` was deleted rather than zeroed,
+  and the three pinned lines became a refusal of the SHAPE.
 
 
   ⚠️ **A RING FLAKE REDS THE LIVE GATE, SEEN ONCE IN SEVEN RUNS, UNATTRIBUTED.**
@@ -1080,7 +1209,9 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   failures (`.holiday__remove` at 2.60:1 under `opacity: .68` the sharpest), 106
   hover placeholder failures, and the rest-state `--faint` set. **684 of the 713
   were on the LIGHT ground and all 684 are gone**; the 29 that remain are the ink
-  field's, and are S3c-2's. Note for anyone reading the S3c-1 brief: it predicted
+  field's. ✅ **Those 29 are CLOSED by S3c-2** — `#6E7784` x20 and `#5A6472` x9,
+  all `var(--field-muted)` at 7.21:1, so all 713 are now gone and BOTH grounds
+  read zero. Note for anyone reading the S3c-1 brief: it predicted
   the surviving bucket would be `rest/graphic` 21 — that was wrong, and measurably
   so. All 21 of those icons were on light backdrops (`#cmdkHint`, `.note`,
   `.voice-note`, `.holiday__remove`), inside S3c-1's own scope. What survives is
@@ -1103,10 +1234,20 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   `/terms` — the four pages carrying the compliance copy. **The mechanism is the
   point: fading a colour toward its backdrop reduces contrast BY CONSTRUCTION, so
   the fix is a darker hover colour, never a faded one.** Same species as `--faint`
-  under the portal's `.holiday-row--past { opacity: .68 }` at 1.77:1. `WEB_BASELINE`
-  records it as `knownDefect`; `webContrast.test.js` pins the exact signature LINE
-  rather than the route set, deliberately — "the legal routes may fail" would
-  swallow the next real defect on exactly those pages. S3c owns the fix.
+  under the portal's `.holiday-row--past { opacity: .68 }` at 1.77:1.
+
+  ✅ **CLOSED BY S3c-2 (`a753c0b`).** Both rules take `--ink-strong` at
+  `opacity: 1` — the idiom `.back:hover`, `.toc a:hover` and `.legalLinks a:hover`
+  in the same file had already been using since the flip. 17.22:1, marketing
+  failures 36 -> 6, `failingRoutes` back to `['/specimen']`.
+  `WEB_BASELINE.knownDefect` is **deleted, not zeroed** — an exemption that
+  outlives the defect it excuses keeps reading as a live decision — and the pin
+  it carried is now a refusal: no `@op… :hover` line may appear in the signature
+  at all, and the field itself may not come back. ⚠️ **The MECHANISM is still
+  only pinned on marketing through the measured signature**, which needs a
+  build, a server and a Chrome; the static fade net the portal has since S3c-1
+  does not exist for `web/` and S3c-2 declined to ship an invented one. Six real
+  fades are enumerated at the foot of `webContrast.test.js` for whoever takes it.
 - **THE ACTIVE ITEM KEEPS ITS ICON UNDER THE POINTER, AND THE `--teal-50`
   COMMENT STOPS DESCRIBING A FILL THAT IS GONE — Portal polish 4, built**
   (`4c1a311`). **Two files, +35/−11**: `public/portal/tokens.css` (+31/−9, two
