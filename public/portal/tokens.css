@@ -25,24 +25,24 @@
 
 :root {
   /* ── Surfaces & ink ── */
-  --bg: #f7f8fb;        /* app background — a hair lighter than the demo's #eef2f6
-                           so the white sidebar/cards read as calm, not boxed-in.
-                           PORTAL-P1-S2 wrote #f6f8fa for that reason; the polish
-                           pass carried the same argument one step further, and
-                           #f7f8fb is the value that has been painting since. */
-  --card: #ffffff;
+  --bg: #faf8f5;        /* app ground — warm paper, and THE SAME VALUE as web/'s
+                           --ground (globals.css:258). D-016 makes paper the
+                           product's ground; S3b flips the portal onto it.
+                           Luminance barely moves (.9387 -> .9405): this is a hue
+                           change, not a lightness one. Was #f7f8fb. */
+  --card: #ffffff;      /* raised surface = web/'s --ground-raised. Unmoved. */
   --ink: #0f172a;       /* primary text */
   --ink-2: #334155;     /* secondary text */
   --muted: #64748b;     /* labels, meta, help text */
   --faint: #94a3b8;     /* disabled / de-emphasised — non-text only (2.8:1) */
-  --line: #dbe3eb;      /* hairline borders — the primary structural device.
-                           Darkened from #e2e8f0 by the polish pass so a 1px
-                           hairline still reads against the lighter --bg that
-                           moved with it. The demo pair kept #e2e8f0 on the
-                           darker #eef2f6 ground and needed no such compensation
-                           (docs/design/brand-values.md records both). */
-  --line-2: #edf2f7;    /* softer inner dividers — polish pass, from #eef2f6 */
-  --line-3: #cbd5e1;    /* border darkening on hover */
+  --line: rgba(23, 21, 15, .08);  /* hairline borders, the primary structural
+                           device — the same value as web/'s --rule. An alpha and
+                           not an opaque step: five light grounds here to
+                           marketing's three, and one composite serves them all.
+                           Costs weight: 1.296 -> 1.178 on --card. Was #dbe3eb. */
+  --line-2: #f5f1eb;    /* softer dividers AND a muted FILL (badges, ghost hover,
+                           ring track) — opaque for that reason. Derived, s=2.02. */
+  --line-3: rgba(23, 21, 15, .17);  /* hover border = web/'s --rule-strong. */
 
   /* ── Ink field — the one dark ground in the product (Verbatim panel, D4) ── */
   --field: #0c1420;
@@ -277,7 +277,7 @@ a { color: var(--teal-700); }
   position: fixed;
   inset: 0 auto 0 0;
   width: var(--sidebar-w);
-  background: #f9fafb;
+  background: #fbfaf7;
   border-right: 1px solid var(--line-2);
   display: flex;
   flex-direction: column;
@@ -377,7 +377,7 @@ a { color: var(--teal-700); }
   cursor: pointer;
 }
 .nav__item svg { width: 16px; height: 16px; flex: none; color: var(--faint); }
-.nav__item:hover { background: #f0f4f8; color: var(--ink); }
+.nav__item:hover { background: #f6f3ee; color: var(--ink); }
 .nav__item:hover svg { color: var(--muted); }
 /* No fill. The tint carried the state in HUE only: measured, it is 250 vs 255
  * in greyscale luminance, 2% of the range, so it was sitting next to the
@@ -793,7 +793,7 @@ a { color: var(--teal-700); }
   padding: 0 var(--s-4);
   border-radius: var(--r-sm);
   border: 1px solid var(--line);
-  background: #fbfcfe;
+  background: #fdfcfa;
   color: var(--ink-2);
   cursor: pointer;
   white-space: nowrap;
@@ -1023,7 +1023,7 @@ a.lc--draft:hover { border-color: var(--line-3); color: var(--ink-2); }
   height: 42px;
   font: 400 14px/1.5 var(--sans);
   color: var(--ink);
-  background: #fbfcfe;
+  background: #fdfcfa;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   padding: 0 13px;
@@ -1092,7 +1092,7 @@ select.input { padding-right: var(--s-2); }
   align-items: center;
   width: 100%;
   height: 42px;
-  background: #fbfcfe;
+  background: #fdfcfa;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   transition: border-color var(--dur-1) var(--ease-out),
@@ -1111,7 +1111,7 @@ select.input { padding-right: var(--s-2); }
   height: 40px;
   padding: 0 11px;
   flex: none;
-  background: #f3f6f9;
+  background: #f8f5f1;
   border-right: 1px solid var(--line);
   border-radius: 5px 0 0 5px;
   font: 500 14px/1 var(--sans);
@@ -1139,7 +1139,7 @@ select.input { padding-right: var(--s-2); }
   height: 42px;
   font-size: 14px;
   color: var(--ink-2);
-  background: #f3f6f9;
+  background: #f8f5f1;
   border: 1px solid transparent;
   border-radius: var(--r-sm);
   padding: 0 var(--s-3);

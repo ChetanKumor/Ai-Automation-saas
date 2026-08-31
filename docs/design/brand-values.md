@@ -54,7 +54,7 @@ so the shadowing cannot come back without reddening the suite.
 | `--amber-050` | `#fffbeb` | portal, demo/shared |
 | `--amber-100` | `#fef3c7` | portal, demo/shared |
 | `--amber-200` | `#fde68a` | portal, demo/shared |
-| `--bg` | `#f7f8fb` | portal, demo/shared, demo/styles |
+| `--bg` | `#faf8f5` | portal, demo/shared, demo/styles |
 | `--card` | `#ffffff` | portal, demo/shared, demo/styles |
 | `--ease-out` | `cubic-bezier(.16, 1, .3, 1)` | portal, web |
 | `--green` | `#16a34a` | portal, demo/shared, demo/styles |
@@ -64,7 +64,7 @@ so the shadowing cannot come back without reddening the suite.
 | `--hi` | `'Noto Sans Devanagari', 'Noto Sans', system-ui, sans-serif` | portal, demo/shared, demo/styles |
 | `--ink` | `#0f172a` | portal, demo/shared, demo/styles |
 | `--ink-2` | `#334155` | portal, demo/shared, demo/styles |
-| `--line` | `#dbe3eb` | portal, demo/shared, demo/styles |
+| `--line` | `rgba(23, 21, 15, .08)` | portal, demo/shared, demo/styles |
 | `--muted` | `#64748b` | portal, demo/shared, demo/styles |
 | `--r-lg` | `12px` | portal, web |
 | `--r-md` | `8px` | portal, web |
@@ -90,10 +90,10 @@ just as loudly as an undocumented change.
 
 | Token | Surface | Value | Why |
 |---|---|---|---|
-| `--bg` | demo/shared | `#eef2f6` | The portal's ground is a hair lighter so its white sidebar and cards read as calm rather than boxed-in. That reasoning dates from PORTAL-P1-S2, which wrote `#f6f8fa`; the enterprise polish pass carried the same argument one step further to `#f7f8fb`. They were two declarations, and the comment explaining the first was left describing a line the browser never used — the collapse of 2026-08-30 makes it one declaration carrying both halves of the reasoning. |
-| `--bg` | demo/styles | `#eef2f6` | Same as above — the demo pair share a ground. |
-| `--line` | demo/shared | `#e2e8f0` | The demo pair keep the pre-polish hairline. The enterprise polish pass darkened the portal's to `#dbe3eb` so that a 1px border still reads against the lighter `#f7f8fb` ground that moved in the same pass; the demo ground is `#eef2f6` and needs no such compensation. The demo is a frozen sales surface and was not migrated. |
-| `--line` | demo/styles | `#e2e8f0` | Same reason as `demo/shared`: the demo pair share one hairline and were not carried along by the portal's enterprise polish pass. |
+| `--bg` | demo/shared | `#eef2f6` | The divergence is now a different one, and larger. It used to be a lightness argument on a shared cool axis — the portal a hair lighter than the demo so its white sidebar and cards read as calm rather than boxed-in (PORTAL-P1-S2's `#f6f8fa`, carried to `#f7f8fb` by the enterprise polish pass). S3b moved the portal off that axis entirely: `#faf8f5` is warm paper, the same value as `web/`'s `--ground`, per D-016. The demo is a frozen sales surface and stays cool. The two grounds are no longer steps of one scale; they are two scales, and only the portal's is the product's. |
+| `--bg` | demo/styles | `#eef2f6` | Same as above — the demo pair share a ground, and stay cool while the portal flips to warm paper. |
+| `--line` | demo/shared | `#e2e8f0` | The demo keeps an opaque cool hairline. The portal's is no longer opaque at all: S3b took `web/`'s `--rule`, `rgba(23, 21, 15, .08)`, so one composite serves all five of the portal's light grounds instead of one hex tuned to a single ground. That costs weight — `#dbe3eb` was 1.296:1 on `--card` and the composite is 1.178:1 — and the cost was accepted to keep the value shared rather than merely similar. The demo is a frozen sales surface and was not migrated. |
+| `--line` | demo/styles | `#e2e8f0` | Same reason as `demo/shared`: the demo pair share one opaque cool hairline and were not carried onto the portal's alpha rule. |
 | `--teal-700` | demo/shared | `#0f5f59` | The demo still uses the pre-v2 convention where `--teal-600`/`--teal-700` are darker steps *below* the base `--teal`. The portal adopted the standard 50–900 ramp in D1, where `--teal-700` **is** the base (spec §2.1, plan §0.1). Same name, two conventions — which is exactly why the portal's consumers were migrated to `--teal-hover`/`--teal-press` rather than being left to resolve differently. |
 | `--sans` | demo/shared | `system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif` | The portal self-hosts Noto Sans Latin (D1) so Latin, Telugu and Devanagari are one family on one baseline grid. The demo has no Latin face and correctly falls through to the system stack rather than declaring a font it does not ship — which is the untruth D1 removed from the portal. |
 | `--sans` | demo/styles | `system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif` | Same reason as `demo/shared`: the demo pair share one type stack and ship no Latin face, so they fall through to the system stack. |
@@ -116,6 +116,82 @@ to `8px`/`12px` — the same two values — so portal and `web/` now agree on bo
 and there is nothing left to record. The rows were not
 rewritten with new numbers; they were removed, because a divergence table that
 lists agreements is the same defect pointing the other way.
+
+---
+
+## Concept map — portal ↔ web
+
+The two tables above compare tokens **by name**. This one compares them **by
+meaning**, which is the only way the portal and `web/` can be compared at all:
+they share almost no names. A row here says *these two names denote one concept,
+and the value is the same on both surfaces on purpose*. Nothing in this section
+is parsed by the guard — the values it quotes are the ones the tables above
+already enforce — so a row here is a claim about intent, and it is only as true
+as the person who wrote it.
+
+Landed by **S3b** (portal ground flip, D-016). Before it, the portal's grounds
+were a cool slate scale and `web/`'s were warm paper; the product had two
+grounds and shipped both.
+
+| Concept | Portal (`public/portal/tokens.css`) | Marketing (`web/app/globals.css`) | Shared value |
+|---|---|---|---|
+| Page ground | `--bg` | `--ground` | `#faf8f5` |
+| Raised surface | `--card` | `--ground-raised` | `#ffffff` |
+| Hairline rule | `--line` | `--rule` | `rgba(23, 21, 15, .08)` |
+| Stronger rule | `--line-3` | `--rule-strong` | `rgba(23, 21, 15, .17)` |
+
+`--card` did not move. It already held `#ffffff`, which is exactly what
+`--ground-raised` holds; the row records an agreement that was always true and
+had never been written down.
+
+### The warm axis, and the steps only the portal has
+
+`web/` names three grounds. The portal has six light backdrop levels, because it
+is a dense application surface and the marketing site is not. The four steps
+`web/` does not name are **portal-private** and get no row above — a value on one
+surface is that surface's own business, and inventing a marketing counterpart to
+justify it would be the fifth source of truth this file exists to prevent.
+
+They are derived rather than picked. `web/`'s two named opaque grounds lie on one
+line, **white − s·(5, 7, 10)**: s = 1.00 reproduces `--ground` exactly, and
+s ≈ 2.44 gives `#f3eee7` against the real `#f2eee8` — the same axis within
+rounding. Each portal-private step is the point on that line with the **same
+relative luminance** as the cool value it replaces, which is the method
+`globals.css:266-275` already used for `--rule-strong` ("matched on perceptual
+weight rather than on alpha"):
+
+| Portal-private step | Site | Was (cool) | Now (warm) | s | Δ luminance |
+|---|---|---|---|---|---|
+| soft divider / muted fill | `--line-2` | `#edf2f7` | `#f5f1eb` | 2.02 | +0.0010 |
+| sidebar ground | `.side` | `#f9fafb` | `#fbfaf7` | 0.76 | +0.0012 |
+| control fill | `.btn`, `.input`, `.in-wrap` | `#fbfcfe` | `#fdfcfa` | 0.45 | +0.0012 |
+| sunk control panel | `.in-prefix`, `.chip` | `#f3f6f9` | `#f8f5f1` | 1.39 | −0.0019 |
+| nav hover | `.nav__item:hover` | `#f0f4f8` | `#f6f3ee` | 1.70 | −0.0014 |
+
+Every one holds luminance to ±0.002. **The flip is a hue change, not a lightness
+change** — which is why it moved every backdrop in the contrast signature and
+almost none of the ratios.
+
+`--line-2` stays **opaque** while `--line` and `--line-3` became alphas, and the
+asymmetry is the point: `--line-2` is a *fill* in seven of its uses (badges,
+`.btn:active`, ghost hover, the readiness ring's track) and only a divider in the
+rest. An alpha rule painted as a fill is a category error, and `web/` has no third
+rule step to borrow. Ordering was checked rather than assumed — `--line-2` stays
+lighter than `--line` stays lighter than `--line-3` on all three grounds. That
+check exists because `globals.css:409` records the pair inverting once already.
+
+**`--ground-sunk` has no portal counterpart, deliberately.** `web/`'s sunk is a
+page-section step at s = 2.44; the portal's deepest light backdrop is a
+control-internal one at s = 1.39. Mapping them would more than double the step
+inside a phone-number input in order to make a table look complete. When the
+portal grows a page-section sunk, that is the row to add.
+
+**Still cool, and out of S3b's scope by decision:** `--field` / `--field-2` /
+`--field-line` (the Verbatim ink ground — S3c), the semantic tint fills
+(`--teal/green/amber/red-50/100/200`, state tints rather than ground steps), and
+the `--shadow-*` scale, which is still slate `rgba(15, 23, 42, …)` cast onto warm
+paper. The shadows are the loudest survivor and are not a backdrop, so they were
+reported rather than moved.
 
 ---
 
