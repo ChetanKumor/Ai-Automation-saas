@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 28d115f301fa52204f9a60814712a5809925a721
+Verified-at: 7d274a4e149e8fdad46f0df79547ebc04532c37c
 Verified-on: 2026-08-31
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -837,6 +837,136 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE LIGHT-GROUND INK SCALE, RE-DERIVED — S3c-1.** Four text steps became two,
+  every `opacity` fade on a light-ground glyph was deleted, and the portal's
+  contrast failures went **713 -> 29**. CSS only: `git diff --stat` is 12
+  `public/portal/*.css`, `docs/design/brand-values.md` and three files under
+  `tests/design/`. **Zero `.html`, zero `.js` outside `tests/design/`.**
+
+  **The measured result**, two live sweeps, byte-identical:
+  **4222 rows / 83 pairs / 29 failures (2 shapes) / 30 exempt / 0 contract /
+  2 undeterminable / 712 rings, 0 below 3:1**, signature
+  `9227cbc5ac4b614020cab8288e3fdb40`, 12 lines (was `e6eebb0a…`, 30).
+  **The md5 was PREDICTED before a declaration was changed, and came out exact** —
+  derived by re-judging the 114 live pairs through `core.js` under the proposed
+  remap. That is the useful part: the sweep is now understood well enough to be
+  computed forward, not merely read backward.
+
+  **The scale.** `--ink` `#0f172a` -> **`#17150F`**, `--ink-2` `#334155` ->
+  **`#57524A`**, `--muted` -> **`var(--ink-2)`** (deprecated alias, 72 consumers
+  unmoved), `--faint` `#94a3b8` -> **`#A8A199`**, non-text only. The values are
+  `web/`'s `--ink-strong` / `--ink-soft` / `--ink-faint` taken VERBATIM
+  (`globals.css:263-265`) rather than re-derived, so the portal and marketing are
+  one ink scale on one ground instead of two scales that resemble each other.
+  Six divergence rows added to `brand-values.md`: the demo pair keep the cool
+  slate, as they already do for `--bg`, `--line` and `--shadow`.
+
+  **Why `--muted` had to go, measured rather than argued:** `#64748b` reads
+  **4.49:1 on `--bg`** and **4.23:1 on `--line-2`** — it was failing AA on the
+  app's own ground and on its own badge fill. `--faint` failed on **100% of its
+  732 rows**. Neither was a step anyone could have used correctly.
+
+  **D-016's contract is LIVE on the portal for the first time.** It was passing by
+  ABSENCE: `core.js:986` reds the build on `#A8A199` as a glyph colour, and the
+  portal contained no `#A8A199` at all, so the check could not fire on anything.
+  `--faint` is that hex now, so it can. `.btn:disabled` and `.input:disabled` were
+  moved off `--faint` for exactly this reason — WCAG 1.4.3 would excuse a disabled
+  label at any ratio, so that was not a compliance fix but a landmine removal.
+
+  ⚠️ **AND THE STATIC HALF OF THAT CONTRACT WAS BLIND, FOUND BY FALSIFYING IT.**
+  `portalContrast.test.js`'s stylesheet net collected its alias set **per sheet**.
+  `--faint` is declared once, in `tokens.css`; every consumer is in another file.
+  So it looked for `color: var(--faint)` only in the one file that never contains
+  a consumer. Proved, not reasoned: `.probe { color: var(--faint) }` appended to
+  `knows.css` with `--faint` already at `#A8A199` left the assertion **GREEN**.
+  The alias set is collected across all sheets now, and the same probe reds it.
+  **This was not findable before this session** — with no `#A8A199` anywhere in
+  the portal, nothing the net did or failed to do changed the result.
+
+  **Five `opacity` fades deleted, and the mechanism is now refused by a test.**
+  F-F010's rule — fading a colour toward its backdrop reduces contrast BY
+  CONSTRUCTION — generalises worse than it reads: **at `.68` no ink passes**, the
+  best any colour reaches on the past-holiday row being 3.47:1. Replacements are
+  MEASURED on the live portal, not predicted:
+
+  | site | was | now |
+  |---|---|---|
+  | `.holiday__past` badge | 1.77:1 `@op.68` | **7.31:1** |
+  | `.holiday__name` placeholder | 1.80 / 1.83:1 | **7.55 / 7.75:1** |
+  | `.holiday__date` / `__name` value | 6.12 / 6.18:1 | **7.55 / 7.75:1** |
+  | `.holiday__remove` icon | 2.60:1 | **7.55:1** (hover 5.91) |
+  | `.lang-toggle__native` pressed | 3.61:1 `@op.8` | **7.27:1** (`--teal-800`) |
+  | `.ts__a:hover` | 5.09:1 `@op.78` | **6.88:1**, fade -> underline weight |
+
+  `.ts__a` is the one worth remembering: it **PASSED** at 5.09:1, and the collapse
+  alone would have taken it to **4.11:1** — 22 rows of NEW failure produced by a
+  change touching no rule near it. A fade's ratio depends on the ink it fades, so
+  a scale change silently re-scores every fade in the tree. Its hover cannot name
+  a darker colour (`color: inherit`, two strip variants), so hover moved to the
+  underline: 1px -> 2px with the padding giving the pixel back.
+
+  **The invariant that outlives the session**, in `portalContrast.test.js`: no
+  glyph on the light ground may be faded by `opacity`, enforced by a brace-tracking
+  scan of every portal stylesheet against a NAMED four-entry permission list
+  (`inactive-component` on WCAG 1.4.3/1.4.11's outright exemption, `keyframe-step`,
+  `undrawn-dot`, `ink-field-press`). Falsified before it was trusted — a probe fade
+  reds it. **The live sweep cannot express this**: it reports failures, not passing
+  rows, so a fade that still passes — every one of these, the day before it was
+  deleted — is invisible to it. Reading the stylesheets is not a weaker version of
+  the live check here; it is the only place the rule is checkable at all. Grew by
+  ASSERTION, not by block: the suite is unmoved at **1146 / 185 / 0**.
+
+  **`sidebar-nav-icon` was REMOVED from the allowlist** (3 entries -> 2). It
+  excused 288 icons at 2.46:1; they are `--ink-2` now and pass on merit at 7.42:1,
+  so it was excusing nothing while still reading as a live decision — and a lapsed
+  exemption re-activates silently under the next re-hue. `exempt` 318 -> 30.
+
+  **Three escaped literals folded in**, none of which any token or table knew
+  about: `#7b8797` (`.grp`, 104 failing rows at 3.50:1, the third-largest failure
+  in the S3b-3 baseline), `#111827` (`.page-head__title` / `.card__title` — a
+  FOURTH near-black, 0.4 ratio points from `--ink`, passing and therefore never
+  reported), and **`%2364748b` inside a `background-image` data URI**
+  (`pricing.css`). That last one is the sharp one: **the sweep is structurally
+  blind to exactly the element that carries it** — a background-image in the
+  backdrop stack is what makes a row `undeterminable`, and the baseline's two
+  undeterminable rows ARE that `select#insuranceStance`. No custom property
+  reaches inside a percent-escaped URI, so it does not move with the scale.
+  Verified by hand, twice, because the gate cannot: the computed
+  `background-image` read back `%2357524A` in a real browser, and on the shipped
+  `s6-pricing-desktop` shot, pixels near `#64748b` fell **19,120 -> 129** while
+  pixels near `#57524A` went **0 -> 38,105**, the residue scattered page-wide as
+  antialiasing rather than clustered at one element.
+
+  **What was given up, named rather than discovered later.** `.hist-row__fields`
+  and `.hist-row__meta` are both 12px in the same row and are now one colour —
+  the sharpest loss, with nothing replacing it; D-016's two-step rule forbids
+  inventing a third ink to save it, so it is a LAYOUT question for a later
+  session. `.nav__item--soon` stops being greyed and carries inactive-ness by its
+  `Soon` badge, `cursor: default`, the absent href, and weight 400 against an
+  active 500 — it is the one text WCAG genuinely exempts (1.4.3, inactive
+  components) and the one exemption the allowlist cannot express, being
+  `graphic`-scoped by design. Meta text no longer sits below structural text in
+  colour; size and weight already differed at every such site. And there is now
+  **no quiet text colour left** — the next session wanting one has nowhere to put
+  it, which is precisely the pressure D-016 predicts and dates to 2027-02-16.
+
+  ⚠️ **NOT FIXED, and the instrument cannot see it.** `.switch__track` (the OFF
+  state of a toggle) and `.banner__dot` (draft) paint `--faint` as MEANINGFUL
+  non-text state at ~2.4:1, under SC 1.4.11's 3:1. The sweep measures text and
+  SVG paint, never element FILLS, so these fail invisibly — and did so before this
+  session too. An instrument gap, not a colour bug. **F-F010 itself is untouched**
+  — it is in `web/`, outside this session's file set; S3c-1 fixed the portal's
+  three instances of the species and the marketing one still stands, with
+  `WEB_BASELINE` unmoved and its three pinned lines intact.
+
+  **Shots: all 54 moved**, which is the point — every page's glyph colour changed.
+  Determinism across two runs at the new tree: **11 of 54 move**, and all 11 are
+  inside the documented 14 (`shoot.js:406-417`) — the ten that print a timestamp
+  of a row the run itself wrote, plus `s3-admin-create-owner`'s one-time password.
+  The other three known movers are Chrome's probabilistic `captureBeyondViewport`
+  artefact and did not flip across this pair; **two runs cannot distinguish
+  "settled" from "did not flip this time"** for those, and nothing here claims it.
+
 - **THE CONTRAST GATE IS A GATE — S3b-3.** `npm test` now RE-MEASURES the portal
   instead of hashing a checked-in file against a constant beside it.
 
@@ -882,13 +1012,26 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   from the signature — i.e. a baseline regenerated with it would have gone green over
   a live defect. Reverted.
 
-  ⚠️ **STILL OPEN, S3c owns them.** 713 is not a clean bill: 21 icon failures
-  (`.holiday__remove` at 2.60:1 under `opacity: .68` is the sharpest), 106 hover
-  placeholder failures, and the rest-state `--faint` set. Two blind spots are NOT
-  instrument limits and cannot be closed by measuring harder: `.lang-toggle`'s
-  unpressed `#fdfcfa` fill never paints because the seeded tenant presses all three
+  ✅ **CLOSED BY S3c-1 — see the entry below.** The 713 named here were: 21 icon
+  failures (`.holiday__remove` at 2.60:1 under `opacity: .68` the sharpest), 106
+  hover placeholder failures, and the rest-state `--faint` set. **684 of the 713
+  were on the LIGHT ground and all 684 are gone**; the 29 that remain are the ink
+  field's, and are S3c-2's. Note for anyone reading the S3c-1 brief: it predicted
+  the surviving bucket would be `rest/graphic` 21 — that was wrong, and measurably
+  so. All 21 of those icons were on light backdrops (`#cmdkHint`, `.note`,
+  `.voice-note`, `.holiday__remove`), inside S3c-1's own scope. What survives is
+  `rest/text` 29, on `rgb(12,20,32)`.
+
+  ⚠️ **The FIXTURE blind spots are real and S3c-1 found two more.** Not instrument
+  limits, and not closable by measuring harder: `.lang-toggle`'s unpressed
+  `#fdfcfa` fill never paints because the seeded tenant presses all three
   languages, and `test.css:105`'s `·` needs a rendered `.msg__prov` that the empty
-  chat fixture never produces. Both are FIXTURE limits.
+  chat fixture never produces. The two new ones are `.check--advisory` (no advisory
+  check on the seeded tenant) and `.tr--archived` (nothing archived) — **both were
+  carrying `opacity` fades that measured as AA failures the sweep could not see**,
+  3.68:1 for `.tr--archived`. Four fixture blind spots, and half of them were
+  hiding a defect. That is not a coincidence to file away: a state the fixture
+  never enters is exactly where an untested value survives.
 
   ⚠️ **F-F010 — marketing legal-link hover, 3.57:1 against a 4.5 floor.**
   `web/app/(legal)/legal.module.css:269-271` and `:342-344`, `.content a:hover {
