@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 3f5b8ec61df7aa13f462bd360eeb6e604644a247
+Verified-at: 28d115f301fa52204f9a60814712a5809925a721
 Verified-on: 2026-08-31
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -171,9 +171,15 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1145 tests / 185 suites / 0 fail** (`npm test`, raw: `# tests 1145 /
-  # suites 185 / # pass 1145 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  **+6 tests / +0 suites at `83320c6`** (S6b), the marketing contrast driver: six bare
+- Test suite: **1146 tests / 185 suites / 0 fail** (`npm test`, raw: `# tests 1146 /
+  # suites 185 / # pass 1146 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  **+1 test / +0 suites at S3b-3**, the live contrast gate:
+  `tests/design/contrast/portalLive.test.js`, one bare `test()` that RUNS the sweep.
+  It is the first design test in this repo that needs Chrome and a database, and it
+  **fails rather than skips** without them. **`npm test` wall time 267.8 s -> 343.1 s
+  (+28%)**: the sweep alone is ~225 s, and the runner overlaps it with the other 184
+  files, so it costs about a third of what it takes.
+  Before that, **+6 tests / +0 suites at `83320c6`** (S6b), the marketing contrast driver: six bare
   top-level `test()` blocks in `tests/design/contrast/webContrast.test.js`, exactly the
   predicted delta. A bare `test()` registers a test and no suite, which is why
   `# suites` did not move. `tests/design/contrast/web.js` is the instrument and is NOT a
@@ -831,6 +837,69 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   genesis scratch DB — but `025` sprang the same trap at B2 and `026` at F1-R1.
   Cleared before B2-R1's baseline. The durable fix is for the test bootstrap to
   refuse to run when `TEST_DATABASE_URL` has pending migrations; not built.
+- **THE CONTRAST GATE IS A GATE — S3b-3.** `npm test` now RE-MEASURES the portal
+  instead of hashing a checked-in file against a constant beside it.
+
+  **What was wrong.** `portalContrast.test.js` hashed `contrast/portal.signature.txt`
+  and compared it to `PORTAL_BASELINE.signatureMd5`. Both static. The file could not
+  drift from the constant — and that was all it could say. It did not say whether
+  either still described the portal, and they had not since `b403938`: the warm flip
+  moved the live signature `1c51c92a` -> `cd8dff4b` -> `20009581` across two commits
+  while the checked-in file stayed at `1c51c92a` and the suite stayed green. Same
+  failure mode as D-016's "532 pairs measured", arriving slowly.
+
+  **The gate.** `tests/design/contrast/portalLive.test.js` spawns
+  `scripts/portal/shoot.js --contrast` — invoked, never edited; it already owns the
+  scratch DB, the seeded tenant, the fourteen pages, both viewports and all three
+  readiness gates — and recomputes the signature with `core.signature()` from the
+  run's own report. Staleness reds and NAMES the moved lines. Proved twice: on the
+  two-commit-old baseline, and by moving `--bg` `#faf8f5` -> `#f2eee8`, which reported
+  seven failure shapes and three ring shapes migrating `on rgb(250,248,245)` ->
+  `on rgb(242,238,232)` with every glyph colour unchanged. Reverted; `tokens.css` is
+  byte-identical and still 1912 lines.
+
+  **What the sweep can now see.** It recorded only direct child text nodes, which is
+  why S3b moved `--line` and `--line-3` and the instrument reported zero change. It
+  now also records `::before`/`::after`/`::marker` where `content` resolves to a
+  non-empty string, SVG paint (at SC 1.4.11's 3:1, never 4.5 — an icon is not body
+  text), and `:hover` / `:active` / `:focus-within` as separate states, keeping only
+  the glyphs a state actually MOVED.
+
+  **New baseline, three independent runs byte-identical** (`e6eebb0a…`, 30 lines):
+  **4312 rows / 114 pairs / 713 failures (20 shapes) / 318 exempt / 0 contract /
+  2 undeterminable / 712 rings, 0 below 3:1.** The old 558 is intact inside it —
+  `rest/text` 450 + `rest/placeholder` 108 — and all 13 original FAIL lines survive
+  verbatim. The rest row set is a strict SUPERSET of the old one: zero rows lost.
+
+  **The SC 1.4.11 allowlist** (`portalContrast.js`) exempts 318 of 339 new icon
+  failures by NAMED entry, never by heuristic: `sidebar-nav-icon` (288, adjacent
+  visible label carries the information), `nav-soon-inactive` (26, inactive controls
+  are exempt outright), `readiness-ring-track` (4, decoration behind the arc). Every
+  entry is `role: 'graphic'`, so **no arrangement of the list can silence a text
+  glyph**. Exempted rows are still MEASURED. Watched suppressing a real defect: a
+  fourth entry aimed at `.holiday__remove` dropped failures 713 -> 709 while the run
+  still recorded `{ratio: 2.6, floor: 3, pass: false}`, and removed that FAIL line
+  from the signature — i.e. a baseline regenerated with it would have gone green over
+  a live defect. Reverted.
+
+  ⚠️ **STILL OPEN, S3c owns them.** 713 is not a clean bill: 21 icon failures
+  (`.holiday__remove` at 2.60:1 under `opacity: .68` is the sharpest), 106 hover
+  placeholder failures, and the rest-state `--faint` set. Two blind spots are NOT
+  instrument limits and cannot be closed by measuring harder: `.lang-toggle`'s
+  unpressed `#fdfcfa` fill never paints because the seeded tenant presses all three
+  languages, and `test.css:105`'s `·` needs a rendered `.msg__prov` that the empty
+  chat fixture never produces. Both are FIXTURE limits.
+
+  ⚠️ **F-F010 — marketing legal-link hover, 3.57:1 against a 4.5 floor.**
+  `web/app/(legal)/legal.module.css:269-271` and `:342-344`, `.content a:hover {
+  opacity: 0.8 }`. 30 rows across `/acceptable-use`, `/data-deletion`, `/privacy`,
+  `/terms` — the four pages carrying the compliance copy. **The mechanism is the
+  point: fading a colour toward its backdrop reduces contrast BY CONSTRUCTION, so
+  the fix is a darker hover colour, never a faded one.** Same species as `--faint`
+  under the portal's `.holiday-row--past { opacity: .68 }` at 1.77:1. `WEB_BASELINE`
+  records it as `knownDefect`; `webContrast.test.js` pins the exact signature LINE
+  rather than the route set, deliberately — "the legal routes may fail" would
+  swallow the next real defect on exactly those pages. S3c owns the fix.
 - **THE ACTIVE ITEM KEEPS ITS ICON UNDER THE POINTER, AND THE `--teal-50`
   COMMENT STOPS DESCRIBING A FILL THAT IS GONE — Portal polish 4, built**
   (`4c1a311`). **Two files, +35/−11**: `public/portal/tokens.css` (+31/−9, two
