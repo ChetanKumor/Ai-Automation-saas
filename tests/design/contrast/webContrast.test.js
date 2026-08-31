@@ -403,18 +403,49 @@ test('the recorded baseline re-hashes, and its two failure sets are what it says
   assert.strictEqual(WEB_BASELINE.worstRecededRatio, 7.31);
   assert.ok(WEB_BASELINE.worstRecededRatio >= 4.5);
 
-  // ── SET TWO: body copy, controls, navigation. Six failures, all six the same
-  // element in six cells, and that element is /specimen's own counterexample.
-  assert.strictEqual(WEB_BASELINE.contentFailures, 6);
+  // ── SET TWO: body copy, controls, navigation. THIRTY-SIX failures, and the
+  // whole of the assertion is that they are these three SHAPES and no others.
+  //
+  // Until S3b-3 this read `failingRoutes === ['/specimen']`, and it was true:
+  // the only thing failing on marketing was /specimen's own printed
+  // counterexample. Teaching the sweep :hover found a real one — 30 rows of it,
+  // across the four legal routes — so the route set moved to five and that
+  // assertion could not be kept.
+  //
+  // It is NOT replaced by "the legal routes may fail". Those four pages carry
+  // the compliance copy, and an exemption written at ROUTE granularity would
+  // swallow the next real defect on exactly the pages that can least afford
+  // one. It is replaced by a pin on the exact signature line, so a 31st
+  // failure, or a different shape on any route, adds a line here and reds.
+  assert.strictEqual(WEB_BASELINE.contentFailures, 36);
   assert.strictEqual(WEB_BASELINE.contentFailures, WEB_BASELINE.failures);
-  assert.deepStrictEqual([...WEB_BASELINE.failingRoutes], ['/specimen'],
-    'a failure on any route other than the page that documents the contract is a defect');
+  assert.deepStrictEqual([...WEB_BASELINE.failingRoutes],
+    ['/acceptable-use', '/data-deletion', '/privacy', '/specimen', '/terms'],
+    'recorded, not the gate — the gate is the shape pin below');
 
-  // Two distinct FAIL shapes, one per value of the token, and both are it.
+  // The gate. Three shapes, exactly, in order.
   const fails = lines.filter((l) => l.startsWith('FAIL '));
-  assert.strictEqual(fails.length, 2);
-  assert.ok(fails.every((l) => /rgb\(168, 161, 153\)|rgb\(133, 127, 121\)/.test(l)),
-    'the only failing colours on marketing are the two values of --ink-faint');
+  assert.deepStrictEqual(fails, [
+    'FAIL      2.21:1 needs 4.5  rgb(168, 161, 153) on rgb(242,238,232)',
+    'FAIL      3.42:1 needs 4.5  rgb(133, 127, 121) on rgb(242,238,232)',
+    WEB_BASELINE.knownDefect.shape,
+  ], 'marketing fails in exactly three shapes: --ink-faint in both its values on '
+    + "/specimen's own counterexample, and F-F010");
+
+  // F-F010, named where the number is, because a count nobody can attribute is
+  // how a defect becomes a baseline. The MECHANISM is the point: `opacity: 0.8`
+  // on `.content a:hover` cannot preserve contrast — fading a colour toward its
+  // backdrop reduces the ratio by construction, whatever the colour is. The fix
+  // is a DARKER hover colour, never a faded one. Same species as --faint under
+  // the portal's `.holiday-row--past { opacity: .68 }`, which reads 1.77:1.
+  assert.strictEqual(WEB_BASELINE.knownDefect.id, 'F-F010');
+  assert.strictEqual(WEB_BASELINE.knownDefect.count, 30);
+  assert.match(WEB_BASELINE.knownDefect.site, /legal[.]module[.]css/);
+  assert.match(WEB_BASELINE.knownDefect.shape, /^FAIL[ ]+3[.]57:1 needs 4[.]5 /);
+  assert.match(WEB_BASELINE.knownDefect.shape, /@op0[.]8 :hover/,
+    'F-F010 is an opacity-on-hover defect; a shape without @op is a different bug');
+  assert.strictEqual(WEB_BASELINE.failures - WEB_BASELINE.knownDefect.count, 6,
+    "every failure on marketing is either /specimen's counterexample or F-F010");
   assert.strictEqual(lines.filter((l) => l.startsWith('CONTRACT ')).length, 2);
 
   // SC 1.4.11. 549 focus indicators walked in real tab order, none under 3:1.

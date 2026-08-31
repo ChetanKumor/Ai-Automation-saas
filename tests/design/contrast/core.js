@@ -266,16 +266,80 @@ function parseBoxShadow(value) {
  * passed in.
  * ────────────────────────────────────────────────────────────────────────── */
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * WHAT A GLYPH IS, and the four ways one reaches the screen.
+ *
+ * S3b-3 widened this from "direct child text nodes" to everything that
+ * actually paints. The old rule was not a simplification, it was a blind spot
+ * with a measurable cost: S3b moved `--line` and `--line-3` and the sweep
+ * reported ZERO change, because the two things those tokens repaint on the
+ * portal — a `::before` separator and an `<svg>` stroke — were not in the row
+ * set at all. A gate that cannot see the thing that moved is not a gate.
+ *
+ *   text      a direct child text node, an input's value or placeholder, a
+ *             selected <option>.                    (unchanged, byte for byte)
+ *   pseudo    ::before / ::after / ::marker, recorded only where `content`
+ *             resolves to a NON-EMPTY string. `content: ""` is a decorative
+ *             box, not a glyph, and counting it would score a colour nobody
+ *             can read.
+ *   graphic   an SVG shape's resolved paint. Scored at SC 1.4.11's 3:1, NOT at
+ *             4.5 — an icon is a non-text graphic, and a body-text floor would
+ *             be the wrong verdict printed with real authority. The <svg> root
+ *             is deliberately NOT a paint source: it computes a default
+ *             `fill: rgb(0,0,0)` it never paints with, while the shapes that
+ *             inherit `stroke="currentColor"` from it resolve the real colour.
+ *   state     the same three, re-measured under :hover, :active, :focus-within.
+ *
+ * ── HOW A STATE IS ENTERED, AND WHY NOT WITH A SLEEP ──────────────────────
+ * Focus is separated into its own pass because a style read in the same turn
+ * as the state change returns the TRANSITION START (S2: a phantom "glow only,
+ * 1.13:1 FAIL" on a ring that is really 5.47:1). The driver settles between
+ * the two evaluations.
+ *
+ * The three states below cannot be given that boundary here. `:hover` is not
+ * scriptable — only CDP's `CSS.forcePseudoState` or a real pointer enters it —
+ * and the portal's driver, `scripts/portal/shoot.js`, hands this source to ONE
+ * `Runtime.evaluate` with no `awaitPromise`. So the trap is removed at its
+ * root instead of waited out: `neutraliseTransitions()` installs
+ * `transition:none !important` BEFORE any state is armed, so there is no
+ * interpolation left for a read to catch — and it VERIFIES that. It picks a
+ * witness element that really was transitioning and throws if the witness does
+ * not read `0s` afterwards. A neutralisation that failed silently would
+ * reproduce exactly the S2 phantom, so it is not allowed to fail silently.
+ *
+ * The state itself is entered through the CASCADE, not through a synthesised
+ * style: every `:hover` rule gets a twin whose pseudo-class is rewritten to
+ * `[data-cs-hover]`, INSERTED IMMEDIATELY AFTER THE ORIGINAL IN THE SAME
+ * SHEET. A pseudo-class and an attribute selector are both (0,1,0), so same
+ * specificity and same document order, and the twin wins and loses exactly the
+ * cascade fights the original does. Appending one stylesheet at the end would
+ * not: `.lang-toggle:hover` LOSES to the later `.lang-toggle[aria-pressed=
+ * "true"]` at equal specificity, and a twin parked at the end of the document
+ * would have won it and reported a colour the screen never shows.
+ *
+ * Every element matching the pseudo's own compound is armed at once. That is
+ * not a fiction — hovering a child hovers its whole ancestor chain, so the
+ * nested case is the real one — and contrast is a per-element question anyway.
+ *
+ * ── WHAT A STATE PASS RECORDS ─────────────────────────────────────────────
+ * Only glyphs the state actually MOVED. Each rest row's colour, backdrop,
+ * opacity and size is fingerprinted per element and per slot; a state row
+ * whose fingerprint is unchanged is dropped. So `:hover` on a rule that moves
+ * only `border-color` adds nothing, and the rows that survive are exactly the
+ * ones a rest-only sweep could never have seen.
+ * ────────────────────────────────────────────────────────────────────────── */
+
 function sweepPage(parseColorFn, compositeOverFn) {
   var WHITE = { r: 255, g: 255, b: 255, a: 1 };
+  var STATES = ['hover', 'active', 'focus-within'];
 
   function pathOf(el) {
     var parts = [];
     var n = el;
     while (n && n.nodeType === 1 && parts.length < 6) {
-      var seg = n.tagName.toLowerCase();
+      var seg = String(n.tagName).toLowerCase();
       if (n.id) { parts.unshift(seg + '#' + n.id); break; }
-      var cls = (n.getAttribute('class') || '').trim().split(/\s+/).filter(Boolean);
+      var cls = String(n.getAttribute('class') || '').trim().split(/\s+/).filter(Boolean);
       if (cls.length) seg += '.' + cls.slice(0, 2).join('.');
       parts.unshift(seg);
       n = n.parentElement;
@@ -336,12 +400,29 @@ function sweepPage(parseColorFn, compositeOverFn) {
    * (trap 2), stopping at the first fully opaque layer (trap 4), and folding
    * the stack bottom-up onto the canvas. `background-image` is not resolvable
    * from computed style, so it is flagged rather than silently ignored.
+   *
+   * `lead` is the box of a PSEUDO-ELEMENT, which paints above its originating
+   * element's own background and below nothing else. Passing it prepends one
+   * layer and changes nothing else; with no `lead` this is the walk that
+   * produced every baseline before S3b-3, layer for layer.
    */
-  function backdropOf(el) {
+  function backdropOf(el, lead) {
     var chain = opacityChain(el);
     var layers = [];
     var image = false;
-    for (var i = 0; i < chain.length; i++) {
+    var closed = false;
+    if (lead) {
+      if (lead.image) image = true;
+      var lc = parseColorFn(lead.backgroundColor);
+      if (lc) {
+        var la = lc.a * (chain.length ? chain[0].acc : 1) * lead.opacity;
+        if (la > 0) {
+          layers.push({ r: lc.r, g: lc.g, b: lc.b, a: la });
+          if (la >= 1) closed = true;
+        }
+      }
+    }
+    for (var i = 0; !closed && i < chain.length; i++) {
       var cs = getComputedStyle(chain[i].el);
       if (cs.backgroundImage && cs.backgroundImage !== 'none') image = true;
       var c = parseColorFn(cs.backgroundColor);
@@ -349,7 +430,7 @@ function sweepPage(parseColorFn, compositeOverFn) {
       var a = c.a * chain[i].acc;
       if (a <= 0) continue;
       layers.push({ r: c.r, g: c.g, b: c.b, a: a });
-      if (a >= 1) break; // opaque: nothing below it can show through
+      if (a >= 1) closed = true; // opaque: nothing below it can show through
     }
     var out = WHITE; // the canvas default, reached only if the stack never closed
     for (var k = layers.length - 1; k >= 0; k--) out = compositeOverFn(layers[k], out);
@@ -363,7 +444,36 @@ function sweepPage(parseColorFn, compositeOverFn) {
     return true;
   }
 
-  function record(rows, el, role, colorStr, textSample) {
+  function pageName() {
+    return location.pathname.split('/').pop() || 'index.html';
+  }
+
+  /* ── the rest fingerprint, and the state de-duplication it enables ────── */
+
+  var restFp = new Map();
+
+  function fingerprintOf(row) {
+    return row.color + '|' + Math.round(row.bg.r) + ',' + Math.round(row.bg.g)
+      + ',' + Math.round(row.bg.b) + '|' + row.opacity + '|' + row.px + '|' + row.weight;
+  }
+
+  function push(rows, el, slot, state, row) {
+    var fp = fingerprintOf(row);
+    if (state === 'rest') {
+      var slots = restFp.get(el);
+      if (!slots) { slots = {}; restFp.set(el, slots); }
+      slots[slot] = fp;
+      rows.push(row);
+      return;
+    }
+    var known = restFp.get(el);
+    if (known && known[slot] === fp) return; // this state moved nothing here
+    rows.push(row);
+  }
+
+  /* ── the three kinds of glyph ─────────────────────────────────────────── */
+
+  function record(rows, el, role, colorStr, textSample, state, slot) {
     var cs = getComputedStyle(el);
     if (!visible(el, cs)) return;
     var chain = opacityChain(el);
@@ -371,10 +481,11 @@ function sweepPage(parseColorFn, compositeOverFn) {
     if (opacity <= 0) return;
     var back = backdropOf(el);
     var scale = scaleOf(el);
-    rows.push({
-      page: location.pathname.split('/').pop() || 'index.html',
+    push(rows, el, slot, state, {
+      page: pageName(),
       sel: pathOf(el),
       role: role,
+      state: state,
       text: String(textSample || '').replace(/\s+/g, ' ').trim().slice(0, 48),
       color: colorStr,
       opacity: Math.round(opacity * 1e4) / 1e4,
@@ -386,42 +497,341 @@ function sweepPage(parseColorFn, compositeOverFn) {
     });
   }
 
-  var rows = [];
-  var all = document.querySelectorAll('*');
-  for (var i = 0; i < all.length; i++) {
-    var el = all[i];
-    var tag = el.tagName.toLowerCase();
-    if (tag === 'script' || tag === 'style' || tag === 'title'
-        || tag === 'meta' || tag === 'link' || tag === 'head') continue;
+  /**
+   * The painted half of `content`. Quoted runs only — `counter()` and `attr()`
+   * paint a glyph whose text computed style will not hand over, so the raw
+   * value stands in as the sample rather than the row being dropped. A bare
+   * `url(...)` is an image, not a glyph, and `content: ""` is a decorative box:
+   * both return null and are never scored.
+   */
+  function pseudoText(raw) {
+    if (!raw) return null;
+    var v = String(raw);
+    if (v === 'none' || v === 'normal') return null;
+    var alt = v.indexOf(' / ');          // content: "x" / "alt" — alt is not painted
+    if (alt >= 0) v = v.slice(0, alt);
+    var quoted = /"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'/g;
+    var out = '';
+    var m;
+    while ((m = quoted.exec(v)) !== null) out += (m[1] !== undefined ? m[1] : m[2]);
+    if (out.trim().length) return out;
+    if (/counter\(|counters\(|attr\(/.test(v)) return v;
+    return null;
+  }
 
-    // Only DIRECT text children: an ancestor does not paint its descendants'
-    // glyphs, and counting it would score the same glyph against the wrong box.
-    var own = '';
-    for (var c = 0; c < el.childNodes.length; c++) {
-      if (el.childNodes[c].nodeType === 3) own += el.childNodes[c].nodeValue;
+  function recordPseudo(rows, el, which, state) {
+    var cs;
+    try { cs = getComputedStyle(el, which); } catch (e) { return; }
+    if (!cs) return;
+    var hostCs = getComputedStyle(el);
+    var text = pseudoText(cs.content);
+    if (!text && which === '::marker') {
+      // A default marker paints a bullet or a number with `content: normal`.
+      if (hostCs.listStyleType && hostCs.listStyleType !== 'none') text = '•';
     }
-    if (own.trim().length) record(rows, el, 'text', getComputedStyle(el).color, own);
+    if (!text) return;
+    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.visibility === 'collapse') return;
+    if (!visible(el, hostCs)) return;
+    var chain = opacityChain(el);
+    var hostOpacity = chain.length ? chain[chain.length - 1].acc : 1;
+    var own = parseFloat(cs.opacity);
+    if (!isFinite(own)) own = 1;
+    var opacity = hostOpacity * own;
+    if (opacity <= 0) return;
+    var back = backdropOf(el, {
+      backgroundColor: cs.backgroundColor,
+      image: !!(cs.backgroundImage && cs.backgroundImage !== 'none'),
+      opacity: own,
+    });
+    var scale = scaleOf(el);
+    push(rows, el, which, state, {
+      page: pageName(),
+      sel: pathOf(el) + which,
+      role: 'pseudo',
+      pseudo: which,
+      state: state,
+      text: String(text).replace(/\s+/g, ' ').trim().slice(0, 48),
+      color: cs.color,
+      opacity: Math.round(opacity * 1e4) / 1e4,
+      scale: Math.round(scale * 1e4) / 1e4,
+      px: Math.round(parseFloat(cs.fontSize) * scale * 100) / 100,
+      weight: Number(cs.fontWeight) || 400,
+      bg: back.color,
+      imageBacked: back.imageBacked,
+    });
+  }
 
-    if (tag === 'input' || tag === 'textarea') {
-      var type = (el.getAttribute('type') || 'text').toLowerCase();
-      var typed = type !== 'checkbox' && type !== 'radio' && type !== 'hidden'
-        && type !== 'range' && type !== 'color' && type !== 'file';
-      if (typed && el.value) record(rows, el, 'text', getComputedStyle(el).color, el.value);
-      if (typed && el.placeholder) {
-        var ph = getComputedStyle(el, '::placeholder');
-        // Chrome returns the element's own colour for ::placeholder when the
-        // pseudo carries no colour of its own; either way this is the colour
-        // the placeholder glyphs are painted in.
-        record(rows, el, 'placeholder', ph.color || getComputedStyle(el).color, el.placeholder);
+  var SVG_SHAPES = 'path,circle,rect,line,polyline,polygon,ellipse,use';
+
+  /**
+   * One row per DISTINCT resolved paint inside an <svg>, attributed to the
+   * shape that introduced it and capped at three so a detailed illustration
+   * cannot flood the row set. `fill`/`stroke` may be a paint server
+   * (`url(#grad)`) rather than a colour — parseColor returns null for those and
+   * they are skipped rather than guessed at.
+   */
+  function recordGraphics(rows, svg, state) {
+    var shapes = svg.querySelectorAll(SVG_SHAPES);
+    var seen = {};
+    var found = 0;
+    for (var i = 0; i < shapes.length && found < 3; i++) {
+      var n = shapes[i];
+      var cs = getComputedStyle(n);
+      if (!visible(n, cs)) continue;
+      var cand = [];
+      if (cs.fill && cs.fill !== 'none') cand.push(cs.fill);
+      if (cs.stroke && cs.stroke !== 'none') cand.push(cs.stroke);
+      for (var j = 0; j < cand.length && found < 3; j++) {
+        var paint = cand[j];
+        if (seen[paint]) continue;
+        var parsed = parseColorFn(paint);
+        if (!parsed || parsed.a <= 0) continue;
+        seen[paint] = 1;
+        found += 1;
+        var chain = opacityChain(n);
+        var opacity = chain.length ? chain[chain.length - 1].acc : 1;
+        if (opacity <= 0) continue;
+        var back = backdropOf(n);
+        var label = svg.getAttribute('aria-label')
+          || (svg.parentElement && svg.parentElement.getAttribute('aria-label')) || '';
+        push(rows, n, 'graphic:' + paint, state, {
+          page: pageName(),
+          sel: pathOf(n),
+          role: 'graphic',
+          state: state,
+          text: String(label).replace(/\s+/g, ' ').trim().slice(0, 48),
+          color: paint,
+          opacity: Math.round(opacity * 1e4) / 1e4,
+          scale: Math.round(scaleOf(n) * 1e4) / 1e4,
+          px: 0,
+          weight: 400,
+          bg: back.color,
+          imageBacked: back.imageBacked,
+        });
       }
     }
-    if (tag === 'select') {
-      for (var o = 0; o < el.options.length && o < 3; o++) {
-        if (el.options[o].selected) {
-          record(rows, el, 'text', getComputedStyle(el).color, el.options[o].text);
+  }
+
+  /* ── one pass over one state ──────────────────────────────────────────── */
+
+  function collect(rows, state) {
+    var all = state === 'rest'
+      ? document.querySelectorAll('*')
+      : document.querySelectorAll('[data-cs-' + state + '],[data-cs-' + state + '] *');
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i];
+      var tag = String(el.tagName || '').toLowerCase();
+      if (tag === 'script' || tag === 'style' || tag === 'title'
+          || tag === 'meta' || tag === 'link' || tag === 'head') continue;
+
+      // Only DIRECT text children: an ancestor does not paint its descendants'
+      // glyphs, and counting it would score the same glyph against the wrong box.
+      var own = '';
+      for (var c = 0; c < el.childNodes.length; c++) {
+        if (el.childNodes[c].nodeType === 3) own += el.childNodes[c].nodeValue;
+      }
+      if (own.trim().length) {
+        var cs = getComputedStyle(el);
+        // SVG text is painted with `fill`; `color` inside an <svg> subtree is
+        // only the resolution target for `currentColor`.
+        var paint = cs.color;
+        if (el.namespaceURI === 'http://www.w3.org/2000/svg') {
+          if (cs.fill && cs.fill !== 'none') paint = cs.fill;
+          else if (cs.stroke && cs.stroke !== 'none') paint = cs.stroke;
+        }
+        record(rows, el, 'text', paint, own, state, 'text');
+      }
+
+      recordPseudo(rows, el, '::before', state);
+      recordPseudo(rows, el, '::after', state);
+      if (/list-item/.test(getComputedStyle(el).display)) recordPseudo(rows, el, '::marker', state);
+      if (tag === 'svg') recordGraphics(rows, el, state);
+
+      if (tag === 'input' || tag === 'textarea') {
+        var type = String(el.getAttribute('type') || 'text').toLowerCase();
+        var typed = type !== 'checkbox' && type !== 'radio' && type !== 'hidden'
+          && type !== 'range' && type !== 'color' && type !== 'file';
+        if (typed && el.value) {
+          record(rows, el, 'text', getComputedStyle(el).color, el.value, state, 'value');
+        }
+        if (typed && el.placeholder) {
+          var ph = getComputedStyle(el, '::placeholder');
+          // Chrome returns the element's own colour for ::placeholder when the
+          // pseudo carries no colour of its own; either way this is the colour
+          // the placeholder glyphs are painted in.
+          record(rows, el, 'placeholder', ph.color || getComputedStyle(el).color,
+            el.placeholder, state, 'placeholder');
+        }
+      }
+      if (tag === 'select') {
+        for (var o = 0; o < el.options.length && o < 3; o++) {
+          if (el.options[o].selected) {
+            record(rows, el, 'text', getComputedStyle(el).color, el.options[o].text, state, 'option');
+          }
         }
       }
     }
+  }
+
+  /* ── entering a state through the cascade ─────────────────────────────── */
+
+  /** Every style rule in the document, including inside @media / @supports. */
+  function eachRule(fn) {
+    function walk(list, parent) {
+      for (var i = list.length - 1; i >= 0; i--) { // descending: inserting shifts
+        var r = list[i];
+        if (r.cssRules && r.cssRules.length) walk(r.cssRules, r);
+        if (r.selectorText) fn(r, parent, i);
+      }
+    }
+    var sheets = document.styleSheets;
+    for (var s = 0; s < sheets.length; s++) {
+      var rules;
+      try { rules = sheets[s].cssRules; } catch (e) { continue; } // cross-origin
+      if (rules) walk(rules, sheets[s]);
+    }
+  }
+
+  /**
+   * Every selector in the document, in order. Taken before the first state is
+   * armed and again after the last is disarmed, and required to match.
+   *
+   * This is not belt-and-braces. Arming EDITS LIVE STYLESHEETS, and the ring
+   * pass runs in a LATER evaluation against the same document — so a twin left
+   * behind, or an original deleted by mistake, does not fail here: it silently
+   * changes what a different instrument measures forty seconds later. That is
+   * exactly what happened while this was being written (see `disarm`), and a
+   * count of rules would not have caught it, because the fault deleted one and
+   * left one. The selectors themselves are the evidence.
+   */
+  function snapshotRules() {
+    var out = [];
+    eachRule(function (rule) { out.push(rule.selectorText); });
+    return out.join('\n');
+  }
+
+  function neutraliseTransitions() {
+    var settled = /^(0s)(\s*,\s*0s)*$/;
+    var witness = null;
+    var all = document.querySelectorAll('*');
+    for (var i = 0; i < all.length && !witness; i++) {
+      var d = getComputedStyle(all[i]).transitionDuration;
+      if (d && !settled.test(d)) witness = all[i];
+    }
+    var st = document.createElement('style');
+    st.setAttribute('data-cs-kill', '');
+    st.textContent = '*,*::before,*::after,*::marker{'
+      + 'transition:none !important;animation:none !important;}';
+    document.head.appendChild(st);
+    if (witness) {
+      var after = getComputedStyle(witness).transitionDuration;
+      if (!settled.test(after)) {
+        throw new Error('contrast sweep: transitions not neutralised (reads ' + after
+          + ') — a state read would return the transition START, not the settled value');
+      }
+    }
+    return st;
+  }
+
+  /**
+   * The compound the pseudo-class is attached to, with the pseudo removed —
+   * i.e. the element that would BE hovered. `a:hover span` arms the `a`, not
+   * the span, so the twin `a[data-cs-hover] span` matches what the real rule
+   * would have.
+   */
+  function armTarget(sel, re) {
+    re.lastIndex = 0;
+    var m = re.exec(sel);
+    if (!m) return null;
+    var head = sel.slice(0, m.index);
+    var tail = sel.slice(m.index + m[0].length);
+    var j = 0;
+    while (j < tail.length && !/[\s>+~,(]/.test(tail[j])) j += 1;
+    return (head + tail.slice(0, j)).trim() || '*';
+  }
+
+  function armState(state) {
+    var attr = 'data-cs-' + state;
+    var re = new RegExp(':' + state + '(?![\\w-])', 'g');
+    var inserted = [];
+    var armed = [];
+    eachRule(function (rule, parent, index) {
+      var sel = rule.selectorText;
+      if (!sel || sel.indexOf(':' + state) < 0) return;
+      var kept = [];
+      var parts = sel.split(',');
+      for (var p = 0; p < parts.length; p++) {
+        var one = parts[p].trim();
+        re.lastIndex = 0;
+        if (!re.test(one)) continue;
+        var target = armTarget(one, re);
+        if (!target) continue;
+        var hit;
+        try { hit = document.querySelectorAll(target); } catch (e) { continue; }
+        for (var h = 0; h < hit.length; h++) {
+          if (!hit[h].hasAttribute(attr)) { hit[h].setAttribute(attr, ''); armed.push(hit[h]); }
+        }
+        kept.push(one.replace(re, '[' + attr + ']'));
+      }
+      if (!kept.length) return;
+      try {
+        parent.insertRule(kept.join(',') + '{' + rule.style.cssText + '}', index + 1);
+        // Keep the RULE OBJECT, never the index it went in at. Twins are
+        // inserted at descending indices across one sheet, so every later
+        // insertion shifts every earlier one; deleting by the recorded index
+        // therefore destroys an ORIGINAL rule and leaves the twin behind
+        // permanently. Measured, not reasoned: it silently deleted
+        // verbatim.css's dark-panel focus rule, and the ring pass — which
+        // runs long after this source returns — reported the Verbatim
+        // controls at 3.38:1 on the global teal-700 ring instead of 7.42:1
+        // on their own, across 60 of 368 focus indicators.
+        inserted.push({ parent: parent, rule: parent.cssRules[index + 1] });
+      } catch (e) { /* a selector Chrome will not re-parse; the arming still stands */ }
+    });
+    return { attr: attr, inserted: inserted, armed: armed };
+  }
+
+  function disarm(handle) {
+    for (var i = 0; i < handle.inserted.length; i++) {
+      var ins = handle.inserted[i];
+      try {
+        var at = Array.prototype.indexOf.call(ins.parent.cssRules, ins.rule);
+        if (at >= 0) ins.parent.deleteRule(at);
+      } catch (e) { /* already gone */ }
+    }
+    for (var a = 0; a < handle.armed.length; a++) handle.armed[a].removeAttribute(handle.attr);
+  }
+
+  /* ── the sweep ────────────────────────────────────────────────────────── */
+
+  var rows = [];
+  collect(rows, 'rest');       // FIRST, and with nothing injected: the rest row
+                               // set is byte-identical to every baseline taken
+                               // before S3b-3.
+  var sheetsBefore = snapshotRules();
+  var kill = neutraliseTransitions();
+  try {
+    for (var s = 0; s < STATES.length; s++) {
+      var handle = armState(STATES[s]);
+      try {
+        if (handle.armed.length) collect(rows, STATES[s]);
+      } finally {
+        disarm(handle);
+      }
+    }
+  } finally {
+    if (kill.parentNode) kill.parentNode.removeChild(kill);
+  }
+  if (snapshotRules() !== sheetsBefore) {
+    throw new Error('contrast sweep: the state passes did not restore the '
+      + 'stylesheets they edited — every later measurement on this page, the '
+      + 'focus-ring pass included, would be taken against a document the '
+      + 'browser never served');
+  }
+  var leftArmed = document.querySelectorAll('[data-cs-hover],[data-cs-active],'
+    + '[data-cs-focus-within],style[data-cs-kill]').length;
+  if (leftArmed) {
+    throw new Error('contrast sweep: ' + leftArmed + ' element(s) left armed');
   }
   return rows;
 }
@@ -599,11 +1009,67 @@ function sameColor(a, b) {
  * and a threshold would then wave it through onto a heading. The contract is
  * not a threshold and must not be enforced as one.
  */
+/**
+ * EXEMPTIONS — an explicit, named allowlist, and nothing else.
+ *
+ * SC 1.4.11 does not ask every graphic to clear 3:1. It exempts inactive
+ * components outright, it exempts pure decoration, and it asks only for the
+ * parts of a graphic REQUIRED to understand the content — so an icon whose
+ * meaning is carried by the label beside it is not in scope. Measuring every
+ * icon and then failing all of them would print a wrong verdict with the same
+ * authority as a right one.
+ *
+ * The mechanism is deliberately dumb: a list of literal descriptors, each
+ * carrying the NAME of the thing it exempts, WHY, and the CLAUSE it rests on.
+ * No heuristic — a rule like `has a text sibling` would silently acquire and
+ * lose members as markup moves, and nobody would ever be told. Anything not on
+ * the list is scored.
+ *
+ * An exempted row is still MEASURED, still counted in `pairs`, and still
+ * emitted into the signature on its own EXEMPT line. "We did not look" and
+ * "we looked and chose not to fail it" must not be the same entry, and adding
+ * or removing an exemption must move the md5 the gate is judged on.
+ */
+function normaliseExempt(list) {
+  const out = [];
+  for (const e of list || []) {
+    if (!e || !e.name || !e.why || !e.sc) {
+      throw new Error('contrast exemption needs { name, why, sc } — an unnamed or '
+        + 'unjustified suppression is indistinguishable from a bug: '
+        + JSON.stringify(e));
+    }
+    const narrows = ['role', 'sel', 'color', 'bg', 'opacity', 'state']
+      .filter((k) => e[k] !== undefined);
+    if (!narrows.length) {
+      throw new Error(`contrast exemption ${e.name} narrows on nothing — it would `
+        + 'exempt the whole surface');
+    }
+    out.push(e);
+  }
+  return out;
+}
+
+/** True when EVERY field the entry declares matches the row. */
+function exemptionMatches(e, row) {
+  if (e.role !== undefined && row.role !== e.role) return false;
+  if (e.state !== undefined && (row.state || 'rest') !== e.state) return false;
+  if (e.color !== undefined && row.color !== e.color) return false;
+  if (e.opacity !== undefined && row.opacity !== e.opacity) return false;
+  if (e.bg !== undefined && bgKey(row.bg) !== e.bg) return false;
+  if (e.sel !== undefined) {
+    const sel = String(row.sel || '');
+    if (e.sel instanceof RegExp ? !e.sel.test(sel) : !sel.includes(e.sel)) return false;
+  }
+  return true;
+}
+
 function judge(rows, opts) {
   const o = opts || {};
   const inkFaint = parseColor(o.inkFaint || INK_FAINT);
+  const exemptions = normaliseExempt(o.exempt);
   const measured = [];
   const failures = [];
+  const exempt = [];
   const contract = [];
   const undeterminable = [];
 
@@ -616,7 +1082,11 @@ function judge(rows, opts) {
     const fg = compositeOver({ ...declared, a: declared.a * opacity }, bg);
     const ratio = contrastRatio({ r: fg.r, g: fg.g, b: fg.b }, bg);
     const large = isLargeText(row.px, row.weight);
-    const floor = row.role === 'ring' ? AA_NON_TEXT : (large ? AA_LARGE : AA_BODY);
+    // SC 1.4.11's 3:1 covers focus indicators AND graphics. An icon judged at
+    // 4.5 would be a wrong verdict printed with the same authority as a right
+    // one, which is worse than not measuring it at all.
+    const nonText = row.role === 'ring' || row.role === 'graphic';
+    const floor = nonText ? AA_NON_TEXT : (large ? AA_LARGE : AA_BODY);
 
     const scored = {
       ...row,
@@ -632,13 +1102,24 @@ function judge(rows, opts) {
       undeterminable.push({ ...scored, why: 'background-image in the backdrop stack' });
     }
     measured.push(scored);
-    if (!scored.pass && !row.imageBacked) failures.push(scored);
-    if (sameColor(declared, inkFaint)) contract.push({ ...scored, why: '--ink-faint resolved as a glyph colour' });
+    if (!scored.pass && !row.imageBacked) {
+      const hit = exemptions.find((e) => exemptionMatches(e, scored));
+      if (hit) exempt.push({ ...scored, exemptedBy: hit.name, why: hit.why, sc: hit.sc });
+      else failures.push(scored);
+    }
+    // D-016 says --ink-faint is NON-TEXT ONLY. An icon painted in it is the
+    // permitted use, not the violation, so `graphic` rows are exempt — the
+    // contract is about glyphs. Extending the sweep to SVG paint without this
+    // would have manufactured contract violations out of compliant icons.
+    if (row.role !== 'graphic' && sameColor(declared, inkFaint)) {
+      contract.push({ ...scored, why: '--ink-faint resolved as a glyph colour' });
+    }
   }
 
   return {
     measured,
     failures,
+    exempt,
     contract,
     undeterminable,
     pairs: uniquePairs(measured),
@@ -656,9 +1137,13 @@ function uniquePairs(measured) {
     seen.add([
       m.color,
       Math.round(m.bg.r) + ',' + Math.round(m.bg.g) + ',' + Math.round(m.bg.b),
-      m.large ? 'L' : 'B',
+      // Three bands, not two: Large text, Body text, and Non-text (a graphic,
+      // at SC 1.4.11's floor). Appended, never reordered — a `rest` row's key
+      // is byte-identical to the one it had before states existed, which is
+      // what lets a pair count be compared across S3b-3.
+      m.role === 'graphic' ? 'N' : (m.large ? 'L' : 'B'),
       m.opacity,
-    ].join('|'));
+    ].join('|') + (m.state && m.state !== 'rest' ? '|' + m.state : ''));
   }
   return seen.size;
 }
@@ -789,6 +1274,19 @@ function round2(n) { return Math.round(n * 100) / 100; }
  * Input is the shape `judge()` returns (plus `rings`), which is also the shape
  * a driver writes to disk, so a signature can be recomputed from a stored
  * report months later without a browser.
+ *
+ * `exempt` is deliberately NOT a fifth channel here, and re-adding it would be
+ * a mistake worth naming. The portal's driver — `scripts/portal/shoot.js:667`
+ * — serialises `failures`, `contract`, `undeterminable` and `rings` and knows
+ * nothing about exemptions, so a signature taken from a `judge()` return in
+ * process and a signature taken from that driver's own report would differ by
+ * the EXEMPT lines alone. One artefact with two ways to compute it is the
+ * drift this whole file exists to prevent, and the gate has to read the
+ * driver's report. The allowlist is still fully visible in the hash: silencing
+ * a shape REMOVES its FAIL line, which moves the md5 — measured, by exempting
+ * `.holiday__remove` on purpose and watching `FAIL 2.60:1 ... [graphic]`
+ * disappear. What the list itself says lives in `portalContrast.js`, next to
+ * the reasons.
  * ────────────────────────────────────────────────────────────────────────── */
 
 function bgKey(bg) {
@@ -806,7 +1304,12 @@ function failureShape(f) {
   return ratioText(f.ratio) + ':1 needs ' + f.floor + '  '
     + f.color + ' on rgb(' + bgKey(f.bg) + ')'
     + (f.large ? ' [large]' : '')
-    + (f.opacity !== undefined && f.opacity !== 1 ? ' @op' + f.opacity : '');
+    + (f.role === 'graphic' ? ' [graphic]' : '')
+    + (f.opacity !== undefined && f.opacity !== 1 ? ' @op' + f.opacity : '')
+    // Appended last so a rest text row's shape is byte-identical to the one it
+    // had before S3b-3: a signature diff across this change shows only NEW
+    // coverage, never a reformatting of what was already there.
+    + (f.state && f.state !== 'rest' ? ' :' + f.state : '');
 }
 
 /** The distinct shape of one focus indicator, drawn through the same walk. */

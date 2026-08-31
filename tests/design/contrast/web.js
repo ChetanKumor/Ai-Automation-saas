@@ -275,7 +275,8 @@ function bucketStats(measured) {
  * ────────────────────────────────────────────────────────────────────────── */
 
 const WEB_BASELINE = Object.freeze({
-  at: '0b4bce8',                     // the tree the sweep below was taken on
+  at: '8c37822+S3b-3',               // HEAD plus this session's core, which is the
+                                     // change that moved every number below
   // The build it was served from. Recorded, and deliberately NOT asserted: the
   // same signature has now been reproduced across three different build ids
   // (`R6hjrB7Zfi7Yk-_NSbawQ`, `I3WZI49rGcziBYeJx9MlB`, this one), which is what
@@ -311,14 +312,23 @@ const WEB_BASELINE = Object.freeze({
   }),
 
   cells: 33,                    // 2x2x3 language-bearing + 7x1x3 degenerate
-  rows: 4245,                   // glyph rows measured
+  rows: 5452,                   // glyph rows measured
   recededRows: 612,             // …of which sat inside a stepNear/stepFloor turn
-  contentRows: 3633,            // …body copy, controls, navigation
-  pairs: 34,                    // distinct colour/backdrop/band/opacity
-  failures: 6,                  // threshold failures, 2 distinct shapes
+  contentRows: 4840,            // …body copy, controls, navigation
+  pairs: 62,                    // distinct colour/backdrop/band/opacity
+  failures: 36,                 // threshold failures, 3 distinct shapes
   recededFailures: 0,           // §5 set one — EMPTY, out of 612 rows measured
-  contentFailures: 6,           // §5 set two — all six /specimen's own demo
-  failingRoutes: Object.freeze(['/specimen']),
+  contentFailures: 36,           // §5 set two — 6 /specimen demo + 30 F-F010
+  failingRoutes: Object.freeze(['/acceptable-use', '/data-deletion', '/privacy',
+    '/specimen', '/terms']),
+  /** The one real defect on this surface. Recorded so the assertion that lets
+   *  it through can name the SHAPE rather than wave four routes past. */
+  knownDefect: Object.freeze({
+    id: 'F-F010',
+    shape: 'FAIL      3.57:1 needs 4.5  rgb(15, 118, 110) on rgb(250,248,245) @op0.8 :hover',
+    count: 30,
+    site: 'web/app/(legal)/legal.module.css:269-271 and :342-344',
+  }),
   worstRecededRatio: 7.31,      // --ink-soft on --ground, against a 4.5 floor
   contract: 6,                  // D-016 --ink-faint as a glyph colour
   undeterminable: 6,            // background-image in the backdrop stack
@@ -326,18 +336,19 @@ const WEB_BASELINE = Object.freeze({
   ringFailures: 0,              // below SC 1.4.11's 3:1
 
   signatureLines: Object.freeze([
-    'FAIL      2.21:1 needs 4.5  rgb(168, 161, 153) on rgb(242,238,232)',
-    'FAIL      3.42:1 needs 4.5  rgb(133, 127, 121) on rgb(242,238,232)',
-    'CONTRACT  --ink-faint resolved as a glyph colour  rgb(133, 127, 121) on rgb(242,238,232)  3.42:1',
-    'CONTRACT  --ink-faint resolved as a glyph colour  rgb(168, 161, 153) on rgb(242,238,232)  2.21:1',
-    'UNDET     background-image in the backdrop stack  rgb(143, 163, 173) on rgb(32,44,51)',
-    'RING      PASS 15.79  [outline 15.79 vs outer backdrop  2px solid rgb(23, 21, 15) @ 2px]',
-    'RING      PASS 17.22  [glow 1.00 vs outer backdrop  0px 0px 0px 2px rgb(250, 248, 245) | glow 17.22 vs outer backdrop  0px 0px 0px 4px rgb(23, 21, 15)]',
-    'RING      PASS 17.22  [outline 17.22 vs outer backdrop  2px solid rgb(23, 21, 15) @ 2px]',
-    'RING      PASS 17.95  [outline 17.95 vs outer backdrop  1px auto rgb(16, 16, 16) @ 1px]',
-    'RING      PASS 18.25  [glow 1.06 vs outer backdrop  0px 0px 0px 2px rgb(250, 248, 245) | glow 18.25 vs outer backdrop  0px 0px 0px 4px rgb(23, 21, 15)]',
+    "FAIL      2.21:1 needs 4.5  rgb(168, 161, 153) on rgb(242,238,232)",
+    "FAIL      3.42:1 needs 4.5  rgb(133, 127, 121) on rgb(242,238,232)",
+    "FAIL      3.57:1 needs 4.5  rgb(15, 118, 110) on rgb(250,248,245) @op0.8 :hover",
+    "CONTRACT  --ink-faint resolved as a glyph colour  rgb(133, 127, 121) on rgb(242,238,232)  3.42:1",
+    "CONTRACT  --ink-faint resolved as a glyph colour  rgb(168, 161, 153) on rgb(242,238,232)  2.21:1",
+    "UNDET     background-image in the backdrop stack  rgb(143, 163, 173) on rgb(32,44,51)",
+    "RING      PASS 15.79  [outline 15.79 vs outer backdrop  2px solid rgb(23, 21, 15) @ 2px]",
+    "RING      PASS 17.22  [glow 1.00 vs outer backdrop  0px 0px 0px 2px rgb(250, 248, 245) | glow 17.22 vs outer backdrop  0px 0px 0px 4px rgb(23, 21, 15)]",
+    "RING      PASS 17.22  [outline 17.22 vs outer backdrop  2px solid rgb(23, 21, 15) @ 2px]",
+    "RING      PASS 17.95  [outline 17.95 vs outer backdrop  1px auto rgb(16, 16, 16) @ 1px]",
+    "RING      PASS 18.25  [glow 1.06 vs outer backdrop  0px 0px 0px 2px rgb(250, 248, 245) | glow 18.25 vs outer backdrop  0px 0px 0px 4px rgb(23, 21, 15)]",
   ]),
-  signatureMd5: '2bc2998236c8422a7407f6ffaf85d394',
+  signatureMd5: 'b88356698dacf4f40c361f366b362b6e',
 });
 
 /** md5 of a signature body built from `lines`, LF-joined and LF-terminated —

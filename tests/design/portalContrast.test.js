@@ -188,10 +188,26 @@ test('the contrast instrument computes what WCAG says, on the values it will mee
   // not deep-equality, so re-inlining any of these into portalContrast.js —
   // where it would drift the first time either file is touched — fails here.
   for (const name of ['parseColor', 'compositeOver', 'contrastRatio', 'isLargeText',
-    'parseBoxShadow', 'judge', 'judgeRing', 'uniquePairs', 'signature',
+    'parseBoxShadow', 'judgeRing', 'uniquePairs', 'signature',
     'buildSource', 'sweepPage', 'blurActive', 'tagFocusables', 'readFocusRing']) {
     assert.strictEqual(kit[name], core[name], `${name} must BE the core's, not a copy of it`);
   }
+  // `judge` is the one BINDING rather than a re-export, because the portal's
+  // SC 1.4.11 allowlist is a fact about the portal and `shoot.js:588` calls
+  // `kit.judge(rows)` with no options. A binding is a place a fork can hide, so
+  // it is pinned to add the list and NOTHING else: same verdicts on rows the
+  // list does not touch, byte for byte.
+  assert.notStrictEqual(kit.judge, core.judge, 'kit.judge binds the portal allowlist');
+  const untouched = [
+    { color: 'rgb(148, 163, 184)', bg: { r: 255, g: 255, b: 255 }, px: 13, weight: 400, role: 'text' },
+    { color: '#A8A199', bg: { r: 12, g: 20, b: 32 }, px: 13, weight: 400, role: 'text' },
+    { color: 'rgb(15, 118, 110)', bg: { r: 250, g: 248, b: 245 }, px: 13, weight: 400, role: 'text' },
+  ];
+  assert.deepStrictEqual(
+    kit.signature(kit.judge(untouched)).lines,
+    kit.signature(core.judge(untouched)).lines,
+    'the binding must not change a verdict its allowlist does not name'
+  );
   for (const name of ['TEXT_SWEEP_SOURCE', 'BLUR_SOURCE', 'TAG_FOCUSABLES_SOURCE', 'READ_RING_SOURCE']) {
     assert.strictEqual(kit[name], core[name]);
     assert.ok(kit[name].length > 500, `${name} must be real serialised source, not "undefined"`);
@@ -288,6 +304,66 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
   assert.strictEqual(notFaint.contract.length, 0, 'and must not fire on a different failing colour');
   assert.strictEqual(notFaint.failures.length, 1, '--faint is a threshold failure, not a contract one');
 
+  // ── SC 1.4.11: the allowlist, and what it is NOT allowed to do ────────
+  // S3b-3 taught the sweep to see SVG paint and 339 icons came back under 3:1.
+  // Three of those groups are outside the criterion, and they are exempted by a
+  // LIST rather than by a rule. A suppression mechanism nobody has watched
+  // suppress anything is not a mechanism, so each entry is exercised on a row
+  // it must silence AND on a near-miss it must not.
+  const EXEMPT = kit.PORTAL_EXEMPT;
+  assert.strictEqual(EXEMPT.length, 3, 'three entries; a fourth is a decision, not an edit');
+  for (const e of EXEMPT) {
+    assert.ok(e.name && e.why && e.sc, `exemption ${e.name} must carry its own reason`);
+    assert.match(e.sc, /SC 1[.]4[.]11/, `exemption ${e.name} must name the clause it rests on`);
+    // Every entry is role-scoped to `graphic`. This is the hard limit on the
+    // whole mechanism: no arrangement of this list can silence a TEXT glyph, so
+    // the 4.5:1 body floor is not reachable from here at all.
+    assert.strictEqual(e.role, 'graphic',
+      `exemption ${e.name} must be graphic-only — the allowlist may not reach body text`);
+  }
+  const g = (sel, over) => ({
+    role: 'graphic', sel, color: 'rgb(148, 163, 184)', state: 'rest',
+    bg: { r: 251, g: 250, b: 247 }, px: 0, weight: 400, opacity: 1, ...over,
+  });
+  const only = (rows) => kit.judge(rows);
+  const cases = [
+    ['sidebar-nav-icon',
+      g('nav#nav > div.nav__grp > a.nav__item > svg > rect'),
+      g('div#phones > div.phone-row > button.phone-row__remove > svg > path')],
+    ['nav-soon-inactive',
+      g('nav#nav > div.nav__grp > span.nav__item.nav__item--soon > svg > path'),
+      g('nav#nav > div.nav__grp > span.nav__item > svg > path')],
+    ['readiness-ring-track',
+      g('section#readinessCard > div.readiness > div.ring > svg > circle.ring__track'),
+      g('section#readinessCard > div.readiness > div.ring > svg > circle.ring__arc')],
+  ];
+  for (const [name, hit, miss] of cases) {
+    const silenced = only([hit]);
+    assert.strictEqual(silenced.failures.length, 0, `${name} must silence its own shape`);
+    assert.strictEqual(silenced.exempt.length, 1);
+    assert.strictEqual(silenced.exempt[0].exemptedBy, name);
+    // Still MEASURED. 'we did not look' and 'we looked and chose not to fail it'
+    // are different entries, and only the second one is a decision.
+    assert.strictEqual(silenced.measured.length, 1, `${name} must still measure what it exempts`);
+    const scored = only([miss]);
+    assert.strictEqual(scored.exempt.length, 0, `${name} must not reach ${miss.sel}`);
+    assert.strictEqual(scored.failures.length, 1);
+  }
+  // The two icon-only controls are deliberately NOT on the list: their icon is
+  // the whole control, so SC 1.4.11's 'required to understand the content' is
+  // exactly what they are. .holiday__remove in a past row measures 2.60:1.
+  const holiday = g('div#holidays > div.holiday-row.holiday-row--past > button.holiday__remove > svg > path',
+    { color: 'rgb(100, 116, 139)', bg: { r: 253, g: 252, b: 250 }, opacity: 0.68 });
+  assert.strictEqual(only([holiday]).exempt.length, 0, '.holiday__remove is not exempt');
+  assert.strictEqual(only([holiday]).failures.length, 1, '.holiday__remove is a real defect');
+  // And the mechanism refuses to be used badly: an entry with no reason, and an
+  // entry that narrows on nothing, both throw rather than quietly suppressing.
+  assert.throws(() => core.judge([holiday], { exempt: [{ role: 'graphic' }] }),
+    /needs [{] name, why, sc [}]/, 'an unjustified exemption must be impossible');
+  assert.throws(() => core.judge([holiday],
+    { exempt: [{ name: 'x', why: 'y', sc: 'SC 1.4.11' }] }),
+    /narrows on nothing/, 'an exemption that names no shape must be impossible');
+
   // ── the live baseline, re-hashable without a browser ──────────────────
   // The live sweep needs Chrome, a scratch Postgres and a signed-in portal, so
   // its verdict cannot run here. Its SIGNATURE can: contrast/portal.signature.txt
@@ -302,8 +378,8 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
     'portal.signature.txt no longer hashes to PORTAL_BASELINE.signatureMd5'
   );
   const sigLines = sig.trim().split('\n');
-  assert.strictEqual(sigLines.filter((l) => l.startsWith('FAIL ')).length, 13,
-    'the portal baseline is 13 distinct failing pairs');
+  assert.strictEqual(sigLines.filter((l) => l.startsWith('FAIL ')).length, 20,
+    'the portal baseline is 20 distinct failing shapes');
   assert.strictEqual(sigLines.filter((l) => l.startsWith('CONTRACT ')).length, 0,
     'D-016: zero --ink-faint glyphs on the live portal, measured');
   assert.strictEqual(kit.PORTAL_BASELINE.contract, 0);

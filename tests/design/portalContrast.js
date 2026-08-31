@@ -82,17 +82,23 @@ const core = require('./contrast/core');
 const PORTAL_SIGNATURE_FILE = path.join(__dirname, 'contrast', 'portal.signature.txt');
 
 const PORTAL_BASELINE = Object.freeze({
-  at: 'ecb049b',                    // the commit the sweep below was taken on
+  at: '8c37822+S3b-3',              // HEAD plus this session's core. The tree did
+                                    // NOT move — every number below moved because
+                                    // the instrument started seeing pseudo-element
+                                    // glyphs, SVG paint, and three interaction
+                                    // states it had never entered.
   pages: 14,
   widths: Object.freeze([1280, 380]),
-  rows: 2347,                       // glyph rows measured
-  pairs: 47,                        // distinct colour/backdrop/band/opacity
-  failures: 558,                    // threshold failures, 13 distinct shapes
+  rows: 4312,                       // glyph rows measured (was 2347)
+  pairs: 114,                       // distinct colour/backdrop/band/opacity/state
+  failures: 713,                    // threshold failures, 20 distinct shapes
+  exempt: 318,                      // measured, below floor, and on the SC 1.4.11
+                                    // allowlist below: 288 + 26 + 4
   contract: 0,                      // D-016 --ink-faint as a glyph colour
   undeterminable: 2,                // background-image in the backdrop stack
   rings: 712,                       // focus indicators measured
   ringFailures: 0,                  // below SC 1.4.11's 3:1
-  signatureMd5: '1c51c92ad7586e239e6cb0e2de5a057b',
+  signatureMd5: 'e6eebb0a8c1b79f33d202c540d8788ea',
 });
 
 /**
@@ -110,7 +116,67 @@ function readPortalSignature() {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
+ * THE PORTAL'S SC 1.4.11 ALLOWLIST.
+ *
+ * S3b-3 taught the sweep to see SVG paint, and 339 of the portal's icons came
+ * back below 3:1. SC 1.4.11 does not ask for 3:1 of all of them, and the three
+ * entries below are the ones it does not ask for. They are a LIST, not a rule:
+ * a heuristic such as "has a text sibling" would acquire and lose members every
+ * time markup moved and would never say so, whereas a list that stops matching
+ * shows up as a new FAIL line the moment the thing it named changes.
+ *
+ * Each entry narrows on ROLE and SELECTOR — what the thing IS — and not on its
+ * colour. The reasons below are facts about the markup, so an exemption must
+ * not quietly survive a re-hue, nor lapse because a token moved.
+ *
+ * Everything NOT on this list is scored, deliberately including the two
+ * icon-only controls: `.phone-row__remove` and `.holiday__remove` carry no
+ * adjacent label at all, so their icon IS the whole control, and
+ * `.holiday__remove` in a past row (2.60:1 at opacity .68) is a real defect
+ * that stays in the number.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+const PORTAL_EXEMPT = Object.freeze([
+  Object.freeze({
+    name: 'sidebar-nav-icon',
+    role: 'graphic',
+    sel: /> a\.nav__item > svg > /,
+    why: 'Every sidebar item paints its icon immediately beside its own visible '
+      + 'text label, at the same time, in the same control. Nothing about the '
+      + 'destination is available only from the glyph.',
+    sc: 'SC 1.4.11 Graphical Objects applies to parts of graphics REQUIRED to '
+      + 'understand the content; an icon duplicated by adjacent text is not one.',
+  }),
+  Object.freeze({
+    name: 'nav-soon-inactive',
+    role: 'graphic',
+    sel: /nav__item--soon > svg > /,
+    why: 'The "Soon" rows are not navigable — they are rendered as a <span>, not '
+      + 'an <a>, and carry no href and no handler.',
+    sc: 'SC 1.4.11 exempts INACTIVE user interface components outright, without '
+      + 'reference to what they are painted in.',
+  }),
+  Object.freeze({
+    name: 'readiness-ring-track',
+    role: 'graphic',
+    sel: /> circle\.ring__track$/,
+    why: 'The groove the progress arc is drawn into. It encodes no value — the '
+      + 'arc does, and the same count is printed as text inside the ring.',
+    sc: 'SC 1.4.11 does not apply to pure decoration; the track is the '
+      + 'background of the indicator, not the indicator.',
+  }),
+]);
+
+/* ──────────────────────────────────────────────────────────────────────────
  * Re-export. Named explicitly — a spread would let the surface drift silently.
+ *
+ * `judge` is the ONE exception, and it is a binding rather than a copy: it
+ * calls the core's judge and adds the allowlist above, because the portal's
+ * driver — scripts/portal/shoot.js:588 — calls `kit.judge(rows)` with no
+ * options and cannot be edited from this session's file set. The exemptions are
+ * a fact about the portal, so they belong here and not in a surface-agnostic
+ * engine. portalContrast.test.js pins that this wrapper adds the list and
+ * nothing else.
  * ────────────────────────────────────────────────────────────────────────── */
 
 const RE_EXPORTED = [
@@ -126,6 +192,10 @@ const RE_EXPORTED = [
   'INK_FAINT', 'AA_BODY', 'AA_LARGE', 'AA_NON_TEXT',
 ];
 
+function judge(rows, opts) {
+  return core.judge(rows, Object.assign({ exempt: PORTAL_EXEMPT }, opts));
+}
+
 const surface = {};
 for (const name of RE_EXPORTED) {
   if (core[name] === undefined) {
@@ -136,8 +206,10 @@ for (const name of RE_EXPORTED) {
 }
 
 module.exports = Object.assign(surface, {
+  judge,                            // the binding, not core.judge — see above
   core,
   PORTAL_BASELINE,
+  PORTAL_EXEMPT,
   PORTAL_SIGNATURE_FILE,
   readPortalSignature,
 });
