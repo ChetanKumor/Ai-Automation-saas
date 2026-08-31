@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 7d274a4e149e8fdad46f0df79547ebc04532c37c
+Verified-at: b558e32a0f9f12a1a2ee2f92be9575d643544533
 Verified-on: 2026-08-31
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -978,12 +978,50 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
 
   **Why it matters more than a normal flake:** `portalLive.test.js` asserts
   `ringFailures === 0` as a hard gate — correctly, since it is SC 1.4.11 — so
-  this reds `npm test` whenever it fires, and the failing report is deleted in
-  that test's `finally`, so **the element is not recoverable after the fact.**
-  Whoever chases this should have the sweep persist its report on failure, or
-  loop `shoot.js --contrast` retaining every run, and read `sel` off the ring
-  with `indicators.length === 0`. Expect roughly one hit in six runs at ~5
-  minutes each.
+  this reds `npm test` whenever it fires.
+
+  **The evidence hazard is CLOSED at `b558e32` (S3c-1a); the flake is NOT.**
+  The note above used to end "the element is not recoverable after the fact",
+  because the report was deleted in an unconditional `finally`. It is now
+  deleted only on a clean pass. Any other exit leaves the run under
+  `scratchpad/contrast/` (gitignored) and appends its absolute path to the
+  thrown message, and a failing ring is printed as an ELEMENT — page,
+  viewport, selector, label, `:focus-visible`, every indicator with its ratio,
+  and both the focused and the RESTING computed values `judgeRing` compared.
+  A signature diff that grows a `RING` line gets the same block, which is the
+  path this flake actually takes: the extra line reds the signature assert
+  before `ringFailures` is ever reached.
+
+  Read the resting half first. `judgeRing` can only call a border or a fill an
+  indicator by comparing it against rest, and it takes rest from
+  `restBy.get(String(ring.i))` (`shoot.js:574`), which returns nothing when the
+  focused element carried no `data-pc-i`. In that case a border indicator and a
+  fill change are both invisible to the verdict and the row reads "no
+  indicator" whether or not the element had one. **That is a candidate
+  mechanism for this flake and it is not yet excluded** — `rest: NOT RECORDED`
+  is printed in words so the next red run answers it on sight rather than by
+  inference.
+
+  ⚠️ **It did not reproduce. Ten sweeps of this exact tree, all clean.** The
+  bounded hunt S3c-1a was given ran `shoot.js --contrast` ten times unchanged,
+  retaining every report: **712 rings / 0 failing, `9227cbc5…`, 12 lines, on
+  all ten**, and `rows 4222 / pairs 83` byte-identical across all ten as well.
+  Three further clean sweeps landed the same session (the Phase 0 `os:check`,
+  the green half of the red-before-green cycle, and the 711 unforced rings of
+  the red half). So on this tree the record is **1 fire in 17 sweeps**, and
+  the earlier estimate of *"roughly one hit in six runs"* — which this note
+  used to carry — **is not supported and has been removed.** The hunt was
+  bounded at ten by instruction and was not extended. Nothing here attributes
+  the flake, excludes it, or closes it; what closed is only the inability to
+  investigate it when it next fires.
+
+  A byproduct worth its own line, because a comment in the tree still says the
+  opposite: `PORTAL_BASELINE` in `tests/design/portalContrast.js` explains the
+  counts as unstable, citing S2's five sweeps reading 2302 / 2325 / 2339 /
+  2347 rows. **At this tree they are not unstable** — ten consecutive sweeps
+  moved neither `rows`, `pairs`, `rings`, nor the signature. That does not make
+  the counts an invariant and nothing was changed to assert them; it means the
+  readiness races S2 measured are, at this tree, no longer observable.
 
   **Shots: all 54 moved**, which is the point — every page's glyph colour changed.
   Determinism across two runs at the new tree: **11 of 54 move**, and all 11 are
