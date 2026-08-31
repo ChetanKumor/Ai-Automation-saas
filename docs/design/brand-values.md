@@ -72,8 +72,8 @@ so the shadowing cannot come back without reddening the suite.
 | `--radius` | `8px` | portal, demo/shared, demo/styles |
 | `--radius-sm` | `6px` | portal, demo/shared, demo/styles |
 | `--sans` | `'Noto Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif` | portal, demo/shared, demo/styles |
-| `--shadow` | `0 2px 4px rgba(15, 23, 42, .05), 0 8px 20px rgba(15, 23, 42, .08)` | portal, demo/shared, demo/styles |
-| `--shadow-sm` | `0 1px 2px rgba(15, 23, 42, .06)` | portal, demo/shared, demo/styles |
+| `--shadow` | `0 2px 4px rgba(23, 21, 15, .05), 0 8px 20px rgba(23, 21, 15, .08)` | portal, demo/shared, demo/styles |
+| `--shadow-sm` | `0 1px 2px rgba(23, 21, 15, .06)` | portal, demo/shared, demo/styles |
 | `--te` | `'Noto Sans Telugu', 'Noto Sans', system-ui, sans-serif` | portal, demo/shared, demo/styles |
 | `--teal` | `#0f766e` | portal, demo/shared, demo/styles |
 | `--teal-050` | `#f0fdfa` | portal, demo/shared, demo/styles |
@@ -105,8 +105,10 @@ just as loudly as an undocumented change.
 | `--radius` | demo/styles | `14px` | Same reason as `demo/shared`: the demo pair are a frozen sales surface and were not migrated to the v2 radius scale. |
 | `--radius-sm` | demo/shared | `10px` | Same reason as `--radius`: the v2 control radius tightened to 6px and the demo was not migrated. |
 | `--radius-sm` | demo/styles | `10px` | Same reason as `--radius`: the v2 control radius tightened to 6px and the demo was not migrated. |
-| `--shadow` | demo/shared | `0 1px 2px rgba(15, 23, 42, .04), 0 6px 16px rgba(15, 23, 42, .06)` | v2 restructured elevation into sm/md/lg and removed the card shadow (spec §2.5); the demo keeps the pre-v2 float. |
-| `--shadow` | demo/styles | `0 1px 2px rgba(15, 23, 42, .04), 0 6px 16px rgba(15, 23, 42, .06)` | Same reason as `demo/shared`: the demo keeps the pre-v2 float and its cards still cast. |
+| `--shadow` | demo/shared | `0 1px 2px rgba(15, 23, 42, .04), 0 6px 16px rgba(15, 23, 42, .06)` | v2 restructured elevation into sm/md/lg and removed the card shadow (spec §2.5); the demo keeps the pre-v2 float. S3b-2 widened the divergence from geometry alone to hue as well: the portal casts warm ink `rgb(23, 21, 15)` and the demo is still slate. |
+| `--shadow` | demo/styles | `0 1px 2px rgba(15, 23, 42, .04), 0 6px 16px rgba(15, 23, 42, .06)` | Same reason as `demo/shared`: the demo keeps the pre-v2 float and its cards still cast, in the slate the portal left behind at S3b-2. |
+| `--shadow-sm` | demo/shared | `0 1px 2px rgba(15, 23, 42, .06)` | New at S3b-2, and a hue divergence rather than a geometry one. The portal's shadow scale was re-hued from slate `rgb(15, 23, 42)` to warm ink `rgb(23, 21, 15)` so it stops casting a cool shadow onto warm paper; every alpha, offset, blur and spread is unchanged. The demo pair are a frozen cool sales surface and keep the slate cast. |
+| `--shadow-sm` | demo/styles | `0 1px 2px rgba(15, 23, 42, .06)` | Same reason as `demo/shared`: the demo pair stay on the cool ground, so their contact shadow keeps the slate tint the portal no longer uses. |
 | `--r-sm` | web | `4px` | `web/` has its own radius scale predating the v2 spec (4/8/12 against the portal's 6/10/14). It is the **last** of the three radius names still divergent: the enterprise polish pass moved the portal's `--r-md`/`--r-lg` onto `8px`/`12px`, which are `web/`'s own two values, so those two rows are gone. `--r-sm` did not move — portal `6px` against web `4px`. Phase 1b parked a dormant `--rad-sm`/`--rad-md`/`--rad-lg` (2/6/10) beside this scale rather than repointing it, precisely so that no existing consumer moves; this last collision resolves at **Phase 2**, when `web/`'s components take the new scale. |
 
 **Two rows retired on 2026-08-29: zero divergence, not a smaller one.** `--r-md`
@@ -164,9 +166,9 @@ weight rather than on alpha"):
 |---|---|---|---|---|---|
 | soft divider / muted fill | `--line-2` | `#edf2f7` | `#f5f1eb` | 2.02 | +0.0010 |
 | sidebar ground | `.side` | `#f9fafb` | `#fbfaf7` | 0.76 | +0.0012 |
-| control fill | `.btn`, `.input`, `.in-wrap` | `#fbfcfe` | `#fdfcfa` | 0.45 | +0.0012 |
+| control fill | `.btn`, `.input`, `.in-wrap`, `.phone-row__remove`, `.lang-toggle`, `.holiday__remove` | `#fbfcfe` | `#fdfcfa` | 0.45 | +0.0012 |
 | sunk control panel | `.in-prefix`, `.chip` | `#f3f6f9` | `#f8f5f1` | 1.39 | −0.0019 |
-| nav hover | `.nav__item:hover` | `#f0f4f8` | `#f6f3ee` | 1.70 | −0.0014 |
+| nav hover | `.nav__item:hover`, `.day__toggle:hover` | `#f0f4f8` | `#f6f3ee` | 1.70 | −0.0014 |
 
 Every one holds luminance to ±0.002. **The flip is a hue change, not a lightness
 change** — which is why it moved every backdrop in the contrast signature and
@@ -186,12 +188,48 @@ control-internal one at s = 1.39. Mapping them would more than double the step
 inside a phone-number input in order to make a table look complete. When the
 portal grows a page-section sunk, that is the row to add.
 
-**Still cool, and out of S3b's scope by decision:** `--field` / `--field-2` /
-`--field-line` (the Verbatim ink ground — S3c), the semantic tint fills
-(`--teal/green/amber/red-50/100/200`, state tints rather than ground steps), and
-the `--shadow-*` scale, which is still slate `rgba(15, 23, 42, …)` cast onto warm
-paper. The shadows are the loudest survivor and are not a backdrop, so they were
-reported rather than moved.
+**Still cool, and out of scope by decision:** `--field` / `--field-2` /
+`--field-line` (the Verbatim ink ground — S3c) and the semantic tint fills
+(`--teal/green/amber/red-50/100/200`, state tints rather than ground steps).
+
+**S3b-2 moved the `--shadow-*` scale**, which S3b had reported as the loudest
+survivor and deliberately left alone. Slate `rgb(15, 23, 42)` became warm ink
+`rgb(23, 21, 15)` — the triple `--line` and `--line-3` already carry — across all
+five layers of `--shadow-sm` / `--shadow-md` / `--shadow-lg`. **Hue only:** every
+alpha (.06, .05/.08, .06/.14) and every offset, blur and spread is exactly what
+it was. Shadow *geometry* is a separate argument — the design direction prefers
+depth from fill and hairline over a resting shadow — and is deliberately not
+settled here.
+
+**S3b-2 also closed the five backdrop literals S3b could not reach.** All five
+live outside `tokens.css`, which is why a flip of the token layer missed them.
+`.phone-row__remove` and `.lang-toggle` (`clinic-profile.css:24,46`) and
+`.holiday__remove` (`hours.css:121`) held the control-fill step as a raw
+`#fbfcfe`; `.day__toggle:hover` (`hours.css:50`) held the nav-hover step as a raw
+`#f0f4f8`. Neither value matched a *token's* pre-flip value — both are steps the
+token layer never named — so each took the warm value already derived for its
+step in the table above, and that table's Site column now lists them. The fifth,
+`.vp`'s `border-left` (`verbatim.css:69`), is not a ground step at all: it was
+`--ink` at 12% alpha, the seam where warm paper meets the ink panel, and it took
+the warm-ink triple at the same alpha.
+
+**Why none of the five became a `var()`, which is the fix that would stop this
+recurring.** A literal that escapes the token system escapes the *next* flip too
+— that is exactly how these five survived S3b. But none of the three steps
+involved (control fill, nav hover, the paper/ink seam) has a name in `tokens.css`
+to point at, and that file is line-count-frozen: eight comments in five other
+files cite it by line number, so a declaration cannot simply be added. Naming
+them is an S3c decision. Recording them here, and in a comment at each site, is
+what stops the next flip from missing them again.
+
+**The contrast instrument cannot see four of the five**, which is worth writing
+down because it makes the sweep look reassuring when it is merely blind.
+Measured at S3b-2: **zero** of the 47 colour/backdrop pairs sit on `#fbfcfe` or
+`#f0f4f8`. `core.js`'s `sweepPage` records direct text children only, so the two
+remove buttons (an `<svg>` and nothing else) are invisible to it, `.lang-toggle`'s
+label is not a direct text child, and `.day__toggle:hover` is a hover state the
+sweep never enters. Those four declarations cannot move a pair, a failure or a
+ring, and the signature would have stayed green whether or not they were fixed.
 
 ---
 

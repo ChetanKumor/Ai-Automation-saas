@@ -139,11 +139,11 @@
   --radius-xs: var(--r-xs);
 
   /* ── Elevation (spec §2.5) — cards do NOT cast. Only floating things do.
-   * Two layers always: a tight contact shadow and a soft ambient one. Slate-
-   * tinted, never pure black — black on a cool grey reads dirty. ── */
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, .06);
-  --shadow-md: 0 2px 4px rgba(15, 23, 42, .05), 0 8px 20px rgba(15, 23, 42, .08);
-  --shadow-lg: 0 4px 8px rgba(15, 23, 42, .06), 0 20px 48px rgba(15, 23, 42, .14);
+   * Two layers always: a tight contact shadow and a soft ambient one. Warm-ink
+   * tinted, never black. Was slate rgb(15, 23, 42), cast onto warm paper. ── */
+  --shadow-sm: 0 1px 2px rgba(23, 21, 15, .06);
+  --shadow-md: 0 2px 4px rgba(23, 21, 15, .05), 0 8px 20px rgba(23, 21, 15, .08);
+  --shadow-lg: 0 4px 8px rgba(23, 21, 15, .06), 0 20px 48px rgba(23, 21, 15, .14);
   --shadow: var(--shadow-md);   /* legacy alias */
 
   /* ── Spacing rhythm (8px base) ── */

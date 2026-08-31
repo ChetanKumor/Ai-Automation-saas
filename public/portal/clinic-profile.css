@@ -21,7 +21,7 @@
   align-items: center;
   justify-content: center;
   border: 1px solid var(--line-2);
-  background: #fbfcfe;
+  background: #fdfcfa;   /* warm control fill; untokenised step — brand-values.md */
   border-radius: var(--r-sm);
   color: var(--muted);
   cursor: pointer;
@@ -43,7 +43,7 @@
   padding: 9px 15px;
   border: 1px solid var(--line-2);
   border-radius: 999px;
-  background: #fbfcfe;
+  background: #fdfcfa;   /* warm control fill; untokenised step — brand-values.md */
   color: var(--ink-2);
   cursor: pointer;
   transition: background .12s, border-color .12s, color .12s;

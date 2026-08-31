@@ -47,7 +47,7 @@
   cursor: pointer;
   user-select: none;
 }
-.day__toggle:hover { background: #f0f4f8; color: var(--ink-2); }
+.day__toggle:hover { background: #f6f3ee; color: var(--ink-2); }  /* warm nav-hover step; untokenised — brand-values.md */
 .day__toggle input {
   width: 16px; height: 16px;
   accent-color: var(--teal);
@@ -118,7 +118,7 @@
   align-items: center;
   justify-content: center;
   border: 1px solid var(--line-2);
-  background: #fbfcfe;
+  background: #fdfcfa;   /* warm control fill; untokenised step — brand-values.md */
   border-radius: var(--r-sm);
   color: var(--muted);
   cursor: pointer;

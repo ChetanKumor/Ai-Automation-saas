@@ -66,7 +66,11 @@
   height: 100vh;
   z-index: 15;              /* under the sidebar (40) and the top bar (20) */
   background: var(--field);
-  border-left: 1px solid rgba(15, 23, 42, .12);
+  /* The seam between warm paper and the ink ground. Warm ink at .12: the same
+   * rgb(23, 21, 15) as --line, --line-3 and the shadow scale, at an alpha no
+   * token names. It stays a literal because it is not a light-ground hairline
+   * — --line's .08 composites over paper, this composites over --field. */
+  border-left: 1px solid rgba(23, 21, 15, .12);
   display: flex;
   flex-direction: column;
   color: var(--field-ink);
