@@ -54,6 +54,33 @@
  * a line. That is a decision about how often the portal is measured, and it is
  * not made here.
  *
+ * ── THE REPORT SURVIVES A FAILURE (S3c-1a) ────────────────────────────────
+ * This block used to delete the sweep report in an unconditional `finally`,
+ * and that made its own hard gates unusable. One `os:check` during S3c-1 went
+ * red on a THIRTEENTH signature line — `RING      FAIL 0.00  [no indicator]`,
+ * all twelve baseline lines matching — and by the time anyone read the failure
+ * the only artefact naming the element had already been unlinked. Six other
+ * runs of the same tree gave 712 rings / 0 failing. So the finding was: a ring
+ * somewhere on the portal focused with no focus style at all, one run in seven,
+ * and WHICH ring is not in the record and cannot be reconstructed from it.
+ *
+ * A gate that can fail with no recoverable evidence costs a red suite and buys
+ * nothing. Two changes fix that, and neither measures anything new — all of it
+ * was already in the report and was already being thrown away:
+ *
+ *   1. The report is written under `scratchpad/contrast/` (gitignored at
+ *      `.gitignore:168`, and inside the repo rather than in `os.tmpdir()` so
+ *      that the path in a red suite is one a reader can actually open). It is
+ *      deleted ONLY on a clean pass; every other exit leaves it, and its
+ *      absolute path is appended to the thrown message.
+ *   2. A failing ring is printed as an ELEMENT, not as a count. `ringShape` is
+ *      what the signature carries and it is anonymous by design — a hash of
+ *      shapes cannot name an element — so the shape is printed together with
+ *      the page, the viewport, the selector, the label, and both the focused
+ *      and the RESTING computed values `judgeRing` compared. "No indicator"
+ *      and "the indicator did not move" are different findings, and only the
+ *      rest block tells them apart.
+ *
  * ── ONE test() BLOCK, DELIBERATELY ────────────────────────────────────────
  * Same house rule `tokenDrift.test.js:10-14` and `heroDisclosure.test.js:32-34`
  * state in their own headers: the suite total is a tracked number, so a design
@@ -63,7 +90,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { spawnSync } = require('child_process');
@@ -89,6 +115,84 @@ function lineDiff(expected, actual) {
   };
 }
 
+/**
+ * Where a failing run is left. Inside the repo on purpose: a red suite pointing
+ * at a pid-named file somewhere under the Windows temp directory is only
+ * marginally better than one pointing at nothing. `scratchpad/` is gitignored
+ * (`.gitignore:168`) and is where every past session has put its evidence.
+ */
+const REPORT_DIR = path.join(ROOT, 'scratchpad', 'contrast');
+
+/** The column `core.signature()` writes ring shapes into. */
+const RING_PREFIX = 'RING      ';
+
+function num(n) {
+  return typeof n === 'number' && isFinite(n) ? n.toFixed(2) : String(n);
+}
+
+/**
+ * One ring row as EVIDENCE — the shape the signature carries, plus the identity
+ * the signature deliberately drops, plus the computed values the verdict was
+ * reached from.
+ *
+ * The resting block is not padding. `judgeRing` can only call a border or a fill
+ * an indicator by comparing it against the resting value, and it gets that value
+ * from `restBy.get(String(ring.i))` in `shoot.js:574` — which returns nothing
+ * when the focused element carried no `data-pc-i`. In that case a border
+ * indicator and a fill change are both INVISIBLE to the verdict, and the row
+ * reads "no indicator" whether or not the element had one. That is a candidate
+ * mechanism for the S3c-1 flake, so a reader must be able to SEE it rather than
+ * infer it: a missing rest block is called out in words below, not omitted.
+ */
+function describeRing(r) {
+  const lines = [
+    `  ${r.page} @${r.vw}  ${r.sel}` + (r.label ? `   "${r.label}"` : ''),
+    `      shape          : ${core.ringShape(r)}`,
+    `      :focus-visible : ${r.matchesFocusVisible}`,
+  ];
+  if ((r.indicators || []).length) {
+    for (const x of r.indicators) {
+      lines.push(`      indicator      : ${String(x.kind).padEnd(7)} ${num(x.ratio)}:1 vs ${x.against}`
+        + (x.ratioOuter === undefined ? '' : `  / ${num(x.ratioOuter)}:1 vs outer`)
+        + `   ${x.css}`);
+    }
+  } else {
+    lines.push('      indicator      : NONE — no outline, no border change vs rest, '
+      + 'no non-inset box-shadow carrying blur or spread');
+  }
+  if (r.fillChanged) lines.push(`      fill changed   : rest->focus ${num(r.fillRatio)}:1`);
+  const f = r.focused || {};
+  lines.push(`      focused        : outline=${f.outline}  border=${f.borderWidth} ${f.border}`
+    + `  background=${f.background}  box-shadow=${f.boxShadow}`);
+  if (r.rest) {
+    lines.push(`      resting        : outline=${r.rest.outline}  border=${r.rest.borderWidth} `
+      + `${r.rest.border}  background=${r.rest.background}  box-shadow=${r.rest.boxShadow}`);
+  } else {
+    lines.push('      resting        : NOT RECORDED — this element carried no data-pc-i, so '
+      + 'tagFocusables never saw it and NEITHER a border indicator NOR a fill change '
+      + 'could have been detected on it, whatever it actually painted');
+  }
+  return lines.join('\n');
+}
+
+/**
+ * The elements behind the RING lines a signature diff just grew.
+ *
+ * The signature is a set of distinct SHAPES, so one new line can stand for any
+ * number of elements; all of them are printed, because "which one" is the whole
+ * question a post-mortem is asking.
+ */
+function ringEvidence(report, added) {
+  const want = new Set(added
+    .filter((l) => l.startsWith(RING_PREFIX))
+    .map((l) => l.slice(RING_PREFIX.length)));
+  if (!want.size) return '';
+  const rows = (report.rings || []).filter((r) => want.has(core.ringShape(r)));
+  if (!rows.length) return '';
+  return '\n\n  THE ELEMENTS BEHIND THOSE RING LINES:\n'
+    + rows.map(describeRing).join('\n\n');
+}
+
 test('the portal contrast baseline is RE-MEASURED on the live portal, not recited', () => {
   // ── prerequisites, each named, none of them silently skipped ───────────
   const missing = [];
@@ -108,7 +212,8 @@ test('the portal contrast baseline is RE-MEASURED on the live portal, not recite
     + 'than pass:\n  - ' + missing.join('\n  - '));
 
   // ── the run ────────────────────────────────────────────────────────────
-  const out = path.join(os.tmpdir(),
+  fs.mkdirSync(REPORT_DIR, { recursive: true });
+  const out = path.join(REPORT_DIR,
     `portal-contrast-${process.pid}-${crypto.randomBytes(4).toString('hex')}.json`);
   const run = spawnSync(process.execPath, [SHOOT, '--contrast', '--out', out], {
     cwd: ROOT,
@@ -121,6 +226,9 @@ test('the portal contrast baseline is RE-MEASURED on the live portal, not recite
     maxBuffer: 64 * 1024 * 1024,
   });
 
+  // Set on the LAST line of the try block, so `finally` can tell a clean pass
+  // from every other way out of here. Only a clean pass deletes the report.
+  let passed = false;
   try {
     const tail = (s) => String(s || '').split('\n').slice(-25).join('\n');
     if (run.error && run.error.code === 'ETIMEDOUT') {
@@ -151,6 +259,11 @@ test('the portal contrast baseline is RE-MEASURED on the live portal, not recite
         + `  measured   : ${live.md5} (${live.lines.length} lines)\n`
         + (gone.length ? '\n  IN THE BASELINE, NOT ON THE PORTAL:\n    ' + gone.join('\n    ') : '')
         + (added.length ? '\n\n  ON THE PORTAL, NOT IN THE BASELINE:\n    ' + added.join('\n    ') : '')
+        // A new RING line is the one signature diff that is NOT self-explaining:
+        // every other channel prints a colour and a backdrop, while a ring line
+        // prints a verdict about an element it does not name. This is where the
+        // S3c-1 flake lands, so this is where the element gets named.
+        + ringEvidence(report, added)
         + '\n\nIf the change was intended, re-measure and check the new body in:\n'
         + '  node scripts/portal/shoot.js --contrast --out <file>\n'
         + 'then write core.signature(<file>).body to portal.signature.txt and move\n'
@@ -195,9 +308,29 @@ test('the portal contrast baseline is RE-MEASURED on the live portal, not recite
     // in the baseline, and neither can be reached by a readiness race.
     assert.strictEqual(seen.contract, 0,
       'D-016: --ink-faint resolved as a glyph colour on the live portal');
-    assert.strictEqual(seen.ringFailures, 0,
-      'SC 1.4.11: a focus indicator on the live portal is below 3:1');
+    if (seen.ringFailures !== 0) {
+      assert.fail(`SC 1.4.11: ${seen.ringFailures} of ${seen.rings} focus indicators on the `
+        + 'live portal are below 3:1, or absent outright.\n\n'
+        + (report.rings || []).filter((r) => !r.pass).map(describeRing).join('\n\n'));
+    }
+
+    passed = true;
+  } catch (err) {
+    // The report is the only record of the run that just failed, and for a ring
+    // it is the ONLY record — the shapes in the message above are a reduction,
+    // and `sel`, both backdrops and every neighbouring row live only here.
+    if (err && typeof err.message === 'string' && fs.existsSync(out)) {
+      err.message += '\n\n  THE SWEEP REPORT IS PRESERVED — this exact run is re-readable:\n'
+        + '    ' + out + '\n'
+        + '  Every glyph row and every ring it measured is in there, the ones named\n'
+        + '  above included. Nothing else writes to that path; delete it when done.';
+    }
+    throw err;
   } finally {
-    try { fs.unlinkSync(out); } catch (_) { /* the run may not have written it */ }
+    // Only a pass. A failure leaves the file, and the catch above has just told
+    // the reader where it is.
+    if (passed) {
+      try { fs.unlinkSync(out); } catch (_) { /* the run may not have written it */ }
+    }
   }
 });
