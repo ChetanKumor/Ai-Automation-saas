@@ -53,7 +53,7 @@
   width: 16px; height: 16px;
   flex: none;
   border-radius: 50%;
-  border: 1.5px solid var(--faint);
+  border: 1.5px solid var(--faint-strong);   /* unchecked IS a state — 1.4.11 */
   display: grid;
   place-items: center;
   color: transparent;

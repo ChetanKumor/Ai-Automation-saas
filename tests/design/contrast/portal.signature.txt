@@ -1,5 +1,3 @@
-FAIL      3.08:1 needs 4.5  rgb(90, 100, 114) on rgb(12,20,32)
-FAIL      4.08:1 needs 4.5  rgb(110, 119, 132) on rgb(12,20,32)
 UNDET     background-image in the backdrop stack  rgb(23, 21, 15) on rgb(253,252,250)
 RING      PASS 4.86  [outline 4.86 vs outer backdrop  2px solid rgb(15, 118, 110) @ 2px]
 RING      PASS 5.16  [outline 5.16 vs outer backdrop  2px solid rgb(15, 118, 110) @ -1px | glow 1.13 vs inner fill  0px 1px 2px 0px rgba(23, 21, 15, 0.06)]

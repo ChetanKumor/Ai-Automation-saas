@@ -56,7 +56,16 @@ const SURFACES = {
 // worth avoiding: adding a token to a surface someone else shares is exactly
 // the moment to look at brand-values.md.
 //
-// portal is 99, not the 102 names the portal surface owns. public/portal/
+// portal is 100 as of S3c-2, which added --faint-strong. It went in WITHOUT
+// changing the file's line count — the --faint comment above it lost a line to
+// pay for it — because eight comments in five files cite tokens.css by line
+// number and THREE of them are in scripts/portal/shoot.js, which S3c-2's file
+// set did not include. A token that cannot be added without silently
+// invalidating a citation nobody can fix is a token that gets added anyway and
+// leaves three wrong line numbers behind it; paying for it in the comment above
+// is the version of that trade with no debt in it.
+//
+// 100, not the 103 names the portal surface owns. public/portal/
 // verbatim.css declares three more — --vp-sheet-h in its own :root, --field-3
 // and --field-line-2 under .vp — and that file is not in SURFACES; two of the
 // three are not in a :root at all. 99 is every portal name this parser can
@@ -72,7 +81,7 @@ const SURFACES = {
 // sit inside @media (prefers-contrast: more) and are deliberately not counted —
 // see rootBodies().
 const EXPECTED_NAMES = {
-  portal: 99,
+  portal: 100,
   'demo/shared': 25,
   'demo/styles': 21,
   web: 55,

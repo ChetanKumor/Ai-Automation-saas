@@ -76,6 +76,40 @@
   color: var(--field-ink);
 }
 
+/* ── THE INK GROUND HAS TWO TEXT STEPS, AND ONLY TWO (S3c-2) ────────────────
+ * --field-ink for what is being stated, --field-muted for everything quiet.
+ * There is no third, in the same way and for the same reason the light ground
+ * has none since S3c-1.
+ *
+ * This panel used to carry four more, as hardcoded hex, all of them here:
+ *
+ *   #B4BCC7  9.64:1  .vp__fact-l                       passed, and still wrong
+ *   #6E7784  4.08:1  .vp__gloss b, .vp__why, --none    20 rows, FAILED AA
+ *   #5A6472  3.08:1  .vp__btn[disabled]                 9 rows, FAILED AA
+ *
+ * They were not a scale. --field-ink (15.69:1) and --field-muted (7.21:1)
+ * already mirror --ink (17.22) and --ink-2 (7.31) to within a step, so there
+ * was no gap for them to fill — they were four values that drifted below the
+ * secondary because nothing named the secondary at the point of use. Every one
+ * of their roles is --ink-2's role on paper: a micro-label, a help line, an
+ * empty-value placeholder, and the label half of a label/value row.
+ *
+ * #B4BCC7 is called out because it PASSED at 9.64:1 and so never appeared in
+ * the failure count. A step the instrument cannot fail is exactly the step that
+ * survives a session like this one, which is why it is named here rather than
+ * left for the sweep to find. It never could have.
+ *
+ * The disabled footer button is not an exception. WCAG 1.4.3 does excuse an
+ * inactive component, but the demotion it needs is already there without
+ * spending a colour on it: the enabled .vp__btn is --field-ink, so --field-muted
+ * IS the step down, and `cursor: not-allowed`, the transparent fill and the
+ * adjacent .vp__why reason all carry the state too. A fifth grey would have
+ * bought nothing that four other signals were not already saying.
+ *
+ * #FCD34D at .vp__warn stays. It is a semantic state colour, not a neutral
+ * step, and it measures 12.81:1.
+ * ────────────────────────────────────────────────────────────────────────── */
+
 /* The 2px regeneration line (spec §2.10). A progress line at the panel top,
  * NOT a spinner over the content — the previous value must stay readable while
  * the new one is being assembled. Zero-height when idle so it occupies no
@@ -289,7 +323,7 @@
   font: 600 10.5px/1.4 var(--sans);
   letter-spacing: .06em;
   text-transform: uppercase;
-  color: #6E7784;
+  color: var(--field-muted);
   margin-bottom: 3px;
 }
 
@@ -341,7 +375,7 @@
   padding: 7px 0;
   font: 400 13.5px/1.5 var(--sans);
 }
-.vp__fact-l { color: #B4BCC7; }
+.vp__fact-l { color: var(--field-muted); }
 .vp__fact-v {
   margin-left: auto;
   text-align: right;
@@ -349,7 +383,7 @@
   color: var(--field-ink);
   font-weight: 500;
 }
-.vp__fact-v--none { color: #6E7784; font-weight: 400; font-style: italic; }
+.vp__fact-v--none { color: var(--field-muted); font-weight: 400; font-style: italic; }
 
 /* Warnings. Tappable — each focuses the field it is about (spec §2.10). */
 .vp__warn {
@@ -400,12 +434,12 @@
 /* `Hear it` ships disabled. Its reason sits adjacent, never in a tooltip —
  * a disabled control whose reason is hover-only is not a reason. */
 .vp__btn[disabled] {
-  color: #5A6472;
+  color: var(--field-muted);
   border-color: var(--field-line-2);
   cursor: not-allowed;
   background: transparent;
 }
-.vp__why { font: 400 11.5px/1.35 var(--sans); color: #6E7784; flex: 1; }
+.vp__why { font: 400 11.5px/1.35 var(--sans); color: var(--field-muted); flex: 1; }
 .vp__f .vp__btn--end { margin-left: auto; }
 
 /* The reason beneath the language selector when it goes inert (one language

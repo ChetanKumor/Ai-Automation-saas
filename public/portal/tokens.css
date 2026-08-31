@@ -57,13 +57,13 @@
    * did with --text-secondary AND --text-tertiary (globals.css:99-100), and
    * the same convention as --teal-050 below. */
   --muted: var(--ink-2);
-  /* NON-TEXT ONLY — and now ENFORCEABLE. This is web/'s --ink-faint, which is
-   * the literal value tests/design/contrast/core.js:986 reds the build on when
-   * it resolves as a glyph colour. The portal's `contract: 0` used to pass by
-   * ABSENCE: no #A8A199 existed here, so the check could not fire on anything.
-   * It can now. Rules, dividers, undrawn states and disabled FILLS only —
-   * never a glyph, never an icon. 2.41:1 on --bg, 2.55:1 on --card. */
-  --faint: #A8A199;
+  /* Two non-text steps, split on SC 1.4.11. --faint is DECORATION — rules,
+   * dividers, undrawn states, a scrollbar thumb — 2.41:1 on --bg, 2.55:1 on
+   * --card, under the 3:1 floor, so it may never carry state. ENFORCEABLE:
+   * #A8A199 is the literal core.js:986 reds on as a glyph colour.
+   * --faint-strong is web/'s high-contrast form of that same token
+   * (globals.css:446), 3.73:1 / 3.96:1, for non-text that MEANS something. */
+  --faint: #A8A199; --faint-strong: #857F79;
   --line: rgba(23, 21, 15, .08);  /* hairline borders, the primary structural
                            device — the same value as web/'s --rule. An alpha and
                            not an opaque step: five light grounds here to
@@ -1885,7 +1885,7 @@ body.is-embedded .save-bar { display: none !important; }
     padding-top: var(--s-2);
     transition: box-shadow var(--dur-1) var(--ease-in-out);
   }
-  .app:not(.is-embedded) .page-head.is-stuck { box-shadow: 0 4px 8px rgba(15, 23, 42, .06); }
+  .app:not(.is-embedded) .page-head.is-stuck { box-shadow: var(--shadow-sm); }
   /* Once pinned, the header keeps the TITLE and drops the description. Several
    * page descriptions run to three lines at 380px; pinning all of it would hold
    * ~180px of a 820px viewport permanently, which costs the owner more room

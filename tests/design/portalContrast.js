@@ -82,45 +82,77 @@ const core = require('./contrast/core');
 const PORTAL_SIGNATURE_FILE = path.join(__dirname, 'contrast', 'portal.signature.txt');
 
 const PORTAL_BASELINE = Object.freeze({
-  at: '871edeb+S3c-1',              // The tree DID move this time, and only in
-                                    // CSS: the light-ground ink scale collapsed
-                                    // from four steps to two and every glyph
-                                    // `opacity` fade on that ground was deleted.
-                                    // Zero .html, zero .js.
+  at: 'cb14223+S3c-2',              // CSS only again. S3c-1 collapsed the LIGHT
+                                    // ground to two text steps; this closes the
+                                    // INK one, which had four more literals
+                                    // hiding in verbatim.css. Zero .html, and
+                                    // zero .js outside tests/design/.
   pages: 14,
   widths: Object.freeze([1280, 380]),
-  rows: 4222,                       // glyph rows measured (was 4312). DOWN, and
-                                    // not because coverage shrank: a state row
-                                    // is only kept where that state MOVES a
-                                    // glyph, and the 288 sidebar icons whose
-                                    // hover differed from their rest now paint
-                                    // one colour in both. Fewer rows here means
-                                    // fewer distinctions, not less looking.
-  pairs: 83,                        // distinct colour/backdrop/band/opacity/state
-                                    // (was 114 — 31 pairs were the retired steps)
-  failures: 29,                     // was 713. All 29 are `rest/text` on the ink
-                                    // FIELD rgb(12,20,32): two hardcoded literals
-                                    // in verbatim.css, #6E7784 (:292, :352, :408)
-                                    // and #5A6472 (:403). The light ground is at
-                                    // ZERO. S3c-2 owns what is left.
-  exempt: 30,                       // was 318. `sidebar-nav-icon` (288) is gone
-                                    // from the allowlist entirely — those icons
-                                    // pass on merit at 7.42:1 now. 26 + 4.
+  rows: 4222,                       // glyph rows measured — UNMOVED. Recolouring
+                                    // a glyph cannot add or remove one; the
+                                    // same 4222 rows were measured, 30 of them
+                                    // in a different colour.
+  pairs: 79,                        // distinct colour|backdrop|band|opacity|state
+                                    // (was 83). FOUR keys went, not the three
+                                    // the three retired colours suggest, and
+                                    // ZERO were added — --field-muted already
+                                    // held every key the merged glyphs landed
+                                    // in. The fourth was isolated by reverting
+                                    // one site at a time against the live
+                                    // sweep: #B4BCC7 holds 1 key (79 -> 80),
+                                    // #5A6472 holds TWO (79 -> 81), #6E7784
+                                    // holds 1 despite three selectors using it.
+                                    // #5A6472 doubles because .vp__btn[disabled]
+                                    // is the only one of the five that is a
+                                    // CONTROL: it carries an <svg>, which the
+                                    // sweep scores in the `N` band at 1.4.11's
+                                    // 3:1 rather than the `B` band at 4.5. That
+                                    // icon sat at 3.08:1 — over the non-text
+                                    // floor by 0.08 — so it PASSED and never
+                                    // showed up in `failures`. It is 7.21:1 now.
+  failures: 0,                      // was 29, and 713 before that. BOTH grounds
+                                    // are at zero. The 29 were `rest/text` on
+                                    // rgb(12,20,32): #6E7784 x20 and #5A6472 x9,
+                                    // hardcoded in verbatim.css, now
+                                    // var(--field-muted) at 7.21:1. A fifth
+                                    // literal, #B4BCC7 on .vp__fact-l, went with
+                                    // them — it PASSED at 9.64:1 and so was never
+                                    // in this count, which is exactly why it
+                                    // would have outlived the ones that were.
+  exempt: 30,                       // UNMOVED. Nothing in PORTAL_EXEMPT moved,
+                                    // and nothing was added to it: an exemption
+                                    // is how a defect becomes a baseline, and
+                                    // every failure this session closed was
+                                    // closed by changing a colour. 26 + 4.
   contract: 0,                      // D-016 --ink-faint as a glyph colour. LIVE
                                     // as of S3c-1, not vacuous: --faint IS
                                     // #A8A199 now, so this check finally has
                                     // something in the portal it could fire on.
+                                    // S3c-2 added --faint-strong (#857F79) for
+                                    // non-text that carries state. It is NOT a
+                                    // second contract value and is not checked
+                                    // here — web/ derived it with a ceiling
+                                    // under 4.5:1 so it can never be text.
   undeterminable: 2,                // background-image in the backdrop stack —
                                     // `select#insuranceStance`, both viewports.
                                     // Its chevron hardcodes a hex inside a data
                                     // URI; see the warning at pricing.css:210.
   rings: 712,                       // focus indicators measured — unmoved, and
                                     // all 9 distinct RING shapes byte-identical
-                                    // across the change. A glyph colour cannot
-                                    // move a ring: rings are judged against
-                                    // FILLS, and no fill moved.
+                                    // across the change. That is a stronger
+                                    // claim this time than last: S3c-1 moved
+                                    // glyph colours only, and a glyph cannot
+                                    // move a ring. S3c-2 moved three FILLS
+                                    // (both .switch__track copies and
+                                    // .banner__dot), which is the thing rings
+                                    // ARE judged against. They are sibling
+                                    // fills to the focusable rather than its
+                                    // own, and the outlines are measured
+                                    // against the card behind them, so the
+                                    // shapes hold — measured, not assumed.
   ringFailures: 0,                  // below SC 1.4.11's 3:1
-  signatureMd5: '9227cbc5ac4b614020cab8288e3fdb40',
+  signatureMd5: '8e79f9f9246c6880b408cc17235c2104',
 });
 
 /**

@@ -194,9 +194,100 @@ control-internal one at s = 1.39. Mapping them would more than double the step
 inside a phone-number input in order to make a table look complete. When the
 portal grows a page-section sunk, that is the row to add.
 
+### The second non-text step, and why it had to be free (S3c-2)
+
+`--faint-strong` **`#857F79`** joins `tokens.css`. It is **not a new colour**: it
+is `web/`'s own `--ink-faint` under `@media (prefers-contrast: more)`
+(`globals.css:446`), taken verbatim for the same reason S3c-1 took `--ink-strong`
+and `--ink-soft` verbatim — a freshly-mixed warm grey here would be another
+source of truth, which is what this document exists to prevent.
+
+**The split it creates is SC 1.4.11, not taste.** `--faint` is decoration —
+rules, dividers, undrawn states, a scrollbar thumb — at 2.41:1 on `--bg` and
+2.55:1 on `--card`, comfortably under the 3:1 floor and therefore unable to
+carry meaning. `--faint-strong` is 3.73:1 / 3.96:1: **non-text that means
+something.** Four declarations moved onto it, all of them state:
+
+| Site | Was | Now | On |
+|---|---|---|---|
+| `.switch__track` (off) | `--faint` 2.55:1 | `--faint-strong` 3.96:1 | `--card` |
+| `.banner__dot`, incl. `--draft` | `--faint` 2.55:1 | `--faint-strong` 3.96:1 | `--card` |
+| `.lang-toggle__check` border | `--faint` 2.55:1 | `--faint-strong` 3.96:1 | control fill |
+| `.pay-toggle__check` border | `--faint` 2.55:1 | `--faint-strong` 3.96:1 | control fill |
+
+The switch failed on **either** reading of 1.4.11: its track against the card
+and its `#fff` knob against its own track are the same 2.55:1, because the knob
+is white and the comparison is symmetric. Off is now *lighter* than on
+(`--teal-700`, 5.47:1) — an off toggle that outweighs an on toggle would have
+traded one defect for a worse one. The scrollbar thumb and `.think-dot` stay on
+`--faint`: genuinely decorative, no state in either.
+
+**`#857F79` stops short of 4.5:1 deliberately, and the ceiling is the point.**
+`globals.css:432-438` derived it that way: a high-contrast non-text token that
+passed AA for text would invite the first glyph, and the NON-TEXT ONLY contract
+would become a comment. `portalContrast.test.js` now enforces both values with
+one static net, so the ceiling is a fact rather than a note.
+
+**It cost zero lines, and that was a constraint rather than a flourish.** The
+freeze this document records two sections above is real and was measured:
+**eight comments in five files cite `tokens.css` by line number, and three of
+them are in `scripts/portal/shoot.js`**, which S3c-2's file set did not include.
+A token that cannot be added without invalidating three citations nobody in that
+session could fix is a token that gets added anyway and leaves three wrong line
+numbers behind it. So the `--faint` comment above it gave up a line to pay for
+the declaration, and every cited anchor — 111, 177, 227, 276, 995, 1008, 1014,
+1694 — was verified byte-identical against HEAD afterwards. **This is the fix
+that section called for and could not take: the naming is no longer blocked, it
+is merely expensive, and the price is one comment line per token.**
+
+**The instruments cannot see any of it, and both are blind for different
+reasons.** The contrast sweep measures glyphs and SVG paint; a `background-color`
+on an empty `<span>` is invisible to it, so the portal signature is
+byte-identical across this change — 10 lines either way. The 54-shot corpus is
+blind too, and not for the same reason: **zero pixels of `#A8A199` appear in any
+of the 54 shots before the change, and zero pixels of `#857F79` in any of them
+after**, because the seeded tenant is validated and its protections are on, so
+no shot ever renders an off toggle or a draft dot. Neither the signature's
+silence nor the corpus's silence is evidence here. What *is* evidence: a
+`getComputedStyle` read-back in a real Chrome against the real stylesheets
+returns `rgb(133, 127, 121)` for all four selectors, and a pixel census of that
+render counts 368 painted pixels of it and 0 of `#A8A199`.
+
+---
+
 **Still cool, and out of scope by decision:** `--field` / `--field-2` /
-`--field-line` (the Verbatim ink ground — S3c) and the semantic tint fills
+`--field-line` (the Verbatim ink ground) and the semantic tint fills
 (`--teal/green/amber/red-50/100/200`, state tints rather than ground steps).
+
+**S3c-2 closed the ink ground's TEXT scale without touching its GROUND, and the
+distinction is the whole of what is left here.** That panel carried four
+hardcoded greys the scale never named — `#6E7784` (three sites) at 4.08:1 and
+`#5A6472` at 3.08:1, both BELOW the secondary and both failing AA, plus
+`#B4BCC7` at 9.64:1 sitting BETWEEN the two named steps and passing. All four
+are `var(--field-muted)` now, which took the portal's threshold failures to
+**zero on both grounds**. `#B4BCC7` is worth its own clause: it PASSED, so it
+was never in a failure count, and a step no instrument can fail is exactly the
+step that survives the session sent to remove the others. The grounds themselves
+(`#0c1420` / `#141c2a`) are still cool and still out of scope: they are a
+deliberate dark surface, not a light backdrop step that missed the flip, and
+nothing measured argues for moving them. `--field-ink` 15.69:1 and
+`--field-muted` 7.21:1 already mirror `--ink` 17.22 and `--ink-2` 7.31 to within
+a step, so the ink ground needed no scale of its own — it needed its literals
+pointed at the scale it already had.
+
+**The stale-slate sweep is one line shorter, and three lines from done.**
+S3b-2's flip of `--shadow-*` missed `.page-head.is-stuck`
+(`tokens.css:1888`), which held `0 4px 8px rgba(15, 23, 42, .06)` — the
+pre-flip triple at the post-flip geometry, so one shadow painted in two hues.
+It takes `var(--shadow-sm)` now, and NOT `--shadow-lg`: the literal matched
+that token's first layer exactly, but `--shadow-lg` is two layers and
+`tokens.css:1597-1599` reserves it for the tier that floats furthest (modal,
+⌘K, mobile drawer). A sticky sub-header does not belong in it. **Three slate
+literals remain**, all of them SCRIMS rather than shadows —
+`rgba(15, 23, 42, .45)` at `tokens.css:1587` and `:1653`, and
+`rgba(15, 23, 42, .4)` at `:1858`. A scrim is a different argument from a
+shadow (it darkens a whole viewport rather than tinting an edge) and is left
+open deliberately rather than swept in behind a shadow fix.
 
 **S3b-2 moved the `--shadow-*` scale**, which S3b had reported as the loudest
 survivor and deliberately left alone. Slate `rgb(15, 23, 42)` became warm ink

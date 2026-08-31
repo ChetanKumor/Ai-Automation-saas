@@ -83,12 +83,28 @@
   cursor: pointer;
 }
 /* 36×20 track, 16px knob (spec §2.9). The hit area stays 44px via the label. */
+/* THE OFF TRACK IS A STATE, AND SC 1.4.11 SCORES IT AT 3:1 (S3c-2).
+ * It was --faint, 2.55:1 on --card — and so was the knob against the track,
+ * because the knob is #fff and 2.55:1 is symmetric. The control failed on
+ * either reading of 1.4.11: neither its outline against the card nor its knob
+ * against its own fill was discernible.
+ *
+ * --faint-strong is 3.96:1 on --card, and still LIGHTER than the on state
+ * (--teal-700, 5.47:1) — an off toggle that outweighs an on toggle would trade
+ * one defect for a worse one.
+ *
+ * THE CONTRAST SWEEP CANNOT SEE THIS AND NEVER COULD. It measures glyphs and
+ * SVG paint; a background-color on a <span> with no text in it is invisible to
+ * it. The signature was green on the failing value and is green on the fixed
+ * one, so the signature is not the evidence here. The evidence is a
+ * getComputedStyle read-back plus a pixel census of the shot — same method the
+ * chevron needed, and for the same reason. */
 .switch__track {
   position: relative;
   flex: none;
   width: 36px; height: 20px;
   border-radius: var(--r-full);
-  background: var(--faint);
+  background: var(--faint-strong);
   transition: background var(--dur-1) var(--ease-out);
 }
 .switch__knob {

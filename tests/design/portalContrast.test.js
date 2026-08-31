@@ -391,17 +391,19 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
     'portal.signature.txt no longer hashes to PORTAL_BASELINE.signatureMd5'
   );
   const sigLines = sig.trim().split('\n');
-  // TWO distinct failing shapes, down from 20 at S3b-3. Both are on the ink
-  // FIELD rgb(12,20,32) and both are hardcoded literals in verbatim.css —
-  // #5A6472 at :403 and #6E7784 at :292/:352/:408. The portal's LIGHT ground
-  // has no failing shape left at all. Held as a hard number rather than a
-  // ceiling on purpose: a shape appearing is as much a change as one leaving,
-  // and this is the assertion that notices either without a browser.
-  assert.strictEqual(sigLines.filter((l) => l.startsWith('FAIL ')).length, 2,
-    'the portal baseline is 2 distinct failing shapes, both on --field (S3c-2)');
-  assert.ok(sigLines.filter((l) => l.startsWith('FAIL ')).every((l) => /on rgb\(12,20,32\)/.test(l)),
-    'a FAIL shape has appeared off the ink field — the light ground is at zero '
-    + 'as of S3c-1 and anything new there is a regression, not a leftover');
+  // ZERO distinct failing shapes. 20 at S3b-3, 2 at S3c-1, none now: S3c-1
+  // closed the light ground and S3c-2 closed the ink one, and there is no
+  // third ground. Both survivors were hardcoded literals in verbatim.css —
+  // #5A6472 at :403 and #6E7784 at :292/:352/:408 — and both resolve to
+  // var(--field-muted) at 7.21:1 today.
+  //
+  // Compared against [] rather than counted against 0, and the difference is
+  // not stylistic: at zero the two say the same thing on the happy path, but
+  // an equality on `.length` prints `1 !== 0` while this prints the SHAPE that
+  // came back. The whole point of a signature is that a regression arrives
+  // already named, and a count throws that away at the last step.
+  assert.deepStrictEqual(sigLines.filter((l) => l.startsWith('FAIL ')), [],
+    'the portal baseline is ZERO failing shapes, on BOTH grounds (S3c-2)');
   assert.strictEqual(sigLines.filter((l) => l.startsWith('CONTRACT ')).length, 0,
     'D-016: zero --ink-faint glyphs on the live portal, measured');
   assert.strictEqual(kit.PORTAL_BASELINE.contract, 0);
@@ -434,7 +436,21 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
   }
   assert.ok(sheets.length >= 15, `expected the portal's stylesheets, found ${sheets.length}`);
 
+  /* ── BOTH non-text steps, in ONE net (S3c-2) ─────────────────────────────
+   * --faint is decoration at 2.55:1 on --card; --faint-strong is meaningful
+   * state at 3.96:1. Neither may ever be a glyph, and the SECOND is the one
+   * that needs a guard, because 3.96:1 looks like it might be legible and is
+   * still most of a step under AA. web/ gave that value a deliberate CEILING
+   * under 4.5:1 for exactly this reason (globals.css:432-438): a high-contrast
+   * non-text token that passed AA for text would invite the first glyph, and
+   * the contract would be a comment rather than a fact. This is the fact.
+   *
+   * One predicate rather than two nets. The alias hop, the sheet list and the
+   * offence report are the expensive, easy-to-get-wrong parts, and a second
+   * copy of them is how the two would come to disagree. */
   const FAINT = /#a8a199\b|rgba?\(\s*168\s*,\s*161\s*,\s*153\s*[,)]/i;
+  const FAINT_STRONG = /#857f79\b|rgba?\(\s*133\s*,\s*127\s*,\s*121\s*[,)]/i;
+  const NON_TEXT = (v) => FAINT.test(v) || FAINT_STRONG.test(v);
   const TEXT_PROP = /(^|[;{])\s*(color|-webkit-text-fill-color)\s*:\s*([^;}]+)/gi;
   /* ── THE ALIAS SET IS COLLECTED ACROSS ALL SHEETS, NOT PER SHEET ──────────
    * It was per sheet, and that made this net blind to the only shape the
@@ -460,7 +476,7 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
     for (const [, css] of sheets) {
       let d;
       decl.lastIndex = 0;
-      while ((d = decl.exec(css)) !== null) if (FAINT.test(d[2])) aliases.add(d[1]);
+      while ((d = decl.exec(css)) !== null) if (NON_TEXT(d[2])) aliases.add(d[1]);
     }
   }
   // The alias hop is now the ONLY shape this offence can take, so the hop must
@@ -470,6 +486,10 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
     "the portal no longer defines --faint as #A8A199 — D-016's static net has "
     + 'quietly narrowed to direct hex use; re-point it at whatever name now '
     + 'carries the non-text ink, or delete it and say why');
+  assert.ok(aliases.has('--faint-strong'),
+    'the portal no longer defines --faint-strong as #857F79 — the SC 1.4.11 '
+    + 'state step has lost its hop, and the net above narrows to direct-hex '
+    + 'use for it exactly as it would for --faint');
 
   const offences = [];
   for (const [name, css] of sheets) {
@@ -477,7 +497,7 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
     TEXT_PROP.lastIndex = 0;
     while ((c = TEXT_PROP.exec(css)) !== null) {
       const value = c[3].trim();
-      const direct = FAINT.test(value);
+      const direct = NON_TEXT(value);
       const viaVar = [...aliases].some((a) => value.includes('var(' + a));
       if (direct || viaVar) {
         offences.push(`${name}: ${c[2]}: ${value}${viaVar && !direct ? '  (via ' + [...aliases].join(', ') + ')' : ''}`);
@@ -537,9 +557,13 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
         + '--ink-faint for. There is no glyph here to fade.' },
     { name: 'ink-field-press',
       ok: (d) => d.file === 'verbatim.css' && d.ctx.some((s) => /\.is-press\b/.test(s)),
-      why: 'The Verbatim panel is the ink FIELD (--field #0c1420), a dark ground '
-        + 'with its own scale and its own open failures — S3c-2 owns it. This '
-        + 'is a transient press state on that surface, not the light ground.' },
+      why: 'A transient pointer-down state that returns to 1 — the same category '
+        + 'as keyframe-step above, and judged the same way: contrast is scored on '
+        + 'what an element SETTLES to. It kept a second reason until S3c-2, that '
+        + 'the ink ground had open failures of its own; that is no longer true '
+        + 'and would now be an excuse rather than a reason, so it is gone. What '
+        + 'survives is measured: on --field, .82 takes --field-ink to 10.73:1 and '
+        + '--field-muted to 5.22:1, so even the transient frame clears 4.5:1.' },
   ];
   const fades = [];
   for (const [name, css] of sheets) {
