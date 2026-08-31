@@ -19,7 +19,7 @@
   position: absolute;
   left: 11px; top: 50%;
   transform: translateY(-50%);
-  color: var(--faint);
+  color: var(--ink-2);
   font-size: 14px;
   line-height: 1;
   pointer-events: none;
@@ -68,7 +68,7 @@
   position: absolute;
   right: 10px; top: 50%;
   transform: translateY(-50%);
-  color: var(--faint);
+  color: var(--ink-2);
   font-size: 12px;
   line-height: 1;
   pointer-events: none;
@@ -116,8 +116,16 @@
 .chk input { width: 15px; height: 15px; accent-color: var(--teal); cursor: pointer; flex: none; }
 
 /* Archived rows: retained for history, quietly de-emphasised, never in the
-   prompt. Hidden entirely unless "Show archived" is on. */
-.tr--archived { background: var(--bg); opacity: .72; }
+   prompt. Hidden entirely unless "Show archived" is on.
+
+   The de-emphasis is the recessed FILL plus the ink step — never a fade. This
+   carried `opacity: .72` on top of the fill, and the seeded tenant archives
+   nothing, so the sweep has never scored it: at .72 on --bg the secondary
+   measures 3.68:1, a real AA failure the instrument was structurally unable
+   to find. Same species as .holiday-row--past, and found only because that
+   one was. --ink-2 on --bg at full opacity is 7.31:1. */
+.tr--archived { background: var(--bg); }
+.tr--archived .tr__name, .tr--archived .tr__dur, .tr--archived .money__input { color: var(--ink-2); }
 .tr--archived .tr__archive:hover { background: var(--teal-050); border-color: var(--teal-100); color: var(--teal); }
 .tr--hidden { display: none; }
 .tr__tag {
@@ -126,7 +134,7 @@
   font-weight: 700;
   letter-spacing: .04em;
   text-transform: uppercase;
-  color: var(--faint);
+  color: var(--ink-2);
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -207,11 +215,25 @@
   color: #fff;
 }
 
-/* Native select adopts the shared .input look. */
+/* Native select adopts the shared .input look.
+ *
+ * ⚠️ THE ONE PLACE A TOKEN VALUE IS INLINED IN A URL, and the one place the
+ * contrast sweep cannot follow it. `stroke='%23…'` is a percent-escaped hex
+ * inside a data URI: no custom property reaches inside it, so this chevron
+ * does NOT move when the ink scale moves and must be edited by hand.
+ *
+ * It is also invisible to the instrument, and not by coincidence. A
+ * background-image in the backdrop stack is exactly what makes a row
+ * UNDETERMINABLE (core.js:1099-1103), and the two undeterminable rows in the
+ * portal baseline ARE this element — `select#insuranceStance`. So the
+ * signature staying green says nothing whatsoever about this line. S3c-1
+ * carried it from %2364748b (--muted, retired) to %2357524A (--ink-2) and
+ * verified it by reading back the computed background-image and by eye on the
+ * shot, because the gate structurally cannot. */
 select.input {
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2357524A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 11px center;
   background-size: 15px;

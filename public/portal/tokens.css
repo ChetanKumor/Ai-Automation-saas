@@ -31,10 +31,39 @@
                            Luminance barely moves (.9387 -> .9405): this is a hue
                            change, not a lightness one. Was #f7f8fb. */
   --card: #ffffff;      /* raised surface = web/'s --ground-raised. Unmoved. */
-  --ink: #0f172a;       /* primary text */
-  --ink-2: #334155;     /* secondary text */
-  --muted: #64748b;     /* labels, meta, help text */
-  --faint: #94a3b8;     /* disabled / de-emphasised — non-text only (2.8:1) */
+  /* ── The light-ground ink scale — TWO text steps (S3c-1) ──────────────────
+   * Re-derived on the live portal, not chosen. The old four-step scale carried
+   * two steps that were never legible on paper: --muted measured 4.49:1 on
+   * --bg and 4.23:1 on --line-2 — FAILING AA on the app's own ground — and
+   * --faint failed on 100% of its 732 measured rows. Collapsing them is a
+   * repair, not a preference.
+   *
+   * The values are web/'s, taken VERBATIM rather than re-derived: --ink-strong
+   * and --ink-soft, globals.css:263-264. A freshly-mixed warm grey here would
+   * be a fifth source of truth, which is the defect brand-values.md exists to
+   * prevent. D-016 derived this scale for the paper ground, S3b moved the
+   * portal onto that ground, and this finishes the move.
+   *
+   * Measured against all sixteen backdrops the portal actually paints these
+   * on. Worst case is the press composite rgb(232,230,227): --ink 14.65,
+   * --ink-2 6.22 — both clear 4.5 with room. */
+  --ink: #17150F;       /* primary text — 17.22 on --bg, 18.25 on --card */
+  --ink-2: #57524A;     /* THE secondary — 7.31 on --bg, 7.75 on --card.
+                           Labels, meta, help text, placeholders and icons:
+                           every quiet glyph on the light ground is this one
+                           value. There is no third text step, by decision. */
+  /* Deprecated alias. --muted named a step that no longer exists; it resolves
+   * to the secondary so its consumers did not have to move. Exactly what web/
+   * did with --text-secondary AND --text-tertiary (globals.css:99-100), and
+   * the same convention as --teal-050 below. */
+  --muted: var(--ink-2);
+  /* NON-TEXT ONLY — and now ENFORCEABLE. This is web/'s --ink-faint, which is
+   * the literal value tests/design/contrast/core.js:986 reds the build on when
+   * it resolves as a glyph colour. The portal's `contract: 0` used to pass by
+   * ABSENCE: no #A8A199 existed here, so the check could not fire on anything.
+   * It can now. Rules, dividers, undrawn states and disabled FILLS only —
+   * never a glyph, never an icon. 2.41:1 on --bg, 2.55:1 on --card. */
+  --faint: #A8A199;
   --line: rgba(23, 21, 15, .08);  /* hairline borders, the primary structural
                            device — the same value as web/'s --rule. An alpha and
                            not an opaque step: five light grounds here to
@@ -351,7 +380,13 @@ a { color: var(--teal-700); }
   font: var(--t-micro);
   letter-spacing: .065em;
   text-transform: uppercase;
-  color: #7b8797;
+  /* Was the literal #7b8797, in no token and in no table — 104 rows at 3.50:1
+   * on the sidebar, the third-largest single failure in the S3b-3 baseline.
+   * It takes the secondary like every other quiet glyph: 7.42:1 on #fbfaf7.
+   * The group header no longer differs from a nav label by COLOUR; it differs
+   * by 11px/600/uppercase/.065em against 13.25px/500, which is what was
+   * carrying it to anyone who could not see the 0.15 of ratio between them. */
+  color: var(--ink-2);
   padding: 18px 10px 7px;
 }
 .nav__grp:first-child > .grp,
@@ -376,9 +411,21 @@ a { color: var(--teal-700); }
   text-align: left;
   cursor: pointer;
 }
-.nav__item svg { width: 16px; height: 16px; flex: none; color: var(--faint); }
+.nav__item svg { width: 16px; height: 16px; flex: none; color: var(--ink-2); }
 .nav__item:hover { background: #f6f3ee; color: var(--ink); }
-.nav__item:hover svg { color: var(--muted); }
+/* AN IDENTITY SINCE S3c-1, AND KEPT ON PURPOSE. The icon was --faint at rest
+ * and --muted on hover; both now resolve to --ink-2, so this paints exactly
+ * what the rest rule already painted. It is written as --ink-2 rather than
+ * left as --muted so it says so, and it is not deleted because the specificity
+ * apparatus below DEPENDS on it existing: (0,2,1) here is what the active
+ * icon's doubled class outranks. Delete this and that rule becomes redundant —
+ * which is a correct edit, and a separate one, made deliberately or not at all.
+ *
+ * The 288 sidebar icons this pair paints are also why the `sidebar-nav-icon`
+ * exemption is GONE from the allowlist: at --ink-2 they measure 7.42:1 and
+ * pass SC 1.4.11 on merit, so an entry excusing them would from now on be
+ * excusing nothing while still looking like a live decision. */
+.nav__item:hover svg { color: var(--ink-2); }
 /* No fill. The tint carried the state in HUE only: measured, it is 250 vs 255
  * in greyscale luminance, 2% of the range, so it was sitting next to the
  * signal rather than carrying it. What carries it is below: the positional
@@ -439,16 +486,34 @@ a { color: var(--teal-700); }
 }
 
 /* Unbuilt pages: visible but inert, with a quiet "Soon" tag (never a 404). */
-.nav__item--soon { color: var(--faint); cursor: default; }
+/* INACTIVE, AND NO LONGER GREYED — the state moved off colour (S3c-1).
+ *
+ * These 52 rows are the only TEXT in the portal that WCAG genuinely exempts:
+ * 1.4.3 excuses "text that is part of an inactive user interface component"
+ * exactly as 1.4.11 excuses the icon below. But the contrast allowlist is
+ * role-scoped to `graphic` on purpose (portalContrast.js) — no arrangement of
+ * it can reach body text — so an exemption we are ENTITLED to is one the
+ * instrument cannot express, and the honest move is to stop needing it.
+ *
+ * So the label takes the secondary and reads at 7.42:1, and inactive-ness is
+ * carried by the three things that were already carrying it: the `Soon` badge
+ * naming it in words, `cursor: default`, and the fact that this is a <span>
+ * with no href and no handler at all. The 400 weight against an active item's
+ * 500 keeps a visual step without spending contrast on it — D-018's argument,
+ * applied to the one place left that was still paying in ratio.
+ *
+ * The ICON stays --line-3 and stays exempt: `nav-soon-inactive` in the
+ * allowlist, on 1.4.11's outright exemption for inactive components. */
+.nav__item--soon { color: var(--ink-2); font-weight: 400; cursor: default; }
 .nav__item--soon svg { color: var(--line-3); }
-.nav__item--soon:hover { background: none; color: var(--faint); }
+.nav__item--soon:hover { background: none; color: var(--ink-2); }
 .nav__soon {
   margin-left: auto;
   font-size: 9.5px;
   font-weight: 600;
   letter-spacing: .05em;
   text-transform: uppercase;
-  color: var(--faint);
+  color: var(--ink-2);
   background: var(--line-2);
   border-radius: var(--r-xs);
   padding: 3px 5px;
@@ -558,7 +623,21 @@ a { color: var(--teal-700); }
   padding: 0 0 1px;
   cursor: pointer;
 }
-.ts__a:hover { opacity: .78; }
+/* HOVER IS CARRIED BY WEIGHT, NOT BY A FADE (S3c-1).
+ *
+ * This was `opacity: .78`. It PASSED at 5.09:1 while --ink-2 was #334155, and
+ * the two-step collapse would have taken it to 4.11:1 — 22 rows of NEW failure
+ * introduced by a change that fixes 684 others. That is the trap in this whole
+ * exercise: an opacity fade's ratio depends on the ink it fades, so a scale
+ * change silently re-scores every fade in the file.
+ *
+ * It cannot be repaired by naming a darker colour, either, because the rule
+ * above sets `color: inherit` deliberately — the link takes the strip's
+ * semantic colour, and .ts--warn and .ts--info do not share one. So the
+ * affordance the file already names — the underline — carries the hover:
+ * 1px -> 2px with the padding giving back the pixel, so nothing moves.
+ * Contrast is untouched at 5.09:1 because the colour is untouched. */
+.ts__a:hover { border-bottom-width: 2px; padding-bottom: 0; }
 .ts--warn { background: var(--amber-050); border-color: var(--amber-200); color: var(--amber-700); }
 .ts--info { background: var(--line-2);    border-color: var(--line);      color: var(--ink-2); }
 .ts--info svg { color: var(--muted); }
@@ -614,7 +693,7 @@ a { color: var(--teal-700); }
 }
 .crumb a { color: var(--muted); text-decoration: none; }
 .crumb a:hover { color: var(--ink); text-decoration: underline; }
-.crumb__sep { color: var(--faint); }
+.crumb__sep { color: var(--ink-2); }
 
 /* ⌘K hint. A button, not a decorative pill: it is a real affordance for the
  * owners who will never guess a keyboard shortcut exists. */
@@ -628,7 +707,7 @@ a { color: var(--teal-700); }
   border-radius: var(--r-sm);
   background: var(--card);
   font: 500 11.5px/1 var(--mono);
-  color: var(--faint);
+  color: var(--ink-2);
   cursor: pointer;
 }
 .kbd svg { width: 12px; height: 12px; }
@@ -691,7 +770,10 @@ a { color: var(--teal-700); }
   font: var(--t-h1);
   letter-spacing: var(--ls-h1);
   margin: 0;
-  color: #111827;
+  /* Was the literal #111827 — a FOURTH near-black, 0.4 ratio points from --ink
+   * and distinguishable by nobody. It passed, so nothing ever reported it.
+   * S3c-1 folds it into the token. */
+  color: var(--ink);
 }
 .page-head__sub {
   grid-column: 1;
@@ -723,7 +805,7 @@ a { color: var(--teal-700); }
 .card__title {
   font: var(--t-h2);
   letter-spacing: var(--ls-h2);
-  color: #111827;
+  color: var(--ink);   /* was the literal #111827 — see .page-head__title */
 }
 .card__sub {
   font: var(--t-body-sm);
@@ -847,15 +929,25 @@ a { color: var(--teal-700); }
 /* Disabled. Every disabled control in this portal carries a VISIBLE adjacent
  * reason — see .btn-why below. A disabled button with no reason is a dead end:
  * it tells the owner they may not proceed and refuses to say why, which is the
- * one thing they need in order to stop being stuck. */
+ * one thing they need in order to stop being stuck.
+ *
+ * The LABEL is --ink-2, not --faint, and that is deliberate rather than
+ * incidental (S3c-1). WCAG 1.4.3 would excuse a disabled label at any ratio,
+ * so this is not a compliance fix — it is a landmine removal. --faint now
+ * resolves to #A8A199, which is the exact value core.js:986 reds the build on
+ * when it appears as a glyph colour. No fixture renders a disabled .btn today,
+ * so `contract: 0` would have held; the first fixture that DID render one
+ * would have failed the suite on a rule this file was quietly breaking the
+ * whole time. Disabled-ness is carried by the flat --line-2 fill, the dropped
+ * border and `cursor: not-allowed` — not by making the label hard to read. */
 .btn:disabled, .btn[aria-disabled="true"] {
   cursor: not-allowed;
   opacity: 1;
   background: var(--line-2);
   border-color: transparent;
-  color: var(--faint);
+  color: var(--ink-2);
 }
-.btn:disabled svg, .btn[aria-disabled="true"] svg { color: var(--faint); }
+.btn:disabled svg, .btn[aria-disabled="true"] svg { color: var(--ink-2); }
 
 /* Busy. The label takes the present participle and a spinner fills the icon
  * slot. `aria-busy` rather than a second visual language: the button is
@@ -936,7 +1028,7 @@ a.lc--draft:hover { border-color: var(--line-3); color: var(--ink-2); }
  * a hairline so "Not live" and "2 left" read as one object, not two badges. */
 .lc__ct {
   font-weight: 500;
-  color: var(--faint);
+  color: var(--ink-2);
   padding-left: 6px;
   margin-left: 2px;
   border-left: 1px solid var(--line);
@@ -1008,7 +1100,7 @@ a.lc--draft:hover { border-color: var(--line-3); color: var(--ink-2); }
   color: var(--ink-2);
   margin-bottom: 7px;
 }
-.field__opt { font-weight: 500; color: var(--faint); margin-left: 6px; }
+.field__opt { font-weight: 500; color: var(--ink-2); margin-left: 6px; }
 .field__help { font-size: 12.5px; color: var(--muted); margin: -2px 0 9px; line-height: 1.5; }
 
 /* Inputs (spec §2.9) — six states: rest, hover, focus, error, read-only,
@@ -1031,7 +1123,7 @@ a.lc--draft:hover { border-color: var(--line-3); color: var(--ink-2); }
               background var(--dur-1) var(--ease-out),
               box-shadow var(--dur-1) var(--ease-out);
 }
-.input::placeholder { color: var(--faint); }
+.input::placeholder { color: var(--ink-2); }
 .input:hover { background: var(--card); border-color: var(--line-3); }
 .input:focus {
   outline: none;
@@ -1042,7 +1134,7 @@ a.lc--draft:hover { border-color: var(--line-3); color: var(--ink-2); }
 .input:disabled {
   background: var(--bg);
   border-color: var(--line-2);
-  color: var(--faint);
+  color: var(--ink-2);   /* --ink-2, never --faint — see .btn:disabled above */
   cursor: not-allowed;
 }
 /* Read-only is NOT disabled, and must not look like it. Read-only means BY
@@ -1587,7 +1679,7 @@ body.is-embedded .save-bar { display: none !important; }
   border-bottom-color: var(--teal-700);
   box-shadow: inset 0 -3px 0 -1px var(--teal-50);
 }
-.cmdk__search { width: 17px; height: 17px; flex: none; color: var(--faint); }
+.cmdk__search { width: 17px; height: 17px; flex: none; color: var(--ink-2); }
 .cmdk__head:focus-within .cmdk__search { color: var(--teal-700); }
 .cmdk__input {
   flex: 1;
@@ -1599,7 +1691,7 @@ body.is-embedded .save-bar { display: none !important; }
   color: var(--ink);
   padding: 0;
 }
-.cmdk__input::placeholder { color: var(--faint); }
+.cmdk__input::placeholder { color: var(--ink-2); }
 .cmdk__esc {
   flex: none;
   border: 1px solid var(--line);
@@ -1607,7 +1699,7 @@ body.is-embedded .save-bar { display: none !important; }
   border-radius: var(--r-xs);
   padding: 3px 7px;
   font: 500 11px/1.4 var(--mono);
-  color: var(--faint);
+  color: var(--ink-2);
   cursor: pointer;
 }
 .cmdk__esc:hover { color: var(--muted); border-color: var(--line-3); }
@@ -1632,7 +1724,7 @@ body.is-embedded .save-bar { display: none !important; }
   color: var(--ink-2);
   cursor: pointer;
 }
-.cmdk__ic { display: flex; flex: none; color: var(--faint); }
+.cmdk__ic { display: flex; flex: none; color: var(--ink-2); }
 .cmdk__ic svg { width: 16px; height: 16px; }
 .cmdk__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The matched letters, not the whole row — an owner typing "hh" should see
@@ -1644,7 +1736,7 @@ body.is-embedded .save-bar { display: none !important; }
   font: var(--t-micro);
   letter-spacing: var(--ls-micro);
   text-transform: uppercase;
-  color: var(--faint);
+  color: var(--ink-2);
 }
 /* Keyboard cursor. It is deliberately the SAME treatment as the active nav item
  * — tint plus a 2px bar — so the highlighted row survives greyscale exactly

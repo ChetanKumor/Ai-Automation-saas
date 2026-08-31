@@ -101,8 +101,12 @@
   border-color: var(--teal-100);
   color: var(--teal-700);
 }
-.lang-toggle__native { font-weight: 500; color: var(--faint); }
-.lang-toggle[aria-pressed="true"] .lang-toggle__native { color: var(--teal-700); opacity: .8; }
+.lang-toggle__native { font-weight: 500; color: var(--ink-2); }
+/* Was `color: var(--teal-700); opacity: .8` — 3.61:1, the same species of
+ * defect as the holiday row and as F-F010's legal-link hover. --teal-800 is
+ * the accent's own darker step and needs no fade: 7.27:1 on the pressed pill,
+ * measured. */
+.lang-toggle[aria-pressed="true"] .lang-toggle__native { color: var(--teal-800); }
 
 /* ── Warnings: quiet, never blocking (booking offers the intersection) ── */
 .doc__warn {
@@ -144,6 +148,13 @@
   transition: background .12s, color .12s, border-color .12s;
 }
 .doc__remove:hover { background: var(--red-050); border-color: var(--red-100); color: var(--red); }
+/* THE ONE FADE THAT STAYS. S3c-1 deleted every `opacity` fade on a glyph in
+ * the light ground — five of them, all AA failures or about to become one.
+ * This is the carve-out: WCAG 1.4.3 and 1.4.11 both exempt INACTIVE user
+ * interface components outright, without reference to ratio, and a disabled
+ * control is the one place where fading toward the backdrop is honest —
+ * it says "not available" in the same gesture for icon and label at once.
+ * A fade on anything ACTIVE is a defect; see hours.css's holiday row. */
 .doc__remove:disabled { opacity: .5; cursor: default; }
 .doc__remove:disabled:hover { background: none; border-color: transparent; color: var(--muted); }
 
@@ -177,7 +188,7 @@
 }
 .arch-row:first-of-type { border-top: none; }
 .arch-row__name { font-size: 14px; font-weight: 600; color: var(--ink-2); min-width: 0; overflow-wrap: anywhere; }
-.arch-row__meta { font-size: 12.5px; color: var(--faint); }
+.arch-row__meta { font-size: 12.5px; color: var(--ink-2); }
 .arch-row__spacer { flex: 1 1 auto; }
 
 .list-foot { margin-top: var(--s-4); }

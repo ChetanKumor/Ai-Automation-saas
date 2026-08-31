@@ -10,7 +10,7 @@
 
 /* Loading / error placeholder (home.css isn't linked here, so define locally) */
 
-.page-head__meta { margin-top: 8px; font-size: 12.5px; color: var(--faint); }
+.page-head__meta { margin-top: 8px; font-size: 12.5px; color: var(--ink-2); }
 
 /* ── Card header row: title + Edit link ── */
 .know-card__head {
@@ -42,7 +42,7 @@
 .kv:first-child { border-top: 0; padding-top: 0; }
 .kv__k { flex: 0 0 150px; color: var(--muted); font-weight: 600; }
 .kv__v { flex: 1; min-width: 0; color: var(--ink-2); }
-.know-faint { color: var(--faint); font-style: italic; }
+.know-faint { color: var(--ink-2); font-style: italic; }
 
 /* ── Plain content list (prices, doctors, policies, FAQs, holidays) ── */
 .plain-list { list-style: none; margin: 0; padding: 0; }
@@ -70,7 +70,7 @@
 
 .know-lead { margin: 0 0 10px; font-size: 13.5px; color: var(--ink-2); line-height: 1.55; }
 .know-lead:last-child { margin-bottom: 0; }
-.know-subhead { margin: var(--s-4) 0 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--faint); }
+.know-subhead { margin: var(--s-4) 0 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-2); }
 
 /* ── Chips (languages, payment methods) ── */
 .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -115,7 +115,7 @@
   color: var(--ink-2);
   overflow-wrap: anywhere;
 }
-.prot__foot { margin: var(--s-4) 0 0; font-size: 12px; color: var(--faint); line-height: 1.55; }
+.prot__foot { margin: var(--s-4) 0 0; font-size: 12px; color: var(--ink-2); line-height: 1.55; }
 
 @media (max-width: 480px) {
   .kv { flex-direction: column; gap: 2px; }

@@ -1,24 +1,6 @@
-FAIL      1.77:1 needs 4.5  rgb(148, 163, 184) on rgb(250,248,245) @op0.68
-FAIL      1.80:1 needs 4.5  rgb(148, 163, 184) on rgb(253,252,250) @op0.68
-FAIL      1.83:1 needs 4.5  rgb(148, 163, 184) on rgb(255,255,255) @op0.68 :hover
-FAIL      2.28:1 needs 4.5  rgb(148, 163, 184) on rgb(245,241,235)
-FAIL      2.42:1 needs 3  rgb(148, 163, 184) on rgb(250,248,245) [graphic]
-FAIL      2.42:1 needs 4.5  rgb(148, 163, 184) on rgb(250,248,245)
-FAIL      2.42:1 needs 4.5  rgb(148, 163, 184) on rgb(250,248,245) :hover
-FAIL      2.46:1 needs 4.5  rgb(148, 163, 184) on rgb(251,250,247)
-FAIL      2.50:1 needs 4.5  rgb(148, 163, 184) on rgb(253,252,250)
-FAIL      2.56:1 needs 3  rgb(148, 163, 184) on rgb(255,255,255) [graphic]
-FAIL      2.56:1 needs 4.5  rgb(148, 163, 184) on rgb(255,255,255)
-FAIL      2.56:1 needs 4.5  rgb(148, 163, 184) on rgb(255,255,255) :hover
-FAIL      2.60:1 needs 3  rgb(100, 116, 139) on rgb(253,252,250) [graphic] @op0.68
 FAIL      3.08:1 needs 4.5  rgb(90, 100, 114) on rgb(12,20,32)
-FAIL      3.50:1 needs 4.5  rgb(123, 135, 151) on rgb(251,250,247)
-FAIL      3.61:1 needs 4.5  rgb(15, 118, 110) on rgb(243,253,251) @op0.8
 FAIL      4.08:1 needs 4.5  rgb(110, 119, 132) on rgb(12,20,32)
-FAIL      4.23:1 needs 4.5  rgb(100, 116, 139) on rgb(245,241,235)
-FAIL      4.49:1 needs 4.5  rgb(100, 116, 139) on rgb(250,248,245)
-FAIL      4.49:1 needs 4.5  rgb(100, 116, 139) on rgb(250,248,245) :hover
-UNDET     background-image in the backdrop stack  rgb(15, 23, 42) on rgb(253,252,250)
+UNDET     background-image in the backdrop stack  rgb(23, 21, 15) on rgb(253,252,250)
 RING      PASS 4.86  [outline 4.86 vs outer backdrop  2px solid rgb(15, 118, 110) @ 2px]
 RING      PASS 5.16  [outline 5.16 vs outer backdrop  2px solid rgb(15, 118, 110) @ -1px | glow 1.13 vs inner fill  0px 1px 2px 0px rgba(23, 21, 15, 0.06)]
 RING      PASS 5.16  [outline 5.16 vs outer backdrop  2px solid rgb(15, 118, 110) @ -1px]

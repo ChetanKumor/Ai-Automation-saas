@@ -62,10 +62,10 @@ so the shadowing cannot come back without reddening the suite.
 | `--green-100` | `#dcfce7` | portal, demo/shared, demo/styles |
 | `--green-700` | `#15803d` | portal, demo/shared, demo/styles |
 | `--hi` | `'Noto Sans Devanagari', 'Noto Sans', system-ui, sans-serif` | portal, demo/shared, demo/styles |
-| `--ink` | `#0f172a` | portal, demo/shared, demo/styles |
-| `--ink-2` | `#334155` | portal, demo/shared, demo/styles |
+| `--ink` | `#17150F` | portal, demo/shared, demo/styles |
+| `--ink-2` | `#57524A` | portal, demo/shared, demo/styles |
 | `--line` | `rgba(23, 21, 15, .08)` | portal, demo/shared, demo/styles |
-| `--muted` | `#64748b` | portal, demo/shared, demo/styles |
+| `--muted` | `#57524A` | portal, demo/shared, demo/styles |
 | `--r-lg` | `12px` | portal, web |
 | `--r-md` | `8px` | portal, web |
 | `--r-sm` | `6px` | portal, web |
@@ -92,6 +92,12 @@ just as loudly as an undocumented change.
 |---|---|---|---|
 | `--bg` | demo/shared | `#eef2f6` | The divergence is now a different one, and larger. It used to be a lightness argument on a shared cool axis — the portal a hair lighter than the demo so its white sidebar and cards read as calm rather than boxed-in (PORTAL-P1-S2's `#f6f8fa`, carried to `#f7f8fb` by the enterprise polish pass). S3b moved the portal off that axis entirely: `#faf8f5` is warm paper, the same value as `web/`'s `--ground`, per D-016. The demo is a frozen sales surface and stays cool. The two grounds are no longer steps of one scale; they are two scales, and only the portal's is the product's. |
 | `--bg` | demo/styles | `#eef2f6` | Same as above — the demo pair share a ground, and stay cool while the portal flips to warm paper. |
+| `--ink` | demo/shared | `#0f172a` | S3c-1 re-derived the portal's ink for the paper ground and took `web/`'s values verbatim (`--ink-strong`, `globals.css:263`) rather than mixing a new warm near-black — a fourth source of truth is the defect this table exists to prevent. Slate on warm paper was the last cool thing left after S3b flipped the ground and S3b-2 re-hued the shadows. The demo pair are a frozen cool sales surface and were not migrated. |
+| `--ink` | demo/styles | `#0f172a` | Same reason as `demo/shared`: the demo pair share one ink scale and stay on the cool axis the portal left at S3b. |
+| `--ink-2` | demo/shared | `#334155` | The portal's secondary is now `web/`'s `--ink-soft` (`globals.css:264`) and carries a load it did not before: S3c-1 collapsed four text steps to two, so `--ink-2` is the ONLY quiet glyph colour on the light ground. It is measured at 7.31:1 on `--bg` and 6.22:1 at its worst backdrop. The demo keeps the cool slate secondary of a three-step scale it still has. |
+| `--ink-2` | demo/styles | `#334155` | Same reason as `demo/shared`: the demo pair keep the pre-collapse cool scale. |
+| `--muted` | demo/shared | `#64748b` | Not a hue divergence — a STRUCTURAL one. On the portal `--muted` is no longer a step at all; it is a deprecated alias resolving to `--ink-2`, because `#64748b` measured 4.49:1 on `--bg` and 4.23:1 on `--line-2` and so failed AA on the app's own ground. The same collapse `web/` made at D-016 (`--text-secondary` and `--text-tertiary` both alias `--ink-soft`, `globals.css:99-100`). The demo still declares it as a real third step. |
+| `--muted` | demo/styles | `#64748b` | Same reason as `demo/shared`: the demo pair still carry `--muted` as a real step rather than an alias. |
 | `--line` | demo/shared | `#e2e8f0` | The demo keeps an opaque cool hairline. The portal's is no longer opaque at all: S3b took `web/`'s `--rule`, `rgba(23, 21, 15, .08)`, so one composite serves all five of the portal's light grounds instead of one hex tuned to a single ground. That costs weight — `#dbe3eb` was 1.296:1 on `--card` and the composite is 1.178:1 — and the cost was accepted to keep the value shared rather than merely similar. The demo is a frozen sales surface and was not migrated. |
 | `--line` | demo/styles | `#e2e8f0` | Same reason as `demo/shared`: the demo pair share one opaque cool hairline and were not carried onto the portal's alpha rule. |
 | `--teal-700` | demo/shared | `#0f5f59` | The demo still uses the pre-v2 convention where `--teal-600`/`--teal-700` are darker steps *below* the base `--teal`. The portal adopted the standard 50–900 ramp in D1, where `--teal-700` **is** the base (spec §2.1, plan §0.1). Same name, two conventions — which is exactly why the portal's consumers were migrated to `--teal-hover`/`--teal-press` rather than being left to resolve differently. |

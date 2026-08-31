@@ -59,7 +59,7 @@
   color: transparent;
 }
 .lang-toggle__check svg { width: 11px; height: 11px; }
-.lang-toggle__native { color: var(--faint); font-weight: 500; }
+.lang-toggle__native { color: var(--ink-2); font-weight: 500; }
 .lang-toggle--te .lang-toggle__native { font-family: var(--te); }
 .lang-toggle--hi .lang-toggle__native { font-family: var(--hi); }
 
@@ -78,7 +78,11 @@
  * it happened to hold; doctors.css carries the identical selector and expressed
  * the same de-emphasis with opacity instead. Both now read --teal-700 at .8, so
  * two copies of one component stop disagreeing. */
-.lang-toggle[aria-pressed="true"] .lang-toggle__native { color: var(--teal-700); opacity: .8; }
+/* Was `color: var(--teal-700); opacity: .8` — 3.61:1, the same species of
+ * defect as the holiday row and as F-F010's legal-link hover. --teal-800 is
+ * the accent's own darker step and needs no fade: 7.27:1 on the pressed pill,
+ * measured. */
+.lang-toggle[aria-pressed="true"] .lang-toggle__native { color: var(--teal-800); }
 
 /* The 40px narrowing that used to sit here is gone: this file loads after
  * tokens.css, so it beat the shared 44px touch-target block and made the one

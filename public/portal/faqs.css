@@ -106,6 +106,7 @@
   transition: background .12s, color .12s, border-color .12s;
 }
 .faq__remove:hover { background: var(--red-050); border-color: var(--red-100); color: var(--red); }
+/* The inactive-component carve-out — see doctors.css for the clause. */
 .faq__remove:disabled { opacity: .5; cursor: default; }
 .faq__remove:disabled:hover { background: none; border-color: transparent; color: var(--muted); }
 

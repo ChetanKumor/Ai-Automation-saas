@@ -172,7 +172,7 @@
 }
 .readiness__mark svg { display: block; width: 100%; height: 100%; }
 .readiness__note { color: var(--muted); font-size: 13.5px; margin-top: 6px; line-height: 1.55; }
-.readiness__ran { color: var(--faint); font-size: 12px; margin-top: 10px; }
+.readiness__ran { color: var(--ink-2); font-size: 12px; margin-top: 10px; }
 
 /* ── The run has expired (F1) ──────────────────────────────────────────────
  * Replaces .readiness__ran when run.stale. Amber, not red: nothing is broken —
@@ -257,8 +257,10 @@
   align-items: center;
   gap: 10px;
 }
-/* The route to the fix. It was --faint (#94a3b8) — 2.8:1 on --card, which the
- * token's own comment marks "non-text only". A link telling an owner how to
+/* The route to the fix. It was --faint (#94a3b8) — 2.56:1 on --card, which the
+ * token's own comment marks "non-text only". (Both this line and the token's
+ * own said "2.8:1" until S3c-1 measured it; that number was never right, on
+ * this ground or the cool one before it.) A link telling an owner how to
  * unblock go-live is text, and it was the quietest text on the page. It reads
  * as the portal's link colour now, --teal-700 at 5.4:1, which is also what
  * tokens.css gives every other <a> before this rule overrode it. */
@@ -277,8 +279,13 @@
  * was removed at PORTAL-P6-S18 and home.js has rendered a real link ever since. */
 a.check__link:hover { color: var(--teal-800); text-decoration: underline; }
 
-/* Advisory checks read subordinate to material ones. */
-.check--advisory { opacity: .8; }
+/* Advisory checks read subordinate to material ones — by WEIGHT, not by a
+ * fade. This carried `opacity: .8` and the seeded tenant has no advisory
+ * check, so the sweep has never rendered one: it was a latent 4.61:1 on a
+ * card and 4.43:1 on --bg, i.e. already failing on the app ground, and the
+ * instrument could not have told us. Subordination is what the lighter
+ * label weight below is FOR; the fade was saying it twice and breaking AA
+ * to do it. --ink-2 at full opacity is 7.75:1 on the card. */
 .check--advisory .check__label { font-weight: 500; color: var(--ink-2); }
 
 /* The empty and error states now use the shared `.emp` / `.pg-err` vocabulary in

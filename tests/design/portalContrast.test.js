@@ -300,18 +300,28 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
   // rgb() and hex are the same colour; the live sweep only ever sees rgb().
   const asRgb = judge([{ color: 'rgb(168, 161, 153)', bg: { r: 255, g: 255, b: 255 }, px: 13, weight: 400, role: 'text' }]);
   assert.strictEqual(asRgb.contract.length, 1, 'the contract must survive serialisation to rgb()');
+  // #94a3b8 was the portal's own --faint until S3c-1 and is now only
+  // --field-muted. It still fails 4.5:1 on white, and it must still fail as a
+  // THRESHOLD failure and not a contract one — the contract is about one
+  // specific hex, never about "a colour that looks faint".
   const notFaint = judge([{ color: 'rgb(148, 163, 184)', bg: { r: 255, g: 255, b: 255 }, px: 13, weight: 400, role: 'text' }]);
   assert.strictEqual(notFaint.contract.length, 0, 'and must not fire on a different failing colour');
-  assert.strictEqual(notFaint.failures.length, 1, '--faint is a threshold failure, not a contract one');
+  assert.strictEqual(notFaint.failures.length, 1, '#94a3b8 is a threshold failure, not a contract one');
 
   // ── SC 1.4.11: the allowlist, and what it is NOT allowed to do ────────
   // S3b-3 taught the sweep to see SVG paint and 339 icons came back under 3:1.
-  // Three of those groups are outside the criterion, and they are exempted by a
+  // Two of those groups are outside the criterion, and they are exempted by a
   // LIST rather than by a rule. A suppression mechanism nobody has watched
   // suppress anything is not a mechanism, so each entry is exercised on a row
   // it must silence AND on a near-miss it must not.
+  //
+  // It was three until S3c-1. `sidebar-nav-icon` excused 288 icons painted in
+  // --faint at 2.46:1; those icons take --ink-2 now and measure 7.42:1, so the
+  // entry was excusing nothing. It was REMOVED rather than left: a lapsed
+  // exemption is invisible — it keeps looking like a live decision and would
+  // silently re-activate under any future re-hue that walked back under it.
   const EXEMPT = kit.PORTAL_EXEMPT;
-  assert.strictEqual(EXEMPT.length, 3, 'three entries; a fourth is a decision, not an edit');
+  assert.strictEqual(EXEMPT.length, 2, 'two entries; a third is a decision, not an edit');
   for (const e of EXEMPT) {
     assert.ok(e.name && e.why && e.sc, `exemption ${e.name} must carry its own reason`);
     assert.match(e.sc, /SC 1[.]4[.]11/, `exemption ${e.name} must name the clause it rests on`);
@@ -327,9 +337,6 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
   });
   const only = (rows) => kit.judge(rows);
   const cases = [
-    ['sidebar-nav-icon',
-      g('nav#nav > div.nav__grp > a.nav__item > svg > rect'),
-      g('div#phones > div.phone-row > button.phone-row__remove > svg > path')],
     ['nav-soon-inactive',
       g('nav#nav > div.nav__grp > span.nav__item.nav__item--soon > svg > path'),
       g('nav#nav > div.nav__grp > span.nav__item > svg > path')],
@@ -351,7 +358,13 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
   }
   // The two icon-only controls are deliberately NOT on the list: their icon is
   // the whole control, so SC 1.4.11's 'required to understand the content' is
-  // exactly what they are. .holiday__remove in a past row measures 2.60:1.
+  // exactly what they are. .holiday__remove in a past row MEASURED 2.60:1 —
+  // past tense since S3c-1 deleted the `opacity: .68` that caused it, and the
+  // live portal no longer produces this row. The shape is kept here anyway:
+  // this is an assertion about the ENGINE's refusal to exempt an icon-only
+  // control, and it must not evaporate because one caller stopped generating
+  // the input. A regression test that only exists while the bug does is not
+  // one.
   const holiday = g('div#holidays > div.holiday-row.holiday-row--past > button.holiday__remove > svg > path',
     { color: 'rgb(100, 116, 139)', bg: { r: 253, g: 252, b: 250 }, opacity: 0.68 });
   assert.strictEqual(only([holiday]).exempt.length, 0, '.holiday__remove is not exempt');
@@ -378,8 +391,17 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
     'portal.signature.txt no longer hashes to PORTAL_BASELINE.signatureMd5'
   );
   const sigLines = sig.trim().split('\n');
-  assert.strictEqual(sigLines.filter((l) => l.startsWith('FAIL ')).length, 20,
-    'the portal baseline is 20 distinct failing shapes');
+  // TWO distinct failing shapes, down from 20 at S3b-3. Both are on the ink
+  // FIELD rgb(12,20,32) and both are hardcoded literals in verbatim.css —
+  // #5A6472 at :403 and #6E7784 at :292/:352/:408. The portal's LIGHT ground
+  // has no failing shape left at all. Held as a hard number rather than a
+  // ceiling on purpose: a shape appearing is as much a change as one leaving,
+  // and this is the assertion that notices either without a browser.
+  assert.strictEqual(sigLines.filter((l) => l.startsWith('FAIL ')).length, 2,
+    'the portal baseline is 2 distinct failing shapes, both on --field (S3c-2)');
+  assert.ok(sigLines.filter((l) => l.startsWith('FAIL ')).every((l) => /on rgb\(12,20,32\)/.test(l)),
+    'a FAIL shape has appeared off the ink field — the light ground is at zero '
+    + 'as of S3c-1 and anything new there is a regression, not a leftover');
   assert.strictEqual(sigLines.filter((l) => l.startsWith('CONTRACT ')).length, 0,
     'D-016: zero --ink-faint glyphs on the live portal, measured');
   assert.strictEqual(kit.PORTAL_BASELINE.contract, 0);
@@ -414,16 +436,43 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
 
   const FAINT = /#a8a199\b|rgba?\(\s*168\s*,\s*161\s*,\s*153\s*[,)]/i;
   const TEXT_PROP = /(^|[;{])\s*(color|-webkit-text-fill-color)\s*:\s*([^;}]+)/gi;
+  /* ── THE ALIAS SET IS COLLECTED ACROSS ALL SHEETS, NOT PER SHEET ──────────
+   * It was per sheet, and that made this net blind to the only shape the
+   * offence can actually take in this portal. `--faint` is declared once, in
+   * tokens.css; every consumer of it is in ANOTHER file. So a per-sheet scan
+   * looked for `color: var(--faint)` only in the one file that never contains
+   * a consumer, and would have passed a glyph painted faint in any of the
+   * other fourteen.
+   *
+   * FALSIFIED, not reasoned. S3c-1 appended `.probe { color: var(--faint) }`
+   * to knows.css with --faint already at #A8A199, and this assertion stayed
+   * GREEN. It reds now. The blind spot could not have been found before this
+   * session: until --faint took the contract's own hex the portal contained no
+   * #A8A199 at all, so the check was passing by ABSENCE and nothing it did or
+   * failed to do made any difference to the result.
+   *
+   * One flat set across the directory is the right model: the portal declares
+   * its tokens in exactly one `:root` in one file (pinned by tokenDrift's
+   * EXPECTED_ROOT_BLOCKS) and none of these sheets imports another. */
+  const aliases = new Set();
+  {
+    const decl = /(--[a-z0-9-]+)\s*:\s*([^;}]+)/gi;
+    for (const [, css] of sheets) {
+      let d;
+      decl.lastIndex = 0;
+      while ((d = decl.exec(css)) !== null) if (FAINT.test(d[2])) aliases.add(d[1]);
+    }
+  }
+  // The alias hop is now the ONLY shape this offence can take, so the hop must
+  // exist. If --faint ever stops resolving to the contract's hex, this net
+  // silently narrows back to direct-hex use and stops being a net at all.
+  assert.ok(aliases.has('--faint'),
+    "the portal no longer defines --faint as #A8A199 — D-016's static net has "
+    + 'quietly narrowed to direct hex use; re-point it at whatever name now '
+    + 'carries the non-text ink, or delete it and say why');
+
   const offences = [];
   for (const [name, css] of sheets) {
-    // Custom properties in THIS sheet whose value is the faint hex; a
-    // `color: var(--x)` that reaches one of them is the same offence written
-    // one hop away.
-    const aliases = new Set();
-    const decl = /(--[a-z0-9-]+)\s*:\s*([^;}]+)/gi;
-    let d;
-    while ((d = decl.exec(css)) !== null) if (FAINT.test(d[2])) aliases.add(d[1]);
-
     let c;
     TEXT_PROP.lastIndex = 0;
     while ((c = TEXT_PROP.exec(css)) !== null) {
@@ -439,4 +488,98 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
     offences, [],
     'D-016: --ink-faint is NON-TEXT ONLY and must never be a glyph colour in the portal'
   );
+
+  /* ══ NO GLYPH ON THE LIGHT GROUND IS FADED BY `opacity` (S3c-1) ═══════════
+   *
+   * The durable half of what that session bought. Its colour work can be read
+   * off the signature; this cannot, and it is the part most likely to be
+   * undone by accident, because `opacity: .8` reads as a styling choice rather
+   * than as an accessibility decision.
+   *
+   * WHY IT IS A RULE AND NOT A MEASUREMENT. Fading a colour toward its
+   * backdrop reduces contrast BY CONSTRUCTION — F-F010's finding, and the
+   * portal's own `.holiday-row--past` at 1.77:1. Two consequences make the
+   * per-instance number useless as a guard:
+   *
+   *   1. A fade's ratio depends on the INK it fades, so it is re-scored by
+   *      every palette change. `.ts__a:hover` sat at a passing 5.09:1 for
+   *      months and the two-step collapse would have taken it to 4.11:1 — a
+   *      new failure produced by a change that touched no rule near it.
+   *   2. At .68 no ink can pass. The best any colour reaches on that row's
+   *      backdrops is 3.47:1; the primary ink itself only gets to 6.30:1
+   *      where it needs 4.5:1 of headroom to survive the next re-hue.
+   *
+   * So the mechanism is refused outright, and the five permitted uses are
+   * named. Same shape as PORTAL_EXEMPT above and for the same reason: a
+   * heuristic ("skip disabled-looking rules") would gain and lose members
+   * silently, while a list that stops matching shows up here immediately.
+   *
+   * The sweep CANNOT express this: it reports failures, not passing rows, so
+   * a fade that still passes — every one of the five deleted, on the day
+   * before it was deleted — is invisible to it. Reading the stylesheets is
+   * not a weaker version of the live check; it is the only place the rule is
+   * checkable at all. */
+  const FADE_ALLOWED = [
+    { name: 'inactive-component',
+      ok: (d) => d.ctx.some((s) => /:disabled|\[disabled\]/.test(s)),
+      why: 'WCAG 1.4.3 and 1.4.11 both exempt INACTIVE user interface components '
+        + 'outright, without reference to ratio. A disabled control is the one '
+        + 'place fading toward the backdrop is honest — it says "not available" '
+        + 'for the icon and the label in a single gesture.' },
+    { name: 'keyframe-step',
+      ok: (d) => /^@keyframes\b/.test(d.ctx[0] || ''),
+      why: 'An animation frame is not a resting value. Contrast is judged on '
+        + 'what the element settles to, and every one of these returns to 1.' },
+    { name: 'undrawn-dot',
+      ok: (d) => d.ctx.some((s) => /\.think-dot\b/.test(s)),
+      why: 'The reduced-motion resting value for a 5px dot that has no text and '
+        + 'no icon in it — a --faint FILL, which is exactly what D-016 leaves '
+        + '--ink-faint for. There is no glyph here to fade.' },
+    { name: 'ink-field-press',
+      ok: (d) => d.file === 'verbatim.css' && d.ctx.some((s) => /\.is-press\b/.test(s)),
+      why: 'The Verbatim panel is the ink FIELD (--field #0c1420), a dark ground '
+        + 'with its own scale and its own open failures — S3c-2 owns it. This '
+        + 'is a transient press state on that surface, not the light ground.' },
+  ];
+  const fades = [];
+  for (const [name, css] of sheets) {
+    if (!name.endsWith('.css')) continue;   // inline <style> blocks carry none
+    const src = css.replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const stack = [];
+    let sel = '';
+    let i = 0;
+    while (i < src.length) {
+      const ch = src[i];
+      if (ch === '{') { stack.push(sel.trim().replace(/\s+/g, ' ')); sel = ''; i += 1; continue; }
+      if (ch === '}') { stack.pop(); sel = ''; i += 1; continue; }
+      if (ch === ';') { sel = ''; i += 1; continue; }
+      const m = /^opacity\s*:\s*(0?\.\d+|0)\s*(?=[;}])/.exec(src.slice(i));
+      if (m && (i === 0 || /[;{}\s]/.test(src[i - 1]))) {
+        const value = parseFloat(m[1]);
+        if (value > 0 && value < 1) fades.push({ file: name, value, ctx: stack.slice() });
+        i += m[0].length; sel = ''; continue;
+      }
+      sel += ch; i += 1;
+    }
+  }
+  // The scanner has to actually find things, or this assertion is the vacuous
+  // kind this repo keeps paying for. Eight permitted fades exist today.
+  assert.ok(fades.length >= 8,
+    `the opacity scanner found ${fades.length} fades — it has stopped parsing`);
+  const unpermitted = fades
+    .filter((d) => !FADE_ALLOWED.some((r) => r.ok(d)))
+    .map((d) => `${d.file}: opacity: ${d.value} on \`${d.ctx.join(' | ')}\``);
+  assert.deepStrictEqual(unpermitted, [],
+    'S3c-1: a glyph on the portal\'s light ground is faded by `opacity`. Fading '
+    + 'reduces contrast by construction and no ink survives it below ~.8 — give '
+    + 'the element a dimmed COLOUR at full opacity, or add a named entry to '
+    + 'FADE_ALLOWED saying which WCAG clause covers it.');
+  // Each permission must still cover something. One that matches nothing is a
+  // lapsed exemption, and this session deleted `sidebar-nav-icon` for exactly
+  // that: it keeps reading as a live decision while excusing nothing at all.
+  for (const r of FADE_ALLOWED) {
+    assert.ok(fades.some((d) => r.ok(d)),
+      `FADE_ALLOWED entry "${r.name}" matches no declaration — remove it rather `
+      + 'than leaving an exemption that will silently re-activate');
+  }
 });

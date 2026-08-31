@@ -79,7 +79,7 @@
   border-radius: 999px;
   padding: 2px 7px;
 }
-.greet-field__count { margin-left: auto; font-size: 11.5px; font-weight: 500; color: var(--faint); }
+.greet-field__count { margin-left: auto; font-size: 11.5px; font-weight: 500; color: var(--ink-2); }
 .greet-field--te textarea { font-family: var(--te); }
 .greet-field--hi textarea { font-family: var(--hi); }
 

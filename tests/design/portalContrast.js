@@ -82,23 +82,45 @@ const core = require('./contrast/core');
 const PORTAL_SIGNATURE_FILE = path.join(__dirname, 'contrast', 'portal.signature.txt');
 
 const PORTAL_BASELINE = Object.freeze({
-  at: '8c37822+S3b-3',              // HEAD plus this session's core. The tree did
-                                    // NOT move — every number below moved because
-                                    // the instrument started seeing pseudo-element
-                                    // glyphs, SVG paint, and three interaction
-                                    // states it had never entered.
+  at: '871edeb+S3c-1',              // The tree DID move this time, and only in
+                                    // CSS: the light-ground ink scale collapsed
+                                    // from four steps to two and every glyph
+                                    // `opacity` fade on that ground was deleted.
+                                    // Zero .html, zero .js.
   pages: 14,
   widths: Object.freeze([1280, 380]),
-  rows: 4312,                       // glyph rows measured (was 2347)
-  pairs: 114,                       // distinct colour/backdrop/band/opacity/state
-  failures: 713,                    // threshold failures, 20 distinct shapes
-  exempt: 318,                      // measured, below floor, and on the SC 1.4.11
-                                    // allowlist below: 288 + 26 + 4
-  contract: 0,                      // D-016 --ink-faint as a glyph colour
-  undeterminable: 2,                // background-image in the backdrop stack
-  rings: 712,                       // focus indicators measured
+  rows: 4222,                       // glyph rows measured (was 4312). DOWN, and
+                                    // not because coverage shrank: a state row
+                                    // is only kept where that state MOVES a
+                                    // glyph, and the 288 sidebar icons whose
+                                    // hover differed from their rest now paint
+                                    // one colour in both. Fewer rows here means
+                                    // fewer distinctions, not less looking.
+  pairs: 83,                        // distinct colour/backdrop/band/opacity/state
+                                    // (was 114 — 31 pairs were the retired steps)
+  failures: 29,                     // was 713. All 29 are `rest/text` on the ink
+                                    // FIELD rgb(12,20,32): two hardcoded literals
+                                    // in verbatim.css, #6E7784 (:292, :352, :408)
+                                    // and #5A6472 (:403). The light ground is at
+                                    // ZERO. S3c-2 owns what is left.
+  exempt: 30,                       // was 318. `sidebar-nav-icon` (288) is gone
+                                    // from the allowlist entirely — those icons
+                                    // pass on merit at 7.42:1 now. 26 + 4.
+  contract: 0,                      // D-016 --ink-faint as a glyph colour. LIVE
+                                    // as of S3c-1, not vacuous: --faint IS
+                                    // #A8A199 now, so this check finally has
+                                    // something in the portal it could fire on.
+  undeterminable: 2,                // background-image in the backdrop stack —
+                                    // `select#insuranceStance`, both viewports.
+                                    // Its chevron hardcodes a hex inside a data
+                                    // URI; see the warning at pricing.css:210.
+  rings: 712,                       // focus indicators measured — unmoved, and
+                                    // all 9 distinct RING shapes byte-identical
+                                    // across the change. A glyph colour cannot
+                                    // move a ring: rings are judged against
+                                    // FILLS, and no fill moved.
   ringFailures: 0,                  // below SC 1.4.11's 3:1
-  signatureMd5: 'e6eebb0a8c1b79f33d202c540d8788ea',
+  signatureMd5: '9227cbc5ac4b614020cab8288e3fdb40',
 });
 
 /**
@@ -119,7 +141,7 @@ function readPortalSignature() {
  * THE PORTAL'S SC 1.4.11 ALLOWLIST.
  *
  * S3b-3 taught the sweep to see SVG paint, and 339 of the portal's icons came
- * back below 3:1. SC 1.4.11 does not ask for 3:1 of all of them, and the three
+ * back below 3:1. SC 1.4.11 does not ask for 3:1 of all of them, and the two
  * entries below are the ones it does not ask for. They are a LIST, not a rule:
  * a heuristic such as "has a text sibling" would acquire and lose members every
  * time markup moved and would never say so, whereas a list that stops matching
@@ -137,16 +159,15 @@ function readPortalSignature() {
  * ────────────────────────────────────────────────────────────────────────── */
 
 const PORTAL_EXEMPT = Object.freeze([
-  Object.freeze({
-    name: 'sidebar-nav-icon',
-    role: 'graphic',
-    sel: /> a\.nav__item > svg > /,
-    why: 'Every sidebar item paints its icon immediately beside its own visible '
-      + 'text label, at the same time, in the same control. Nothing about the '
-      + 'destination is available only from the glyph.',
-    sc: 'SC 1.4.11 Graphical Objects applies to parts of graphics REQUIRED to '
-      + 'understand the content; an icon duplicated by adjacent text is not one.',
-  }),
+  /* `sidebar-nav-icon` WAS HERE, AND IS GONE — S3c-1. It excused 288 icons that
+   * measured 2.46:1 as --faint. They are --ink-2 now and measure 7.42:1, so the
+   * entry excused nothing while still reading as a live decision, and an
+   * exemption that stops matching does not announce itself: it would simply sit
+   * here until a future re-hue quietly walked back under it and was silenced by
+   * a judgement nobody had made about the colour it now had. Exemptions are
+   * removed when the thing they excuse stops needing excusing. The reasoning it
+   * carried is not lost — it is the argument in tokens.css for why the sidebar
+   * icon takes the label's own colour. */
   Object.freeze({
     name: 'nav-soon-inactive',
     role: 'graphic',

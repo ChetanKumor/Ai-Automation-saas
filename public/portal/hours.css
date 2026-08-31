@@ -30,7 +30,7 @@
 .day__times { display: flex; align-items: center; gap: 12px; }
 .day__time { width: 128px; }
 .day__to { color: var(--muted); font-size: 13px; }
-.day__closed-label { display: none; color: var(--faint); font-size: 13.5px; font-style: italic; }
+.day__closed-label { display: none; color: var(--ink-2); font-size: 13.5px; font-style: italic; }
 
 /* Closed toggle — a plain checkbox with a label; teal accent to match the theme. */
 .day__toggle {
@@ -100,14 +100,36 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .04em;
-  color: var(--faint);
+  color: var(--ink-2);
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 2px 7px;
   white-space: nowrap;
 }
-.holiday-row--past { opacity: .68; }
+/* ── A PAST ROW RECEDES BY COLOUR, NOT BY OPACITY (S3c-1) ──────────────────
+ * This was `.holiday-row--past { opacity: .68 }`, and it was the worst
+ * contrast defect in the portal: 1.77:1 for the `Past` badge, 1.80/1.83:1 for
+ * the label placeholder, 2.60:1 for the remove icon.
+ *
+ * No glyph colour could have fixed it. Fading a colour toward its backdrop
+ * reduces contrast BY CONSTRUCTION — the F-F010 rule — and at .68 the best
+ * ratio ANY ink can reach on this row's three backdrops is 3.47:1, measured.
+ * The primary ink itself only reaches 6.14–6.30 there. So the mechanism goes
+ * and the recede is carried by a dimmed COLOUR at full opacity, which is the
+ * thing that was actually wanted:
+ *
+ *   the two inputs   --ink -> --ink-2   7.55:1 on #fdfcfa   (was 6.12 @ .68)
+ *   the placeholder  --ink-2           7.55:1 on #fdfcfa   (was 1.80 @ .68)
+ *   the `Past` badge --ink-2           7.31:1 on --bg      (was 1.77 @ .68)
+ *   the remove icon  --ink-2           7.55:1 on #fdfcfa   (was 2.60 @ .68)
+ *
+ * The row still reads as history: the badge says so in words, and the value
+ * text sits a full step below the live rows' --ink. Dimming an EDITABLE field
+ * was a lie anyway — a past holiday is still editable and still deletable.
+ * ────────────────────────────────────────────────────────────────────────── */
+.holiday-row--past .holiday__date,
+.holiday-row--past .holiday__name { color: var(--ink-2); }
 .holiday-row--past .holiday__past { display: inline-block; }
 
 .holiday__remove {
