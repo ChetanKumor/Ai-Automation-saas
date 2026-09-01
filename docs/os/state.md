@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: c300bb526dc478cd491d516e9d264d8ac3bdc534
+Verified-at: 967a8d11f8f5816662e72cbe99b760f843635b47
 Verified-on: 2026-09-01
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -6390,6 +6390,15 @@ transition persists a validation run and the page states when);
 `s14-test-reply`. All twelve are a `Date`/`performance` shim away from settling
 and nothing less will do it. Quarantined by name, not chased.
 
+> ⚠️ **Both halves of that paragraph are FALSIFIED by S3g below, which built the
+> shim and measured it.** They are **twelve of thirteen**, not twelve —
+> `s3d-test-no-config` is the same duration defect as `s14-test-reply` on the S3d
+> fixture variant and had been read as a flake since S3b — and a
+> `Date`/`performance` shim settles **none** of them, because every one is a
+> value the SERVER produced. Left standing rather than corrected in place: it is
+> the record of what was believed at `c300bb5`, and S3g is where it is
+> superseded.
+
 ##### Two artefacts this does NOT fix, both named so they are not misattributed
 
 **The 16-device-px column displacement** (item 4 above) is untouched, and cannot
@@ -6438,6 +6447,112 @@ page list, viewports and gates. **This session's own +265 lines staled it** — 
 list is at `:470-495` and the gates at `:219-223` and `:447-469`. Corrected in
 place, with a note that two of the three gates are now shared constants the
 capture path awaits as well. Comment-only; the signature is unaffected.
+
+##### The clock was frozen, and it settled none of the thirteen — S3g
+
+**Instrument only.** `git diff --name-only` for the implementation commit
+(`967a8d1`) is `scripts/portal/shoot.js` and `scripts/portal/shootD5a.js`. No
+`.css`, no `.html`, nothing under `tests/` or `src/`. Tests **1146 / 185 / 0**,
+unmoved. Signature **34ba900e** unmoved (11 lines, 0 FAIL) — and with it every
+recorded count in `PORTAL_BASELINE`: 5891 rows, 86 pairs, 0 failures.
+
+**The shim is real and it is load-bearing.**
+`Page.addScriptToEvaluateOnNewDocument` installs a frozen `Date` before the
+page's own scripts parse. Zero-argument `new Date()` and `Date.now()` return a
+fixed instant and `performance.now()` returns 0; `new Date(iso)`, `Date.parse`
+and `Date.UTC` are the untouched originals, because a page that cannot parse a
+timestamp faithfully is photographing a lie. The epoch — **2026-09-01T12:00:00Z**
+— is pinned, not computed: Tuesday noon UTC is Tuesday in every zone from UTC-11
+to UTC+12, so no `Emulation.setTimezoneOverride` is needed and none was added,
+and it sits **after both seeded holidays** so every `.holiday-row--past` stays
+past. Proven rather than asserted, in both directions: moving the epoch to
+2026-08-01 moves **`s5-hours-desktop` by 15884 px** in the holiday band at CSS
+y 1064-1107.5 and changes **`s5-hours-mobile`'s page HEIGHT from 3894 to 3958**,
+because the *"Past"* chip takes its own grid row below 1024 (`hours.css:206`);
+at the chosen epoch all three `s5` shots are byte-identical in every pair.
+
+⚠️ **AND IT SETTLES NONE OF THE THIRTEEN CONTENT MOVERS. That is the finding,
+and it falsifies S3f's own prediction above.** Every one of them is a value the
+**server** produced, and no page-side clock can reach any of it:
+
+- **Ten are `TIMESTAMPTZ NOT NULL DEFAULT NOW()` columns** —
+  `validation_runs.created_at` and `tenant_config_revisions.created_at`. That
+  `NOW()` is **Postgres's** clock, resolved at INSERT time inside the real
+  `validationService` and `configService.writeTenantConfig` this script drives.
+- **One is `crypto` entropy** — `s3-admin-create-owner`'s one-time password. Not
+  a date at any layer.
+- **Two are a server-measured duration** — `latency_ms`
+  (`src/infra/logging/turnMetrics.js`), printed as
+  `${(p.latency_ms / 1000).toFixed(1)}s` at `test.js:84`.
+
+⚠️ **They are THIRTEEN, not twelve. `s3d-test-no-config` is the thirteenth** —
+the same duration defect as `s14-test-reply` on the S3d fixture variant, 131
+differing device px in a **5.5 x 8 CSS px box at (415, 468.5)**, best vertical
+shift **dy = 0** so it is a glyph and not a displacement. Neither duration shot
+moved in four of the five measured pairs, which is exactly how it hid behind
+"flake" for four sessions.
+
+**What settling the ten would actually take, and why it was NOT done.** There is
+**no fixture file to edit** — nothing seeds those rows. Four of them (the `s17`
+and `s18` shots) are written by clicks inside `afterReady`, i.e. **during** the
+capture sequence, so the pin is not a one-line seed change. It is a decision
+about whether this instrument may rewrite the rows it photographs, and it is
+deliberately left to the founder rather than taken here.
+
+**Every CDP call now has a ceiling.** `CDP.send` resolved on a matching id and
+nothing else, so a response Chrome never sends hung the run forever — the
+33-minute `s8-doctors-desktop` wedge above. S3f paid that debt for
+`Page.captureScreenshot` alone and said so; the 90 s ceiling now lives in `send`
+itself, so **no unprotected CDP call is left in either file**. The retry is
+**allowlisted** to pure reads and idempotent setters and nothing else: a
+`Runtime.evaluate` that clicked Save and then timed out may well have clicked
+it, and the protocol does not say which half happened.
+
+**The quarantine is now printed, not re-derived.** A registry of the **19 of 59**
+shots a byte comparison must not judge — 10 `clock`, 3 `entropy`, 6
+`displacement` — each with its mechanism, printed at the end of every run and
+greppable. It is a registry, not a gate: nothing is suppressed and the corpus is
+still 59 files of whatever the page painted. **The other 40 are expected
+byte-identical between two runs.**
+
+**Six pairs, twelve full runs of all 59 shots: 12 / 13 / 12 / 12 / 12 / 11
+moved, and ZERO were unexplained.** The final pair moved exactly the 11
+registered clock/entropy shots and nothing else.
+
+**Red before green.** One list item was changed in `public/portal/faqs.html`.
+Exactly **`s11-faqs-empty`** moved outside the quarantine — 4755 px in a
+233.5 x 13 CSS px box at (459, 539), one line of text. The file was restored,
+grep confirms the probe string absent and the original present, `git status` is
+clean on `public/`, and the green run put `s11-faqs-empty` back **byte-identical**
+to the run before the probe.
+
+⚠️ **The ±16 px displacement has a lead, recorded and not chased** (the brief
+ruled it out of scope). **All six sightings are `*-error` shots** —
+`s4-profile`, `s6-pricing`, `s8-doctors`, `s9-booking`, `s10-safety`,
+`s13-receptionist` — and **not one of the 51 non-error shots has ever shown it**,
+across nine pairs. The error shots are exactly the ones whose `afterReady` drives
+a failing save, and a failing save calls
+`scrollIntoView({block:'center', behavior:'smooth'})`. `s13-receptionist-error`
+was **predicted by that class note and then turned up in the very pair that
+tested it**; the two never yet seen (`s5-hours-error`, `s11-faqs-error`) are
+almost certainly unobserved rather than exempt.
+
+⚠️ **`scripts/portal/shootD5a.js` IS RED AT HEAD AND WAS ALREADY** — this session
+did not break it and did not fix it. Two independent failures, both reproduced on
+a clean tree: **`capture never repeated itself in 8 frames: d5a-buttons-1440.png`
+on 2 of 2 HEAD runs** (deterministic — the buttons sheet never stops changing),
+and a flaky DOM assertion on `pricing.html` (*"a selected payment pill is
+teal-700"* reading `undefined`, i.e. the element was not there yet) on 1 of 3.
+The script therefore cannot be run to completion, so this session's changes to it
+are exercised only up to the point it already dies. Not in the brief; reported,
+not chased.
+
+**One stale comment corrected while in the file.** `shoot.js`'s hours seed said
+*"one past and one upcoming holiday"*. Both seeded dates (2026-08-15,
+2026-01-26) are now behind us, so **both rows render `.holiday-row--past` and the
+`s5` shots have quietly lost their upcoming-holiday case.** Left as data rather
+than repaired — moving a seeded date changes what three shots show — but the
+comment no longer asserts a state the dates cannot produce.
 
 ### tokenDrift repaired, brand-values corrected — 2026-08-29 (`b308280`)
 
