@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: e977ce75418c1dece7eeea91443aba31db7455a8
-Verified-on: 2026-09-01
+Verified-at: 7659e0bc97a525d1087044c45210347fb89be9bc
+Verified-on: 2026-09-02
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -171,9 +171,17 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1146 tests / 185 suites / 0 fail** (`npm test`, raw: `# tests 1146 /
-  # suites 185 / # pass 1146 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  **+1 test / +0 suites at S3b-3**, the live contrast gate:
+- Test suite: **1148 tests / 186 suites / 0 fail** (`npm test`, raw: `# tests 1148 /
+  # suites 186 / # pass 1148 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  **+2 tests / +1 suite at S5**, the admin nav-parity pin:
+  `tests/design/adminNav.test.js`, one `describe()` with two `it()`s. It reads the
+  eight shipped admin pages and compares their `<nav>` blocks to EACH OTHER with
+  `aria-current` stripped, because the panel has no nav COMPONENT — nine hand-copied
+  blocks are the only thing there is to hold in agreement, and at S5's Phase A they
+  had drifted into THREE variants. No DB, no server, no browser: `fs.readFileSync`.
+  A `describe()` adds a suite where a bare `test()` would not — hence +1 suite here
+  and +0 at S3b-3 below.
+  Before that, **+1 test / +0 suites at S3b-3**, the live contrast gate:
   `tests/design/contrast/portalLive.test.js`, one bare `test()` that RUNS the sweep.
   It is the first design test in this repo that needs Chrome and a database, and it
   **fails rather than skips** without them. **`npm test` wall time 267.8 s -> 343.1 s
@@ -5415,6 +5423,209 @@ Additions since the original 1–28, all in the plan's Phase 8:
   **The capability was preserved, not removed** — `scripts/update-prompt.js` still sets a
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
+
+### Admin panel: nav, copy and the first two pages onto tokens — 2026-09-02 (S5)
+
+**Nothing under `src/`.** `git diff --name-only` is twelve files under
+`public/admin/` and `docs/`, plus one new file under `tests/design/`. No route,
+no handler, no query, no session logic; no portal file; no change to
+`scripts/portal/shoot.js`. Tests **1146 -> 1148 / 185 -> 186 suites / 0 fail**,
+exactly the predicted delta. Portal signature **b98ea30d unmoved** (10 lines, 0
+FAIL) with every `PORTAL_BASELINE` count unmoved — the live sweep ran inside this
+`os:check` and passed, and no file in S5's set is swept.
+
+#### The nav was three variants, and the landing page had the smallest one
+
+Measured at Phase A, not assumed. Ten pages carried **three** hand-copied `<nav>`
+blocks: seven links on `conversations`/`appointments`/`collections`/`workflow`,
+five on `tenants`/`tenant-detail`/`leads`/`notifications`, three on `tenant-new`,
+none on `login`. **Appointments and Workflow appeared on 4 of 10 pages, and one
+of those four was `collections.html`, which nothing links to** — so they were
+reachable from three pages an operator can actually reach. The brand link lands
+on `tenants.html`, which was a five-link page, so clicking the brand from
+Appointments *removed* the link you had just used. **`Tenants` was never a nav
+item at all** — the panel's most important page was reachable only by clicking
+the logo.
+
+Now one canonical eight-link block on eight pages, `Tenants` included, differing
+only in `aria-current="page"`. That attribute goes only on the six pages that
+*are* a nav destination: `tenant-new.html` and `collections.html` carry none,
+because marking a link the operator is not on is a false claim to a screen
+reader. It replaced `notifications.html`'s lone inline `style="font-weight:bold;"`
+— the panel's only previous current-page marker — with a rule in `style.css`
+that is colour **and** a 2px underline, never colour alone.
+
+`tenant-detail.html` is the ninth page and still carries the old five-link block.
+It was excluded from S5's file set (it is S6), and only its two stale product
+strings were changed there. `tests/design/adminNav.test.js`'s `PAGES` list is the
+eight; add the ninth when S6 migrates it.
+
+#### The panel is now half on portal tokens, and that is a deliberate split
+
+`tenants.html` and `tenant-new.html` link `/portal/tokens.css` and
+`/portal/fonts/fonts.css` and **do not link `/admin/style.css`** — the move
+`login.html` made at S4, for the same reason. **A page migrates whole or not at
+all:** `.badge`, `.btn`, `.card` and `body` are declared in BOTH stylesheets, so
+a page linking both is decided by link order rather than by design. Verified: no
+admin page links both.
+
+`/admin/style.css` now dresses **seven** pages, not nine.
+
+The panel bar is REPRODUCED in each migrated page's `<style>` rather than shared,
+because the seven unmigrated pages still take it from `style.css`. The values are
+identical on both sides so a half-migrated panel does not read as two products.
+That is a real duplication and it is temporary: S6 collapses it when
+`tenant-detail.html` moves and `style.css` loses its last consumer. A shared
+`public/admin/panel.css` would have avoided it and was NOT taken — it is a file
+outside the approved set.
+
+**Zero contrast failures on the migrated pages**, 19 pairs computed with
+`tests/design/contrast/core.js`'s own `contrastRatio()`. The `#888` `.text-muted`
+that Phase A predicted would be the first sweep's only finding (3.54:1 on `#fff`,
+3.25:1 on `#f5f5f5`) is gone from these two pages: they use `--ink-2` at 7.31 /
+7.75.
+
+#### Focus indicators, measured rather than predicted
+
+Phase A predicted the ring result was "genuinely not derivable from source" and
+flagged it as the strongest reason to build a per-page origin. S5 measured it
+instead, with a standalone CDP probe that serves `public/` statically, tabs
+through each page in real tab order and reads the computed outline on
+`document.activeElement`. The probe is a scratchpad script; nothing was added to
+the repo to get this number.
+
+| pages | focusables | authored ring | UA default |
+|---|---|---|---|
+| `tenants`, `tenant-new`, `login` (tokens) | 26 | **26** | 0 |
+| the seven still on `style.css` | 69 | **0** | 69 |
+
+The authored ring is `2px solid rgb(15, 118, 110) @2px`, plus the `.input`
+box-shadow variant on the two text fields. The UA default computes
+`outline: auto 1px rgb(16, 16, 16)`, and **against the `#1a1a2e` nav that
+measures 1.12:1** — a focus indicator that is, for practical purposes, not there,
+on the primary keyboard path through the panel. It is the single strongest
+argument for finishing the migration.
+
+One consequence found by measuring: the portal's shared ring is `--teal-700`,
+tuned for the light ground, and on the dark bar it reads **3.12:1** — over the
+SC 1.4.11 floor of 3, but only just. The two migrated pages override it to
+`--teal-500` (`--accent-on-field`, **6.85:1**), the same move `verbatim.css`
+makes for the one other dark surface in the product.
+
+#### ⚠️ `scripts/portal/shoot.js` DOES NOT COMPLETE, at HEAD or on this tree
+
+The session was asked to re-shoot `admin-login-*` and report the byte change. It
+could not, and the reason is not S5: **the shooter fails before it reaches the
+admin block, on both trees, at two different shots.**
+
+- **S5 tree** — died at `s4-profile-error.png`: *"selector never appeared"* on
+  `profileReady` (`display_name` populated + `.phone-row .input` present). The
+  two shots immediately before it use the SAME gate and both passed on that run.
+- **Stashed HEAD (`71e9bbb`, clean tree)** — got further, then died after
+  `s6-pricing-error.png` with *"CDP `Runtime.evaluate` did not answer in 90s"*.
+
+The admin shots are the last block in the file (`:2548-2605`), so **neither run
+reached them**. This is a pre-existing instrument failure; S5 touched no portal
+file and no line of `shoot.js`.
+
+**The corpus is unstable at an unchanged tree, and this session measured it.**
+After the HEAD run finished (S5 changes stashed, tree byte-identical to
+`71e9bbb`), **four of the 69 shots differed from the corpus recorded at session
+start**: `home-desktop`, `home-mobile`, `login-mobile`, `s4-profile-mobile`.
+`login-429` moved on the S5 run and moved BACK on the HEAD run — it oscillates.
+`home-mobile` is the loudest: it captured **380×2036** on one run and
+**380×2317** on the next, a **281px height difference on a page neither tree
+touches**. That is far larger than the byte-level flake S3b recorded, and it
+means "N shots moved" is not on its own evidence of anything until the corpus is
+stable again.
+
+**The `<h1>` byte change, obtained a different way.** Since the corpus route was
+unavailable, `/admin/login.html` was captured TWICE in one browser, one settle
+apart, differing only in the `h1`'s text node — the S5 string against the old
+one, same DOM otherwise, with the same caret suppression and reduced-motion
+normalisation `shoot.js` applies:
+
+| view | `Veprio Admin` | `WhatsApp CRM Admin` | delta |
+|---|---|---|---|
+| desktop 1280×860 | 15 937 B | 17 759 B | **−1 822 B** |
+| mobile 380×820 | 12 786 B | 14 491 B | **−1 705 B** |
+
+Smaller because the string is shorter — fewer glyphs to encode. Those absolute
+figures are NOT comparable to the corpus files (43 416 B / 33 746 B): a bespoke
+viewport capture is not `shoot()`'s pipeline. **The delta is the number that
+means something**, and it isolates the `h1` and nothing else.
+
+**`shoot.js`'s four admin assertions were EXECUTED, not inspected**, against the
+S5 tree, with the expressions copied verbatim from `:2552`, `:2560`, `:2590` and
+`:2601-2603`. All four pass. The `#detail` gate was additionally checked in its
+negative state first, so the pass is not vacuous.
+
+Filed for S6: the shooter needs to complete before any session can honour a
+"only these shots changed" definition of done.
+
+#### Two corrections to the record, one of which would have shipped a regression
+
+⚠️ **`docs/design/brand-values.md`'s two admin ratios were both wrong**, and one
+of them inverted the verdict. `#fff` on `#4361ee` is **5.02:1**, not 4.31:1 — it
+CLEARS AA for the 14px text it carries, so `.btn-primary` was never a failure.
+`#e63946` on `#fff` is **4.17:1**, not 3.76:1; the verdict (under AA) survives,
+but **3.76 is that colour on `#f5f5f5`, the page GROUND**. The error was a wrong
+backdrop, not wrong arithmetic — which is exactly the failure mode an offline
+figure has and a sweep does not. Both figures were repeated verbatim in
+`public/admin/login.html`'s S4 comment; corrected there too.
+
+⚠️ **Phase A's `.btn-danger` recommendation was wrong, and the ruling approved it.**
+It said to revive the dead rule by using it on `tenant-detail.html`'s two
+destructive buttons. Those buttons paint `#fff` on an inline `#b00020` at
+**7.33:1**; the declared `.btn-danger` is `#e63946`, which would have taken them
+to **4.17:1 — under AA**. The inline value is the better one and the declared
+rule is the defect. It was not executed only because `tenant-detail.html` was
+excluded from the file set for unrelated reasons. `tokens.css` disagrees with
+both: `.btn--danger` is deliberately not a solid red fill at all, on the grounds
+that a filled red button is the most attractive target on screen at the moment
+the operator should hesitate.
+
+#### Dead surface
+
+Deleted from `style.css`: `.login-wrapper`, `.login-card` (both died at S4, when
+`login.html` dropped the stylesheet) and `.mt-10` (never used by anything, ever).
+
+**Two rules became dead DURING this session** and were left standing, because the
+approved list was the four names Phase A enumerated: `.error` (its last consumer
+was `tenant-new.html`, which migrated) and `.btn-danger` (see above). The 4.17:1
+`.error` liability is therefore now **latent** — a declaration guarding a state
+nothing renders. S6 should delete both rather than fix them.
+
+#### Copy
+
+All **20** stale `WhatsApp CRM` strings retired — ten `<title>`s, nine nav
+brands, one `<h1>`. `grep -rn "WhatsApp CRM" public/admin/` returns nothing. The
+name has been Veprio since `4dc2876` (2026-08-28) and the framing "AI
+Receptionist"; "WhatsApp CRM" was additionally *narrow*, since the panel shows
+voice call sessions, language detection and call duration.
+
+`public/admin/app.js`'s `X-Zyon-Admin` header is NOT copy and was not touched:
+`src/admin/security.js:41` reads it as `CSRF_HEADER`. Renaming it is a `src/`
+change.
+
+#### What Phase A found and S5 did not fix
+
+- **Six list pages render their EMPTY STATE for any non-401 error.** `const rows
+  = await res.json(); if (!rows.length)` — on a 503 or 500 the body is
+  `{ error }`, `undefined.length` is falsy, and the page says "No X found."
+  `collections.html` is the live case: `/admin/api/collections` returns **503**
+  unless `COLLECTIONS_ENABLED === 'true'` (`adminRoutes.js:242`), which is
+  `false` in `.env.example:50` and unset in `.env`. A disabled feature is
+  pixel-identical to an empty one. Same shape as LOGIN-F1. Behaviour change;
+  needs a test; not a restyle.
+- **`collections.html` is orphaned** — zero inbound links from any page, verified
+  by grep. Left undesigned deliberately; it got nav and title parity only.
+- **Five routes have no frontend caller**: `PATCH`/`GET
+  /api/tenants/:id/reminders`, `POST /api/cache/invalidate`, `GET /api/traces`,
+  `GET /api/traces/:turn_id`. Four are deliberately headless; the reminders pair
+  is genuinely orphaned. All `src/`, so out of scope.
+- **No `<h1>` on any of the seven unmigrated pages** — they head with `<h2>`, and
+  have no `<main>` and no skip link. The two migrated pages now have both.
 
 ### Evidence instruments for the portal ground flip — 2026-08-30 (`a59368d`)
 
