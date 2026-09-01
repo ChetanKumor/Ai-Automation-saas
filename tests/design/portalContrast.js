@@ -29,8 +29,11 @@
  *   THIS FILE                       the portal's binding of it: the baseline
  *                                   the portal is held to, and the public
  *                                   surface both callers import
- *   scripts/portal/shoot.js         the portal's URLs, its fourteen-page list,
- *     :447-495 and :219-223         its two viewports, and all three readiness
+ *   scripts/portal/shoot.js         the portal's URLs, its page list — fourteen
+ *     :447-495 and :219-223         pages plus six STATE VARIANTS (S3d), which
+ *                                   are the same pages entered as a different
+ *                                   tenant or after one real click — its two
+ *                                   viewports, and all three readiness
  *                                   gates — LOADED (#loadCard + the Verbatim
  *                                   panel's own fetch), WIZARD_READY (#wiz +
  *                                   loadReview), and the shell-wide
@@ -65,13 +68,20 @@ const core = require('./contrast/core');
 /* ──────────────────────────────────────────────────────────────────────────
  * The portal's baseline — the one surface fact this file owns.
  *
- * Measured by `node scripts/portal/shoot.js --contrast` over fourteen pages at
- * 1280 and 380. The signature is the distinct-shape reduction (core.signature);
- * the counts are recorded beside it but are NOT the invariant — S2 saw the row
- * count read 2302 / 2325 / 2339 / 2347 across five runs of an unchanged tree
- * while the signature stayed byte-identical. Compare the signature. The counts
- * are here so a run that moves them is noticed, not so a run that moves them is
- * failed.
+ * Measured by `node scripts/portal/shoot.js --contrast` over twenty page-states
+ * at 1280 and 380. The signature is the distinct-shape reduction
+ * (core.signature); the counts are recorded beside it but are NOT the invariant
+ * — S2 saw the row count read 2302 / 2325 / 2339 / 2347 across five runs of an
+ * unchanged tree while the signature stayed byte-identical. Compare the
+ * signature. The counts are here so a run that moves them is noticed, not so a
+ * run that moves them is failed.
+ *
+ * S3d's three consecutive sweeps of one tree were byte-identical on the
+ * signature AND on every count AND on the state census — 5899 / 91 / 22 / 42 /
+ * 4 / 1048 three times. That is a stronger result than S2's and it is not a
+ * claim that the counts are now invariants: it is a measurement of this tree on
+ * this machine, and the readiness gates S3b and S3b-pre added are the reason it
+ * reads that way. Compare the signature.
  *
  * `portal.signature.txt` is the signature body itself, checked in so that the
  * live baseline is auditable — and re-hashable — without a browser, a database
@@ -82,77 +92,73 @@ const core = require('./contrast/core');
 const PORTAL_SIGNATURE_FILE = path.join(__dirname, 'contrast', 'portal.signature.txt');
 
 const PORTAL_BASELINE = Object.freeze({
-  at: 'cb14223+S3c-2',              // CSS only again. S3c-1 collapsed the LIGHT
-                                    // ground to two text steps; this closes the
-                                    // INK one, which had four more literals
-                                    // hiding in verbatim.css. Zero .html, and
-                                    // zero .js outside tests/design/.
-  pages: 14,
+  at: '46a7ce5+S3d',                // FIXTURE and SWEEP only. Zero .css, zero
+                                    // .html, nothing under src/. Not one
+                                    // declaration changed, and the five FAIL
+                                    // lines below are what that bought.
+  pages: 20,                        // was 14. The same fourteen pages plus SIX
+                                    // STATE VARIANTS: four are a different
+                                    // tenant (Lotus Dental — one language,
+                                    // handoff off, same-day booking off, one
+                                    // payment method, two archived treatments)
+                                    // and two are a real test turn, one against
+                                    // a tenant with a config and one against
+                                    // Palm Dental, which has no tenant_configs
+                                    // row at all. See CONTRAST_PAGES.
   widths: Object.freeze([1280, 380]),
-  rows: 4222,                       // glyph rows measured — UNMOVED. Recolouring
-                                    // a glyph cannot add or remove one; the
-                                    // same 4222 rows were measured, 30 of them
-                                    // in a different colour.
-  pairs: 79,                        // distinct colour|backdrop|band|opacity|state
-                                    // (was 83). FOUR keys went, not the three
-                                    // the three retired colours suggest, and
-                                    // ZERO were added — --field-muted already
-                                    // held every key the merged glyphs landed
-                                    // in. The fourth was isolated by reverting
-                                    // one site at a time against the live
-                                    // sweep: #B4BCC7 holds 1 key (79 -> 80),
-                                    // #5A6472 holds TWO (79 -> 81), #6E7784
-                                    // holds 1 despite three selectors using it.
-                                    // #5A6472 doubles because .vp__btn[disabled]
-                                    // is the only one of the five that is a
-                                    // CONTROL: it carries an <svg>, which the
-                                    // sweep scores in the `N` band at 1.4.11's
-                                    // 3:1 rather than the `B` band at 4.5. That
-                                    // icon sat at 3.08:1 — over the non-text
-                                    // floor by 0.08 — so it PASSED and never
-                                    // showed up in `failures`. It is 7.21:1 now.
-  failures: 0,                      // was 29, and 713 before that. BOTH grounds
-                                    // are at zero. The 29 were `rest/text` on
-                                    // rgb(12,20,32): #6E7784 x20 and #5A6472 x9,
-                                    // hardcoded in verbatim.css, now
-                                    // var(--field-muted) at 7.21:1. A fifth
-                                    // literal, #B4BCC7 on .vp__fact-l, went with
-                                    // them — it PASSED at 9.64:1 and so was never
-                                    // in this count, which is exactly why it
-                                    // would have outlived the ones that were.
-  exempt: 30,                       // UNMOVED. Nothing in PORTAL_EXEMPT moved,
-                                    // and nothing was added to it: an exemption
-                                    // is how a defect becomes a baseline, and
-                                    // every failure this session closed was
-                                    // closed by changing a colour. 26 + 4.
-  contract: 0,                      // D-016 --ink-faint as a glyph colour. LIVE
-                                    // as of S3c-1, not vacuous: --faint IS
-                                    // #A8A199 now, so this check finally has
-                                    // something in the portal it could fire on.
-                                    // S3c-2 added --faint-strong (#857F79) for
-                                    // non-text that carries state. It is NOT a
-                                    // second contract value and is not checked
-                                    // here — web/ derived it with a ceiling
-                                    // under 4.5:1 so it can never be text.
-  undeterminable: 2,                // background-image in the backdrop stack —
-                                    // `select#insuranceStance`, both viewports.
-                                    // Its chevron hardcodes a hex inside a data
-                                    // URI; see the warning at pricing.css:210.
-  rings: 712,                       // focus indicators measured — unmoved, and
-                                    // all 9 distinct RING shapes byte-identical
-                                    // across the change. That is a stronger
-                                    // claim this time than last: S3c-1 moved
-                                    // glyph colours only, and a glyph cannot
-                                    // move a ring. S3c-2 moved three FILLS
-                                    // (both .switch__track copies and
-                                    // .banner__dot), which is the thing rings
-                                    // ARE judged against. They are sibling
-                                    // fills to the focusable rather than its
-                                    // own, and the outlines are measured
-                                    // against the card behind them, so the
-                                    // shapes hold — measured, not assumed.
+  rows: 4222 + 1677,                // 5899. The 4222 are UNMOVED — every one of
+                                    // the fourteen base pages measured exactly
+                                    // what it measured at S3c-2 — and the 1677
+                                    // are the six new page-states. Written as a
+                                    // sum because the invariant worth keeping
+                                    // is that the old half did not move.
+  pairs: 91,                        // was 79. TWELVE new colour|backdrop|band|
+                                    // opacity|state keys, all of them from
+                                    // states no fixture had ever entered.
+  failures: 22,                     // WAS ZERO, AND THE ZERO WAS TRUE. S3c-1
+                                    // and S3c-2 closed every failure the sweep
+                                    // could see; what neither could see is a
+                                    // state the seeded tenant never entered.
+                                    // Five distinct shapes, 22 rows, in two
+                                    // defects — the provenance `·` and the
+                                    // disabled Verbatim language selector. Both
+                                    // are LEFT STANDING: S3d measures, and a
+                                    // fix inside the session that found it
+                                    // leaves nobody able to say what the
+                                    // instrument was worth. They are pinned
+                                    // exactly, not counted, in
+                                    // portalContrast.test.js.
+  exempt: 42,                       // was 30, and this is the first session that
+                                    // could CHECK it: the number was in this
+                                    // constant and emitted by nothing, so it
+                                    // could only be re-derived by re-running
+                                    // judge() over raw rows the report does not
+                                    // keep. shoot.js now prints it and writes it
+                                    // into the report. The +12 is 2 nav-soon
+                                    // icons on each of the 6 new page-states;
+                                    // NOTHING was added to PORTAL_EXEMPT.
+  contract: 0,                      // D-016 --ink-faint as a glyph colour. Still
+                                    // zero across 40% more measured rows, and
+                                    // now across the disabled, unpressed and
+                                    // archived arms too — which is a stronger
+                                    // statement of the same number.
+                                    // --faint-strong (#857F79, S3c-2) is still
+                                    // NOT a second contract value and is not
+                                    // checked here: web/ derived it with a
+                                    // ceiling under 4.5:1 so it can never be
+                                    // text. The net that enforces that is in
+                                    // portalContrast.test.js and covers both.
+  undeterminable: 2 + 2,            // 4. The same `select#insuranceStance`
+                                    // chevron, on the second pricing page-state.
+                                    // Its hex is inside a data URI; see the
+                                    // warning at pricing.css:210.
+  rings: 1048,                      // was 712. +336 focus indicators, and ZERO
+                                    // below 3:1 — the newly-reached states add
+                                    // one new RING SHAPE (a 5.47/5.16 border
+                                    // pair beside the existing 5.47/5.47) and
+                                    // it PASSES.
   ringFailures: 0,                  // below SC 1.4.11's 3:1
-  signatureMd5: '8e79f9f9246c6880b408cc17235c2104',
+  signatureMd5: '69713e29c73f54e455e9fb5b169c70cc',
 });
 
 /**

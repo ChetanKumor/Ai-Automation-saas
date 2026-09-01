@@ -107,8 +107,18 @@ class CDP {
   on(fn) { this.listeners.push(fn); }
 }
 
+// 50 tries at 200ms is TEN SECONDS for Chrome to publish its DevTools endpoint,
+// and ten seconds is a bet on this process being the only thing on the machine.
+// It is not: `npm test` runs test FILES concurrently, so `portalLive.test.js`
+// spawns this script while `webContrast.test.js` is driving a Chrome of its own,
+// and one S3d `os:check` died here — the whole 20-page sweep lost, and the suite
+// red, because a browser took longer than ten seconds to start under that load.
+//
+// 150 tries is thirty seconds, and it weakens nothing: an endpoint that answers
+// at 900ms is still used at 900ms. This is a deadline, not a sleep — the same
+// argument, and the same arithmetic, as `waitForSelector`'s ceiling above.
 async function connectBrowser() {
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < 150; i++) {
     try {
       const res = await fetch(`http://127.0.0.1:${DEVPORT}/json/version`);
       const j = await res.json();
@@ -443,7 +453,7 @@ async function shoot(cdp, { url, out, width, height, mobile, cookie, port, waitF
 // one ratio is computed here.
 const kit = require('../../tests/design/portalContrast');
 
-// Per-page readiness. Ten of the fourteen pages hide a shared #loadCard on a
+// Per-page readiness. Ten of the fourteen base pages hide a shared #loadCard on a
 // successful load and render their error INTO it on a failed one, so
 // `loadCard.hidden` is a genuine data-dependent gate rather than a markup
 // witness — which is the distinction the S4 gate above got wrong.
@@ -495,9 +505,264 @@ const CONTRAST_PAGES = [
   // document is its own tree and querySelectorAll does not cross it — the six
   // embedded step pages are swept directly, on their own rows above.
   { file: 'wizard.html', gate: WIZARD_READY },
+
+  // ── STATE VARIANTS (S3d) ──────────────────────────────────────────────────
+  // Six entries: the same pages as above, entered in states the maximal tenant
+  // cannot be in. FOUR are a different TENANT rather than a different page —
+  // `as: 'lotus'` swaps the session cookie for Lotus Dental's, whose saved config
+  // IS the off arm (see the seeding block) — and two send a real test turn, one
+  // of those against Palm Dental. Nothing is poked into the DOM to produce any of
+  // them: the pages render what the database says.
+  //
+  // `after` is the one exception and it is not a poke either: it drives the
+  // page's OWN control. "Show archived" is a checkbox an owner clicks, and
+  // clicking it is the only way any owner has ever seen an archived row; a
+  // fixture cannot express "the disclosure is open" because the disclosure is
+  // not persisted. Same for the test turn: the reply bubble and its provenance
+  // line exist only after a real turn, and `.starter` is the button the page
+  // gives an owner to send one. Both are `.click()` on a real element, so the
+  // page's own handlers run and the state is the state the product produces.
+  //
+  // `id` is what the report calls the row. Two entries share a `file`, and a
+  // report that called them both `pricing.html` would make a failure on one
+  // indistinguishable from a failure on the other. It is NOT in the signature —
+  // core.signature() reduces to colour/backdrop shapes and never reads `page`
+  // (failureShape/ringShape, core.js:1303-1325) — so naming these rows cannot
+  // move the baseline by itself.
+  { id: 'clinic-profile.html[one-language]', file: 'clinic-profile.html', as: 'lotus', gate: LOADED },
+  { id: 'safety.html[handoff-off]', file: 'safety.html', as: 'lotus', gate: LOADED },
+  { id: 'booking-rules.html[same-day-off]', file: 'booking-rules.html', as: 'lotus', gate: LOADED },
+  {
+    id: 'pricing.html[archived-shown]', file: 'pricing.html', as: 'lotus', gate: LOADED,
+    after: {
+      // The checkbox, not the rows. pricing.js:191-198 owns what `.tr--hidden`
+      // means; reaching past it to unhide the rows directly would measure a
+      // state the page never paints.
+      click: "document.getElementById('showArchived')",
+      until: "document.querySelector('.tr--archived') && "
+        + "!document.querySelector('.tr--archived').classList.contains('tr--hidden')",
+    },
+  },
+  {
+    id: 'test.html[replied]', file: 'test.html', gate: "document.body.dataset.testReady === '1'",
+    after: {
+      click: "document.querySelector('.starter[data-q=\"What is the consultation fee?\"]')",
+      until: "document.querySelector('.msg__prov')",
+    },
+  },
+  {
+    // The SAME turn against a tenant that has never saved a config. test.js:79-88
+    // takes its other arm there: `config_version` is null, so the chips are
+    // preceded by `.msg__prov-warn` — amber, full-width, carrying a link. It is
+    // the one line on that page an owner is meant to act on, and neither
+    // instrument has ever measured it. Palm Dental is the subject and had to be
+    // seeded for it: it is the only tenant here with no `tenant_configs` row,
+    // which is what `config_version: null` actually requires. See its comment
+    // below for why Fresh Clinic — the obvious candidate — is not one.
+    id: 'test.html[no-config]', file: 'test.html', as: 'palm',
+    gate: "document.body.dataset.testReady === '1'",
+    after: {
+      click: "document.querySelector('.starter')",
+      until: "document.querySelector('.msg__prov-warn')",
+    },
+  },
 ];
 const CONTRAST_WIDTHS = [{ width: 1280, height: 900, mobile: false },
                          { width: 380, height: 820, mobile: true }];
+
+/* ── THE STATE CENSUS (S3d) ────────────────────────────────────────────────
+ * The sweep above is only ever as good as the states the seeded tenant enters.
+ * Every ratio it reports is a ratio of something that was ON THE SCREEN; a
+ * declaration guarding a state no fixture reaches is certified green on
+ * ABSENCE, and neither the signature nor the 54-shot corpus says a word about
+ * it. `.tr--archived` was styled, shipped, swept 24 times, and never once
+ * rendered.
+ *
+ * So: before every sweep, ask the page which of the portal's own styled states
+ * it is actually in. The probe list is DERIVED from the stylesheets rather than
+ * written down — a hand list would go stale the first time a modifier is added
+ * and would never say so, which is the same failure the exemption list at
+ * portalContrast.js:174 is written to avoid.
+ *
+ * Three families, all mechanical:
+ *   • every class token appearing in any `public/portal/*.css` selector;
+ *   • every attribute / pseudo state those selectors key on (`:checked`,
+ *     `[aria-pressed="true"]`, `[disabled]`, `[lang="te"]`, …);
+ *   • the COMPLEMENT of each two-valued attribute state, which no stylesheet
+ *     names because it is the default arm — `[aria-pressed="false"]` is the
+ *     unpressed language chip, and nothing in the CSS mentions it.
+ *
+ * Counted twice per page: how many elements MATCH, and how many of those have
+ * a client rect. Both are needed. A probe that matches nothing is a state the
+ * fixture cannot reach at all; a probe that matches but is never visible is a
+ * state the fixture reaches and then HIDES, which is the more common shape here
+ * (`.tr--archived` behind "Show archived", the whole of `#loadCard`) and is
+ * indistinguishable from the first in the report unless it is measured apart.
+ * ------------------------------------------------------------------------- */
+
+/** Class tokens + attribute/pseudo states, read out of the portal's own CSS. */
+function censusProbes() {
+  const dir = path.join(__dirname, '..', '..', 'public', 'portal');
+  const classes = new Set();
+  const compounds = new Set();
+
+  // States a census can ask about. `:hover`, `:focus-visible`, `:active` are
+  // deliberately absent — no static query can answer them, and the ring half of
+  // the sweep is the instrument that already does.
+  const STATE = /\[[^\]]*\]|:(?:checked|disabled|indeterminate|empty)\b/;
+  // Everything a compound may carry that querySelectorAll cannot evaluate at
+  // rest, stripped so the rest of the compound is still probeable.
+  const UNQUERYABLE = /::?(?:hover|active|focus|focus-visible|focus-within|before|after|placeholder|-webkit-[a-z-]+|marker|selection)\b(?:\([^)]*\))?/g;
+
+  /**
+   * Every PREFIX of a selector that ends on a state-carrying compound, with its
+   * combinators intact.
+   *
+   * The prefix, not the bare compound. `.switch input:checked + .switch__track`
+   * carries its state on `input:checked` — and `input:checked` alone is answered
+   * by any checked box in the portal, `#showArchived` on Pricing included. The
+   * question the stylesheet is actually asking is about the checkbox inside a
+   * `.switch`, and only `.switch input:checked` asks it.
+   */
+  function statePrefixes(sel) {
+    const parts = [];                 // alternating compound / combinator
+    let buf = '';
+    let depth = 0;
+    let i = 0;
+    while (i < sel.length) {
+      const ch = sel[i];
+      if (ch === '[' || ch === '(') depth += 1;
+      else if (ch === ']' || ch === ')') depth -= 1;
+      if (depth === 0 && /[\s>+~]/.test(ch)) {
+        let comb = '';
+        while (i < sel.length && /[\s>+~]/.test(sel[i])) { if (sel[i] !== ' ') comb = sel[i]; i += 1; }
+        if (buf) { parts.push(buf); parts.push(comb ? ' ' + comb + ' ' : ' '); buf = ''; }
+        continue;
+      }
+      buf += ch;
+      i += 1;
+    }
+    if (buf) parts.push(buf);
+
+    const out = [];
+    let prefix = '';
+    for (const part of parts) {
+      prefix += part;
+      const isCombinator = /^[\s>+~]+$/.test(part);
+      if (isCombinator) continue;
+      const clean = part.replace(UNQUERYABLE, '').trim();
+      if (!clean || !STATE.test(clean)) continue;
+      if (/^:not\(/.test(clean)) continue;      // a negation measures an absence
+      out.push(prefix.replace(UNQUERYABLE, '').trim());
+    }
+    return out;
+  }
+
+  for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.css'))) {
+    const css = fs.readFileSync(path.join(dir, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    let m;
+    const blocks = /([^{}]+)\{/g;
+    while ((m = blocks.exec(css))) {
+      const list = m[1];
+      if (/^\s*@/.test(list)) continue;           // at-rule preludes are not selectors
+      for (const raw of list.split(',')) {
+        const sel = raw.trim();
+        if (!sel) continue;
+        let c;
+        const cls = /\.(-?[_a-zA-Z][-_a-zA-Z0-9]*)/g;
+        while ((c = cls.exec(sel))) classes.add(c[1]);
+        // The compound is what carries the state. `.lang-toggle[aria-pressed="true"]`
+        // and a bare `[aria-pressed="true"]` are DIFFERENT questions, and only the
+        // first one is about the language chips: the bare probe is satisfied by any
+        // pressed toggle anywhere in the portal, which is how a state can read as
+        // covered while the element that owns the declaration has never rendered.
+        for (const pre of statePrefixes(sel)) compounds.add(pre);
+      }
+    }
+  }
+
+  const probes = [...classes].sort().map((c) => '.' + c);
+  for (const s of [...compounds].sort()) probes.push(s);
+
+  // THE DEFAULT ARMS. A stylesheet names the arm that OVERRIDES; the other arm
+  // is the base style and appears in no selector, which is exactly why a census
+  // built only from the stylesheets would never think to look for it. Derived
+  // per compound so the complement stays attached to the element that owns the
+  // declaration: `.lang-toggle[aria-pressed="false"]` is the unpressed language
+  // chip, and nothing else in the portal is.
+  for (const s of compounds) {
+    const flips = [
+      s.replace('="true"', '="false"'),
+      s.replace('="false"', '="true"'),
+      /:checked/.test(s) ? s.replace(':checked', ':not(:checked)') : s,
+      /:disabled/.test(s) ? s.replace(':disabled', ':enabled') : s,
+      /^\[disabled\]$|\[disabled\]/.test(s) ? s.replace('[disabled]', ':not([disabled])') : s,
+    ];
+    for (const f of flips) if (f !== s && !compounds.has(f)) probes.push(f);
+  }
+  return [...new Set(probes)];
+}
+
+const CENSUS_PROBES = censusProbes();
+
+/** One page's answer: `{ selector: [matched, visible] }`, zeroes omitted. */
+function censusSource(probes) {
+  return '(function(){var out={},P=' + JSON.stringify(probes) + ';'
+    + 'for(var i=0;i<P.length;i++){var s=P[i],n=0,v=0;'
+    + 'try{var els=document.querySelectorAll(s);n=els.length;'
+    + 'for(var j=0;j<els.length;j++){if(els[j].getClientRects().length)v++;}}'
+    + 'catch(e){n=-1;v=-1;}'
+    + 'if(n!==0)out[s]=[n,v];}'
+    + 'return out;})()';
+}
+const CENSUS_SOURCE = censusSource(CENSUS_PROBES);
+
+/* ── RING_SETTLED — the repair for the S3c-1 flake (S3d) ────────────────────
+ * S3c-1 saw one `os:check` in seven go red on a thirteenth signature line,
+ * `RING      FAIL 0.00  [no indicator]`, with all twelve baseline lines
+ * matching. Six other runs of the same tree gave 712 rings / 0 failing, the
+ * report had already been unlinked by an unconditional `finally`, and the
+ * finding was recorded as "a ring somewhere on the portal focused with no focus
+ * style at all, and WHICH ring is not in the record". S3c-1a stopped deleting
+ * the report so that the next occurrence would name the element.
+ *
+ * It fired again during S3d's `os:check` and the report survived. The element is
+ * `select#insuranceStance` on pricing.html at 1280, and the row it left settles
+ * the question outright:
+ *
+ *     flake  focused: border rgba(23,21,15,.08)  background rgb(253,252,250)
+ *                     box-shadow rgba(0, 0, 0, 0) 0px 0px 0px 0px
+ *     clean  focused: border rgb(15,118,110)     background rgb(255,255,255)
+ *                     box-shadow rgba(15,118,110,.16) 0px 0px 0px 3px
+ *
+ * `rgba(0, 0, 0, 0) 0px 0px 0px 0px` is not "no ring". It is the value a
+ * box-shadow interpolating FROM `none` holds at t=0 — every component at its
+ * zero — and the border and the background are still at their resting values
+ * beside it. The read landed at the start of the transition, not after it. So
+ * the portal is fine, the ring is fine, and the instrument was reading too
+ * early: `sleep(160)` is 40ms of margin over `--dur-1`, and a wall-clock sleep
+ * buys nothing when the recalc has not run, which under `npm test` — where the
+ * runner executes test FILES concurrently and the marketing sweep is driving its
+ * own Chrome — is exactly what happens.
+ *
+ * So stop betting. `getAnimations()` flushes pending style and returns the
+ * transitions actually running on the focused element; awaiting their `finished`
+ * promises waits for precisely the thing the sleep was approximating. It costs
+ * nothing in the common case — a settled element returns an empty list and
+ * resolves immediately — and the 1200ms race is a hang bound, not an
+ * expectation. A rejected `finished` (the transition was cancelled by another
+ * style change) is swallowed on purpose: cancelled means superseded, and the
+ * read that follows should see whatever superseded it. */
+const RING_SETTLED = "(function(){"
+  + "var el=document.activeElement;"
+  + "if(!el||!el.getAnimations) return Promise.resolve(true);"
+  + "var a=el.getAnimations({subtree:true});"
+  + "if(!a.length) return Promise.resolve(true);"
+  + "return Promise.race(["
+  + "Promise.all(a.map(function(x){return x.finished.catch(function(){});})),"
+  + "new Promise(function(r){setTimeout(r,1200);})"
+  + "]).then(function(){return true;});"
+  + "})()";
 
 async function pressTab(cdp, sid) {
   const k = { windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9, key: 'Tab', code: 'Tab' };
@@ -545,6 +810,23 @@ async function sweepOnePage(cdp, opts) {
       expression: READINESS_SETTLED,
       returnByValue: true, awaitPromise: true,
     }, sessionId);
+    // A state variant's own interaction (S3d). Placed AFTER the shell has
+    // settled and BEFORE the settle sleep below, for the reason `shoot()` gives
+    // at :335: a click dispatched while the truth strip is still landing is a
+    // click at coordinates that are about to move. The click is dispatched on
+    // the element the page itself renders, and the run then WAITS on a condition
+    // the interaction makes true — never on a sleep, because a sleep that is
+    // long enough on this machine is the mechanism behind every flake this
+    // instrument has already paid for.
+    if (opts.after) {
+      await evalIn(cdp, sessionId,
+        '(function(){var el=' + opts.after.click + ';'
+        + 'if(!el) throw new Error("state variant: nothing matched " + '
+        + JSON.stringify(opts.after.click) + ');'
+        + 'el.click(); return true;})()');
+      await waitForSelector(cdp, sessionId, opts.after.until);
+    }
+
     // Trap 5: measure SETTLED. A glyph caught mid-transition composites at a
     // fractional opacity and reports a ratio it never holds at rest. Chrome is
     // already on --force-prefers-reduced-motion; this covers the fetch-driven
@@ -552,6 +834,12 @@ async function sweepOnePage(cdp, opts) {
     await sleep(700);
 
     const rows = await evalIn(cdp, sessionId, kit.TEXT_SWEEP_SOURCE) || [];
+
+    // The census reads the SAME settled DOM the rows above were measured from,
+    // in the same turn — a state that appeared after the sweep is a state the
+    // sweep did not measure, and recording it as covered would be the exact
+    // false green this instrument exists to find.
+    const census = await evalIn(cdp, sessionId, CENSUS_SOURCE) || {};
 
     // Focus indicators, walked in REAL tab order. A programmatic .focus() does
     // not reliably match :focus-visible on a button, and :focus-visible is what
@@ -565,7 +853,12 @@ async function sweepOnePage(cdp, opts) {
     const seen = new Set();
     for (let t = 0; t < Math.min(rest.length + 2, 60); t++) {
       await pressTab(cdp, sessionId);
-      await sleep(160); // past --dur-1 (120ms), or the ring is read mid-transition
+      await sleep(160); // let the focus event land and the transitions be created
+      // …then wait for them to FINISH, rather than betting that 160ms was enough.
+      // See RING_SETTLED: this line is the S3c-1 flake's actual repair.
+      await cdp.send('Runtime.evaluate', {
+        expression: RING_SETTLED, returnByValue: true, awaitPromise: true,
+      }, sessionId);
       const ring = await evalIn(cdp, sessionId, kit.READ_RING_SOURCE);
       if (!ring) continue;
       const key = ring.i === null || ring.i === undefined ? ring.sel : String(ring.i);
@@ -573,28 +866,47 @@ async function sweepOnePage(cdp, opts) {
       seen.add(key);
       rings.push(kit.judgeRing(ring, restBy.get(String(ring.i))));
     }
-    return { rows, rings, focusables: rest.length };
+    return { rows, rings, focusables: rest.length, census };
   } finally {
     await cdp.send('Target.closeTarget', { targetId });
   }
 }
 
-async function runContrastSweep(cdp, base, cookie, port) {
+/**
+ * `cookies` is the session map, not a session: a state variant is most often a
+ * DIFFERENT TENANT, and swapping the cookie is how the sweep enters a state the
+ * seeded maximal tenant cannot be in. `cookies.owner` is Sunrise Dental and is
+ * what every unlabelled page still uses.
+ */
+async function runContrastSweep(cdp, base, cookies, port) {
   const allRows = [];
   const allRings = [];
+  const seenProbes = new Map();   // probe -> { matched, visible, where: Set }
   console.log('contrast sweep (measure only — nothing is captured):');
   for (const page of CONTRAST_PAGES) {
     for (const vp of CONTRAST_WIDTHS) {
+      const as = page.as || 'owner';
+      if (page.auth !== false && !cookies[as]) {
+        throw new Error(`contrast page ${page.id || page.file} asks for session "${as}", `
+          + `and the sweep was handed ${Object.keys(cookies).join(', ')}`);
+      }
       const got = await sweepOnePage(cdp, {
-        url: `${base}/${page.file}`, gate: page.gate, port,
-        cookie: page.auth === false ? null : cookie,
+        url: `${base}/${page.file}`, gate: page.gate, port, after: page.after,
+        cookie: page.auth === false ? null : cookies[as],
         width: vp.width, height: vp.height, mobile: vp.mobile,
       });
-      for (const r of got.rows) { r.page = page.file; r.vw = vp.width; allRows.push(r); }
-      for (const r of got.rings) { r.page = page.file; r.vw = vp.width; allRings.push(r); }
+      const name = page.id || page.file;
+      for (const r of got.rows) { r.page = name; r.vw = vp.width; allRows.push(r); }
+      for (const r of got.rings) { r.page = name; r.vw = vp.width; allRings.push(r); }
+      for (const [probe, [n, vis]] of Object.entries(got.census)) {
+        if (!seenProbes.has(probe)) seenProbes.set(probe, { matched: 0, visible: 0, where: new Set() });
+        const e = seenProbes.get(probe);
+        e.matched += n; e.visible += vis;
+        e.where.add(`${name}@${vp.width}`);
+      }
       const v = kit.judge(got.rows);
       const ringFail = got.rings.filter((r) => !r.pass).length;
-      console.log(`  ${page.file.padEnd(20)} ${String(vp.width).padStart(4)}  `
+      console.log(`  ${name.padEnd(34)} ${String(vp.width).padStart(4)}  `
         + `${String(got.rows.length).padStart(4)} glyph rows  `
         + `${String(v.pairs).padStart(3)} pairs  `
         + `${String(v.failures.length).padStart(3)} fail  `
@@ -611,6 +923,12 @@ async function runContrastSweep(cdp, base, cookie, port) {
   console.log('  glyph rows measured   :', verdict.measured.length);
   console.log('  unique colour/backdrop:', verdict.pairs);
   console.log('  threshold failures    :', verdict.failures.length);
+  // Recorded because PORTAL_BASELINE carries an `exempt` count and nothing
+  // emitted it: the number could only be re-derived by re-running judge() over
+  // raw rows the report does not keep, so it was the one baseline figure a
+  // session could not check. An exemption is how a defect becomes a baseline;
+  // it should be the easiest number here to read, not the hardest.
+  console.log('  exempted (SC 1.4.11)  :', verdict.exempt.length);
   console.log('  D-016 contract        :', verdict.contract.length,
     '(--ink-faint as a glyph colour; MUST be 0)');
   console.log('  undeterminable        :', verdict.undeterminable.length);
@@ -664,14 +982,47 @@ async function runContrastSweep(cdp, base, cookie, port) {
     if (!r.indicators.length) console.log('        no indicator found');
   }
 
+  // ── THE STATE CENSUS ─────────────────────────────────────────────────────
+  // Three buckets, and the distinction between the last two is the finding:
+  //   RENDERED   the fixture reaches it AND it is on the screen — swept.
+  //   HIDDEN     the fixture reaches it and the page hides it — in the DOM,
+  //              measured by nothing, because the sweep skips zero-rect nodes.
+  //   UNREACHED  no page in the corpus ever put it in the DOM at all.
+  const unreached = [];
+  const hidden = [];
+  for (const probe of CENSUS_PROBES) {
+    const e = seenProbes.get(probe);
+    if (!e || e.matched <= 0) { unreached.push(probe); continue; }
+    if (e.visible === 0) hidden.push(probe);
+  }
+  console.log('');
+  console.log('── STATE CENSUS (probes derived from public/portal/*.css) ──');
+  console.log('  probes                :', CENSUS_PROBES.length);
+  console.log('  rendered somewhere    :', CENSUS_PROBES.length - unreached.length - hidden.length);
+  console.log('  in the DOM, no rect   :', hidden.length);
+  console.log('  never in any DOM      :', unreached.length);
+  if (hidden.length) console.log('  HIDDEN   : ' + hidden.join(' '));
+  if (unreached.length) console.log('  UNREACHED: ' + unreached.join(' '));
+
   fs.writeFileSync(CONTRAST_OUT, JSON.stringify({
     at: new Date().toISOString(),
     rows: verdict.measured.length,
     pairs: verdict.pairs,
+    exempt: verdict.exempt.length,
     failures: verdict.failures,
     contract: verdict.contract,
     undeterminable: verdict.undeterminable,
     rings: allRings,
+    // Not read by core.signature() — the signature is a reduction of what was
+    // MEASURED, and the census is a statement about what was not. Carried in
+    // the same report so one run answers both questions.
+    census: {
+      probes: CENSUS_PROBES.length,
+      unreached,
+      hidden,
+      seen: Object.fromEntries([...seenProbes].map(([k, v]) =>
+        [k, { matched: v.matched, visible: v.visible, where: [...v.where] }])),
+    },
   }, null, 2));
   console.log('');
   console.log('report →', CONTRAST_OUT);
@@ -951,6 +1302,104 @@ const adminLoginCookie = (port, password) =>
         { languages: ['te', 'hi', 'en'] });
     }
 
+    // ── A FIFTH clinic: LOTUS DENTAL, the COMPLEMENT fixture (S3d) ────────────
+    // Sunrise Dental is a maximal tenant — every toggle on, every language on,
+    // every optional field filled. That is the right subject for a screenshot
+    // and the wrong one for an instrument: a switch that is never off has an
+    // off style nobody has ever measured, and both the contrast sweep and the
+    // 54-shot corpus then certify it green on ABSENCE. The census added beside
+    // the sweep found the arms in question and named them:
+    //
+    //   .switch input:not(:checked)          never in any DOM  (BOTH switches)
+    //   .pay-toggle[aria-pressed="false"]    never in any DOM
+    //   .lang-toggle[aria-pressed="false"]   rendered — but ONLY on doctors.html,
+    //                                        whose `.lang-toggle` rules are a
+    //                                        SECOND, independent copy in
+    //                                        doctors.css. The clinic-profile.css
+    //                                        block that owns the chip an owner
+    //                                        actually turns a language off with
+    //                                        has never rendered its unpressed arm.
+    //   .tr--archived / .tr__tag             in the DOM, ZERO client rects — the
+    //                                        rows are seeded archived and the
+    //                                        page hides them behind "Show
+    //                                        archived", so nothing measured them.
+    //
+    // So this tenant is the other arm of each, seeded rather than poked: a clinic
+    // with ONE language, handoff off, same-day booking off, one payment method
+    // and two archived treatments is a clinic the product can genuinely be, and
+    // every state above follows from its saved config rather than from a line of
+    // test code reaching into the DOM. Sunrise is left exactly as it was — every
+    // shot and every comment above it still documents the state it claims.
+    const lotusEmail = 'owner@lotusdental.test';
+    const lotusPassword = 'demo-portal-pass-4';
+    const lotus = await db.query("INSERT INTO tenants (business_name, active) VALUES ($1, true) RETURNING id",
+      ['Lotus Dental']);
+    const lotusId = lotus.rows[0].id;
+    await db.query(
+      'INSERT INTO users (tenant_id, email, password_hash, role, active) VALUES ($1,$2,$3,$4,true)',
+      [lotusId, lotusEmail, hashPassword(lotusPassword), 'owner']);
+    await configService.writeTenantConfig(lotusId, {
+      business: {
+        display_name: 'Lotus Dental',
+        address: 'Shop 4, Kalyan Arcade, Kukatpally, Hyderabad 500072',
+        phone_numbers: ['+919812345670'],
+      },
+      // ONE language on. Telugu is this clinic's only language, so Hindi and
+      // English render as unpressed chips — clinic-profile.css:37-64's resting
+      // arm, measured for the first time.
+      languages: { supported: ['te'], default: 'te' },
+      greeting: { te: 'నమస్తే! లోటస్ డెంటల్. మీకు ఎలా సహాయం చేయగలను?' },
+      notifications: { owner_numbers: ['+919000000001'] },
+      // Handoff OFF. The number stays saved — turning the offer off is not the
+      // same as deleting the number, and an owner who flips it back expects to
+      // find it — so the page below the switch is populated, exactly as it would
+      // be for a real clinic that decided not to offer callbacks.
+      escalation: { enabled: false, phone_numbers: ['+919000000004'] },
+      hours: { sun: { closed: true } },
+      // One payment method, so `upi` and `card` are unpressed chips.
+      pricing: {
+        consultation_fee: 400,
+        payment_methods: ['cash'],
+        treatments: [
+          { name: 'Scaling', price: 1200, duration_minutes: 30 },
+          { name: 'Braces consultation', price: 800, archived: true },
+          { name: 'Wisdom tooth removal', price: 5500, price_from: true, archived: true },
+        ],
+      },
+      // Same-day booking OFF — the second `.switch`, and the only other one in
+      // the portal.
+      booking: { allow_same_day: false, slot_minutes: 30, advance_days: 14 },
+    }, 'shoot');
+    await configService.writeTenantConfigMeta(lotusId, { onboarding_step: 6, onboarding_completed: true });
+
+    // ── A SIXTH clinic: PALM DENTAL — an owner and NO CONFIG ROW ─────────────
+    // Seeded for one line: `.msg__prov-warn`, the amber warning under a test
+    // reply that tells an owner the answer came from defaults rather than from
+    // their settings. It is the one thing on that line an owner is meant to act
+    // on, and neither instrument had ever rendered it.
+    //
+    // It takes a tenant with no `tenant_configs` row at all, and this fixture had
+    // none — the reason is worth recording because the comment on Fresh Clinic
+    // above says otherwise. `writeTenantConfigMeta` is not a metadata write on
+    // top of an existing document: configService.js:197-202 INSERTs the row at
+    // version 1 when none exists. Fresh Clinic takes that call for its onboarding
+    // meta, so it HAS a config at version 1 and its test replies take the chip
+    // arm, not the warning arm. "Never configured" is true of Fresh Clinic's
+    // CONTENT and false of its storage.
+    //
+    // Palm Dental is the real shape instead: the admin panel's create-owner flow
+    // writes a tenant and a user and nothing else, so a clinic between
+    // provisioning and its first save is exactly this — which is the situation
+    // the warning was written for.
+    const palmEmail = 'owner@palmdental.test';
+    const palmPassword = 'demo-portal-pass-5';
+    const palm = await db.query("INSERT INTO tenants (business_name, active) VALUES ($1, true) RETURNING id",
+      ['Palm Dental']);
+    const palmId = palm.rows[0].id;
+    await db.query(
+      'INSERT INTO users (tenant_id, email, password_hash, role, active) VALUES ($1,$2,$3,$4,true)',
+      [palmId, palmEmail, hashPassword(palmPassword), 'owner']);
+
     // Fresh Clinic has never had a validation run, so its Go-live control is
     // ENABLED (nothing has been checked — pressing it IS the check). That makes
     // it the honest subject for the "blocked" dialog shot below: the press runs
@@ -994,6 +1443,8 @@ const adminLoginCookie = (port, password) =>
     const cookie = await loginCookie(port, email, password);
     const freshCookie = await loginCookie(port, freshEmail, freshPassword);
     const readyCookie = await loginCookie(port, readyEmail, readyPassword);
+    const lotusCookie = await loginCookie(port, lotusEmail, lotusPassword);
+    const palmCookie = await loginCookie(port, palmEmail, palmPassword);
     const adminCookie = await adminLoginCookie(port, process.env.ADMIN_PASSWORD);
 
     // Launch Chrome (reduced motion → deterministic ring/pulse).
@@ -1010,7 +1461,8 @@ const adminLoginCookie = (port, password) =>
     const base = `http://127.0.0.1:${port}/portal`;
 
     if (CONTRAST) {
-      await runContrastSweep(cdp, base, cookie, port);
+      await runContrastSweep(cdp, base,
+        { owner: cookie, lotus: lotusCookie, palm: palmCookie }, port);
       return; // measure-only: the finally below still tears the scratch DB down
     }
 
@@ -1300,6 +1752,63 @@ const adminLoginCookie = (port, password) =>
         await waitForSelector(c, sid, "document.querySelector('.msg__prov')");
       },
     });
+
+    // ── S3d: THE OFF ARM — states the maximal tenant cannot be in ────────────
+    // Five shots, all desktop: four of Lotus Dental and one of Palm Dental. Each
+    // is the OFF arm of a control every existing shot in this file shows
+    // switched on, and each was named by the state census that now runs beside
+    // the contrast sweep. Before this block the corpus was 54 pictures of a
+    // clinic with everything turned on, and no picture at all of what the portal
+    // looks like when an owner turns something off.
+    //
+    // The matching sweep entries are in CONTRAST_PAGES above — six of them, one
+    // more than there are shots here, because `test.html[replied]` is already
+    // photographed by s14-test-reply. Same seeded config, same real controls:
+    // one fixture, measured and photographed.
+    //
+    // Placed beside S14 because the last shot is a test turn, and every test
+    // turn in this file lives here. It spends one of PALM Dental's daily turns,
+    // not Fresh Clinic's, so the loop below — which seeds 20 turn_traces onto
+    // Fresh to force the daily-limit state for s14-test-limited — is unaffected
+    // whichever side of it this block sits on.
+    await shoot(cdp, {
+      url: `${base}/clinic-profile.html`, out: path.join(OUT, 's3d-profile-one-language.png'),
+      width: 1280, height: 1000, cookie: lotusCookie, port, waitFor: profileReady });
+    await shoot(cdp, {
+      url: `${base}/safety.html`, out: path.join(OUT, 's3d-safety-handoff-off.png'),
+      width: 1280, height: 1500, cookie: lotusCookie, port, waitFor: safetyReady });
+    await shoot(cdp, {
+      url: `${base}/booking-rules.html`, out: path.join(OUT, 's3d-booking-same-day-off.png'),
+      width: 1280, height: 1100, cookie: lotusCookie, port, waitFor: bookingReady });
+    await shoot(cdp, {
+      // The archived rows are seeded archived; the disclosure that reveals them
+      // is not persisted anywhere, so the shot clicks the owner's own checkbox
+      // and waits for pricing.js to drop `.tr--hidden` rather than sleeping.
+      url: `${base}/pricing.html`, out: path.join(OUT, 's3d-pricing-archived-shown.png'),
+      width: 1280, height: 1100, cookie: lotusCookie, port, waitFor: pricingReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression: "document.getElementById('showArchived').click();",
+        }, sid);
+        await waitForSelector(c, sid,
+          "document.querySelector('.tr--archived') && "
+          + "!document.querySelector('.tr--archived').classList.contains('tr--hidden')");
+      },
+    });
+    await shoot(cdp, {
+      // Palm Dental has no config ROW — not merely an empty one — so the reply's
+      // provenance line takes its OTHER arm: the amber `.msg__prov-warn` telling
+      // the owner the reply came from defaults, not from their settings.
+      url: `${base}/test.html`, out: path.join(OUT, 's3d-test-no-config.png'),
+      width: 1280, height: 900, cookie: palmCookie, port, waitFor: testReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression: "document.querySelector('.starter').click();",
+        }, sid);
+        await waitForSelector(c, sid, "document.querySelector('.msg__prov-warn')");
+      },
+    });
+
     for (let i = 0; i < 20; i++) {
       await db.query(`INSERT INTO turn_traces (tenant_id, channel) VALUES ($1, 'test')`, [freshId]);
     }

@@ -26,8 +26,9 @@
  * `scripts/portal/shoot.js --contrast` already owns everything the live half
  * needs: a throwaway scratch database minted by `runner.genesis`, a seeded
  * tenant, the real `/portal` router on an ephemeral port, a session cookie,
- * headless Chrome over CDP, the fourteen-page list, both viewports and all
- * three readiness gates. Re-implementing any of that here would be a second
+ * headless Chrome over CDP, the page list (fourteen pages plus the six state
+ * variants S3d added), both viewports and all three readiness gates.
+ * Re-implementing any of that here would be a second
  * instrument, and two instruments disagree the first time either is touched.
  * It is INVOKED, never edited: this file drives the tool the founder drives.
  *
@@ -45,8 +46,16 @@
  * that choice is real and is the founder's to weigh: see WALL TIME below.
  *
  * ── WALL TIME ─────────────────────────────────────────────────────────────
- * One sweep is 14 pages x 2 viewports and takes ~225 s on this machine against
- * a local Postgres. `npm test` without it is ~268 s. The runner executes test
+ * One sweep WAS 14 pages x 2 viewports and ~225 s on this machine against a
+ * local Postgres. S3d added six STATE VARIANTS — the same pages entered as a
+ * different tenant, or after one real click on a control the page itself
+ * renders — so a sweep is now 20 page-states x 2 viewports, and the measured
+ * cost of that is in the session report. They are not decoration: the state
+ * census that now runs beside the sweep found that BOTH of the portal's
+ * toggle switches, its payment-method chips, its unpressed language chip and
+ * its archived-treatment rows had never once rendered on any swept page, so
+ * every declaration guarding one was being certified green on ABSENCE.
+ * `npm test` without the sweep is ~268 s. The runner executes test
  * FILES concurrently, so the two overlap and the suite does not simply add the
  * two together — the measured before/after is in the session report. If that
  * cost is not wanted on every commit the seam is this file, not the engine:

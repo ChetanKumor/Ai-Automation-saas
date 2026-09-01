@@ -391,19 +391,58 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
     'portal.signature.txt no longer hashes to PORTAL_BASELINE.signatureMd5'
   );
   const sigLines = sig.trim().split('\n');
-  // ZERO distinct failing shapes. 20 at S3b-3, 2 at S3c-1, none now: S3c-1
-  // closed the light ground and S3c-2 closed the ink one, and there is no
-  // third ground. Both survivors were hardcoded literals in verbatim.css —
-  // #5A6472 at :403 and #6E7784 at :292/:352/:408 — and both resolve to
-  // var(--field-muted) at 7.21:1 today.
-  //
-  // Compared against [] rather than counted against 0, and the difference is
-  // not stylistic: at zero the two say the same thing on the happy path, but
-  // an equality on `.length` prints `1 !== 0` while this prints the SHAPE that
-  // came back. The whole point of a signature is that a regression arrives
-  // already named, and a count throws that away at the last step.
-  assert.deepStrictEqual(sigLines.filter((l) => l.startsWith('FAIL ')), [],
-    'the portal baseline is ZERO failing shapes, on BOTH grounds (S3c-2)');
+  /* ── FIVE failing shapes, PINNED rather than forbidden (S3d) ──────────────
+   * 20 at S3b-3, 2 at S3c-1, ZERO at S3c-2 — and that zero was true. S3c-1
+   * closed the light ground and S3c-2 closed the ink one; both survivors were
+   * hardcoded literals in verbatim.css and both are var(--field-muted) at
+   * 7.21:1 today. This line read `deepStrictEqual(..., [])` from S3c-2 until
+   * S3d, and it was an honest statement about everything the sweep could see.
+   *
+   * What it could not see is a state the seeded tenant never entered. The sweep
+   * had fourteen pages and ONE tenant, and that tenant was maximal: every
+   * toggle on, every language on, every optional field filled. So the off arm
+   * of every control in the portal was being certified green on ABSENCE — a
+   * census over the swept DOM (shoot.js, `STATE CENSUS`) found that
+   * `.switch input:not(:checked)`, `.pay-toggle[aria-pressed="false"]` and
+   * `.vp__sel[disabled]` had never once rendered on any swept page, and that
+   * `.tr--archived` had rendered with zero client rects on all 24 sweeps of it.
+   *
+   * S3d seeded the other arm, and those states came back carrying two defects
+   * — in a portal that had measured zero failures across three sessions of
+   * closing them:
+   *
+   *   1.18:1  the `·` between the provenance chips under a test reply.
+   *           test.css:106 paints it `var(--line)` = rgba(23,21,15,.08) on the
+   *           white bubble. Reached only by the two test.html variants, which
+   *           send a real turn — the reply bubble is not a fixture state and no
+   *           seeded row can produce it.
+   *   3.64:1  the Verbatim panel's language label, and
+   *   2.13:1  its chevron, on a clinic with ONE language. verbatim.css:201-202
+   *           disables the control and drops the whole pill to `opacity: .55`
+   *           with no colour compensation. The label needs 4.5; the chevron is
+   *           scored as a graphic and needs 3.
+   *   2.07:1  x2 — the SAME element on hover. A disabled <button> still matches
+   *           :hover in Chrome, so verbatim.css:200's hover fill lands under
+   *           the .55 and the pair gets worse rather than better.
+   *
+   * They are LEFT STANDING deliberately. S3d's remit was to measure; closing a
+   * defect inside the session that found it leaves nobody able to say what the
+   * instrument was worth, and a fix is a change with its own before and after.
+   *
+   * The list is EXACT, and that is what makes it a gate rather than a licence:
+   * a sixth failing shape fails this test on the day it arrives, and closing
+   * any of these five fails it too — so the fix cannot land silently either.
+   * Still deepStrictEqual rather than a count, for the reason it always was: an
+   * equality on `.length` prints `6 !== 5`, while this prints the SHAPE.
+   * ---------------------------------------------------------------------- */
+  assert.deepStrictEqual(sigLines.filter((l) => l.startsWith('FAIL ')), [
+    'FAIL      1.18:1 needs 4.5  rgba(23, 21, 15, 0.08) on rgb(255,255,255)',
+    'FAIL      2.07:1 needs 3  rgb(232, 237, 242) on rgb(125,128,134) [graphic] @op0.55 :hover',
+    'FAIL      2.07:1 needs 4.5  rgb(232, 237, 242) on rgb(125,128,134) @op0.55 :hover',
+    'FAIL      2.13:1 needs 3  rgb(148, 163, 184) on rgb(65,71,82) [graphic] @op0.55',
+    'FAIL      3.64:1 needs 4.5  rgb(232, 237, 242) on rgb(65,71,82) @op0.55',
+  ], 'the portal baseline is the five shapes S3d measured and left standing — a '
+    + 'sixth is a regression, and a missing one is a fix that must be recorded here');
   assert.strictEqual(sigLines.filter((l) => l.startsWith('CONTRACT ')).length, 0,
     'D-016: zero --ink-faint glyphs on the live portal, measured');
   assert.strictEqual(kit.PORTAL_BASELINE.contract, 0);

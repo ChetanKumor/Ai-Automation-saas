@@ -1,3 +1,8 @@
+FAIL      1.18:1 needs 4.5  rgba(23, 21, 15, 0.08) on rgb(255,255,255)
+FAIL      2.07:1 needs 3  rgb(232, 237, 242) on rgb(125,128,134) [graphic] @op0.55 :hover
+FAIL      2.07:1 needs 4.5  rgb(232, 237, 242) on rgb(125,128,134) @op0.55 :hover
+FAIL      2.13:1 needs 3  rgb(148, 163, 184) on rgb(65,71,82) [graphic] @op0.55
+FAIL      3.64:1 needs 4.5  rgb(232, 237, 242) on rgb(65,71,82) @op0.55
 UNDET     background-image in the backdrop stack  rgb(23, 21, 15) on rgb(253,252,250)
 RING      PASS 4.86  [outline 4.86 vs outer backdrop  2px solid rgb(15, 118, 110) @ 2px]
 RING      PASS 5.16  [outline 5.16 vs outer backdrop  2px solid rgb(15, 118, 110) @ -1px | glow 1.13 vs inner fill  0px 1px 2px 0px rgba(23, 21, 15, 0.06)]
@@ -6,5 +11,6 @@ RING      PASS 5.16  [outline 5.16 vs outer backdrop  2px solid rgb(15, 118, 110
 RING      PASS 5.24  [outline 5.24 vs outer backdrop  2px solid rgb(15, 118, 110) @ 2px]
 RING      PASS 5.47  [border 5.47/5.47 vs inner fill / outer backdrop  1px rgb(15, 118, 110) (rest rgba(23, 21, 15, 0.08)) | glow 1.13 vs outer backdrop  0px 0px 0px 3px rgb(204, 251, 241)]
 RING      PASS 5.47  [outline 5.47 vs outer backdrop  2px solid rgb(15, 118, 110) @ 2px]
+RING      PASS 5.47  fill@1.03  [border 5.47/5.16 vs inner fill / outer backdrop  1px rgb(15, 118, 110) (rest rgba(23, 21, 15, 0.08)) | glow 1.25 vs outer backdrop  0px 0px 0px 3px rgba(15, 118, 110, 0.16)]
 RING      PASS 5.47  fill@1.03  [border 5.47/5.47 vs inner fill / outer backdrop  1px rgb(15, 118, 110) (rest rgba(23, 21, 15, 0.08)) | glow 1.25 vs outer backdrop  0px 0px 0px 3px rgba(15, 118, 110, 0.16)]
 RING      PASS 7.42  [outline 7.42 vs outer backdrop  2px solid rgb(20, 184, 166) @ 2px | glow 1.00 vs outer backdrop  0px 0px 0px 2px rgb(12, 20, 32)]
