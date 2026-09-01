@@ -72,6 +72,56 @@ const DEVPORT = 9337; // not 9333/9334/9336 — all four run back to back
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function swapDb(cs, name) { const u = new URL(cs); u.pathname = '/' + name; return u.toString(); }
 
+/* Deadline + one retry on every CDP call. Duplicated from
+ * scripts/portal/shoot.js:88-180 for the same reason captureStable is
+ * duplicated further down: both files are standalone IIFEs that do their work
+ * on require, so neither can import the other, and the only place a shared copy
+ * could live is a new file this session's allowed set does not contain. The
+ * argument, the 90s number and the allowlist rationale are all written out
+ * there — read that comment, not this one. Recorded so the next session that
+ * touches either knows there are two. */
+const CDP_DEADLINE_MS = 90000;
+const CDP_RETRY_SAFE = new Set([
+  'Page.captureScreenshot', 'Page.getLayoutMetrics', 'Target.getTargets',
+  'Page.enable', 'Network.enable', 'Runtime.enable',
+  'Emulation.setDeviceMetricsOverride', 'Network.setCookie',
+]);
+
+function withDeadline(promise, ms, what, onTimeout) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => { timer = setTimeout(() => {
+      if (onTimeout) onTimeout();
+      rej(new Error(`CDP ${what} did not answer in ${ms / 1000}s`));
+    }, ms); }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+/* The frozen clock, duplicated from scripts/portal/shoot.js for the same
+ * reason. `2026-09-01T12:00:00Z` is a Tuesday in every zone from UTC-11 to
+ * UTC+12 and sits after both seeded holidays, so freezing changes nothing about
+ * what these sheets show; the full argument is at shoot.js's CLOCK_SHIM. */
+const CLOCK_FROZEN_MS = Date.UTC(2026, 8, 1, 12, 0, 0);
+
+const CLOCK_SHIM = "(function(){"
+  + "if(window.__shootClockFrozen) return; window.__shootClockFrozen=true;"
+  + "var T=" + CLOCK_FROZEN_MS + ", D=Date;"
+  + "function S(){"
+  + "  if(!(this instanceof S)) return new D(T).toString();"
+  + "  return arguments.length===0 ? new D(T) : Reflect.construct(D, arguments);"
+  + "}"
+  + "S.prototype=D.prototype; S.now=function(){return T;};"
+  + "S.parse=D.parse; S.UTC=D.UTC;"
+  + "try{Object.defineProperty(S,'name',{value:'Date'});}catch(e){}"
+  + "window.Date=S;"
+  + "try{"
+  + "  var P=window.performance;"
+  + "  if(P){ P.now=function(){return 0;};"
+  + "    try{Object.defineProperty(P,'timeOrigin',{get:function(){return T;}});}catch(e){} }"
+  + "}catch(e){}"
+  + "})()";
+
 class CDP {
   constructor(ws) {
     this.ws = ws; this.id = 0; this.pending = new Map(); this.listeners = [];
@@ -83,12 +133,26 @@ class CDP {
       } else if (m.method) { this.listeners.forEach((l) => l(m)); }
     };
   }
-  send(method, params = {}, sessionId) {
+  raw(method, params, sessionId) {
     const id = ++this.id;
     const msg = { id, method, params };
     if (sessionId) msg.sessionId = sessionId;
     this.ws.send(JSON.stringify(msg));
-    return new Promise((resolve, reject) => this.pending.set(id, { resolve, reject }));
+    const promise = new Promise((resolve, reject) => this.pending.set(id, { resolve, reject }));
+    return { id, promise };
+  }
+  async send(method, params = {}, sessionId) {
+    const attempt = () => {
+      const { id, promise } = this.raw(method, params, sessionId);
+      return withDeadline(promise, CDP_DEADLINE_MS, method, () => this.pending.delete(id));
+    };
+    try {
+      return await attempt();
+    } catch (e) {
+      if (!CDP_RETRY_SAFE.has(method)) throw e;
+      console.log('  ⚠', e.message, '- one retry');
+      return attempt();
+    }
   }
   on(fn) { this.listeners.push(fn); }
 }
@@ -150,6 +214,7 @@ async function shoot(cdp, { url, out, width, height, mobile, cookie, port, waitF
         + (collapsed ? '1' : '0') + "');}catch(e){}",
     }, sessionId);
   }
+  await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: CLOCK_SHIM }, sessionId);
   if (preload) await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: preload }, sessionId);
 
   const loaded = new Promise((res) => {
@@ -221,6 +286,7 @@ async function probe(cdp, { url, cookie, port, waitFor, checks, width, height, m
     await cdp.send('Network.setCookie',
       { name: cookie.name, value: cookie.value, url: `http://127.0.0.1:${port}/` }, sessionId);
   }
+  await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: CLOCK_SHIM }, sessionId);
   if (preload) await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: preload }, sessionId);
   const loaded = new Promise((res) => {
     cdp.on((m) => { if (m.method === 'Page.loadEventFired' && m.sessionId === sessionId) res(); });
@@ -738,6 +804,7 @@ const IN_SHEET = `(function(){
           { width: 1440, height: 900, deviceScaleFactor: 2, mobile: false }, sessionId);
         await cdp.send('Network.setCookie',
           { name: ck.name, value: ck.value, url: `http://127.0.0.1:${port}/` }, sessionId);
+        await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: CLOCK_SHIM }, sessionId);
         await cdp.send('Page.addScriptToEvaluateOnNewDocument', {
           source: "try{localStorage.setItem('portal.verbatim.collapsed','0');}catch(e){}",
         }, sessionId);

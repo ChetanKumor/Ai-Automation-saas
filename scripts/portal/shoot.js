@@ -85,6 +85,65 @@ const CONTRAST_OUT = (function () {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function swapDb(cs, name) { const u = new URL(cs); u.pathname = '/' + name; return u.toString(); }
 
+/* ── The deadline on every CDP call (S3f, generalised S3g) ───────────────────
+ *
+ * `CDP.send` below resolves on a matching response id and NOTHING ELSE. A
+ * response Chrome never sends therefore hung the run forever, with node idle
+ * and a renderer spinning — observed live at 8294f8f: a run wedged on
+ * s8-doctors-desktop for 33 minutes, node at 2.5s of CPU and flat while two
+ * Chrome renderers held ~30% each, `/json/list` still answering and still
+ * holding doctors.html open.
+ *
+ * S3f paid that debt for ONE call, `Page.captureScreenshot`, because
+ * captureStable had just multiplied the exposure on it. That was the narrow
+ * fix, and the comment there said so in as many words: "every call in this file
+ * has it". It still did. This session moves the ceiling into `send` itself, so
+ * the file has no unprotected CDP call left — a run that has lost its browser
+ * now FAILS, with the method named, and the `finally` at the bottom drops the
+ * scratch DB, which a hang never does.
+ *
+ * 90s is a CEILING, not a wait, and nothing waits on it in a healthy run: the
+ * largest shot in the corpus is 2560x7202 device px and returns in low
+ * single-digit seconds even on a loaded machine, and every other call in the
+ * file answers in milliseconds. A frame that has not arrived in ninety seconds
+ * is not slow, it is gone.
+ *
+ * ONE RETRY, AND ONLY FOR THE CALLS THAT CAN SURVIVE ONE. A wedged renderer
+ * sometimes only ate one frame, which is why the retry exists — but a blanket
+ * retry is a defect, not robustness: a `Runtime.evaluate` that clicked Save and
+ * then timed out may well have clicked it, and re-issuing would click twice.
+ * Nothing in the protocol tells the caller which half of that happened, so an
+ * allowlist is the only honest answer. It holds pure reads and idempotent
+ * setters and nothing else; `Runtime.evaluate`, `Page.navigate`,
+ * `Target.createTarget` and `Page.addScriptToEvaluateOnNewDocument` are all
+ * deliberately absent, and a method not named here fails on the first timeout.
+ *
+ * The timed-out entry is dropped from `pending` so a late reply is ignored
+ * rather than resolving a promise nobody is holding any more. */
+const CDP_DEADLINE_MS = 90000;
+
+const CDP_RETRY_SAFE = new Set([
+  'Page.captureScreenshot',             // pure read
+  'Page.getLayoutMetrics',              // pure read
+  'Target.getTargets',                  // pure read
+  'Page.enable',                        // idempotent
+  'Network.enable',                     // idempotent
+  'Runtime.enable',                     // idempotent
+  'Emulation.setDeviceMetricsOverride', // idempotent setter, same params
+  'Network.setCookie',                  // idempotent setter, same name/value/url
+]);
+
+function withDeadline(promise, ms, what, onTimeout) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => { timer = setTimeout(() => {
+      if (onTimeout) onTimeout();
+      rej(new Error(`CDP ${what} did not answer in ${ms / 1000}s`));
+    }, ms); }),
+  ]).finally(() => clearTimeout(timer));
+}
+
 // ── Minimal CDP client over the browser WebSocket ────────────────────────────
 class CDP {
   constructor(ws) {
@@ -97,12 +156,28 @@ class CDP {
       } else if (m.method) { this.listeners.forEach((l) => l(m)); }
     };
   }
-  send(method, params = {}, sessionId) {
+  // The raw call: one id, one promise, no ceiling. Never call this directly —
+  // `send` below is the guarded entry point, and it is what the whole file uses.
+  raw(method, params, sessionId) {
     const id = ++this.id;
     const msg = { id, method, params };
     if (sessionId) msg.sessionId = sessionId;
     this.ws.send(JSON.stringify(msg));
-    return new Promise((resolve, reject) => this.pending.set(id, { resolve, reject }));
+    const promise = new Promise((resolve, reject) => this.pending.set(id, { resolve, reject }));
+    return { id, promise };
+  }
+  async send(method, params = {}, sessionId) {
+    const attempt = () => {
+      const { id, promise } = this.raw(method, params, sessionId);
+      return withDeadline(promise, CDP_DEADLINE_MS, method, () => this.pending.delete(id));
+    };
+    try {
+      return await attempt();
+    } catch (e) {
+      if (!CDP_RETRY_SAFE.has(method)) throw e;
+      console.log('  ⚠', e.message, '- one retry');
+      return attempt();
+    }
   }
   on(fn) { this.listeners.push(fn); }
 }
@@ -296,6 +371,163 @@ const CARET_OFF = "(function(){"
  * reports true once the page reads back 0, which is also what defeats a smooth
  * scroll still in flight — a single scrollTo() would be read back mid-animation,
  * which looks exactly like a layout shift. */
+/* ── The fourth capture-time normalisation: THE CLOCK (S3g) ──────────────────
+ *
+ * `captureBeyondViewport`'s raster race is closed (captureStable, :670). What
+ * is left moving between two identical runs is the run's own clock, and S3f
+ * named the twelve shots it moves. This is the shim for the half of that a
+ * page-side freeze can actually reach — and the half it CANNOT is stated
+ * below, because the distinction is the whole finding of this session.
+ *
+ * WHAT THE PAGE READS FROM ITS OWN CLOCK, exhaustively, at this commit:
+ *   home.js:93-103    fmtAge  — `Date.now() - new Date(run.created_at)`
+ *   hours.js:40-45    todayStr / isPast — de-emphasises a holiday whose date
+ *                     is before today, `.holiday-row--past`
+ *   verbatim.js:315   todayHours — `DAY_KEYS[new Date().getDay()]`, the panel's
+ *                     "today" row
+ * There is no `performance.now()` anywhere under public/; it is frozen anyway,
+ * because a shim that covers a clock it did not enumerate is worth more than
+ * one that has to be re-audited the next time a page starts measuring.
+ *
+ * WHAT THE PAGE READS FROM THE DATABASE, which this shim does NOT touch:
+ *   home.js:78-86     fmtDate(run.created_at)      validation_runs.created_at
+ *   history.js:30-33  formatWhen(r.created_at)     tenant_config_revisions
+ *                                                  .created_at
+ * Both columns are `TIMESTAMPTZ NOT NULL DEFAULT NOW()` (schema.sql), and NOW()
+ * is the POSTGRES server's clock, resolved in the scratch DB at INSERT time by
+ * the real services this script drives. Freezing `Date` in the renderer cannot
+ * reach it: `new Date(iso)` must keep parsing an ISO string faithfully or every
+ * date on every page becomes a lie. See the S3g note on the thirteen at :814.
+ *
+ * THE EPOCH IS NOT ARBITRARY. 2026-09-01T12:00:00Z is chosen so that freezing
+ * changes NOTHING about what the corpus shows today:
+ *   • Tuesday noon UTC is Tuesday in every zone from UTC-11 to UTC+12, so
+ *     `todayHours()` names the same weekday this corpus was last shot on
+ *     regardless of the machine's timezone — no Emulation.setTimezoneOverride
+ *     needed, and none added.
+ *   • It is after BOTH seeded holidays (2026-08-15 and 2026-01-26, :1605-1608
+ *     — the comment there still says "one past and one upcoming" and both are
+ *     now past), so every `.holiday-row--past` stays past. A date before
+ *     2026-08-15 would flip one row's colour and could move the contrast
+ *     signature, which is why the epoch is pinned rather than computed.
+ *   • It is in the PAST relative to the rows the run writes, so fmtAge's
+ *     `mins` goes negative and lands on `mins < 1` -> "just now" — which is
+ *     what it already prints on a run-fresh row, now deterministically rather
+ *     than by arithmetic that happens to round the same way.
+ *
+ * `new Date(...)` with arguments, `Date.parse`, `Date.UTC` and every prototype
+ * method are the originals; only the ZERO-ARGUMENT reading of the wall clock is
+ * replaced. It is installed with Page.addScriptToEvaluateOnNewDocument so it
+ * runs BEFORE the page's own scripts — a Runtime.evaluate after load would be
+ * too late for anything a module reads at parse time — and it is idempotent, so
+ * a second install (or a retried CDP call) cannot double-wrap. */
+const CLOCK_FROZEN_MS = Date.UTC(2026, 8, 1, 12, 0, 0); // 2026-09-01T12:00:00Z, a Tuesday
+
+const CLOCK_SHIM = "(function(){"
+  + "if(window.__shootClockFrozen) return; window.__shootClockFrozen=true;"
+  + "var T=" + CLOCK_FROZEN_MS + ", D=Date;"
+  + "function S(){"
+  + "  if(!(this instanceof S)) return new D(T).toString();"
+  + "  return arguments.length===0 ? new D(T) : Reflect.construct(D, arguments);"
+  + "}"
+  + "S.prototype=D.prototype; S.now=function(){return T;};"
+  + "S.parse=D.parse; S.UTC=D.UTC;"
+  + "try{Object.defineProperty(S,'name',{value:'Date'});}catch(e){}"
+  + "window.Date=S;"
+  + "try{"
+  + "  var P=window.performance;"
+  + "  if(P){ P.now=function(){return 0;};"
+  + "    try{Object.defineProperty(P,'timeOrigin',{get:function(){return T;}});}catch(e){} }"
+  + "}catch(e){}"
+  + "})()";
+
+/* ── The quarantine: what a byte comparison of two runs must not judge ───────
+ *
+ * Five sessions have now compared two runs of this corpus by md5 and then spent
+ * their time re-deriving which of the differences were the instrument and which
+ * were the portal. This is that answer, written down once, printed at the end
+ * of every run, and greppable — `node scripts/portal/shoot.js | sed -n
+ * '/^quarantine/,$p'`.
+ *
+ * It is a REGISTRY, not a gate. Nothing here suppresses a shot or edits a
+ * picture: the corpus is still 59 files and every one of them is whatever the
+ * page painted. All it does is name, with the mechanism, the shots a byte
+ * comparison cannot hold against the portal — so the next session compares 46
+ * shots and reads a real result, instead of comparing 59 and reading noise.
+ *
+ * Measured over FIVE consecutive pairs, ten full runs, at this commit. Counts:
+ * 12 / 13 / 12 / 12 / 12 shots moved of 59. Every single one is accounted for
+ * below. ZERO unexplained movers in five pairs — which is the number that
+ * matters, because captureStable (S3f) is what made it zero and this registry
+ * is what makes it legible.
+ *
+ * `clock` and `entropy` are the thirteen content movers; the full derivation,
+ * including why the frozen clock settles none of them, is in `shoot()` below.
+ *
+ * `displacement` is the OTHER artefact, and the brief that commissioned this
+ * registry ruled it explicitly out of scope: a ±16-device-px column shift
+ * decided ONCE PER PAGE LOAD, so both of captureStable's frames carry it and
+ * that gate cannot see it. Its signature is unmistakable and is how every entry
+ * below was classified rather than guessed: best vertical correlation at
+ * exactly ±16 device px, the sidebar unshifted, the Verbatim panel identical —
+ * the opposite of the panel artefact S3f closed.
+ *
+ * ONE NEW OBSERVATION, recorded because it is a lead and not chased because it
+ * is out of scope: EVERY displacement ever observed has been on an `*-error`
+ * shot. SIX of the eight error shots in the corpus across nine pairs
+ * (s4-profile, s6-pricing, s8-doctors, s9-booking, s10-safety, s13-receptionist
+ * — the last of which was predicted BY this class note and then turned up in
+ * the red/green pair that tested it), and NEVER once on any of the 51
+ * non-error shots. That is why the list is the observed set and the note says
+ * to quarantine the class: the two not yet seen (s5-hours-error,
+ * s11-faqs-error) are almost certainly not exempt, only unobserved. The error shots are exactly the ones whose
+ * afterReady drives a failing save, and a failing save calls
+ * `scrollIntoView({block:'center', behavior:'smooth'})` (pricing.js:120 and the
+ * same shape in every sibling). SCROLL_HOME below re-issues the scroll until
+ * the page reads back 0, so the offset at capture time is 0 either way — but a
+ * smooth scroll that was still in flight when the layout was decided is the
+ * obvious next place to look. The list is therefore the OBSERVED set and the
+ * class is "any `*-error` shot", which is what the printout says.
+ *
+ * The 16-of-42 LCD-subpixel-to-grayscale AA flip S3f recorded is NOT here: it
+ * flipped once and stayed flipped, so it is a state, not a coin, and it has not
+ * moved in any of the ten runs behind this registry. */
+const QUARANTINE = {
+  clock: {
+    why: 'a timestamp the run itself wrote — Postgres NOW(), unreachable from the page',
+    shots: [
+      'home-desktop', 'home-mobile',
+      's17-history-desktop', 's17-history-mobile', 's17-history-detail',
+      's17-history-restore-confirm',
+      's18-live', 's18-paused', 's18-paused-mobile',
+      's18-golive-blocked-after-mobile',
+    ],
+  },
+  entropy: {
+    why: 'a server-side value that is not a date at all — crypto, or a measured duration',
+    shots: ['s3-admin-create-owner', 's14-test-reply', 's3d-test-no-config'],
+  },
+  displacement: {
+    why: '±16 device-px column shift decided per page load — OUT OF SCOPE, see above',
+    shots: [
+      's4-profile-error', 's6-pricing-error', 's8-doctors-error',
+      's9-booking-error', 's10-safety-error', 's13-receptionist-error',
+    ],
+    classNote: 'observed set — 6 of the 8 *-error shots; treat the whole class as quarantined',
+  },
+};
+
+function printQuarantine() {
+  const n = Object.values(QUARANTINE).reduce((a, g) => a + g.shots.length, 0);
+  console.log(`quarantine — ${n} of 59 shots a byte comparison must not judge:`);
+  for (const [name, g] of Object.entries(QUARANTINE)) {
+    console.log(`  ${name} (${g.shots.length}) — ${g.why}`);
+    console.log(`    ${g.shots.join(' ')}`);
+    if (g.classNote) console.log(`    note: ${g.classNote}`);
+  }
+  console.log(`  the other ${59 - n} shots are expected byte-identical between two runs.`);
+}
+
 const SCROLL_HOME = "(function(){"
   + "var e=document.scrollingElement||document.documentElement;"
   + "if(window.scrollY!==0||e.scrollTop!==0){"
@@ -313,7 +545,7 @@ const SCROLL_HOME = "(function(){"
  * movers, eleven of which are the content movers named below, leaving
  * 2 / 2 / 4 / 6 / 7 flips.
  *
- * S3e called it "captured MID-PAINT" and blamed VERBATIM_PAINTED (:219) for
+ * S3e called it "captured MID-PAINT" and blamed VERBATIM_PAINTED (:308) for
  * gating the fetch rather than the frame. That is the wrong layer, and the
  * pixels say so. Decoded at 2x, run D against run E of s6-pricing-desktop:
  *
@@ -374,7 +606,7 @@ const SCROLL_HOME = "(function(){"
  * So the settle is taken in the only currency the capture path has: THE FRAME
  * ITSELF. Capture, capture again, and accept the picture only once two
  * consecutive frames agree byte for byte. That is the same shape as
- * RING_SETTLED (:795) — await the thing that completes, do not sleep and hope
+ * RING_SETTLED (:1216) — await the thing that completes, do not sleep and hope
  * — with the completion observed directly instead of inferred, because a
  * raster is not something the page can be asked about. The first capture is
  * what forces the expanded-viewport raster; the second reads it warm.
@@ -382,7 +614,7 @@ const SCROLL_HOME = "(function(){"
  * It is NOT a retry-until-it-looks-right loop: it never inspects the picture,
  * only whether the compositor has stopped changing its mind. A page that is
  * genuinely never at rest (a caret, a live animation) would exhaust the budget
- * and THROW rather than write an arbitrary frame — CARET_OFF (:265) and
+ * and THROW rather than write an arbitrary frame — CARET_OFF (:342) and
  * --force-prefers-reduced-motion are what make that a real invariant rather
  * than an aspiration. The twelve content movers do not trip it: they differ
  * BETWEEN runs, not between two frames milliseconds apart, because nothing
@@ -415,8 +647,9 @@ const SCROLL_HOME = "(function(){"
  *
  * TWO THINGS IT DOES NOT FIX, both older than it and both named so the next
  * session does not attribute them here:
- *   • the 16-device-px column displacement (S3b, :490-499). Six shots showed it
- *     across the ten runs. Confirmed by correlation each time: best vertical
+ *   • the 16-device-px column displacement (S3b; now registered in the
+ *     quarantine at :495). Six shots showed it across the ten runs.
+ *     Confirmed by correlation each time: best vertical
  *     shift exactly ±16 device px, the sidebar unshifted, and the Verbatim
  *     panel byte-identical — the opposite signature to this one.
  *   • an LCD-subpixel to GRAYSCALE antialiasing flip, which is new to this
@@ -428,45 +661,15 @@ const SCROLL_HOME = "(function(){"
  *     flipped ONCE and stayed flipped for every run after, so it is a state,
  *     not a coin.
  * ─────────────────────────────────────────────────────────────────────── */
-/* The one deadline in this file that is NOT a gate ceiling, and it is here
- * because this function is what made it necessary.
- *
- * `CDP.send` (:100-106) resolves on a matching id and has no timeout — so a
- * response Chrome never sends hangs the run FOREVER, with node idle and a
- * renderer spinning. That is pre-existing and every call in this file has it,
- * but taking two to eight screenshots where there was one multiplies the
- * exposure on the single heaviest call, so it is this function's debt to pay.
- * Observed live at 8294f8f + this change: a run wedged on s8-doctors-desktop
- * for 33 minutes, node at 2.5s of CPU and flat while two Chrome renderers held
- * ~30% each, `/json/list` still answering and still holding doctors.html open.
- *
- * 90s is a ceiling, not a wait: the largest shot in the corpus is 2560x7202
- * device px and returns in low single-digit seconds even on a loaded machine.
- * A frame that has not arrived in ninety seconds is not slow, it is gone — and
- * an unattended instrument may fail, but it may not hang. One retry, because a
- * wedged renderer sometimes only ate one frame; then throw and let the
- * `finally` at the bottom drop the scratch DB, which a hang never does. */
-const CAPTURE_DEADLINE_MS = 90000;
 
-function withDeadline(promise, ms, what) {
-  let timer;
-  return Promise.race([
-    promise,
-    new Promise((_, rej) => { timer = setTimeout(
-      () => rej(new Error(`Page.captureScreenshot did not answer in ${ms / 1000}s: ${what}`)), ms); }),
-  ]).finally(() => clearTimeout(timer));
-}
-
+/* The 90s ceiling and the one retry that used to live HERE are now on
+ * `CDP.send` itself (:123-180), which is where the debt always belonged —
+ * `Page.captureScreenshot` is on the retry allowlist, so this function keeps
+ * exactly the protection S3f gave it and every other call in the file gained
+ * the same. Nothing below waits on a raw promise any more. */
 async function captureStable(cdp, sid, params, out) {
   const name = path.basename(out);
-  const frame = async () => {
-    try {
-      return await withDeadline(cdp.send('Page.captureScreenshot', params, sid), CAPTURE_DEADLINE_MS, name);
-    } catch (e) {
-      console.log('  ⚠', name, e.message, '- one retry');
-      return withDeadline(cdp.send('Page.captureScreenshot', params, sid), CAPTURE_DEADLINE_MS, name);
-    }
-  };
+  const frame = () => cdp.send('Page.captureScreenshot', params, sid);
   let prev = null;
   for (let i = 1; i <= 8; i++) {
     const r = await frame();
@@ -507,6 +710,10 @@ async function shoot(cdp, { url, out, width, height, mobile, cookie, port, waitF
     await cdp.send('Network.setCookie',
       { name: cookie.name, value: cookie.value, url: `http://127.0.0.1:${port}/` }, sessionId);
   }
+  // The clock, frozen BEFORE the document exists (CLOCK_SHIM above). Must
+  // precede Page.navigate: a Runtime.evaluate after load is already too late
+  // for anything a page reads while it parses.
+  await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: CLOCK_SHIM }, sessionId);
 
   const loaded = new Promise((res) => {
     cdp.on((m) => { if (m.method === 'Page.loadEventFired' && m.sessionId === sessionId) res(); });
@@ -604,39 +811,74 @@ async function shoot(cdp, { url, out, width, height, mobile, cookie, port, waitF
    * other way, leaving "eleven content movers, and everything on top of those
    * is a flip" without ever naming the eleven.
    *
-   * THE TWELVE CONTENT MOVERS, BY NAME. Measured over six consecutive runs of
-   * all 59 shots at 8294f8f. Eleven appear in all five pairs, every time; the
-   * twelfth is the correction below.
+   * THE THIRTEEN CONTENT MOVERS, BY NAME — S3f said twelve, and the count was
+   * one short. Re-measured here over FIVE consecutive pairs (ten full runs of
+   * all 59 shots) with the frozen clock in place. Eleven move in every pair,
+   * every time. The other two are durations that only move across a rounding
+   * boundary, and one of them was never on anybody's list.
+   *
+   *   THE ELEVEN — every pair, without exception
    *
    *   home-desktop, home-mobile
    *       Home prints the readiness run THIS RUN wrote — "Last checked 31 Aug
-   *       2026, 12:08 AM" (fmtDate, home.js:78-86, rendered at :386) — and
-   *       fmtAge (:93-103) beside it is relative to Date.now(), so it moves
-   *       even when the row does not.
+   *       2026, 12:08 AM" (fmtDate, home.js:78-86, rendered at :386).
+   *       `validation_runs.created_at` is `TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+   *       and that NOW() is POSTGRES's clock. fmtAge (home.js:93-103) beside it
+   *       IS a Date.now() reading and the shim does settle it — but it renders
+   *       only in the `run.stale` branch (home.js:377-386), which this shot is
+   *       not in, so settling it changes nothing here.
    *   s17-history-desktop, s17-history-mobile, s17-history-detail,
    *   s17-history-restore-confirm
    *       the config revisions the S17 sequence creates and then lists
-   *       (history.js:30-33).
+   *       (history.js:30-33), off `tenant_config_revisions.created_at` — the
+   *       same DEFAULT NOW(), the same Postgres clock.
    *   s18-live, s18-paused, s18-paused-mobile,
    *   s18-golive-blocked-after-mobile
    *       the lifecycle transitions persist a validation run and the page then
-   *       states when it happened.
+   *       states when it happened. Same column, same clock.
    *   s3-admin-create-owner
-   *       a server-generated one-time password.
+   *       a server-generated one-time password. NOT A DATE AT ALL, and no clock
+   *       shim of any kind can reach it — it is `crypto` entropy, and settling
+   *       it would mean seeding the server's RNG.
    *
-   *   s14-test-reply  ← THE TWELFTH, and it has been counted as a FLAKE since
-   *       S3b. It is not one. The shot sends a real test turn and the page
-   *       prints how long that turn took: the transcript reads "…sed · 0.0s"
-   *       on one run and "…sed · 0.1s" on the next, in a 6 x 9 CSS px box at
-   *       (481, 426.5). A duration the run itself produced is a timestamp by
-   *       another name, and it moves only when the turn crosses a rounding
-   *       boundary — which is why it flips in some pairs and not others, and
-   *       why it read as intermittent rather than as content.
+   *   THE TWO DURATIONS — a rounding boundary, not a pair
    *
-   * All twelve are a Date/performance shim away from settling and nothing less
-   * will do it, so they are quarantined by name rather than chased. Everything
-   * on top of them was the panel artefact, and `captureStable` (:460) closes
-   * it; the two things that remain are named there too.
+   *   s14-test-reply, s3d-test-no-config
+   *       both send a real test turn and print how long it took:
+   *       `${(p.latency_ms / 1000).toFixed(1)}s` (test.js:84). S3f named the
+   *       first as "the twelfth" and measured its 6 x 9 CSS px box at
+   *       (481, 426.5). The second is new here and is the SAME defect on the
+   *       S3d fixture variant: 131 differing device px in a 5.5 x 8 CSS px box
+   *       at (415, 468.5) between runs 3 and 4, best vertical shift dy = 0, so
+   *       it is a glyph and not a displacement. `latency_ms` is measured
+   *       SERVER-side (src/infra/logging/turnMetrics.js), so like the password
+   *       above it is not a date and a page-side clock cannot touch it.
+   *       Neither moved in four of the five pairs, which is exactly why this
+   *       one hid behind "flake" for four sessions.
+   *
+   * WHAT THE CLOCK SHIM ACTUALLY BOUGHT, stated plainly because the brief that
+   * commissioned it expected more: ZERO of the thirteen. Every one of them is a
+   * value the SERVER produced — Postgres's NOW() for the ten timestamps, node's
+   * crypto for the password, a server-side stopwatch for the two durations —
+   * and `new Date(iso)` must keep parsing an ISO string faithfully or every
+   * date on every page becomes a lie. What the shim DOES close is the class
+   * nobody had hit yet and everybody would have: `hours.js:40-45`'s
+   * `.holiday-row--past` and `verbatim.js:315`'s "today" row, both of which
+   * flip on a calendar boundary rather than on a run. Proven, not assumed —
+   * moving the epoch to 2026-08-01 (before both seeded holidays at :1605-1608)
+   * moves s5-hours-desktop by 15884 px in the holiday band at CSS y 1064-1107.5
+   * and changes s5-hours-mobile's PAGE HEIGHT from 3894 to 3958, because the
+   * "Past" chip takes its own grid row below 1024 (hours.css:206). At the
+   * chosen epoch all three s5 shots are byte-identical across all five pairs.
+   *
+   * SETTLING THE TEN TIMESTAMPS NEEDS A DATABASE-SIDE PIN, and there is no
+   * fixture file to edit: nothing seeds those rows. They are written by the
+   * REAL services this script drives — validationService and
+   * configService.writeTenantConfig — into the scratch DB, four of them (s17,
+   * s18) by clicks inside `afterReady`, i.e. DURING the capture sequence and
+   * not at seed time. So the pin is not a one-line seed change; it is a
+   * decision about whether this instrument may rewrite the rows it photographs,
+   * and it is deliberately NOT taken here.
    *
    * Sizing the viewport to the content would remove the flag everywhere, but
    * `.side` is `position: fixed` and would then paint down the whole page rather
@@ -1010,6 +1252,11 @@ async function sweepOnePage(cdp, opts) {
       await cdp.send('Network.setCookie',
         { name: opts.cookie.name, value: opts.cookie.value, url: `http://127.0.0.1:${opts.port}/` }, sessionId);
     }
+    // The same frozen clock the capture path uses, for the same reason: the
+    // contrast sweep reads COMPUTED STYLE, and `.holiday-row--past`
+    // (hours.css:131-133) is a class the page decides from today's date. A
+    // sweep whose element set depends on the day it ran is not an instrument.
+    await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: CLOCK_SHIM }, sessionId);
     const loaded = new Promise((res) => {
       cdp.on((m) => { if (m.method === 'Page.loadEventFired' && m.sessionId === sessionId) res(); });
     });
@@ -1340,9 +1587,18 @@ const adminLoginCookie = (port, password) =>
         emergency_guidance: 'Come straight to the clinic — we keep an emergency slot free every hour, and someone is on the desk until 8pm.',
         emergency_number: '+919000000009',
       },
-      // Hours: a short Wednesday + a closed Saturday (varied grid), plus one past
-      // and one upcoming holiday so the S5 shot shows both the closed-day render
-      // and the past-date de-emphasis.
+      // Hours: a short Wednesday + a closed Saturday (varied grid), plus two
+      // holidays so the S5 shot shows both the closed-day render and the
+      // past-date de-emphasis.
+      //
+      // "one past and one upcoming" is what this said, and it stopped being
+      // true on 2026-08-15: BOTH dates are now behind us, so both rows render
+      // `.holiday-row--past` and the shot has quietly lost its upcoming-holiday
+      // case. Left as data rather than repaired, because moving a seeded date
+      // changes what three shots show and this session photographs the corpus
+      // rather than re-cutting it — but the comment may not go on asserting a
+      // state the dates no longer produce. It is also why CLOCK_SHIM's epoch is
+      // pinned AFTER 2026-08-15: an earlier freeze would flip both rows back.
       hours: {
         wed: { open: '09:00', close: '13:00' },
         sat: { closed: true },
@@ -2210,6 +2466,7 @@ const adminLoginCookie = (port, password) =>
     });
 
     console.log('done →', OUT);
+    printQuarantine();
   } finally {
     try { if (ws) ws.close(); } catch (_) {}
     try { if (chrome) chrome.kill(); } catch (_) {}
