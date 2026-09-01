@@ -3,15 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Login — WhatsApp CRM</title>
+  <title>Admin Login — Veprio</title>
   <!-- ==========================================================================
        THE ONE ADMIN PAGE ON PORTAL TOKENS (S4).
 
-       This page no longer links /admin/style.css. That file is UNTOUCHED and
-       still dresses the other eight admin pages exactly as it did; dropping the
-       link here rather than editing it there is what keeps this change to one
-       page. The two are not merged and must not be: /admin/style.css has no
-       custom properties at all, and its login rules disagreed with this portal
+       This page no longer links /admin/style.css. S5 moved tenants.html and
+       tenant-new.html off it too, so that file now dresses the SEVEN pages that
+       still link it (conversations, appointments, leads, collections,
+       notifications, workflow, tenant-detail). A page migrates whole or not at
+       all: .badge, .btn, .card and body are declared in BOTH stylesheets, so a
+       page that linked both would cascade by link order.
+
+       The two are not merged and must not be: /admin/style.css has no custom
+       properties at all, and its login rules disagreed with this portal
        on every value that matters — #f5f5f5 ground vs --bg warm paper, a system
        font stack vs Noto Sans, a 360px card with NO page gutter (flush to both
        screen edges at 320px), a ~37px button and a ~35px input where the portal
@@ -20,8 +24,10 @@
        browser happened to draw.
 
        Two of its colours are also contrast liabilities, and they stay its
-       business: .btn-primary paints #fff on #4361ee at 4.31:1 and .error paints
-       #e63946 on #fff at 3.76:1, both under AA for the 13-14px text they carry.
+       business: .btn-primary paints #fff on #4361ee at 5.02:1 and .error paints
+       #e63946 on #fff at 4.17:1 — the SECOND is under AA for the 13px text it
+       carries; the first clears it. The 4.31/3.76 pair recorded here before was
+       wrong: 3.76 is #e63946 on #f5f5f5, the page GROUND, not on #fff.
        Those are READ FROM SOURCE, not measured — the contrast sweep is
        portal-only (shoot.js builds every page URL onto one /portal base), so no
        instrument in this repo has ever looked at an admin page. Recorded in
@@ -100,7 +106,7 @@
 <body>
   <main class="adm-login">
     <div class="card adm-login__card">
-      <h1 class="adm-login__title">WhatsApp CRM Admin</h1>
+      <h1 class="adm-login__title">Veprio Admin</h1>
       <p class="adm-login__sub">Operator access. One shared password, no account.</p>
 
       <div class="adm-login__note" id="error" role="alert" hidden>

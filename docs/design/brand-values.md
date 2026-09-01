@@ -456,23 +456,54 @@ green on absence), and closing it needs a `login[error]` entry in
 
 ### What the admin panel keeps, and its contrast liability
 
-`public/admin/style.css` is unchanged and still dresses the other eight admin
-pages. Its values are the admin panel's private business, are **not** canonical,
-and must not be reconciled into the tables above:
+`public/admin/style.css` now dresses **seven** pages, not nine: S4 moved
+`login.html` onto the portal tokens and S5 moved `tenants.html` and
+`tenant-new.html`. The remaining seven are `conversations`, `appointments`,
+`leads`, `collections`, `notifications`, `workflow` and `tenant-detail` (S6).
+Its values are the admin panel's private business, are **not** canonical, and
+must not be reconciled into the tables above:
 
 | Value | Where | Read-from-source note |
 |---|---|---|
-| `#4361ee` | `.btn-primary` fill | White label on it measures **4.31:1** — clears 3:1 for a UI component, under 4.5:1 for the 14px/500 text it carries. |
-| `#e63946` | `.error` text, `.btn-danger` fill | `#e63946` on `#fff` measures **3.76:1** at 13px — under AA body. |
+| `#4361ee` | `.btn-primary` fill | White label on it measures **5.02:1** — clears 4.5:1, so the 14px/500 text it carries is **not** a failure. Corrected in S5: the 4.31:1 recorded here before was wrong. |
+| `#e63946` | `.error` text, `.btn-danger` fill | `#e63946` on `#fff` measures **4.17:1** at 13px — under AA body. Corrected in S5: the **3.76:1** recorded here is `#e63946` on **`#f5f5f5`** (3.82:1), the page GROUND — the error was a **wrong backdrop**, not a wrong arithmetic. `.error` renders inside a `.card`, so `#fff` is the backdrop that applies, and the verdict (under AA) survives either way. |
 | `#f5f5f5` | page ground | Cool grey, not the warm `#faf8f5` every other surface uses. |
 | `#1a1a2e` | `nav` | — |
 | system font stack | `body` | Not Noto Sans; carries no Telugu or Devanagari. |
 
-**Both ratios are READ FROM SOURCE and computed, NOT instrument-measured.** No
-instrument in this repo has ever looked at an admin page: `scripts/portal/shoot.js`
+**Both ratios are READ FROM SOURCE and computed, NOT instrument-measured** — and that is exactly how both of them came to be wrong. S5 recomputed them with `tests/design/contrast/core.js`'s own `contrastRatio()`, the function the live sweep judges with, so the corrected figures are at least derived from the instrument's arithmetic even though no instrument has looked at the pixels. The lesson is the second row's: an offline figure carries its backdrop as an
+*assumption*, where a sweep would have carried it as a *measurement*.
+
+No instrument in this repo has ever looked at an admin page: `scripts/portal/shoot.js`
 builds every `CONTRAST_PAGES` URL onto a single `/portal` base, so the sweep is
-portal-only by construction. The two shots S4 adds (`admin-login-desktop`,
-`admin-login-mobile`) are captures, not measurements. **The admin session owns
-these values**; they are recorded here so that a future reader does not read them
-as portal drift, and so that whoever does migrate the admin panel starts with the
-two numbers already known.
+portal-only by construction. The three admin shots in the corpus
+(`admin-login-desktop`, `admin-login-mobile`, `admin-login-error`) are captures,
+not measurements. **The admin session owns these values**; they are recorded here
+so that a future reader does not read them as portal drift.
+
+**`.error` now has no writer at all.** S5's dead-class scan, re-run after the
+migration, reports `.error` and `.btn-danger` as the two rules in
+`public/admin/style.css` that no remaining page writes: `tenant-new.html` was
+`.error`'s last consumer and it moved onto tokens. The 4.17:1 liability is
+therefore **latent, not live** — it is a declaration guarding a state nothing
+renders, which is precisely the shape S3d warned about, and it should be deleted
+rather than fixed. Left standing in S5 because the ruling's dead-class list was
+the four names Phase A enumerated, and these two became dead *during* the
+session. S6's business.
+
+⚠️ **Do not "revive" `.btn-danger` by using it.** Phase A recommended exactly
+that and it was wrong on the numbers: `tenant-detail.html`'s two destructive
+buttons paint `#fff` on an inline `#b00020` at **7.33:1**, and moving them onto
+the declared `.btn-danger` (`#e63946`) would take them to **4.17:1** — *under*
+AA for the 14px/500 label they carry. The inline value is the better one, and
+the declared rule is the defect. `tokens.css` disagrees with both: `.btn--danger`
+is deliberately **not a solid red fill** (`--red-700` on `--card`, 6.47:1), on
+the grounds that a filled red button is the most attractive target on screen at
+the exact moment the operator should hesitate.
+
+**Neither row applies to a migrated page.** `login.html`, `tenants.html` and
+`tenant-new.html` take `--teal-700` for their primary button (5.4:1 on `--card`)
+and `--red` / `--red-200` / `--red-50` for their error surfaces, all from
+`tokens.css`. The two liabilities above are scoped to whatever still links
+`/admin/style.css`, and they shrink by one page each time S6 and its successors
+move one.

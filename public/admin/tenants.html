@@ -3,43 +3,129 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tenants — WhatsApp CRM Admin</title>
-  <link rel="stylesheet" href="/admin/style.css">
+  <title>Tenants — Veprio Admin</title>
+  <!-- ==========================================================================
+       ON PORTAL TOKENS (S5). Same move login.html made at S4, same rule: this
+       page links /portal/tokens.css and does NOT link /admin/style.css. A page
+       migrates whole or not at all — .badge, .btn, .card and `body` are declared
+       in BOTH stylesheets, so a page linking both would be decided by link order
+       rather than by design.
+
+       The panel bar below is reproduced against tokens rather than shared,
+       because the seven pages that have not migrated still take it from
+       /admin/style.css. The VALUES are identical on both sides so a half-
+       migrated panel does not read as two products. S6 collapses the
+       duplication when tenant-detail.html moves and /admin/style.css loses its
+       last consumer.
+       ========================================================================= -->
+  <link rel="stylesheet" href="/portal/fonts/fonts.css">
+  <link rel="stylesheet" href="/portal/tokens.css">
+  <style>
+    /* ── The panel bar (see the note above) ──────────────────────────────── */
+    nav {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    nav a {
+      color: #ccc; text-decoration: none; font-size: 14px;
+      padding: 4px 2px; border-bottom: 2px solid transparent;
+    }
+    nav a:hover { color: #fff; }
+    nav .brand { font-weight: 700; font-size: 18px; color: #fff; text-decoration: none; border-bottom: 0; }
+    /* Current page: colour AND a shape change, never colour alone — the rule
+     * tokens.css:274-276 states for the focus ring. --teal-500 is the accent
+     * the portal uses on a dark ground. */
+    nav a[aria-current] { color: #fff; font-weight: 600; border-bottom-color: var(--teal-500); }
+    /* The shared ring is --teal-700, tuned for the light ground; on this dark
+     * bar it measures 3.12:1 — over the SC 1.4.11 floor of 3, but only just.
+     * --teal-500 is the accent tokens.css reserves for an ink ground
+     * (--accent-on-field) and measures 6.85:1 here. Same reasoning verbatim.css
+     * gives for overriding the ring on the Verbatim panel. */
+    nav a:focus-visible { outline-color: var(--teal-500); }
+
+    /* ── Table ───────────────────────────────────────────────────────────────
+     * The portal deliberately has no <table> rules — spec §2.9 turns its lists
+     * into stacked cards on mobile ("div rows, not a <table>", history.css:4).
+     * The admin panel is a desktop operator tool whose tables are genuinely
+     * tabular and already scroll horizontally inside their card, so the table
+     * stays a table and takes its colours from the tokens instead. */
+    .card--table { padding: 0; overflow-x: auto; }
+    .tbl { width: 100%; border-collapse: collapse; }
+    .tbl th, .tbl td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+    .tbl th {
+      font: var(--t-micro); letter-spacing: var(--ls-micro);
+      text-transform: uppercase; color: var(--ink-2); background: var(--bg);
+      white-space: nowrap;
+    }
+    .tbl td { font: var(--t-body-sm); color: var(--ink); }
+    .tbl tbody tr:last-child td { border-bottom: 0; }
+    .tbl tbody tr:hover { background: var(--bg); }
+    .tbl code { font: 400 12.5px/1.5 var(--mono); color: var(--ink-2); }
+    .tbl a { color: var(--teal-700); text-decoration: none; }
+    .tbl a:hover { text-decoration: underline; }
+    /* The status badge carries an ICON as well as a word (tokens.css:826-830):
+     * colour alone says nothing in greyscale or to a screen reader. Deliberately
+     * NOT .badge__dot — that one pulses (tokens.css:852), which is right for the
+     * single "Live" pill in the portal shell and wrong for every row of a table. */
+    .badge svg { width: 12px; height: 12px; }
+
+    @media (max-width: 640px) {
+      .content { padding: 20px 14px 48px; }
+      .hide-mobile { display: none; }
+      .tbl th, .tbl td { padding: 9px 8px; }
+    }
+  </style>
 </head>
 <body>
   <nav>
-    <a href="/admin/tenants.html" class="brand">WhatsApp CRM</a>
+    <a href="/admin/tenants.html" class="brand">Veprio Admin</a>
+    <a href="/admin/tenants.html" aria-current="page">Tenants</a>
     <a href="/admin/conversations.html">Conversations</a>
     <a href="/admin/leads.html">Leads</a>
+    <a href="/admin/appointments.html">Appointments</a>
+    <a href="/admin/workflow.html">Workflow</a>
     <a href="/admin/notifications.html">Notifications</a>
     <a href="/admin/logout">Logout</a>
   </nav>
 
-  <div class="container">
-    <div class="flex-between mb-20" style="margin-top:20px;">
-      <h2>Tenants</h2>
-      <a href="/admin/tenant-new.html" class="btn btn-primary">+ Add New</a>
+  <main class="content">
+    <div class="page-head">
+      <h1 class="page-head__title">Tenants</h1>
+      <p class="page-head__sub">Every clinic on the platform. Open one to configure it, validate it and take it live.</p>
+      <div class="page-head__actions">
+        <a href="/admin/tenant-new.html" class="btn btn--primary">Add tenant</a>
+      </div>
     </div>
 
-    <div class="card" style="padding:0; overflow-x:auto;">
-      <table>
+    <div class="card card--table">
+      <table class="tbl">
         <thead>
           <tr>
-            <th>Business Name</th>
-            <th class="hide-mobile">Phone Number ID</th>
+            <th>Business name</th>
+            <th class="hide-mobile">Phone number ID</th>
             <th>Status</th>
             <th class="hide-mobile">Created</th>
           </tr>
         </thead>
         <tbody id="tenantList">
-          <tr><td colspan="4" class="text-muted" style="text-align:center; padding:24px;">Loading...</td></tr>
+          <tr><td colspan="4" class="muted center">Loading…</td></tr>
         </tbody>
       </table>
     </div>
-  </div>
+  </main>
 
   <script src="/admin/app.js"></script>
   <script>
+    const IC = {
+      ok:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
+      off:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M6 6l12 12"/></svg>',
+      none: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M9 8h.01M15 8h.01M9 12h.01M15 12h.01M10 21v-4h4v4"/></svg>',
+    };
+
     async function load() {
       const res = await adminFetch('/admin/api/tenants');
       if (res.status === 401) return window.location.href = '/admin';
@@ -47,7 +133,15 @@
       const tbody = document.getElementById('tenantList');
 
       if (!tenants.length) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-muted" style="text-align:center; padding:24px;">No tenants yet. Click "+ Add New" to create one.</td></tr>';
+        tbody.innerHTML = `
+          <tr><td colspan="4">
+            <div class="emp emp--inline">
+              <div class="emp__i" aria-hidden="true">${IC.none}</div>
+              <div class="emp__t">No tenants yet</div>
+              <p class="emp__d">Create the first clinic to begin. You can configure and validate it before it goes live.</p>
+              <a href="/admin/tenant-new.html" class="btn btn--primary">Add tenant</a>
+            </div>
+          </td></tr>`;
         return;
       }
 
@@ -56,8 +150,8 @@
           <td><a href="/admin/tenant-detail.html?id=${encodeURIComponent(t.id)}"><strong>${esc(t.business_name)}</strong></a></td>
           <td class="hide-mobile"><code>${esc(t.phone_number_id || '—')}</code></td>
           <td>
-            <span class="badge ${t.active ? 'badge-green' : 'badge-red'}">
-              ${t.active ? 'Active' : 'Inactive'}
+            <span class="badge ${t.active ? 'badge--ok' : 'badge--err'}">
+              ${t.active ? IC.ok : IC.off}${t.active ? 'Active' : 'Inactive'}
             </span>
           </td>
           <td class="hide-mobile">${new Date(t.created_at).toLocaleDateString()}</td>

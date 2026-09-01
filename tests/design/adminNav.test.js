@@ -1,0 +1,112 @@
+'use strict';
+
+// ── The admin nav is nine copies of one block (S5) ──────────────────────────
+//
+// No DB, no server, no browser: the shipped files. The panel has no nav
+// COMPONENT — every page carries hand-written markup — so the only thing that
+// can hold nine copies in agreement is a test that reads all nine and compares
+// them to each other.
+//
+// This is the defect it exists to stop coming back, measured at S5's Phase A:
+// the nav had drifted into THREE variants. Appointments and Workflow appeared
+// on 4 of 10 pages; the brand link landed on tenants.html, which was one of the
+// six that did NOT offer them — so an operator who clicked the brand from
+// Appointments lost the link they had just used, and the panel's own landing
+// page was the one that offered the least. Tenants was never a nav item at all.
+//
+// TWO test() blocks, deliberately no more, following tokenDrift.test.js's rule:
+// a per-page test would report the same fault nine times and say nothing extra.
+//
+// What is NOT asserted here, on purpose:
+//   • Anything about `tenant-detail.html`. It is S6's file and still carries
+//     the old five-link block; EXPECTED lists the eight pages S5 was allowed to
+//     touch. When S6 migrates it, add it to PAGES and this test becomes the
+//     nine-way comparison its title claims.
+//   • CSS. The block is markup; how it is painted is style.css's business on
+//     seven pages and tokens.css's on two, and that split is the point of S5.
+
+const { describe, it } = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
+
+const DIR = path.join(__dirname, '..', '..', 'public', 'admin');
+
+// Every page that carries the canonical block. login.html is deliberately
+// absent: it is the signed-out door and has no nav at all.
+const PAGES = [
+  'tenants.html', 'tenant-new.html', 'conversations.html', 'appointments.html',
+  'leads.html', 'collections.html', 'notifications.html', 'workflow.html',
+];
+
+// aria-current marks a page that IS a nav destination. tenant-new.html and
+// collections.html are not (collections has no nav item — it is orphaned and
+// feature-flagged off), so they carry none: marking a link the operator is not
+// on would be a false claim to a screen reader.
+const CURRENT = {
+  'tenants.html': '/admin/tenants.html',
+  'conversations.html': '/admin/conversations.html',
+  'leads.html': '/admin/leads.html',
+  'appointments.html': '/admin/appointments.html',
+  'workflow.html': '/admin/workflow.html',
+  'notifications.html': '/admin/notifications.html',
+};
+
+const EXPECTED_HREFS = [
+  '/admin/tenants.html',        // the brand
+  '/admin/tenants.html',
+  '/admin/conversations.html',
+  '/admin/leads.html',
+  '/admin/appointments.html',
+  '/admin/workflow.html',
+  '/admin/notifications.html',
+  '/admin/logout',
+];
+
+function navOf(file) {
+  const html = fs.readFileSync(path.join(DIR, file), 'utf8');
+  const m = html.match(/[ \t]*<nav>[\s\S]*?<\/nav>/);
+  assert.ok(m, `${file} has no <nav> block`);
+  return m[0];
+}
+
+describe('admin nav parity (S5)', () => {
+  it('is one identical block on every page but the aria-current attribute', () => {
+    const stripped = new Map();
+    for (const f of PAGES) {
+      // Removing aria-current is what makes the comparison meaningful: it is
+      // the ONE attribute that is supposed to differ, so a block that differs
+      // in anything else fails here rather than hiding behind it.
+      stripped.set(f, navOf(f).replace(/ aria-current="page"/g, ''));
+    }
+    const [first, ...rest] = PAGES;
+    for (const f of rest) {
+      assert.strictEqual(stripped.get(f), stripped.get(first),
+        `${f}'s nav differs from ${first}'s by more than aria-current. ` +
+        'The panel has no nav component; all copies must be edited together.');
+    }
+
+    // And the block is the one we meant, not merely nine copies of a wrong one.
+    const hrefs = [...navOf(first).matchAll(/<a href="([^"]+)"/g)].map((x) => x[1]);
+    assert.deepStrictEqual(hrefs, EXPECTED_HREFS,
+      'the canonical nav must offer Tenants, Conversations, Leads, Appointments, ' +
+      'Workflow, Notifications and Logout, behind a brand link to Tenants');
+    assert.ok(/class="brand">Veprio Admin</.test(navOf(first)),
+      'the brand reads "Veprio Admin" — "WhatsApp CRM" is a retired product name');
+  });
+
+  it('marks the current page, and only on pages that are a nav destination', () => {
+    for (const f of PAGES) {
+      const nav = navOf(f);
+      const marks = [...nav.matchAll(/<a href="([^"]+)" aria-current="page"/g)].map((x) => x[1]);
+      const want = CURRENT[f];
+      if (!want) {
+        assert.deepStrictEqual(marks, [],
+          `${f} is not a nav destination, so no link may claim aria-current`);
+        continue;
+      }
+      assert.deepStrictEqual(marks, [want],
+        `${f} must mark exactly its own nav link with aria-current="page"`);
+    }
+  });
+});
