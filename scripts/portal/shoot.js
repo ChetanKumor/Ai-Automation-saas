@@ -305,6 +305,177 @@ const SCROLL_HOME = "(function(){"
   + "return true;"
   + "})()";
 
+/* ── captureStable — the frame the panel is actually in (S3f) ───────────
+ *
+ * The flake S3e recorded and could not close: 2–7 shots per run moved on a
+ * bounded box that was always the Verbatim panel and nothing else. Re-measured
+ * here over six consecutive runs of all 59 shots — 13 / 13 / 15 / 17 / 18
+ * movers, eleven of which are the content movers named below, leaving
+ * 2 / 2 / 4 / 6 / 7 flips.
+ *
+ * S3e called it "captured MID-PAINT" and blamed VERBATIM_PAINTED (:219) for
+ * gating the fetch rather than the frame. That is the wrong layer, and the
+ * pixels say so. Decoded at 2x, run D against run E of s6-pricing-desktop:
+ *
+ *   device x 1878–2096, y 136–351   run E paints rgb(12,20,32) — the panel's
+ *                                    ink ground, --field — where run D paints
+ *                                    the greeting bubble, rgb(20,28,42), and
+ *                                    its glyphs
+ *   device x 2097 → 2560            byte-identical in both, glyphs included
+ *
+ * THE DISCRIMINATING OBSERVATION IS THAT SECOND LINE. The Telugu of the SAME
+ * greeting, on the SAME text line, is correctly shaped and pixel-identical on
+ * the far side of x=2097 in the run that is missing its near side. A font that
+ * had not arrived cannot draw the right half of a word; an unresolved fetch
+ * cannot fill half a bubble. So the two candidates the brief named are both
+ * dead:
+ *
+ *   • NOT the S2 fetch race (#loadCard.hidden before the Verbatim fetch).
+ *     `#vpLive` is populated — VERBATIM_PAINTED already requires it — and its
+ *     content is present and correct outside the missing rectangle.
+ *   • NOT a font swap. Worth stating with a number, because it is a real
+ *     window and the next session should not have to re-derive it: every face
+ *     in public/portal/fonts is `font-display: swap` behind a `unicode-range`,
+ *     nothing preloads the Telugu one, and the panel's Telugu greeting is the
+ *     only Telugu on hours/pricing/safety/doctors/test — so the 124KB
+ *     noto-telugu-600.woff2 request STARTS at `liveEl.innerHTML = html`
+ *     (verbatim.js:794), which is the exact event VERBATIM_PAINTED fires on.
+ *     Measured standalone against the real fonts.css, injecting the seeded
+ *     greeting: status `loaded` and check() FALSE before the inject (the face
+ *     has never been asked for), `loading` at +0/+30/+60ms, loaded and true by
+ *     +120ms. The window is real and it is ~120ms, which the 1300ms settle
+ *     above already covers by a factor of ten. It is not this.
+ *
+ * What it IS: the panel's own COMPOSITING LAYER read before it was rastered.
+ * `.vp` is out of flow at every width — `position: sticky; height: 100vh` when
+ * docked (verbatim.css:48-66), `position: fixed; inset: auto 0 0 0` as the
+ * bottom sheet below 1024 (:667) — so it owns a layer, and
+ * `captureBeyondViewport` expands the viewport under it and reads whatever
+ * raster exists. Both presentations are the same fault:
+ *
+ *   desktop  one 256-device-px tile COLUMN missing. The boundary at x=2097 is
+ *            the panel's layer origin (x=920 CSS = 1840 device) plus exactly
+ *            one 256px tile.
+ *   mobile   the WHOLE layer missing. In s14-test-mobile the sheet is not
+ *            displaced, it is absent: run D paints the page's own white
+ *            textarea through CSS y 776–820 where runs E and F paint the ink
+ *            sheet and its greeting.
+ *
+ * No pre-capture gate can close this, which is why the 1300ms settle never
+ * did: the invalidation happens INSIDE Page.captureScreenshot, after every
+ * gate has passed. The true root fix is to stop asking the flag to re-lay-out
+ * a viewport-sized out-of-flow box at all — size the emulated viewport to the
+ * content and drop `captureBeyondViewport` — and that is measured out of
+ * scope: `.side` and `.vp` paint EXACTLY one viewport tall today (checked at
+ * 1180/1220 CSS on s6-pricing-desktop and s8-doctors-desktop) and would then
+ * paint the full page, changing what ~30 shots show. The comment on `beyond`
+ * below has said so since S3b and it is still true.
+ *
+ * So the settle is taken in the only currency the capture path has: THE FRAME
+ * ITSELF. Capture, capture again, and accept the picture only once two
+ * consecutive frames agree byte for byte. That is the same shape as
+ * RING_SETTLED (:795) — await the thing that completes, do not sleep and hope
+ * — with the completion observed directly instead of inferred, because a
+ * raster is not something the page can be asked about. The first capture is
+ * what forces the expanded-viewport raster; the second reads it warm.
+ *
+ * It is NOT a retry-until-it-looks-right loop: it never inspects the picture,
+ * only whether the compositor has stopped changing its mind. A page that is
+ * genuinely never at rest (a caret, a live animation) would exhaust the budget
+ * and THROW rather than write an arbitrary frame — CARET_OFF (:265) and
+ * --force-prefers-reduced-motion are what make that a real invariant rather
+ * than an aspiration. The twelve content movers do not trip it: they differ
+ * BETWEEN runs, not between two frames milliseconds apart, because nothing
+ * re-renders them once painted.
+ *
+ * WHERE IT LANDS, ten runs of all 59 shots. Six BEFORE (13 / 13 / 15 / 17 / 18
+ * movers over five pairs) and ten after, of which the last six are the ones to
+ * read — the first four are contaminated by two artefacts named below.
+ *
+ *   before   ten non-content shots ever moved. Nine were decoded; EIGHT are
+ *            this artefact and nothing else. Desktop, the tile column at CSS
+ *            (939, 68)-(1048.5, 175.5): s6-pricing-desktop, s6-pricing-error,
+ *            s8-doctors-desktop, and s3d-pricing-archived-shown at the same
+ *            column one card lower. Mobile, the whole sheet absent, a
+ *            full-width band: s10-safety-mobile (y 1331.5-1463.5),
+ *            s14-test-mobile (479.5-883.5), s4-profile-mobile (831.5-963.5),
+ *            s5-hours-mobile (931.5-1063.5). The ninth, s14-test-reply, is the
+ *            twelfth content mover above and was never a flake.
+ *   after    ZERO occurrences in all ten runs. Every one of the eight is gone.
+ *            The last six runs, five pairs, moved 0 / 0 / 1 / 1 / 0 shots
+ *            beyond the twelve, and the one is s8-doctors-error under the
+ *            16-device-px column displacement — the OTHER artefact, decided per
+ *            page load and identical in every frame of that load, so this gate
+ *            cannot and does not touch it. The two runs either side of it are
+ *            byte-identical to each other across all 59.
+ *
+ * It is doing real work on every run, not standing idle: 23 and 24 of the 59
+ * shots needed a third frame in two consecutive clean runs — i.e. the first
+ * capture disagreed with the second about two shots in five.
+ *
+ * TWO THINGS IT DOES NOT FIX, both older than it and both named so the next
+ * session does not attribute them here:
+ *   • the 16-device-px column displacement (S3b, :490-499). Six shots showed it
+ *     across the ten runs. Confirmed by correlation each time: best vertical
+ *     shift exactly ±16 device px, the sidebar unshifted, and the Verbatim
+ *     panel byte-identical — the opposite signature to this one.
+ *   • an LCD-subpixel to GRAYSCALE antialiasing flip, which is new to this
+ *     record. Between two runs, 16 of the 42 desktop shots changed only in a
+ *     416 x 25 CSS box in the top bar; magnified, "Ctrl K" and the "SD" avatar
+ *     carry colour fringing in one and clean grey edges in the other. Chrome
+ *     turns LCD AA off for text on a layer it cannot prove opaque, so it is a
+ *     compositing decision like the one above rather than a font or a race. It
+ *     flipped ONCE and stayed flipped for every run after, so it is a state,
+ *     not a coin.
+ * ─────────────────────────────────────────────────────────────────────── */
+/* The one deadline in this file that is NOT a gate ceiling, and it is here
+ * because this function is what made it necessary.
+ *
+ * `CDP.send` (:100-106) resolves on a matching id and has no timeout — so a
+ * response Chrome never sends hangs the run FOREVER, with node idle and a
+ * renderer spinning. That is pre-existing and every call in this file has it,
+ * but taking two to eight screenshots where there was one multiplies the
+ * exposure on the single heaviest call, so it is this function's debt to pay.
+ * Observed live at 8294f8f + this change: a run wedged on s8-doctors-desktop
+ * for 33 minutes, node at 2.5s of CPU and flat while two Chrome renderers held
+ * ~30% each, `/json/list` still answering and still holding doctors.html open.
+ *
+ * 90s is a ceiling, not a wait: the largest shot in the corpus is 2560x7202
+ * device px and returns in low single-digit seconds even on a loaded machine.
+ * A frame that has not arrived in ninety seconds is not slow, it is gone — and
+ * an unattended instrument may fail, but it may not hang. One retry, because a
+ * wedged renderer sometimes only ate one frame; then throw and let the
+ * `finally` at the bottom drop the scratch DB, which a hang never does. */
+const CAPTURE_DEADLINE_MS = 90000;
+
+function withDeadline(promise, ms, what) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => { timer = setTimeout(
+      () => rej(new Error(`Page.captureScreenshot did not answer in ${ms / 1000}s: ${what}`)), ms); }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+async function captureStable(cdp, sid, params, out) {
+  const name = path.basename(out);
+  const frame = async () => {
+    try {
+      return await withDeadline(cdp.send('Page.captureScreenshot', params, sid), CAPTURE_DEADLINE_MS, name);
+    } catch (e) {
+      console.log('  ⚠', name, e.message, '- one retry');
+      return withDeadline(cdp.send('Page.captureScreenshot', params, sid), CAPTURE_DEADLINE_MS, name);
+    }
+  };
+  let prev = null;
+  for (let i = 1; i <= 8; i++) {
+    const r = await frame();
+    if (prev !== null && r.data === prev) return { data: r.data, tries: i };
+    prev = r.data;
+  }
+  throw new Error('capture never repeated itself in 8 frames: ' + name);
+}
+
 async function shoot(cdp, { url, out, width, height, mobile, cookie, port, waitFor, afterReady }) {
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
@@ -413,76 +584,84 @@ async function shoot(cdp, { url, out, width, height, mobile, cookie, port, waitF
    * (s11-faqs-empty, s14-test-desktop, s14-test-limited, s18-golive-ready — all
    * 1280x900 on a 900px viewport).
    *
-   * It does NOT close the shots that genuinely need the expansion. Of the 54
-   * shots that existed then, five consecutive runs put 40 on one hash and moved
-   * 14. ELEVEN of the 14 print a different value in every run, and not because
-   * of a race: ten display a TIMESTAMP OF A ROW THE RUN ITSELF WROTE — the
-   * readiness run behind Home's "Last checked 31 Aug 2026, 12:08 AM" (fmtDate,
-   * home.js:78-86, rendered at :386) and the config revisions the S17/S18
-   * sequences create and then list (history.js:30-33). home.js:383 is worse
-   * still: fmtAge (:93-103) is relative to Date.now(), so it moves even when
-   * the row does not. The eleventh, s3-admin-create-owner, displays a
-   * server-generated one-time password. Those eleven are CONTENT movers: they
-   * are not this artefact and no flag decision touches them.
+   * It does NOT close the shots that genuinely need the expansion, and this
+   * paragraph has now been wrong in two directions, so it is written from the
+   * measurement rather than from a sample.
    *
-   * THE OTHER THREE WERE THIS ARTEFACT, AND THE SENTENCE THAT NAMED THEM WAS
-   * WRONG (corrected S3e, re-measured at 59 shots). It read that s9-booking-
-   * error, s13-receptionist-error and s15-knows-telugu-greeting "are exactly
-   * the three that still ask for the flag", with s4-profile-error a footnote
-   * "in the same class". Both halves are false and always were. `beyond` is
-   * `clipH > height || clipW > width` — the CONTENT is taller than the emulated
-   * viewport — and that is true of FORTY-FOUR of the 59 shots today, including
-   * every desktop page long enough to scroll. s4-profile-error (1694 on 1000)
-   * and s6-pricing-error (1904 on 1200) are two of the forty-four, and
-   * s6-pricing-error was not named at all. The three were never the beyond-class
-   * shots; they were the three beyond-class shots that HAPPENED to flip across
-   * those particular five runs, which is a sample, not a property.
+   * `beyond` is `clipH > height || clipW > width` — the CONTENT is taller (or
+   * wider) than the emulated viewport. That is a PROPERTY OF EACH SHOT, not a
+   * short list, and it is true of FORTY-FOUR of the 59, including every desktop
+   * page long enough to scroll. It is printed on every line of a run's log now
+   * (`grep -c " beyond"`) so nobody has to take this sentence on trust again.
    *
-   * What the boundary actually is: any beyond-class shot MAY flip, per run, and
-   * none of them is exempt. So the mover set to compare against is the eleven
-   * content movers, and everything on top of those is a flip — from a pool of
-   * forty-four, not a fixed list of three or four.
+   * The first version of this note named three shots — s9-booking-error,
+   * s13-receptionist-error, s15-knows-telugu-greeting — as "exactly the three
+   * that still ask for the flag", with s4-profile-error a footnote "in the same
+   * class". Both halves were false: those were three of the forty-four that
+   * happened to flip across five particular runs, which is a sample, not a
+   * property, and s6-pricing-error (1904 on 1200) was in the class and was not
+   * named at all. S3e corrected the arithmetic and then over-corrected the
+   * other way, leaving "eleven content movers, and everything on top of those
+   * is a flip" without ever naming the eleven.
    *
-   * ── AND THERE IS A SECOND MECHANISM, WHICH IS NOT THIS ONE (S3e) ─────────
-   * Six consecutive runs at S3e, five pairs, 59 shots: 11 / 11 / 11+6 / 13 /
-   * 14 / 14 movers. The 11 are always the content movers. The +6 in the third
-   * pair are S3e's own two .css edits, which is the whole point of that pair.
-   * The 2, 3 and 3 on top of the last three pairs are a flake, and DECODING
-   * THE PIXELS SAYS IT IS NOT THE DISPLACEMENT ABOVE. That artefact moves the
-   * whole content column by exactly 16 device px; the best vertical shift
-   * between these pairs is ZERO, and the difference is a bounded box:
-   *   s5-hours-desktop, s6-pricing-desktop  x 939..1048, y 68..175 (CSS)
-   *   s10-safety-mobile                     x 0..380,    y 1332..1463
-   * Both boxes are the VERBATIM PANEL and nothing else. Cropped and looked at:
-   * on desktop the greeting bubble is drawn but its text has not landed; on
-   * mobile the sheet's ink bar has not painted while the Telugu greeting on it
-   * has. The panel is captured MID-PAINT. `VERBATIM_PAINTED` (:219-223) gates
-   * the fetch that fills it, not the frame that paints it, so a shot can be
-   * rasterised between the two.
+   * THE TWELVE CONTENT MOVERS, BY NAME. Measured over six consecutive runs of
+   * all 59 shots at 8294f8f. Eleven appear in all five pairs, every time; the
+   * twelfth is the correction below.
    *
-   * It is not S3e's: the flipping shots are pages whose CSS S3e did not touch,
-   * the moving box contains neither glyph S3e repainted, and run-to-run
-   * movement of this size is older than the panel gate (S3a measured 16 of 54
-   * moving between identical runs, S3b 23 of 54). It is recorded here rather
-   * than fixed because closing it means editing the capture path, and S3e's
-   * allowed file set is comments only in this file. The honest statement of
-   * the corpus is therefore: eleven shots always move, and a handful more may,
-   * for two different and separately attributed reasons.
+   *   home-desktop, home-mobile
+   *       Home prints the readiness run THIS RUN wrote — "Last checked 31 Aug
+   *       2026, 12:08 AM" (fmtDate, home.js:78-86, rendered at :386) — and
+   *       fmtAge (:93-103) beside it is relative to Date.now(), so it moves
+   *       even when the row does not.
+   *   s17-history-desktop, s17-history-mobile, s17-history-detail,
+   *   s17-history-restore-confirm
+   *       the config revisions the S17 sequence creates and then lists
+   *       (history.js:30-33).
+   *   s18-live, s18-paused, s18-paused-mobile,
+   *   s18-golive-blocked-after-mobile
+   *       the lifecycle transitions persist a validation run and the page then
+   *       states when it happened.
+   *   s3-admin-create-owner
+   *       a server-generated one-time password.
+   *
+   *   s14-test-reply  ← THE TWELFTH, and it has been counted as a FLAKE since
+   *       S3b. It is not one. The shot sends a real test turn and the page
+   *       prints how long that turn took: the transcript reads "…sed · 0.0s"
+   *       on one run and "…sed · 0.1s" on the next, in a 6 x 9 CSS px box at
+   *       (481, 426.5). A duration the run itself produced is a timestamp by
+   *       another name, and it moves only when the turn crosses a rounding
+   *       boundary — which is why it flips in some pairs and not others, and
+   *       why it read as intermittent rather than as content.
+   *
+   * All twelve are a Date/performance shim away from settling and nothing less
+   * will do it, so they are quarantined by name rather than chased. Everything
+   * on top of them was the panel artefact, and `captureStable` (:460) closes
+   * it; the two things that remain are named there too.
    *
    * Sizing the viewport to the content would remove the flag everywhere, but
    * `.side` is `position: fixed` and would then paint down the whole page rather
    * than one viewport, which is a change to what ~30 shots show and a decision
-   * above this repair's pay grade. */
+   * above this repair's pay grade. Re-verified rather than repeated: `.side`
+   * and `.vp` both stop dead at exactly one viewport height today — sampled at
+   * CSS y 1180 and 1220 on s6-pricing-desktop and s8-doctors-desktop, both on a
+   * 1200px viewport — so the ~30 figure is what it costs. */
   const beyond = clipH > height || clipW > width;
 
-  const shotRes = await cdp.send('Page.captureScreenshot', {
+  const shot = await captureStable(cdp, sessionId, {
     format: 'png',
     captureBeyondViewport: beyond,
     clip: { x: 0, y: 0, width: size.width, height: clipH, scale: 1 },
-  }, sessionId);
-  fs.writeFileSync(out, Buffer.from(shotRes.data, 'base64'));
+  }, out);
+  fs.writeFileSync(out, Buffer.from(shot.data, 'base64'));
   await cdp.send('Target.closeTarget', { targetId });
-  console.log('  ✓', path.basename(out), `(${Math.round(size.width)}×${Math.round(size.height)})`);
+  // `beyond` is printed because the block above makes a claim about how many
+  // shots are in that class, and a claim about the instrument that the
+  // instrument does not print is a claim nobody re-checks. Count it out of a
+  // run's log rather than re-deriving it: `grep -c ' beyond' `.
+  console.log('  ✓', path.basename(out),
+    `(${Math.round(size.width)}×${Math.round(size.height)})`,
+    beyond ? 'beyond' : 'in-viewport',
+    shot.tries > 2 ? `[raster settled after ${shot.tries} frames]` : '');
 }
 
 // ── Contrast instrument (S2) ─────────────────────────────────────────────────

@@ -170,11 +170,31 @@ async function shoot(cdp, { url, out, width, height, mobile, cookie, port, waitF
   const size = clipToViewport
     ? { width: inner[0] || width, height: inner[1] || height }
     : (metrics.cssContentSize || { width, height });
-  const shotRes = await cdp.send('Page.captureScreenshot', {
-    format: 'png',
-    captureBeyondViewport: !clipToViewport,
-    clip: { x: 0, y: 0, width: size.width, height: Math.ceil(size.height), scale: 1 },
-  }, sessionId);
+  /* Same settle as shoot.js's captureStable() (scripts/portal/shoot.js:460),
+   * and it is here because this file photographs the same panel through the
+   * same flag. `.vp` is out of flow at every width, `captureBeyondViewport`
+   * expands the viewport under it, and the layer can be read before it is
+   * rastered — one 256-device-px tile column missing on desktop, the whole
+   * sheet missing on mobile. The fix is to accept a frame only once two
+   * consecutive captures agree; see that comment for the pixel evidence and
+   * for why no pre-capture gate can close it.
+   *
+   * It is DUPLICATED rather than shared, which is normally how a gate drifts.
+   * The two scripts are standalone IIFEs that do their work on require, so
+   * neither can import the other, and the only place a shared copy could live
+   * is a new file this session's allowed set does not contain. Recorded so the
+   * next session that touches either one knows there are two. */
+  let shotRes = null;
+  for (let i = 1; i <= 8; i++) {
+    const f = await cdp.send('Page.captureScreenshot', {
+      format: 'png',
+      captureBeyondViewport: !clipToViewport,
+      clip: { x: 0, y: 0, width: size.width, height: Math.ceil(size.height), scale: 1 },
+    }, sessionId);
+    if (shotRes && f.data === shotRes.data) { shotRes = f; break; }
+    shotRes = f;
+    if (i === 8) throw new Error('capture never repeated itself in 8 frames: ' + path.basename(out));
+  }
   fs.writeFileSync(out, Buffer.from(shotRes.data, 'base64'));
   await cdp.send('Target.closeTarget', { targetId });
   console.log('  ✓', path.basename(out), `(${Math.round(size.width)}×${Math.round(size.height)})`);
