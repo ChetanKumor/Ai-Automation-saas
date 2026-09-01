@@ -103,7 +103,27 @@
   gap: 6px;
   flex-wrap: wrap;
 }
-.msg__prov span + span::before { content: '·'; margin-right: 6px; color: var(--line); }
+/* The separator between the chips. It was var(--line) — rgba(23,21,15,.08) on
+ * the white bubble, 1.18:1 — and S3d's state sweep is the first run that ever
+ * rendered it: the bubble only exists after a real test turn, which no fixture
+ * state can seed.
+ *
+ * SCORED AS TEXT, 4.5:1 (SC 1.4.3), not as non-text at 3:1. It is a glyph in
+ * the text flow: `content` on a ::before, inheriting .msg__prov's font, laid
+ * out and selected as part of the line. 1.4.11 is about the parts of an
+ * interface that are NOT text, and reading a typographic mark as a graphic to
+ * borrow the lower floor would be the argument, not the measurement. The
+ * choice does not turn on the clause anyway — --ink-2 measures 7.75:1 here and
+ * clears both.
+ *
+ * WHY --ink-2 AND NOT SOMETHING QUIETER. Because there is nothing quieter that
+ * is legal. The light ground has TWO text steps by decision (tokens.css:45-58);
+ * below them --faint is non-text-only under D-016 and --faint-strong carries a
+ * deliberate ceiling under 4.5:1. A one-off alpha would be a fifth source of
+ * truth. So the separator takes the secondary ink the rest of this line
+ * already paints — written out rather than left to inherit, so the next reader
+ * reaching for a quiet grey finds the reason here. */
+.msg__prov span + span::before { content: '·'; margin-right: 6px; color: var(--ink-2); }
 /* Not a chip: the reply above was generated from defaults, which is the one
  * thing on this line an owner has to act on. Takes the whole row and drops the
  * separator the sibling chips share. */

@@ -197,9 +197,34 @@
   color: var(--field-ink);
   font: 500 12px/1 var(--sans);
 }
-.vp__sel:hover .vp__sel-in { background: var(--field-3); border-color: var(--field-line-2); }
+/* HOVER IS FOR LIVE CONTROLS ONLY (S3e). `:hover` was bare, and a disabled
+ * <button> still matches :hover in Chrome — the pointer-down affordance was
+ * painting underneath a control that cannot be operated, and it made the pair
+ * WORSE rather than better: --field-3 lifts the fill toward white while the ink
+ * stays put, which measured 2.07:1 on both the label and the chevron. The
+ * negation is on the trigger, not the pill, because that is where [disabled]
+ * lives. */
+.vp__sel:not([disabled]):hover .vp__sel-in { background: var(--field-3); border-color: var(--field-line-2); }
 .vp__sel[disabled] { cursor: default; }
-.vp__sel[disabled] .vp__sel-in { opacity: .55; }
+/* DISABLED IS A COLOUR, NOT A FADE (S3e). This was `opacity: .55` on the whole
+ * pill and nothing else, which is the shape .btn:disabled was talked out of in
+ * S3c-1 (tokens.css:929-943): fading toward the ground dims the ink and the
+ * fill together, so the ratio can only fall, and it fell to 3.64:1 on the label
+ * and 2.13:1 on the chevron. 1.4.3 and 1.4.11 both exempt an inactive
+ * component outright, so neither number was a violation — but this control is
+ * the panel's statement that the clinic speaks ONE language, and a statement
+ * has to be read to do its job.
+ *
+ * Same three gestures as .btn:disabled, translated to the ink ground: the
+ * border goes, the fill flattens to the plate it already sits on, and the ink
+ * steps to the ground's SECONDARY — --field-muted is to --field what --ink-2 is
+ * to --bg. The chevron is already --field-muted and needs no rule; with the
+ * fade gone it simply measures what it always declared. Losing the border is
+ * what carries disabled-ness, exactly as it does on the light ground. */
+.vp__sel[disabled] .vp__sel-in {
+  border-color: transparent;
+  color: var(--field-muted);
+}
 /* The panel's own disclosure idiom, borrowed whole from .vp__grip-chev: one
  * upward chevron, rotated to point the way the thing will move. Closed points
  * down (it will open downward), open points up. */
@@ -212,7 +237,7 @@
 }
 .vp__sel-c svg { width: 12px; height: 12px; display: block; }
 .vp__sel[aria-expanded="true"] .vp__sel-c { transform: rotate(0deg); }
-.vp__sel:hover .vp__sel-c { color: var(--field-ink); }
+.vp__sel:not([disabled]):hover .vp__sel-c { color: var(--field-ink); }
 
 /* The listbox. `flex: none` between the header and the body — the slot
  * .vp__note already occupies — so it can never overlap the greeting bubble;

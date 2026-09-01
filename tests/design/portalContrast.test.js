@@ -391,58 +391,47 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
     'portal.signature.txt no longer hashes to PORTAL_BASELINE.signatureMd5'
   );
   const sigLines = sig.trim().split('\n');
-  /* ── FIVE failing shapes, PINNED rather than forbidden (S3d) ──────────────
-   * 20 at S3b-3, 2 at S3c-1, ZERO at S3c-2 — and that zero was true. S3c-1
-   * closed the light ground and S3c-2 closed the ink one; both survivors were
-   * hardcoded literals in verbatim.css and both are var(--field-muted) at
-   * 7.21:1 today. This line read `deepStrictEqual(..., [])` from S3c-2 until
-   * S3d, and it was an honest statement about everything the sweep could see.
+  /* ── NO FAILING SHAPE, AND THIS ZERO IS A DIFFERENT ONE (S3e) ────────────
+   * 20 at S3b-3, 2 at S3c-1, zero at S3c-2, FIVE at S3d, zero again here.
+   * The zeroes are not the same claim and the difference is the whole point.
    *
-   * What it could not see is a state the seeded tenant never entered. The sweep
-   * had fourteen pages and ONE tenant, and that tenant was maximal: every
-   * toggle on, every language on, every optional field filled. So the off arm
-   * of every control in the portal was being certified green on ABSENCE — a
-   * census over the swept DOM (shoot.js, `STATE CENSUS`) found that
-   * `.switch input:not(:checked)`, `.pay-toggle[aria-pressed="false"]` and
-   * `.vp__sel[disabled]` had never once rendered on any swept page, and that
-   * `.tr--archived` had rendered with zero client rects on all 24 sweeps of it.
+   * S3c-2's zero was true about every row the sweep could reach, and the
+   * sweep could not reach the off arm of a single control: fourteen pages and
+   * ONE maximal tenant, every toggle on, every language on, every optional
+   * field filled. S3d seeded the other arm and five failing shapes walked out
+   * of it — a portal that had measured zero across three sessions of closing
+   * failures. It left them standing on purpose: a session that measures and
+   * then fixes inside the same commit leaves nobody able to say what the
+   * instrument was worth.
    *
-   * S3d seeded the other arm, and those states came back carrying two defects
-   * — in a portal that had measured zero failures across three sessions of
-   * closing them:
+   * S3e is the fix, and this zero is the S3d zero plus the twenty page-states
+   * S3d added — the disabled, unpressed, archived and no-config arms included.
+   * Two defects, four declarations, MEASURED:
    *
-   *   1.18:1  the `·` between the provenance chips under a test reply.
-   *           test.css:106 paints it `var(--line)` = rgba(23,21,15,.08) on the
-   *           white bubble. Reached only by the two test.html variants, which
-   *           send a real turn — the reply bubble is not a fixture state and no
-   *           seeded row can produce it.
-   *   3.64:1  the Verbatim panel's language label, and
-   *   2.13:1  its chevron, on a clinic with ONE language. verbatim.css:201-202
-   *           disables the control and drops the whole pill to `opacity: .55`
-   *           with no colour compensation. The label needs 4.5; the chevron is
-   *           scored as a graphic and needs 3.
-   *   2.07:1  x2 — the SAME element on hover. A disabled <button> still matches
-   *           :hover in Chrome, so verbatim.css:200's hover fill lands under
-   *           the .55 and the pair gets worse rather than better.
+   *   1.18 -> 7.75  the `·` between the provenance chips under a test reply.
+   *                 test.css:106 painted it var(--line) = rgba(23,21,15,.08)
+   *                 on the white bubble. It is a glyph in the text flow, so it
+   *                 is scored at 4.5 (SC 1.4.3) and not at 3; --ink-2 clears
+   *                 both, and is the only step below the primary that D-016
+   *                 leaves legal for text.
+   *   3.64 -> 6.66  the Verbatim language label, and
+   *   2.13 -> 6.66  its chevron, on a clinic with ONE language.
+   *                 verbatim.css dropped the whole pill to `opacity: .55` with
+   *                 no colour compensation; it now drops the border and takes
+   *                 --field-muted, which is the .btn:disabled gesture
+   *                 (tokens.css:929-943) translated to the ink ground.
+   *   2.07 x2       GONE, not repaired. A disabled <button> still matches
+   *                 :hover in Chrome, so the hover fill was landing under the
+   *                 fade and making the pair worse. The hover arm now negates
+   *                 on [disabled], so the state changes nothing and the sweep
+   *                 emits no row for it at all — rows 5899 -> 5891.
    *
-   * They are LEFT STANDING deliberately. S3d's remit was to measure; closing a
-   * defect inside the session that found it leaves nobody able to say what the
-   * instrument was worth, and a fix is a change with its own before and after.
-   *
-   * The list is EXACT, and that is what makes it a gate rather than a licence:
-   * a sixth failing shape fails this test on the day it arrives, and closing
-   * any of these five fails it too — so the fix cannot land silently either.
-   * Still deepStrictEqual rather than a count, for the reason it always was: an
-   * equality on `.length` prints `6 !== 5`, while this prints the SHAPE.
+   * Back to an empty list, and empty is the strong form: every failing shape
+   * is a regression on the day it arrives, and it prints the SHAPE rather than
+   * `1 !== 0`, which is why this is still deepStrictEqual and not a count.
    * ---------------------------------------------------------------------- */
-  assert.deepStrictEqual(sigLines.filter((l) => l.startsWith('FAIL ')), [
-    'FAIL      1.18:1 needs 4.5  rgba(23, 21, 15, 0.08) on rgb(255,255,255)',
-    'FAIL      2.07:1 needs 3  rgb(232, 237, 242) on rgb(125,128,134) [graphic] @op0.55 :hover',
-    'FAIL      2.07:1 needs 4.5  rgb(232, 237, 242) on rgb(125,128,134) @op0.55 :hover',
-    'FAIL      2.13:1 needs 3  rgb(148, 163, 184) on rgb(65,71,82) [graphic] @op0.55',
-    'FAIL      3.64:1 needs 4.5  rgb(232, 237, 242) on rgb(65,71,82) @op0.55',
-  ], 'the portal baseline is the five shapes S3d measured and left standing — a '
-    + 'sixth is a regression, and a missing one is a fix that must be recorded here');
+  assert.deepStrictEqual(sigLines.filter((l) => l.startsWith('FAIL ')), [],
+    'a colour/backdrop pair on the live portal is below its WCAG floor');
   assert.strictEqual(sigLines.filter((l) => l.startsWith('CONTRACT ')).length, 0,
     'D-016: zero --ink-faint glyphs on the live portal, measured');
   assert.strictEqual(kit.PORTAL_BASELINE.contract, 0);
@@ -626,8 +615,16 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
     }
   }
   // The scanner has to actually find things, or this assertion is the vacuous
-  // kind this repo keeps paying for. Eight permitted fades exist today.
-  assert.ok(fades.length >= 8,
+  // kind this repo keeps paying for. SEVEN permitted fades exist today, down
+  // from eight: S3e deleted `.vp__sel[disabled] .vp__sel-in { opacity: .55 }`
+  // and replaced it with a colour. That fade was covered by the
+  // `inactive-component` permission below and was breaking nothing — the
+  // entry survives on the three other disabled controls — but the pill it
+  // faded is the panel's statement that the clinic speaks one language, and
+  // the permission's own reasoning ("a control nobody needs to read") did not
+  // describe it. The floor moves with the deletion rather than being left
+  // slack: a floor below the true count stops noticing the parser breaking.
+  assert.ok(fades.length >= 7,
     `the opacity scanner found ${fades.length} fades — it has stopped parsing`);
   const unpermitted = fades
     .filter((d) => !FADE_ALLOWED.some((r) => r.ok(d)))

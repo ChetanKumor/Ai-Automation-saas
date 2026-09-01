@@ -92,10 +92,13 @@ const core = require('./contrast/core');
 const PORTAL_SIGNATURE_FILE = path.join(__dirname, 'contrast', 'portal.signature.txt');
 
 const PORTAL_BASELINE = Object.freeze({
-  at: '46a7ce5+S3d',                // FIXTURE and SWEEP only. Zero .css, zero
-                                    // .html, nothing under src/. Not one
-                                    // declaration changed, and the five FAIL
-                                    // lines below are what that bought.
+  at: '2b38cd2+S3e',                // S3d was FIXTURE and SWEEP only — zero
+                                    // .css, and the five FAIL lines it left
+                                    // standing were what that bought. S3e is
+                                    // the other half: two .css files, four
+                                    // declarations, and the list is empty
+                                    // again. Still zero .html, nothing under
+                                    // src/.
   pages: 20,                        // was 14. The same fourteen pages plus SIX
                                     // STATE VARIANTS: four are a different
                                     // tenant (Lotus Dental — one language,
@@ -106,28 +109,56 @@ const PORTAL_BASELINE = Object.freeze({
                                     // Palm Dental, which has no tenant_configs
                                     // row at all. See CONTRAST_PAGES.
   widths: Object.freeze([1280, 380]),
-  rows: 4222 + 1677,                // 5899. The 4222 are UNMOVED — every one of
-                                    // the fourteen base pages measured exactly
-                                    // what it measured at S3c-2 — and the 1677
-                                    // are the six new page-states. Written as a
+  rows: 4222 + 1669,                // 5891. The 4222 are STILL UNMOVED — the
+                                    // fourteen base pages measure exactly what
+                                    // they measured at S3c-2, and S3e's two
+                                    // .css edits did not touch one of them.
+                                    // The state half went 1677 -> 1669. The
+                                    // eight are the HOVER rows of the disabled
+                                    // language selector: four Lotus page-states
+                                    // at 1280, times label + chevron. Killing
+                                    // the hover arm does not re-score them, it
+                                    // DELETES them — a state row is emitted
+                                    // only where the state changes something,
+                                    // and a disabled control now answers a
+                                    // pointer with nothing at all. Written as a
                                     // sum because the invariant worth keeping
                                     // is that the old half did not move.
-  pairs: 91,                        // was 79. TWELVE new colour|backdrop|band|
-                                    // opacity|state keys, all of them from
-                                    // states no fixture had ever entered.
-  failures: 22,                     // WAS ZERO, AND THE ZERO WAS TRUE. S3c-1
-                                    // and S3c-2 closed every failure the sweep
-                                    // could see; what neither could see is a
-                                    // state the seeded tenant never entered.
-                                    // Five distinct shapes, 22 rows, in two
-                                    // defects — the provenance `·` and the
-                                    // disabled Verbatim language selector. Both
-                                    // are LEFT STANDING: S3d measures, and a
-                                    // fix inside the session that found it
-                                    // leaves nobody able to say what the
-                                    // instrument was worth. They are pinned
-                                    // exactly, not counted, in
-                                    // portalContrast.test.js.
+  pairs: 86,                        // was 91 (and 79 before S3d). MINUS FIVE,
+                                    // one per closed FAIL shape — the two
+                                    // hover keys are gone with their rows, and
+                                    // the three rest keys collapsed onto keys
+                                    // the sweep already had: the repaired dot
+                                    // now shares --ink-2-on-white with the
+                                    // chips beside it, and the disabled pill
+                                    // shares --field-muted-on---field-2 with
+                                    // every enabled chevron. A repair that
+                                    // ADDS a key would mean a new colour; five
+                                    // fewer is the shape of a repair made out
+                                    // of values the portal already paints.
+  failures: 0,                      // 22 at S3d, and BOTH defects are closed.
+                                    // This is not the S3c-2 zero returning:
+                                    // that one was true about everything the
+                                    // sweep could see, and this one is true
+                                    // across 40% more measured rows, including
+                                    // the disabled, unpressed and archived arms
+                                    // S3d reached for the first time. What
+                                    // closed them, MEASURED on the live portal:
+                                    //   1.18 -> 7.75  the provenance separator,
+                                    //     test.css:106, var(--line) -> --ink-2
+                                    //     on the white bubble.
+                                    //   3.64 -> 6.66  the disabled Verbatim
+                                    //     language label, and
+                                    //   2.13 -> 6.66  its chevron, both
+                                    //     --field-muted on --field-2 once the
+                                    //     blanket opacity: .55 became a colour
+                                    //     (verbatim.css:200-227).
+                                    //   2.07 x2        DELETED, not repaired:
+                                    //     a disabled control has no hover, so
+                                    //     there is no shape left to score.
+                                    // The pinned list in portalContrast.test.js
+                                    // is GONE, not zeroed — the assertion is
+                                    // deepStrictEqual(FAIL, []) again.
   exempt: 42,                       // was 30, and this is the first session that
                                     // could CHECK it: the number was in this
                                     // constant and emitted by nothing, so it
@@ -148,17 +179,20 @@ const PORTAL_BASELINE = Object.freeze({
                                     // ceiling under 4.5:1 so it can never be
                                     // text. The net that enforces that is in
                                     // portalContrast.test.js and covers both.
-  undeterminable: 2 + 2,            // 4. The same `select#insuranceStance`
+  undeterminable: 2 + 2,            // 4, UNMOVED. The `select#insuranceStance`
                                     // chevron, on the second pricing page-state.
                                     // Its hex is inside a data URI; see the
                                     // warning at pricing.css:210.
-  rings: 1048,                      // was 712. +336 focus indicators, and ZERO
-                                    // below 3:1 — the newly-reached states add
-                                    // one new RING SHAPE (a 5.47/5.16 border
-                                    // pair beside the existing 5.47/5.47) and
-                                    // it PASSES.
+  rings: 1048,                      // UNMOVED, and so are all ten RING lines of
+                                    // the signature, byte for byte. S3e touched
+                                    // no focus indicator and the sweep says so.
+                                    // (712 before S3d; the +336 came with the
+                                    // six state variants, and brought one new
+                                    // RING SHAPE — a 5.47/5.16 border pair
+                                    // beside the existing 5.47/5.47 — which
+                                    // PASSES.)
   ringFailures: 0,                  // below SC 1.4.11's 3:1
-  signatureMd5: '69713e29c73f54e455e9fb5b169c70cc',
+  signatureMd5: '34ba900e93010eb960c5b6e951467cd0',
 });
 
 /**

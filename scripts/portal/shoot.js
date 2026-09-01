@@ -413,22 +413,61 @@ async function shoot(cdp, { url, out, width, height, mobile, cookie, port, waitF
    * (s11-faqs-empty, s14-test-desktop, s14-test-limited, s18-golive-ready — all
    * 1280x900 on a 900px viewport).
    *
-   * It does NOT close the shots that genuinely need the expansion, and five
-   * consecutive runs of the finished tool draw that boundary exactly. Of the 54,
-   * 40 are byte-identical on every run and 14 move. ELEVEN of the 14 print a
-   * different value in every run, and not because of a race: ten display a
-   * TIMESTAMP OF A ROW THE RUN ITSELF WROTE — the readiness run behind Home's
-   * "Last checked 31 Aug 2026, 12:08 AM" (fmtDate, home.js:78-86, rendered at
-   * :386) and the config revisions the S17/S18 sequences create and then list
-   * (history.js:30-33). home.js:383 is worse still: fmtAge (:93-103) is relative
-   * to Date.now(), so it moves even when the row does not. The eleventh,
-   * s3-admin-create-owner, displays a server-generated one-time password. The other THREE are this artefact, and they are exactly the three
-   * that still ask for the flag — s9-booking-error (1757px on a 1200px
-   * viewport), s13-receptionist-error (1938 on 1400), s15-knows-telugu-greeting
-   * (716 on 500). Every shot that no longer needs it went to one hash.
-   * s4-profile-error (1694 on 1000) is in the same class and happened to read
-   * one hash across those five runs: the flip is probabilistic per run, not a
-   * fixed property of a shot.
+   * It does NOT close the shots that genuinely need the expansion. Of the 54
+   * shots that existed then, five consecutive runs put 40 on one hash and moved
+   * 14. ELEVEN of the 14 print a different value in every run, and not because
+   * of a race: ten display a TIMESTAMP OF A ROW THE RUN ITSELF WROTE — the
+   * readiness run behind Home's "Last checked 31 Aug 2026, 12:08 AM" (fmtDate,
+   * home.js:78-86, rendered at :386) and the config revisions the S17/S18
+   * sequences create and then list (history.js:30-33). home.js:383 is worse
+   * still: fmtAge (:93-103) is relative to Date.now(), so it moves even when
+   * the row does not. The eleventh, s3-admin-create-owner, displays a
+   * server-generated one-time password. Those eleven are CONTENT movers: they
+   * are not this artefact and no flag decision touches them.
+   *
+   * THE OTHER THREE WERE THIS ARTEFACT, AND THE SENTENCE THAT NAMED THEM WAS
+   * WRONG (corrected S3e, re-measured at 59 shots). It read that s9-booking-
+   * error, s13-receptionist-error and s15-knows-telugu-greeting "are exactly
+   * the three that still ask for the flag", with s4-profile-error a footnote
+   * "in the same class". Both halves are false and always were. `beyond` is
+   * `clipH > height || clipW > width` — the CONTENT is taller than the emulated
+   * viewport — and that is true of FORTY-FOUR of the 59 shots today, including
+   * every desktop page long enough to scroll. s4-profile-error (1694 on 1000)
+   * and s6-pricing-error (1904 on 1200) are two of the forty-four, and
+   * s6-pricing-error was not named at all. The three were never the beyond-class
+   * shots; they were the three beyond-class shots that HAPPENED to flip across
+   * those particular five runs, which is a sample, not a property.
+   *
+   * What the boundary actually is: any beyond-class shot MAY flip, per run, and
+   * none of them is exempt. So the mover set to compare against is the eleven
+   * content movers, and everything on top of those is a flip — from a pool of
+   * forty-four, not a fixed list of three or four.
+   *
+   * ── AND THERE IS A SECOND MECHANISM, WHICH IS NOT THIS ONE (S3e) ─────────
+   * Six consecutive runs at S3e, five pairs, 59 shots: 11 / 11 / 11+6 / 13 /
+   * 14 / 14 movers. The 11 are always the content movers. The +6 in the third
+   * pair are S3e's own two .css edits, which is the whole point of that pair.
+   * The 2, 3 and 3 on top of the last three pairs are a flake, and DECODING
+   * THE PIXELS SAYS IT IS NOT THE DISPLACEMENT ABOVE. That artefact moves the
+   * whole content column by exactly 16 device px; the best vertical shift
+   * between these pairs is ZERO, and the difference is a bounded box:
+   *   s5-hours-desktop, s6-pricing-desktop  x 939..1048, y 68..175 (CSS)
+   *   s10-safety-mobile                     x 0..380,    y 1332..1463
+   * Both boxes are the VERBATIM PANEL and nothing else. Cropped and looked at:
+   * on desktop the greeting bubble is drawn but its text has not landed; on
+   * mobile the sheet's ink bar has not painted while the Telugu greeting on it
+   * has. The panel is captured MID-PAINT. `VERBATIM_PAINTED` (:219-223) gates
+   * the fetch that fills it, not the frame that paints it, so a shot can be
+   * rasterised between the two.
+   *
+   * It is not S3e's: the flipping shots are pages whose CSS S3e did not touch,
+   * the moving box contains neither glyph S3e repainted, and run-to-run
+   * movement of this size is older than the panel gate (S3a measured 16 of 54
+   * moving between identical runs, S3b 23 of 54). It is recorded here rather
+   * than fixed because closing it means editing the capture path, and S3e's
+   * allowed file set is comments only in this file. The honest statement of
+   * the corpus is therefore: eleven shots always move, and a handful more may,
+   * for two different and separately attributed reasons.
    *
    * Sizing the viewport to the content would remove the flag everywhere, but
    * `.side` is `position: fixed` and would then paint down the whole page rather
