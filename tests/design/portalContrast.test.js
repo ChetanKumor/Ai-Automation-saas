@@ -447,10 +447,15 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
   // ── the static net ────────────────────────────────────────────────────
   // The live sweep is the real instrument, but it needs a browser and a
   // database. This runs in CI on every commit: it reads every portal
-  // stylesheet — including the <style> blocks login.html and wizard.html carry
-  // inline — and fails if #A8A199 is ever the value of a text-colour
-  // declaration, whether written directly or reached through a custom property
-  // defined as that hex.
+  // stylesheet — including any <style> block a page carries inline — and fails
+  // if #A8A199 is ever the value of a text-colour declaration, whether written
+  // directly or reached through a custom property defined as that hex.
+  //
+  // The inline arm is not dead code, but as of S4 it matches NOTHING: login.html
+  // was the last portal page carrying a <style> block (wizard.html's had already
+  // gone), and S4 extracted it to login.css. The loop stays because the offence
+  // it guards against is a declaration anywhere in this directory, and the next
+  // page to inline three rules must not escape the net by doing so.
   const sheets = [];
   for (const f of fs.readdirSync(PORTAL)) {
     const full = path.join(PORTAL, f);
@@ -462,7 +467,13 @@ test('D-016: --ink-faint is non-text only, and no portal stylesheet paints a gly
     let n = 0;
     while ((m = re.exec(html)) !== null) sheets.push([`${f} <style ${++n}>`, m[1]]);
   }
-  assert.ok(sheets.length >= 15, `expected the portal's stylesheets, found ${sheets.length}`);
+  /* 16, not 15. The floor is a tripwire on the net's own REACH — a sheet that
+   * stops being read is a sheet that stops being checked, and the failure is
+   * silent — so it has to track the directory rather than sit two below it.
+   * S4 moved the count 15 .css + 1 inline block -> 16 .css + 0 blocks: the same
+   * 16 sheets, so the floor could be raised in the same change that made the
+   * old one slack rather than a session later. */
+  assert.ok(sheets.length >= 16, `expected the portal's stylesheets, found ${sheets.length}`);
 
   /* ── BOTH non-text steps, in ONE net (S3c-2) ─────────────────────────────
    * --faint is decoration at 2.55:1 on --card; --faint-strong is meaningful

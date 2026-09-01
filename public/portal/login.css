@@ -1,0 +1,196 @@
+/* ============================================================================
+ * Sign in — the portal's one unauthenticated page (S4)
+ *
+ * WHY THIS FILE EXISTS. These declarations were an inline <style> in
+ * login.html. Extracted for one reason worth stating: the block was 36 lines
+ * describing two states and is now ~130 describing nine, and an inline block
+ * that size is a stylesheet that cannot be referenced as file:line the way the
+ * rest of this repo cites itself. The extraction moved the sheet count the
+ * static contrast net sees from 16 (15 .css + 1 inline block) to 16 (16 .css +
+ * 0 blocks) — unchanged, which is why portalContrast.test.js's floor could be
+ * raised to 16 in the same change rather than eventually.
+ *
+ * WHAT THIS FILE IS NOT. It is not a second token source and it is not a second
+ * component library. Every control on this page is a tokens.css component —
+ * .card, .field, .field__label, .input, .field__error, .btn.btn--primary —
+ * and what remains here is the page's own layout plus one notice variant.
+ *
+ * THE BLOCK THAT WAS DELETED, AND WHY IT MATTERED. login.html used to declare
+ * its own `.field input`, and it was the only text input in the product that
+ * was not `.input`. It disagreed with `.input` on radius (4px vs 6px), rest
+ * fill (#fff vs #fdfcfa), font (14.5/1.4 vs 14/1.5), and it had no hover, no
+ * invalid, no disabled and no read-only arm at all. The consequence was not
+ * cosmetic: tokens.css:1908-1911 lifts `.input` to 44px at ≤860px, and
+ * `.field input` was not `.input`, so the two fields a customer touches on a
+ * phone were the only inputs in the product under the 44px target — while the
+ * submit button directly beneath them was already correct, because `.btn` IS
+ * covered by the same block.
+ *
+ * That deletion is also the session's one intended signature move. The old
+ * focus treatment — `box-shadow: 0 0 0 3px var(--teal-100)` — was the sole
+ * consumer of a 3px --teal-100 glow anywhere in the portal, and it therefore
+ * owned a RING line of its own in tests/design/contrast/portal.signature.txt.
+ * `.input:focus` resolves to a shape the baseline already carries (the border
+ * 5.47/5.47 + rgba(15,118,110,.16) glow at fill@1.03), so the line is DELETED
+ * rather than replaced: 11 lines -> 10.
+ * ========================================================================== */
+
+/* The page is one centred column. --s-9 is 96px and its declaration in
+ * tokens.css:187 reads "sign-in page vertical centring" — it had no consumer
+ * until now, which made the comment a claim rather than a fact. `box-sizing`
+ * is border-box portal-wide (tokens.css:236), so the block padding sits INSIDE
+ * min-height and a short card does not mint a scrollbar. */
+body {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: var(--s-9) var(--s-5);
+}
+
+.login { width: 100%; max-width: 380px; }
+
+/* .brand__mark + .brand__name are the sidebar's lockup (tokens.css:321-331),
+ * laid out there as a left-aligned row. Centring is the only thing this page
+ * changes about it — the previous 16px override of the 15px .brand__name was
+ * one pixel off the scale for no stated reason and is gone. */
+.login__brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  margin-bottom: var(--s-5);
+}
+
+/* .card is 28px 30px. On a 380px measure that leaves 320px of content on
+ * desktop and 272 at 380; --s-5 on all four sides is the scale's nearest step
+ * and buys 12px of measure back on a phone. */
+.login__card { padding: var(--s-5); }
+
+/* The page's h1, and the type scale's answer to it. It was 19px/700/-.01em —
+ * a fourth heading step with exactly one consumer, sitting between --t-h2 (17)
+ * and --t-h1 (22) and matching neither. */
+.login__title {
+  margin: 0;
+  font: var(--t-h1);
+  letter-spacing: var(--ls-h1);
+  color: var(--ink);
+}
+.login__sub {
+  margin: 5px 0 0;
+  font: var(--t-help);
+  color: var(--muted);
+}
+
+.login__form { margin-top: var(--s-5); }
+/* The action is not another field and must not sit on the last one. `.field`'s
+ * own rhythm is 18px between fields; the submit takes the wider --s-5 step so
+ * the group reads as fields-then-action — and so that the .field__error line an
+ * empty submit prints does not touch the button. */
+.login__form .btn { margin-top: var(--s-5); }
+
+/* ── The notice ────────────────────────────────────────────────────────────
+ * Geometry lifted from .shadow-notice (tokens.css:1357-1396) — the portal's
+ * one page-level notice — because a second notice shape is how two notices
+ * come to disagree. What is NOT lifted is its colour: .shadow-notice is amber
+ * because it means "nothing is broken". This one has two meanings and they are
+ * not the same meaning, so it has two arms:
+ *
+ *   --error  a SERVER VERDICT. The credentials were rejected, or the form was
+ *            submitted incomplete. Something must change before it will work.
+ *   --wait   a self-resolving condition — a rate limit that expires, a network
+ *            that comes back. Nothing the person did is wrong and nothing they
+ *            can change will help; red would send them to re-check a password
+ *            that is already correct.
+ *
+ * Body text is --ink-2 (7.08:1 on --red-050, 7.47:1 on --amber-050). --red and
+ * --amber are reserved for the icon and the title, where they are 5.91:1 and
+ * 4.84:1 — both clearing AA body, so the split is a legibility hierarchy and
+ * not a rescue of a colour that could not carry text.
+ *
+ * NOT MEASURED BY THE SWEEP. Every ratio in the paragraph above is computed
+ * offline with core.contrastRatio, not read off the live portal: this notice is
+ * `hidden` at rest, the contrast sweep visits login.html at rest, and a hidden
+ * element emits no row. Same for the focus ring on the link inside it (--teal-700
+ * on --red-050 is 5.00:1). That is a real coverage gap and it is S3d's lesson
+ * exactly — a declaration guarding a state nothing renders is certified green
+ * on ABSENCE. Closing it needs a login[error] entry in CONTRAST_PAGES, which is
+ * a sweep change and not a shot; it is filed, not done. */
+.login__note {
+  display: flex;
+  gap: 11px;
+  /* Top margin as well as bottom: the notice's siblings are the page's own
+   * heading above and the form below, and with no top margin it read as part of
+   * the subtitle. Adjacent margins collapse, so the gap below it stays --s-5
+   * (the form's own top margin) rather than becoming 16+24. */
+  margin: var(--s-5) 0 var(--s-4);
+  padding: 14px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+}
+.login__note__icon { width: 18px; height: 18px; flex: none; margin-top: 1px; }
+.login__note__body { min-width: 0; }
+.login__note__title {
+  margin: 0 0 5px;
+  font-size: 13.5px;
+  font-weight: 650;
+}
+.login__note__text,
+.login__note__ask {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.login__note__ask { margin-top: 7px; }
+.login__note__ask a { font-weight: 600; text-underline-offset: 2px; }
+
+.login__note--error { background: var(--red-050); border-color: var(--red-200); }
+.login__note--error .login__note__icon,
+.login__note--error .login__note__title { color: var(--red); }
+
+.login__note--wait { background: var(--amber-050); border-color: var(--amber-200); }
+.login__note--wait .login__note__icon,
+.login__note--wait .login__note__title { color: var(--amber); }
+
+/* ── The foot ──────────────────────────────────────────────────────────────
+ * The one reachable channel on this page. `--faint` is 2.55:1 and its own token
+ * comment says "non-text only"; this is body text, and the whole point of the
+ * reset line is that an owner who has just been locked out can READ it.
+ * --muted is --ink-2, 7.31:1 on --bg.
+ *
+ * The link is on its OWN LINE, which it was not. It was inline mid-sentence
+ * with `padding: 6px 0` on a 12.5px/1.5 line box — 30.75px tall, under the 44px
+ * target this portal holds every other control to (tokens.css:1908-1946), and
+ * not fixable in place: padding large enough to reach 44 inside a sentence
+ * collides the line boxes above and below it. `.ts__a`'s gesture — the truth
+ * strip's action, which has the same problem below 560px — is the precedent:
+ * min-height plus inline-flex, because min-height does nothing to a non-replaced
+ * inline box. Underlined, not colour-only (spec §2.11); f3.js:552 asserts it. */
+.login__foot {
+  margin-top: var(--s-4);
+  text-align: center;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.login__foot p { margin: 0; }
+.login__foot p + p { margin-top: var(--s-1); }
+.login__foot a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  color: var(--teal-700);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.login__foot a:hover { color: var(--teal-900); }
+
+/* 320px is the narrowest viewport this page is shot at. The card's own
+ * 24px/24px is already the --s-5 step; below 380 the page gutter is what gives,
+ * not the card, so the measure stays readable instead of the text reflowing
+ * against the screen edge. */
+@media (max-width: 380px) {
+  body { padding: var(--s-6) var(--s-4); }
+}

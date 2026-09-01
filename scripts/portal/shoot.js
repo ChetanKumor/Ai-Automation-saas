@@ -450,10 +450,15 @@ const CLOCK_SHIM = "(function(){"
  * '/^quarantine/,$p'`.
  *
  * It is a REGISTRY, not a gate. Nothing here suppresses a shot or edits a
- * picture: the corpus is still 59 files and every one of them is whatever the
- * page painted. All it does is name, with the mechanism, the shots a byte
- * comparison cannot hold against the portal — so the next session compares 46
- * shots and reads a real result, instead of comparing 59 and reading noise.
+ * picture: the corpus is whatever the pages painted, every file of it. All it
+ * does is name, with the mechanism, the shots a byte comparison cannot hold
+ * against the portal — so the next session compares the rest and reads a real
+ * result, instead of comparing all of them and reading noise.
+ *
+ * S4 took the corpus 59 -> 65 (CORPUS_SIZE below). The counts in the paragraphs
+ * that follow are the measurements that produced this registry and are left as
+ * they were measured, over 59: re-scaling a recorded number to a corpus it was
+ * not measured on is how a measurement becomes a claim.
  *
  * Measured over FIVE consecutive pairs, ten full runs, at this commit. Counts:
  * 12 / 13 / 12 / 12 / 12 shots moved of 59. Every single one is accounted for
@@ -472,26 +477,44 @@ const CLOCK_SHIM = "(function(){"
  * exactly ±16 device px, the sidebar unshifted, the Verbatim panel identical —
  * the opposite of the panel artefact S3f closed.
  *
- * ONE NEW OBSERVATION, recorded because it is a lead and not chased because it
- * is out of scope: EVERY displacement ever observed has been on an `*-error`
- * shot. SIX of the eight error shots in the corpus across nine pairs
- * (s4-profile, s6-pricing, s8-doctors, s9-booking, s10-safety, s13-receptionist
- * — the last of which was predicted BY this class note and then turned up in
- * the red/green pair that tested it), and NEVER once on any of the 51
- * non-error shots. That is why the list is the observed set and the note says
- * to quarantine the class: the two not yet seen (s5-hours-error,
- * s11-faqs-error) are almost certainly not exempt, only unobserved. The error shots are exactly the ones whose
- * afterReady drives a failing save, and a failing save calls
+ * THE CLASS, NARROWED (S4) — and this is the part worth reading if you are the
+ * session that finally chases this artefact.
+ *
+ * This note used to say: every displacement ever observed has been on an
+ * `*-error` shot, six of the eight, never once on any of the 51 non-error
+ * shots — so quarantine the whole `*-error` class, and the two not yet seen
+ * (s5-hours-error, s11-faqs-error) are unobserved rather than exempt. Two
+ * things then happened to it.
+ *
+ * FIRST, that prediction came true. `s11-faqs-error` displaced in S4's
+ * determinism pair and is in the list below now. Seven of eight.
+ *
+ * SECOND — and this is what changes the shape of the thing — S4 added THREE new
+ * error shots (login-invalid, login-429, admin-login-error) and all three were
+ * BYTE-IDENTICAL across a run pair. So "any `*-error` shot" is the wrong class,
+ * and the mechanism this note already guessed at is the right one. The eight
+ * original error shots are exactly the ones whose afterReady drives a failing
+ * SAVE, and a failing save calls
  * `scrollIntoView({block:'center', behavior:'smooth'})` (pricing.js:120 and the
  * same shape in every sibling). SCROLL_HOME below re-issues the scroll until
  * the page reads back 0, so the offset at capture time is 0 either way — but a
- * smooth scroll that was still in flight when the layout was decided is the
- * obvious next place to look. The list is therefore the OBSERVED set and the
- * class is "any `*-error` shot", which is what the printout says.
+ * smooth scroll still in flight when the layout was decided remains the obvious
+ * place to look. The three new shots do not save and do not scroll: they
+ * `.focus()` a control already inside the viewport, and they do not displace.
+ *
+ * The class is therefore "a shot whose afterReady triggers a SMOOTH SCROLL",
+ * not "a shot with `error` in its name". That is a NARROWING on one pair and
+ * not a proof — three stable shots is three — so the next session to watch one
+ * of them displace should widen it back and say so. Still out of scope to fix.
  *
  * The 16-of-42 LCD-subpixel-to-grayscale AA flip S3f recorded is NOT here: it
  * flipped once and stayed flipped, so it is a state, not a coin, and it has not
  * moved in any of the ten runs behind this registry. */
+/* The corpus size, named rather than typed into three template strings. S4 took
+ * it 59 -> 65: login-320, login-invalid, login-429, admin-login-desktop,
+ * admin-login-mobile, admin-login-error. */
+const CORPUS_SIZE = 65;
+
 const QUARANTINE = {
   clock: {
     why: 'a timestamp the run itself wrote — Postgres NOW(), unreachable from the page',
@@ -511,21 +534,25 @@ const QUARANTINE = {
     why: '±16 device-px column shift decided per page load — OUT OF SCOPE, see above',
     shots: [
       's4-profile-error', 's6-pricing-error', 's8-doctors-error',
-      's9-booking-error', 's10-safety-error', 's13-receptionist-error',
+      's9-booking-error', 's10-safety-error', 's11-faqs-error',
+      's13-receptionist-error',
     ],
-    classNote: 'observed set — 6 of the 8 *-error shots; treat the whole class as quarantined',
+    classNote: 'observed set — 7 of the 8 failing-SAVE shots. The class is a failing '
+      + 'SAVE, not the word "error": S4 added three error shots that do not save '
+      + '(login-invalid, login-429, admin-login-error) and all three were '
+      + 'byte-identical across a pair. See THE CLASS, NARROWED above.',
   },
 };
 
 function printQuarantine() {
   const n = Object.values(QUARANTINE).reduce((a, g) => a + g.shots.length, 0);
-  console.log(`quarantine — ${n} of 59 shots a byte comparison must not judge:`);
+  console.log(`quarantine — ${n} of ${CORPUS_SIZE} shots a byte comparison must not judge:`);
   for (const [name, g] of Object.entries(QUARANTINE)) {
     console.log(`  ${name} (${g.shots.length}) — ${g.why}`);
     console.log(`    ${g.shots.join(' ')}`);
     if (g.classNote) console.log(`    note: ${g.classNote}`);
   }
-  console.log(`  the other ${59 - n} shots are expected byte-identical between two runs.`);
+  console.log(`  the other ${CORPUS_SIZE - n} shots are expected byte-identical between two runs.`);
 }
 
 const SCROLL_HOME = "(function(){"
@@ -1945,6 +1972,75 @@ const adminLoginCookie = (port, password) =>
       width: 1280, height: 860, port, waitFor: "document.getElementById('form')" });
     await shoot(cdp, { url: `${base}/login.html`, out: path.join(OUT, 'login-mobile.png'),
       width: 380, height: 820, mobile: true, port, waitFor: "document.getElementById('form')" });
+
+    /* S4: the narrowest viewport this page is designed for. 380 is the portal's
+     * mobile shot width everywhere else and is therefore the width every other
+     * page is evidenced at; login is the one page a customer may open on an
+     * older handset before they have ever seen the portal, and the gutter is the
+     * thing that gives at 320 (login.css's one media rule). Nothing else on this
+     * page changes between the two, which is the point of shooting it. */
+    await shoot(cdp, { url: `${base}/login.html`, out: path.join(OUT, 'login-320.png'),
+      width: 320, height: 760, mobile: true, port, waitFor: "document.getElementById('form')" });
+
+    /* S4: the RED arm — a form submitted incomplete. Entirely client-side: this
+     * path returns before `fetch` is reached, so it touches neither the network
+     * nor the rate limiter, and it is the only login failure the page can
+     * attribute to a control (the 401 deliberately cannot be). The gate checks
+     * all three parts of the portal's invalid-field shape, not just the banner:
+     * a banner with unmarked fields is the bug this shot exists to catch. */
+    await shoot(cdp, {
+      url: `${base}/login.html`, out: path.join(OUT, 'login-invalid.png'),
+      width: 1280, height: 860, port, waitFor: "document.getElementById('form')",
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate',
+          { expression: "document.getElementById('submit').click();" }, sid);
+        await waitForSelector(c, sid,
+          "!document.getElementById('error').hidden"
+          + " && document.getElementById('error').classList.contains('login__note--error')"
+          + " && document.querySelectorAll('.field.is-invalid .input--invalid').length === 2"
+          + " && document.getElementById('err-email').textContent.length > 0");
+      },
+    });
+
+    /* S4: the AMBER arm — rate limited.
+     *
+     * This shot is 429 and NOT 401, and that is a property of the harness rather
+     * than a choice. `loginLimiter` (src/portal/routes.js:83-86) is 5 attempts /
+     * 15 min per IP and counts EVERY request, success included
+     * (security.js:66 increments before it looks at the outcome). The block above
+     * at :1917-1921 mints five session cookies — owner, fresh, ready, lotus,
+     * palm — through that same route from this same 127.0.0.1, so the limiter is
+     * at exactly 5 before Chrome is even launched and any attempt the browser
+     * makes is the sixth.
+     *
+     * TWO THINGS FOLLOW, both worth having written down. The first is that the
+     * 401 arm — the one an owner locked out by LOGIN-F5 actually meets — is
+     * UNREACHABLE from this harness and has no shot. Reaching it means not
+     * spending the whole budget before capture, which is a reordering of the
+     * main flow (Chrome up before the cookie block) and not a shot. The second
+     * is that the existing five calls sit exactly ON the cap: a sixth
+     * `loginCookie` added for any reason will 429 and reject with
+     * `no portal.sid cookie (login 429)`, which reads like a session bug and is
+     * not one.
+     *
+     * The gate is deliberately hard on `--wait`. If the arithmetic above ever
+     * stops holding, this waits 30s and throws naming the expression, rather
+     * than quietly filing a red 401 under a name that says amber. */
+    await shoot(cdp, {
+      url: `${base}/login.html`, out: path.join(OUT, 'login-429.png'),
+      width: 1280, height: 860, port, waitFor: "document.getElementById('form')",
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression: "document.getElementById('email').value='owner@example.test';"
+            + "document.getElementById('password').value='not-the-password';"
+            + "document.getElementById('submit').click();",
+        }, sid);
+        await waitForSelector(c, sid,
+          "!document.getElementById('error').hidden"
+          + " && document.getElementById('error').classList.contains('login__note--wait')");
+      },
+    });
+
     await shoot(cdp, { url: `${base}/index.html`, out: path.join(OUT, 'home-desktop.png'),
       width: 1280, height: 900, cookie, port,
       waitFor: "document.querySelector('.ring')||document.querySelector('.emp')" });
@@ -2462,6 +2558,49 @@ const adminLoginCookie = (port, password) =>
         }, sid);
         await waitForSelector(c, sid,
           "document.getElementById('ownerResult') && getComputedStyle(document.getElementById('ownerResult')).display!=='none'");
+      },
+    });
+
+    /* ── S4: the admin door ──────────────────────────────────────────────────
+     * The operator's login page, which had no shot of any kind before this and
+     * is the only admin page in the corpus besides s3-admin-create-owner. It is
+     * also, as of S4, the one admin page on portal tokens — it no longer links
+     * /admin/style.css, and the other eight pages are untouched — so these two
+     * shots are the evidence for that, not decoration.
+     *
+     * Not in the contrast sweep, and cannot be from this session's file set:
+     * `runContrastSweep` joins every CONTRAST_PAGES entry onto ONE /portal base
+     * (:317-319), so an admin URL needs a per-page origin, which is a sweep
+     * change rather than a shot. No instrument in this repo has ever measured an
+     * admin page. */
+    const adminLogin = `http://127.0.0.1:${port}/admin/login.html`;
+    const adminReady = "document.getElementById('loginForm')";
+    await shoot(cdp, { url: adminLogin, out: path.join(OUT, 'admin-login-desktop.png'),
+      width: 1280, height: 860, port, waitFor: adminReady });
+    await shoot(cdp, { url: adminLogin, out: path.join(OUT, 'admin-login-mobile.png'),
+      width: 380, height: 820, mobile: true, port, waitFor: adminReady });
+
+    /* The RED 401 arm, and the reason it is reachable HERE and not on the portal
+     * page: the admin panel has its OWN limiter instance (adminRoutes.js:31-34,
+     * also 5 / 15 min) and the run spends exactly one of its five on
+     * `adminLoginCookie` at :1922. A wrong password from the browser is the
+     * second attempt, so it reaches the handler and comes back 401. The portal's
+     * budget is fully spent before capture — see login-429 above.
+     *
+     * This shot is the evidence for a BEHAVIOUR change, not a restyle: this page
+     * used to render "Wrong password" for a 429 as well, which is LOGIN-F1's
+     * shape. The gate is hard on `--error` so a 429 cannot be filed as a 401. */
+    await shoot(cdp, {
+      url: adminLogin, out: path.join(OUT, 'admin-login-error.png'),
+      width: 1280, height: 860, port, waitFor: adminReady,
+      afterReady: async (c, sid) => {
+        await c.send('Runtime.evaluate', {
+          expression: "document.getElementById('password').value='not-the-password';"
+            + "document.getElementById('submit').click();",
+        }, sid);
+        await waitForSelector(c, sid,
+          "!document.getElementById('error').hidden"
+          + " && document.getElementById('error').classList.contains('adm-login__note--error')");
       },
     });
 

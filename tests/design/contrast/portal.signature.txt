@@ -4,7 +4,6 @@ RING      PASS 5.16  [outline 5.16 vs outer backdrop  2px solid rgb(15, 118, 110
 RING      PASS 5.16  [outline 5.16 vs outer backdrop  2px solid rgb(15, 118, 110) @ -1px]
 RING      PASS 5.16  [outline 5.16 vs outer backdrop  2px solid rgb(15, 118, 110) @ 2px]
 RING      PASS 5.24  [outline 5.24 vs outer backdrop  2px solid rgb(15, 118, 110) @ 2px]
-RING      PASS 5.47  [border 5.47/5.47 vs inner fill / outer backdrop  1px rgb(15, 118, 110) (rest rgba(23, 21, 15, 0.08)) | glow 1.13 vs outer backdrop  0px 0px 0px 3px rgb(204, 251, 241)]
 RING      PASS 5.47  [outline 5.47 vs outer backdrop  2px solid rgb(15, 118, 110) @ 2px]
 RING      PASS 5.47  fill@1.03  [border 5.47/5.16 vs inner fill / outer backdrop  1px rgb(15, 118, 110) (rest rgba(23, 21, 15, 0.08)) | glow 1.25 vs outer backdrop  0px 0px 0px 3px rgba(15, 118, 110, 0.16)]
 RING      PASS 5.47  fill@1.03  [border 5.47/5.47 vs inner fill / outer backdrop  1px rgb(15, 118, 110) (rest rgba(23, 21, 15, 0.08)) | glow 1.25 vs outer backdrop  0px 0px 0px 3px rgba(15, 118, 110, 0.16)]

@@ -4,37 +4,198 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Login — WhatsApp CRM</title>
-  <link rel="stylesheet" href="/admin/style.css">
+  <!-- ==========================================================================
+       THE ONE ADMIN PAGE ON PORTAL TOKENS (S4).
+
+       This page no longer links /admin/style.css. That file is UNTOUCHED and
+       still dresses the other eight admin pages exactly as it did; dropping the
+       link here rather than editing it there is what keeps this change to one
+       page. The two are not merged and must not be: /admin/style.css has no
+       custom properties at all, and its login rules disagreed with this portal
+       on every value that matters — #f5f5f5 ground vs --bg warm paper, a system
+       font stack vs Noto Sans, a 360px card with NO page gutter (flush to both
+       screen edges at 320px), a ~37px button and a ~35px input where the portal
+       holds every control to 44 on a phone, and NO :focus rule anywhere in the
+       file, so the admin password field's only focus indicator was whatever the
+       browser happened to draw.
+
+       Two of its colours are also contrast liabilities, and they stay its
+       business: .btn-primary paints #fff on #4361ee at 4.31:1 and .error paints
+       #e63946 on #fff at 3.76:1, both under AA for the 13-14px text they carry.
+       Those are READ FROM SOURCE, not measured — the contrast sweep is
+       portal-only (shoot.js builds every page URL onto one /portal base), so no
+       instrument in this repo has ever looked at an admin page. Recorded in
+       docs/design/brand-values.md.
+
+       Everything below takes the portal's token layer and its components. The
+       admin panel's own identity is unchanged: this is still the operator's
+       shared-password door, not a customer surface.
+       ========================================================================= -->
+  <link rel="stylesheet" href="/portal/fonts/fonts.css">
+  <link rel="stylesheet" href="/portal/tokens.css">
+  <style>
+    /* Same geometry as the portal's sign-in page (public/portal/login.css) and
+     * deliberately not the same FILE: a shared stylesheet across the two would
+     * either drag all nine admin pages onto portal tokens sight-unseen, or hold
+     * the customer-facing portal to admin's blue. They are two products — one
+     * customer-facing surface on a v2 design system, one shared-password
+     * operator door — and the only thing they owe each other is that a person
+     * who has seen both does not think one of them is broken. (Note this is NOT
+     * an INV-1 argument: INV-1 is about tenant scope deriving from the session
+     * row, and a stylesheet carries no session. The warrant is product, not
+     * security.) */
+    body {
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      padding: var(--s-9) var(--s-5);
+    }
+    .adm-login { width: 100%; max-width: 380px; }
+    .adm-login__card { padding: var(--s-5); }
+    .adm-login__title {
+      margin: 0;
+      font: var(--t-h1);
+      letter-spacing: var(--ls-h1);
+      color: var(--ink);
+    }
+    .adm-login__sub {
+      margin: 5px 0 0;
+      font: var(--t-help);
+      color: var(--muted);
+    }
+    .adm-login__form { margin-top: var(--s-5); }
+    .adm-login__form .btn { margin-top: var(--s-5); }
+
+    /* Two arms, same split the portal's sign-in page makes and for the same
+     * reason: --error is a server verdict (the password was rejected), --wait is
+     * a condition that clears on its own (a rate limit, a network). Body text is
+     * --ink-2; --red and --amber are reserved for the icon and the title. */
+    .adm-login__note {
+      display: flex;
+      gap: 11px;
+      margin: var(--s-5) 0 var(--s-4);
+      padding: 14px 16px;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      color: var(--ink-2);
+    }
+    .adm-login__note__icon { width: 18px; height: 18px; flex: none; margin-top: 1px; }
+    .adm-login__note__body { min-width: 0; }
+    .adm-login__note__title { margin: 0 0 5px; font-size: 13.5px; font-weight: 650; }
+    .adm-login__note__text { margin: 0; font-size: 12.5px; line-height: 1.55; }
+
+    .adm-login__note--error { background: var(--red-050); border-color: var(--red-200); }
+    .adm-login__note--error .adm-login__note__icon,
+    .adm-login__note--error .adm-login__note__title { color: var(--red); }
+
+    .adm-login__note--wait { background: var(--amber-050); border-color: var(--amber-200); }
+    .adm-login__note--wait .adm-login__note__icon,
+    .adm-login__note--wait .adm-login__note__title { color: var(--amber); }
+
+    @media (max-width: 380px) {
+      body { padding: var(--s-6) var(--s-4); }
+    }
+  </style>
 </head>
 <body>
-  <div class="login-wrapper">
-    <div class="card login-card">
-      <h2 style="margin-bottom: 20px; text-align: center;">WhatsApp CRM Admin</h2>
-      <form id="loginForm">
-        <div class="form-group">
-          <label for="password">Admin Password</label>
-          <input type="password" id="password" placeholder="Enter password" autofocus required>
+  <main class="adm-login">
+    <div class="card adm-login__card">
+      <h1 class="adm-login__title">WhatsApp CRM Admin</h1>
+      <p class="adm-login__sub">Operator access. One shared password, no account.</p>
+
+      <div class="adm-login__note" id="error" role="alert" hidden>
+        <svg class="adm-login__note__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+        <div class="adm-login__note__body">
+          <p class="adm-login__note__title" id="errorTitle"></p>
+          <p class="adm-login__note__text" id="errorText"></p>
         </div>
-        <button type="submit" class="btn btn-primary" style="width:100%">Login</button>
-        <div id="error" class="error" style="display:none; text-align:center;"></div>
+      </div>
+
+      <form id="loginForm" class="adm-login__form" novalidate>
+        <div class="field" data-field="password">
+          <label class="field__label" for="password">Admin password</label>
+          <input class="input" type="password" id="password" autofocus required>
+          <div class="field__error" id="err-password"></div>
+        </div>
+        <button type="submit" class="btn btn--primary btn--block" id="submit">Log in</button>
       </form>
     </div>
-  </div>
+  </main>
+
   <script>
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    'use strict';
+    const form = document.getElementById('loginForm');
+    const errEl = document.getElementById('error');
+    const errTitle = document.getElementById('errorTitle');
+    const errText = document.getElementById('errorText');
+    const btn = document.getElementById('submit');
+    const pwEl = document.getElementById('password');
+
+    function showNote(kind, title, text) {
+      errTitle.textContent = title;
+      errText.textContent = text;
+      errEl.className = 'adm-login__note adm-login__note--' + kind;
+      errEl.hidden = false;
+    }
+
+    function clearNote() {
+      errEl.hidden = true;
+      form.querySelectorAll('.field.is-invalid').forEach((f) => f.classList.remove('is-invalid'));
+      form.querySelectorAll('.input--invalid').forEach((i) => i.classList.remove('input--invalid'));
+      document.getElementById('err-password').textContent = '';
+    }
+
+    function done() { btn.disabled = false; btn.textContent = 'Log in'; }
+
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const errEl = document.getElementById('error');
-      errEl.style.display = 'none';
-      const res = await fetch('/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: document.getElementById('password').value })
-      });
-      if (res.ok) {
-        window.location.href = '/admin/tenants.html';
+      clearNote();
+      const password = pwEl.value;
+
+      if (!password) {
+        pwEl.closest('.field').classList.add('is-invalid');
+        pwEl.classList.add('input--invalid');
+        document.getElementById('err-password').textContent = 'Enter the admin password.';
+        showNote('error', 'Something is missing', 'Enter the admin password to log in.');
+        pwEl.focus();
+        return;
+      }
+
+      // DEFECT FIX, not restyling: the button never disabled, so a double-click
+      // fired two POSTs straight at adminRoutes.js:66's loginLimiter — the second
+      // of which could be the request that trips it.
+      btn.disabled = true;
+      btn.textContent = 'Logging in…';
+
+      let res;
+      try {
+        res = await fetch('/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
+        });
+      } catch (_) {
+        // DEFECT FIX: this rejection was unhandled. The handler threw, nothing
+        // was rendered, and the operator saw the form sit there with no reply.
+        done();
+        showNote('wait', 'Can’t reach the server',
+          'Check your connection and try again — the password is not the problem.');
+        return;
+      }
+
+      if (res.ok) { window.location.href = '/admin/tenants.html'; return; }
+
+      done();
+      if (res.status === 429) {
+        // DEFECT FIX: a 429 rendered as "Wrong password". That is LOGIN-F1's
+        // shape — a schema/rate condition presented as a credential failure —
+        // which the portal's sign-in page already fixed and this one had not.
+        // It sends an operator whose password is correct off to hunt for a
+        // password that isn't wrong.
+        showNote('wait', 'Too many attempts',
+          'Wait a few minutes, then try again. This clears on its own.');
       } else {
-        errEl.textContent = 'Wrong password';
-        errEl.style.display = 'block';
+        showNote('error', 'Wrong password', 'Check it and try again.');
       }
     });
   </script>

@@ -7,46 +7,10 @@
   <meta name="description" content="Sign in to manage your clinic's AI receptionist.">
   <link rel="stylesheet" href="./fonts/fonts.css">
   <link rel="stylesheet" href="./tokens.css">
-  <style>
-    body { display: grid; place-items: center; min-height: 100vh; padding: 24px; }
-    .login { width: 100%; max-width: 380px; }
-    .login__brand {
-      display: flex; align-items: center; gap: 10px;
-      justify-content: center; margin-bottom: 22px;
-    }
-    .login__brand .brand__name { font-size: 16px; }
-    .login__card { padding: 26px 26px 24px; }
-    .login__title { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
-    .login__sub { color: var(--muted); font-size: 13.5px; margin-top: 4px; margin-bottom: 20px; }
-    .field { margin-bottom: 14px; }
-    .field label { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
-    .field input {
-      width: 100%; font: 400 14.5px/1.4 var(--sans); color: var(--ink);
-      padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-xs);
-      background: #fff; outline: none; transition: border-color .12s, box-shadow .12s;
-    }
-    .field input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-100); }
-    .login__error {
-      display: none; margin-bottom: 14px; font-size: 13px; font-weight: 500;
-      color: var(--red); background: var(--red-050); border: 1px solid var(--red-100);
-      border-radius: var(--radius-xs); padding: 9px 12px; line-height: 1.45;
-    }
-    /* `--faint` is 2.8:1 and its own token comment says "non-text only"; this
-       block is body text, and the whole point of the reset line is that an owner
-       who has just been locked out can READ it. `--muted` is 4.6:1 on --bg. */
-    .login__foot { text-align: center; color: var(--muted); font-size: 12.5px; line-height: 1.5; margin-top: 16px; }
-    /* The one reachable channel on this page. Underlined, not colour-only
-       (spec §2.11), and padded so the tap target clears the 12.5px line box. */
-    .login__foot a {
-      color: var(--teal-700); font-weight: 600;
-      text-decoration: underline; text-underline-offset: 2px;
-      display: inline-block; padding: 6px 0;
-    }
-    .login__foot a:hover { color: var(--teal-900); }
-  </style>
+  <link rel="stylesheet" href="./login.css">
 </head>
 <body>
-  <div class="login">
+  <main class="login">
     <div class="login__brand">
       <span class="brand__mark" aria-hidden="true">
         <svg viewBox="0 0 24 24"><path fill="currentColor" d="M10 3h4a1 1 0 0 1 1 1v5h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5v5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h5V4a1 1 0 0 1 1-1Z"/></svg>
@@ -55,20 +19,51 @@
     </div>
 
     <div class="card login__card">
-      <div class="login__title">Sign in</div>
-      <div class="login__sub">Manage your clinic’s AI receptionist.</div>
+      <h1 class="login__title">Sign in</h1>
+      <p class="login__sub">Manage your clinic’s AI receptionist.</p>
 
-      <div class="login__error" id="error" role="alert"></div>
+      <!-- The notice. `hidden` rather than an inline display flip, because
+           tokens.css:244's `[hidden] { display: none !important }` is the portal's
+           own idiom and survives a component class that sets its own display —
+           which .login__note does. role="alert" announces on unhide, so the
+           content is written BEFORE the attribute is removed.
 
-      <form id="form" novalidate>
-        <div class="field">
-          <label for="email">Email</label>
-          <input type="email" id="email" name="email" autocomplete="username"
-                 autocapitalize="none" spellcheck="false" autofocus required>
+           #errorAsk is the LOGIN-F5 seam and is deliberately not a diagnosis.
+           A cross-tenant email collision makes routes.js:118's `rows.length === 1`
+           false and the owner is refused with a password that is correct; the
+           server answers that case with the SAME generic 401 and the same ~300ms
+           delay as a wrong password, on purpose, because a distinguishable
+           response is the account-enumeration oracle the constant delay exists
+           to deny. So this line names a ROUTE OUT without naming a cause: it
+           costs the attacker nothing and it is the only thing on the page that
+           helps someone whose credentials are right. See
+           docs/audit/2026-08-portal-login-filed.md, LOGIN-F5.
+
+           The wa.me href appears twice in this file — here and in the foot.
+           Both must move together; there is no env var to read, login.html is
+           served statically. -->
+      <div class="login__note" id="error" role="alert" hidden>
+        <svg class="login__note__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+        <div class="login__note__body">
+          <p class="login__note__title" id="errorTitle"></p>
+          <p class="login__note__text" id="errorText"></p>
+          <p class="login__note__ask" id="errorAsk" hidden>Sure the password is right?
+            <a href="https://wa.me/918309177158?text=Hi%2C%20I%20need%20help%20signing%20in%20to%20my%20Veprio%20portal."
+               target="_blank" rel="noopener">Message Veprio on WhatsApp</a> and we’ll check the account.</p>
         </div>
-        <div class="field">
-          <label for="password">Password</label>
-          <input type="password" id="password" name="password" autocomplete="current-password" required>
+      </div>
+
+      <form id="form" class="login__form" novalidate>
+        <div class="field" data-field="email">
+          <label class="field__label" for="email">Email</label>
+          <input class="input" type="email" id="email" name="email" autocomplete="username"
+                 autocapitalize="none" spellcheck="false" autofocus required>
+          <div class="field__error" id="err-email"></div>
+        </div>
+        <div class="field" data-field="password">
+          <label class="field__label" for="password">Password</label>
+          <input class="input" type="password" id="password" name="password" autocomplete="current-password" required>
+          <div class="field__error" id="err-password"></div>
         </div>
         <button type="submit" class="btn btn--primary btn--block" id="submit">Sign in</button>
       </form>
@@ -83,30 +78,72 @@
          `wa.me` opens the app on a phone and web.whatsapp.com on a desktop, so
          one link covers both without a second control. -->
     <div class="login__foot">
-      <div>Forgot your password?
-          <a href="https://wa.me/918309177158?text=Hi%2C%20I%20need%20to%20reset%20my%20Veprio%20portal%20password."
-            target="_blank" rel="noopener">Message Veprio on WhatsApp</a> and we’ll reset it for you.</div>
-        <div style="margin-top:4px;">Need access? Veprio sets up your account.</div>
+      <p>Forgot your password? We’ll reset it for you.</p>
+      <p><a href="https://wa.me/918309177158?text=Hi%2C%20I%20need%20to%20reset%20my%20Veprio%20portal%20password."
+            target="_blank" rel="noopener">Message Veprio on WhatsApp</a></p>
+      <p>Need access? Veprio sets up your account.</p>
     </div>
-  </div>
+  </main>
 
   <script>
     'use strict';
     const form = document.getElementById('form');
     const errEl = document.getElementById('error');
+    const errTitle = document.getElementById('errorTitle');
+    const errText = document.getElementById('errorText');
+    const errAsk = document.getElementById('errorAsk');
     const btn = document.getElementById('submit');
+    const emailEl = document.getElementById('email');
+    const pwEl = document.getElementById('password');
 
-    function showError(msg) {
-      errEl.textContent = msg;
-      errEl.style.display = 'block';
+    /* Two arms, and the split is the point (see login.css).
+     *   'error' — a server verdict, or a form submitted incomplete. Red.
+     *   'wait'  — self-resolving: a rate limit that expires, a network that
+     *             comes back. Amber. Red here would send someone to re-check a
+     *             password that is already correct.
+     * `ask` surfaces the recovery channel; it belongs to the 401 only, which is
+     * the one arm where the credentials may in fact be right (LOGIN-F5). */
+    function showNote(kind, title, text, ask) {
+      errTitle.textContent = title;
+      errText.textContent = text;
+      errAsk.hidden = !ask;
+      errEl.className = 'login__note login__note--' + kind;
+      errEl.hidden = false;
+    }
+
+    function clearNote() {
+      errEl.hidden = true;
+      form.querySelectorAll('.field.is-invalid').forEach((f) => f.classList.remove('is-invalid'));
+      form.querySelectorAll('.input--invalid').forEach((i) => i.classList.remove('input--invalid'));
+      form.querySelectorAll('.field__error').forEach((e) => { e.textContent = ''; });
+    }
+
+    /* The field-level arm, in the portal's own three-part shape
+     * (clinic-profile.js:43-51): .is-invalid on the .field wrapper, .input--invalid
+     * on the control, and the message in #err-<field>. Every other page in this
+     * portal marks the offending control rather than only describing it in a
+     * banner, and an empty field is the one failure this page can attribute to a
+     * control — the 401 deliberately cannot be. */
+    function markEmpty(el, what) {
+      el.closest('.field').classList.add('is-invalid');
+      el.classList.add('input--invalid');
+      document.getElementById('err-' + el.id).textContent = 'Enter your ' + what + '.';
     }
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      errEl.style.display = 'none';
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
-      if (!email || !password) { showError('Enter your email and password to sign in.'); return; }
+      clearNote();
+      const email = emailEl.value.trim();
+      const password = pwEl.value;
+
+      if (!email || !password) {
+        if (!email) markEmpty(emailEl, 'email address');
+        if (!password) markEmpty(pwEl, 'password');
+        showNote('error', 'Something is missing',
+          'Enter your email and password to sign in.');
+        (email ? pwEl : emailEl).focus();
+        return;
+      }
 
       btn.disabled = true;
       btn.textContent = 'Signing in…';
@@ -119,7 +156,8 @@
         });
       } catch (_) {
         btn.disabled = false; btn.textContent = 'Sign in';
-        showError('Can’t reach the server. Check your connection and try again.');
+        showNote('wait', 'Can’t reach the server',
+          'Check your connection and try again — nothing is wrong with your account.');
         return;
       }
 
@@ -128,11 +166,15 @@
       btn.disabled = false;
       btn.textContent = 'Sign in';
       if (res.status === 429) {
-        showError('Too many sign-in attempts. Wait a few minutes, then try again.');
+        showNote('wait', 'Too many attempts',
+          'Wait a few minutes, then try again. This clears on its own.');
       } else {
         // Server returns a single generic 401 (no account-existence oracle); the
-        // copy names what to check rather than apologising or going vague.
-        showError('That email and password don’t match. Check them and try again.');
+        // copy names what to check rather than apologising or going vague, and
+        // the ask line gives the one person it cannot help — an owner whose
+        // password IS right, locked out by LOGIN-F5 — somewhere to go.
+        showNote('error', 'That email and password don’t match',
+          'Check them and try again.', true);
       }
     });
   </script>

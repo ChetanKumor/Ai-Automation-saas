@@ -362,3 +362,117 @@ Still not compared, and still portal-only: `--amber-50` / `--green-50` /
 the zero-padded `--amber-050` / `--green-050` / `--red-050` as aliases — those
 three ARE shared with the demo surfaces and keep their rows in the tables above,
 which they still satisfy because an alias resolves.
+
+---
+
+## Sign-in surfaces (S4)
+
+**Both** login pages — `public/portal/login.html` and `public/admin/login.html` —
+take the portal's token layer. This section records that, and records what the
+admin panel keeps for itself, because the second half is the part that a future
+reader would otherwise mistake for drift.
+
+### The record
+
+| Surface | Token source | Notes |
+|---|---|---|
+| Portal sign-in | `public/portal/tokens.css` | Was already on it. `public/portal/login.css` (S4) holds this page's layout only, declares **no** custom property, and every control on the page is a tokens.css component. |
+| Admin sign-in | `public/portal/tokens.css`, via `<link href="/portal/tokens.css">` | S4. Reachable because `server.js:90` serves `public/` at the root. The page no longer links `/admin/style.css`. |
+| The other 8 admin pages | `public/admin/style.css` | **Unmoved.** Zero custom properties, and none of the values below changed. |
+
+This adds no row to the tables above: the sign-in pages consume portal tokens,
+they do not declare any, and the parser in `tests/design/tokenDrift.test.js`
+reads declarations rather than consumers. `SURFACES` is still four files.
+
+### Why two files and not one shared stylesheet
+
+The two sign-in pages share **no class name at all** — before S4 or after it —
+so there is no overlap to preserve and the question is only what the structure
+should say. It says: two files, each importing the token layer.
+
+The warrant is a **product** one, and it is worth being exact about that because
+the obvious-sounding security warrant is wrong. **INV-1 is not the reason.**
+INV-1 (`src/portal/auth.js:15-17`) says a portal route's `tenant_id` derives only
+from the session's user row; `portal.sid` and `connect.sid` are held apart by two
+cookie names, two session middlewares and two code paths. A stylesheet carries no
+session and cannot weaken any of that — if it could, `express.static('public')`
+already serving `/portal/tokens.css` to an admin page would be the breach, and it
+is not. Citing INV-1 here would hand the next session a warrant that does not
+hold, and they would inherit it.
+
+The reason that does hold is that these are two products:
+
+1. The portal sign-in is customer-facing, is the far end of the marketing seam,
+   and is one of fourteen pages on the v2 design system.
+2. The admin sign-in is one operator behind one shared `ADMIN_PASSWORD` — no
+   tenant, no brand obligation — on a surface of nine pages that no session has
+   migrated.
+3. A shared stylesheet would therefore either drag all nine admin pages onto
+   portal tokens sight-unseen, or hold the customer-facing portal to admin's
+   blue. Both are worse than two files.
+
+### The seam, measured
+
+The portal, `web/` and the sign-in pages already agree on everything structural.
+Ratios below are computed with `core.contrastRatio` — the contrast engine's own
+function — not read off a rendering.
+
+| | `web/` | portal + both sign-ins |
+|---|---|---|
+| Ground | `--ground: #FAF8F5` | `--bg: #faf8f5` |
+| Raised | `--ground-raised: #FFFFFF` | `--card: #ffffff` |
+| Primary ink | `--ink-strong: #17150F` | `--ink: #17150F` |
+| Secondary ink | `--ink-soft: #57524A` | `--ink-2: #57524A` |
+| Accent | `--accent: #0f766e` | `--teal-700: #0f766e` |
+| Type | Geist / Inter | **Noto Sans** — a deliberate divergence, already recorded above: Noto carries Telugu and Devanagari and Geist does not. |
+
+S4 closed the seam's one real break. `public/portal/login.html` used to declare
+its own `.field input`, the only text input in the product that was not `.input`,
+and its focus was a soft `0 0 0 3px var(--teal-100)` halo instead of the portal's
+shared ring. It was also the sole consumer of that glow anywhere, which is why it
+owned a line of its own in `tests/design/contrast/portal.signature.txt` —
+deleted, not replaced, when the field became `.input`.
+
+### The notice colours, and where they are NOT measured
+
+Both sign-in pages carry a two-armed notice. `--error` is a server verdict;
+`--wait` is a condition that clears on its own (a rate limit, a network). Body
+text is `--ink-2`; `--red` / `--amber` are reserved for the icon and the title.
+
+| Pair | Ratio | Role |
+|---|---|---|
+| `--red` on `--red-050` | 5.91:1 | notice icon + title |
+| `--ink-2` on `--red-050` | 7.08:1 | notice body |
+| `--amber` on `--amber-050` | 4.84:1 | notice icon + title |
+| `--ink-2` on `--amber-050` | 7.47:1 | notice body |
+| `--teal-700` on `--red-050` | 5.00:1 | the recovery link inside the 401 notice |
+
+Every one of those is **computed offline, not instrument-measured.** The notice is
+`hidden` at rest, the contrast sweep visits `login.html` at rest, and a hidden
+element emits no row — so none of these pairs is in the live baseline. That is
+S3d's lesson exactly (a declaration guarding a state nothing renders is certified
+green on absence), and closing it needs a `login[error]` entry in
+`CONTRAST_PAGES`, which is a sweep change and not a shot. Filed, not done.
+
+### What the admin panel keeps, and its contrast liability
+
+`public/admin/style.css` is unchanged and still dresses the other eight admin
+pages. Its values are the admin panel's private business, are **not** canonical,
+and must not be reconciled into the tables above:
+
+| Value | Where | Read-from-source note |
+|---|---|---|
+| `#4361ee` | `.btn-primary` fill | White label on it measures **4.31:1** — clears 3:1 for a UI component, under 4.5:1 for the 14px/500 text it carries. |
+| `#e63946` | `.error` text, `.btn-danger` fill | `#e63946` on `#fff` measures **3.76:1** at 13px — under AA body. |
+| `#f5f5f5` | page ground | Cool grey, not the warm `#faf8f5` every other surface uses. |
+| `#1a1a2e` | `nav` | — |
+| system font stack | `body` | Not Noto Sans; carries no Telugu or Devanagari. |
+
+**Both ratios are READ FROM SOURCE and computed, NOT instrument-measured.** No
+instrument in this repo has ever looked at an admin page: `scripts/portal/shoot.js`
+builds every `CONTRAST_PAGES` URL onto a single `/portal` base, so the sweep is
+portal-only by construction. The two shots S4 adds (`admin-login-desktop`,
+`admin-login-mobile`) are captures, not measurements. **The admin session owns
+these values**; they are recorded here so that a future reader does not read them
+as portal drift, and so that whoever does migrate the admin panel starts with the
+two numbers already known.

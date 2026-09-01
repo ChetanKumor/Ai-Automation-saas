@@ -92,13 +92,28 @@ const core = require('./contrast/core');
 const PORTAL_SIGNATURE_FILE = path.join(__dirname, 'contrast', 'portal.signature.txt');
 
 const PORTAL_BASELINE = Object.freeze({
-  at: '2b38cd2+S3e',                // S3d was FIXTURE and SWEEP only — zero
-                                    // .css, and the five FAIL lines it left
-                                    // standing were what that bought. S3e is
-                                    // the other half: two .css files, four
-                                    // declarations, and the list is empty
-                                    // again. Still zero .html, nothing under
-                                    // src/.
+  at: 'fefb2fe+S4',                 // S4 is the AUTH SEAM: public/portal/login.html
+                                    // rewritten onto the shared components, its inline
+                                    // <style> extracted to login.css, and
+                                    // public/admin/login.html moved onto these tokens.
+                                    // Still nothing under src/.
+                                    //
+                                    // The ONE intended signature move in five sessions,
+                                    // and it was PREDICTED before it was measured — 10
+                                    // lines / b98ea30d, byte-identical to the prediction.
+                                    // login.html declared its own `.field input`, the
+                                    // only text input in the product that was not
+                                    // `.input`, and its focus glow (0 0 0 3px --teal-100)
+                                    // was the sole consumer of that value anywhere — so
+                                    // it owned a RING line by itself. `.input:focus`
+                                    // resolves to a shape the baseline ALREADY carried
+                                    // (border 5.47/5.47 + the .16 glow at fill@1.03), so
+                                    // the line is DELETED, not replaced: 11 -> 10.
+                                    //
+                                    // S3e, for history: S3d was FIXTURE and SWEEP only —
+                                    // zero .css, and the five FAIL lines it left standing
+                                    // were what that bought. S3e was the other half: two
+                                    // .css files, four declarations, list empty again.
   pages: 20,                        // was 14. The same fourteen pages plus SIX
                                     // STATE VARIANTS: four are a different
                                     // tenant (Lotus Dental — one language,
@@ -109,7 +124,13 @@ const PORTAL_BASELINE = Object.freeze({
                                     // Palm Dental, which has no tenant_configs
                                     // row at all. See CONTRAST_PAGES.
   widths: Object.freeze([1280, 380]),
-  rows: 4222 + 1669,                // 5891. The 4222 are STILL UNMOVED — the
+  rows: 4222 + 1669,                // 5891, UNMOVED ACROSS S4 — measured, not
+                                    // assumed, and not decomposed: the login page
+                                    // was rewritten and the TOTAL did not move, so
+                                    // that page emits the same number of rows it
+                                    // did before. Recorded as observed rather than
+                                    // explained. The S3e derivation follows.
+                                    // The 4222 are STILL UNMOVED — the
                                     // fourteen base pages measure exactly what
                                     // they measured at S3c-2, and S3e's two
                                     // .css edits did not touch one of them.
@@ -124,7 +145,11 @@ const PORTAL_BASELINE = Object.freeze({
                                     // pointer with nothing at all. Written as a
                                     // sum because the invariant worth keeping
                                     // is that the old half did not move.
-  pairs: 86,                        // was 91 (and 79 before S3d). MINUS FIVE,
+  pairs: 86,                        // UNMOVED across S4 — the rewrite is made out
+                                    // of colours the portal already paints, which
+                                    // is what a reuse-only change should look like
+                                    // in this number. History follows.
+                                    // was 91 (and 79 before S3d). MINUS FIVE,
                                     // one per closed FAIL shape — the two
                                     // hover keys are gone with their rows, and
                                     // the three rest keys collapsed onto keys
@@ -136,7 +161,19 @@ const PORTAL_BASELINE = Object.freeze({
                                     // ADDS a key would mean a new colour; five
                                     // fewer is the shape of a repair made out
                                     // of values the portal already paints.
-  failures: 0,                      // 22 at S3d, and BOTH defects are closed.
+  failures: 0,                      // UNMOVED across S4, which was the target the
+                                    // brief set: the auth seam is rebuilt out of
+                                    // pairs the portal already scores green, so
+                                    // zero is a reuse result and not a repair one.
+                                    // NOTE the reach of that zero — the notice on
+                                    // login.html is `hidden` at rest and the sweep
+                                    // visits the page at rest, so NEITHER notice arm
+                                    // is in this number. Their pairs are computed
+                                    // offline in docs/design/brand-values.md and are
+                                    // certified on ABSENCE here, which is exactly
+                                    // S3d's lesson. Closing it needs a login[error]
+                                    // entry in CONTRAST_PAGES. Filed, not done.
+                                    // History: 22 at S3d, and BOTH defects are closed.
                                     // This is not the S3c-2 zero returning:
                                     // that one was true about everything the
                                     // sweep could see, and this one is true
@@ -192,7 +229,7 @@ const PORTAL_BASELINE = Object.freeze({
                                     // beside the existing 5.47/5.47 — which
                                     // PASSES.)
   ringFailures: 0,                  // below SC 1.4.11's 3:1
-  signatureMd5: '34ba900e93010eb960c5b6e951467cd0',
+  signatureMd5: 'b98ea30d713cc15c578aeada1ec0127a',
 });
 
 /**
