@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: e108c3436253ac286a0b4609abd747a26205ee65
+Verified-at: c300bb526dc478cd491d516e9d264d8ac3bdc534
 Verified-on: 2026-09-01
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -6266,13 +6266,17 @@ still — `fmtAge` (`:93-103`) is relative to `Date.now()`, so it moves even whe
 the row does not. The eleventh, `s3-admin-create-owner`, displays a
 server-generated one-time password.
 
-The other three are Chrome's artefact, and the correlation is exact:
-**every shot that still needs the flag has two states** — `s9-booking-error`
-(1757px on a 1200px viewport), `s13-receptionist-error` (1938 on 1400),
-`s15-knows-telugu-greeting` (716 on 500) — **and every shot that no longer needs
-it has one.** `s4-profile-error` (1694 on 1000) is in the same class and happened
-to read one hash across those five: the flip is probabilistic per run, not a
-fixed property of a shot.
+⚠️ **The paragraph that stood here was wrong and is superseded** — see *The
+Verbatim panel was captured before it was rastered* below. It read that *"every
+shot that still needs the flag has two states"* and named `s9-booking-error`,
+`s13-receptionist-error` and `s15-knows-telugu-greeting` as *"exactly the three
+that still ask for the flag"*, with `s4-profile-error` a footnote. Both halves
+were false. `beyond` is `clipH > height || clipW > width` and is a property of
+each shot, true of **44 of the 59** — measured, and printed on every line of a
+run's log since S3f (`grep -c " beyond"`). Those three were three of the
+forty-four that happened to flip across five particular runs, which is a sample,
+not a property. The one clause it got right is its last: the flip is
+probabilistic per run rather than a fixed property of a shot.
 
 **Red before green.** One word into `booking-rules.html`'s `<h1>` moved
 `s9-booking-desktop` 530137→570716, `-mobile` 324546→337771 and `-error`
@@ -6289,6 +6293,132 @@ the five-run window. Whoever pins these baselines should expect it.
 the flag everywhere, but `.side` is `position: fixed` and would then paint down
 the whole page rather than one viewport — a change to what ~30 shots show, and a
 larger decision than this repair.
+
+##### The Verbatim panel was captured before it was rastered — S3f
+
+**Instrument only.** `git diff --name-only` for the implementation commit is
+`scripts/portal/shoot.js` and `scripts/portal/shootD5a.js` — no `.css`, no
+`.html`, nothing under `src/` or `tests/`. Suite unmoved at **1146 / 185 / 0**,
+portal contrast signature unmoved at `34ba900e93010eb960c5b6e951467cd0`
+(11 lines, 0 failures), `npm run os:check` exit 0.
+
+**The flake, re-measured.** Six consecutive runs of all 59 shots at `8294f8f`,
+five pairs: **13 / 13 / 15 / 17 / 18** movers. Eleven are content movers in every
+pair; the flakes are 2 / 2 / 4 / 5 / 6, and **ten distinct non-content shots ever
+moved**.
+
+**S3e blamed a fetch gate, and it is not that.** Decoded at 2×, two runs of
+`s6-pricing-desktop`: device `x 1878-2096, y 136-351` reads `rgb(12,20,32)` — the
+panel's ink ground `--field` — in one run where the other paints the greeting
+bubble `rgb(20,28,42)` and its glyphs. From `x 2097` rightward the two are
+**byte-identical, glyphs included**.
+
+**That second sentence is the discriminating observation.** The Telugu of the
+same greeting, on the same text line, is correctly shaped and pixel-identical on
+the far side of `x=2097` in the run that is missing its near side. A font that
+had not arrived cannot draw the right half of a word; an unresolved fetch cannot
+fill half a bubble. Both candidates die there:
+
+- **Not the fetch race.** `#vpLive` is populated — `VERBATIM_PAINTED` already
+  requires it — and its content is correct outside the missing rectangle.
+- **Not a font swap**, though the window is real and worth the number. Every face
+  in `public/portal/fonts` is `font-display: swap` behind a `unicode-range`,
+  nothing preloads the Telugu one, and the panel's greeting is the only Telugu on
+  hours/pricing/safety/doctors/test — so the 124KB `noto-telugu-600.woff2`
+  request *starts* at `liveEl.innerHTML = html` (`verbatim.js:794`), the exact
+  event `VERBATIM_PAINTED` fires on. Measured standalone against the real
+  `fonts.css`: `document.fonts.status` reads **`loaded` and `check()` false**
+  before the inject (the face has never been asked for), `loading` at +0/+30/+60
+  ms, loaded and true by **+120 ms**. The 1300 ms settle already covers that by a
+  factor of ten.
+
+**What it is: the panel's compositing layer read before it was rastered.** `.vp`
+is out of flow at every width — `position: sticky; height: 100vh` docked
+(`verbatim.css:48-66`), `position: fixed; inset: auto 0 0 0` as the bottom sheet
+below 1024 (`:667`) — so it owns a layer, and `captureBeyondViewport` expands the
+viewport under it and reads whatever raster exists. Two presentations, one fault:
+
+| where | what is missing |
+|---|---|
+| desktop | one **256-device-px tile column**. The boundary at `x=2097` is the layer origin (`x=920` CSS = 1840 device) plus exactly one 256px tile. Four shots, all at CSS `(939, 68)-(1048.5, 175.5)`. |
+| mobile | the **whole layer**. In `s14-test-mobile` the sheet is not displaced, it is absent: one run paints the page's own white textarea through CSS y 776-820 where the others paint the ink sheet and its greeting. Four shots, full-width bands. |
+
+Eight of the ten BEFORE flakes decode to exactly that. **A ninth was never a
+flake at all** — see the correction below. **No pre-capture gate can close it**,
+which is why the 1300 ms settle never did: the invalidation happens *inside*
+`Page.captureScreenshot`, after every gate has passed.
+
+**The fix — `captureStable` (`shoot.js:460`).** Capture, capture again, accept the
+picture only once two consecutive frames agree byte for byte. Same shape as
+`RING_SETTLED` — await the thing that completes rather than sleeping — with the
+completion observed directly, because a raster is not something the page can be
+asked about. The first capture forces the expanded-viewport raster; the second
+reads it warm. It never inspects the picture, only whether the compositor has
+stopped changing its mind, and a page never at rest throws rather than writing an
+arbitrary frame. Duplicated into `shootD5a.js:173` with a comment saying so: both
+scripts are standalone IIFEs that run on `require`, so neither can import the
+other.
+
+**Result — thirteen runs. Zero occurrences of the panel artefact in any of
+them.** Five consecutive pairs late in the sequence read **0 / 0 / 1 / 1 / 0**
+shots beyond the content movers, and two of those runs are **byte-identical to
+each other across all 59 shots**. It is doing real work every run, not standing
+idle: **23 and 24 of 59 shots needed a third frame** in two consecutive clean
+runs — the first capture disagreed with the second about two shots in five.
+
+**Red before green.** One word in `public/portal/faqs.html:68` (*"...can answer
+it"* to *"...can reply to it"*) moved **exactly one shot**, `s11-faqs-empty`
+(`abb344ab...` to `95247f44...`), and nothing else beyond the content movers.
+After the revert it read `abb344ab...` again — its exact pre-mutation hash.
+
+##### The eleventh content mover was a twelfth, and it has been called a flake since S3b
+
+`s14-test-reply` is **content, not a race.** The shot sends a real test turn and
+the page prints how long that turn took: the transcript reads *"...sed - 0.0s"*
+on one run and *"...sed - 0.1s"* on the next, in a **6 x 9 CSS px box at (481,
+426.5)**. A duration the run itself produced is a timestamp by another name. It
+moves only when the turn crosses a rounding boundary, which is why it flipped in
+two of five pairs and read as intermittent rather than as content.
+
+**All twelve, by name**, so no future session has to re-derive them:
+`home-desktop`, `home-mobile` (the readiness run this run wrote, plus `fmtAge`
+relative to `Date.now()`); `s17-history-desktop`, `-mobile`, `-detail`,
+`-restore-confirm` (the config revisions S17 creates and then lists); `s18-live`,
+`s18-paused`, `s18-paused-mobile`, `s18-golive-blocked-after-mobile` (each
+transition persists a validation run and the page states when);
+`s3-admin-create-owner` (a server-generated one-time password); and
+`s14-test-reply`. All twelve are a `Date`/`performance` shim away from settling
+and nothing less will do it. Quarantined by name, not chased.
+
+##### Two artefacts this does NOT fix, both named so they are not misattributed
+
+**The 16-device-px column displacement** (item 4 above) is untouched, and cannot
+be touched by this gate: it is decided **per page load**, so every frame of a
+given shot carries it identically and two frames agree on it. Six shots showed it
+across the thirteen runs. The signature is unmistakable and the exact inverse of
+the panel artefact — best vertical correlation exactly **±16 device px**, the
+sidebar unshifted, and **the Verbatim panel region byte-identical**. Every
+residual in every clean-tree pair was this and only this.
+
+**An LCD-subpixel to grayscale antialiasing flip**, new to this record. Between
+two runs, **16 of the 42 desktop shots** changed only inside a 416 x 25 CSS box
+in the top bar; magnified, *"Ctrl K"* and the *"SD"* avatar carry colour fringing
+in one and clean grey edges in the other. Chrome turns LCD AA off for text on a
+layer it cannot prove opaque, so this is a compositing decision of the same
+family rather than a font problem or a race. **It flipped once and stayed
+flipped** for every run after — a state, not a coin.
+
+##### One hang, and the only deadline in the file that is not a gate ceiling
+
+`CDP.send` (`shoot.js:100-106`) resolves on a matching id and **has no timeout**,
+so a response Chrome never sends hangs the run forever. That is pre-existing and
+every call in the file has it, but taking two to eight screenshots where there
+was one multiplies the exposure on the heaviest call. Observed live: a run wedged
+on `s8-doctors-desktop` for **33 minutes** — node at 2.5 s of CPU and flat while
+two Chrome renderers held ~30% each, `/json/list` still answering and still
+holding `doctors.html` open. `captureStable` now gives each frame a **90 s
+ceiling** and one retry, then throws, so the `finally` block drops the scratch DB
+— which a hang never does. It has not fired in any run since.
 
 ##### Three corrections to earlier records
 
