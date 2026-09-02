@@ -407,7 +407,7 @@ router.get('/api/conversations/:id', requireAuth, async (req, res) => {
 // Guard the :id path param so a malformed UUID renders a clean 404 instead of a
 // Postgres 22P02 (invalid_text_representation) 500. A well-formed but absent id
 // still 404s naturally from the query below.
-function requireTenantId(req, res, next) {
+function requireUuidPathParam(req, res, next) {
   if (UUID_RE.test(req.params.id)) return next();
   res.status(404).json({ error: 'Tenant not found' });
 }
@@ -415,7 +415,7 @@ function requireTenantId(req, res, next) {
 // Full config + header metadata in one round trip. `has_ai_prompt` lets the page
 // warn the operator that a legacy ai_prompt override is set (the renderer is
 // dormant for that tenant until Issue 9 repoints reads).
-router.get('/api/tenants/:id/config', requireAuth, requireTenantId, async (req, res) => {
+router.get('/api/tenants/:id/config', requireAuth, requireUuidPathParam, async (req, res) => {
   const { rows } = await db.query(
     `SELECT t.business_name, t.status, (t.ai_prompt IS NOT NULL) AS has_ai_prompt,
             c.version, c.config, c.updated_at
@@ -439,7 +439,7 @@ router.get('/api/tenants/:id/config', requireAuth, requireTenantId, async (req, 
 
 // Versioned write with optimistic concurrency. 422 carries Zod path-level issues;
 // 409 carries the live version so the editor can reload-and-rediff.
-router.put('/api/tenants/:id/config', requireAuth, apiLimiter, requireAdminHeader, requireTenantId, express.json(), async (req, res) => {
+router.put('/api/tenants/:id/config', requireAuth, apiLimiter, requireAdminHeader, requireUuidPathParam, express.json(), async (req, res) => {
   const { config, expected_version } = req.body || {};
   if (config == null || typeof config !== 'object' || Array.isArray(config)) {
     return res.status(400).json({ error: 'config object is required' });
@@ -459,7 +459,7 @@ router.put('/api/tenants/:id/config', requireAuth, apiLimiter, requireAdminHeade
 
 // Seed clinicDefaults for a configless tenant. 409 if a config already exists —
 // this is a create, not an overwrite (use PUT to edit).
-router.post('/api/tenants/:id/config/defaults', requireAuth, apiLimiter, requireAdminHeader, requireTenantId, async (req, res) => {
+router.post('/api/tenants/:id/config/defaults', requireAuth, apiLimiter, requireAdminHeader, requireUuidPathParam, async (req, res) => {
   const { rows } = await db.query('SELECT 1 FROM tenant_configs WHERE tenant_id = $1', [req.params.id]);
   if (rows[0]) return res.status(409).json({ error: 'config already exists' });
   try {
@@ -473,7 +473,7 @@ router.post('/api/tenants/:id/config/defaults', requireAuth, apiLimiter, require
 });
 
 // Revision history (newest first) — metadata only.
-router.get('/api/tenants/:id/revisions', requireAuth, requireTenantId, async (req, res) => {
+router.get('/api/tenants/:id/revisions', requireAuth, requireUuidPathParam, async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
   const { rows } = await db.query(
     `SELECT version, source, created_at
@@ -485,7 +485,7 @@ router.get('/api/tenants/:id/revisions', requireAuth, requireTenantId, async (re
 });
 
 // Full config of one historical revision (for View / diff).
-router.get('/api/tenants/:id/revisions/:version', requireAuth, requireTenantId, async (req, res) => {
+router.get('/api/tenants/:id/revisions/:version', requireAuth, requireUuidPathParam, async (req, res) => {
   const version = Number(req.params.version);
   if (!Number.isInteger(version)) return res.status(404).json({ error: 'Revision not found' });
   const { rows } = await db.query(
@@ -498,7 +498,7 @@ router.get('/api/tenants/:id/revisions/:version', requireAuth, requireTenantId, 
 
 // Restore = append-only: write revision N's config as a NEW version (source
 // 'admin'). History never rewinds.
-router.post('/api/tenants/:id/revisions/:version/restore', requireAuth, apiLimiter, requireAdminHeader, requireTenantId, async (req, res) => {
+router.post('/api/tenants/:id/revisions/:version/restore', requireAuth, apiLimiter, requireAdminHeader, requireUuidPathParam, async (req, res) => {
   const version = Number(req.params.version);
   if (!Number.isInteger(version)) return res.status(404).json({ error: 'Revision not found' });
   const { rows } = await db.query(
@@ -520,7 +520,7 @@ router.post('/api/tenants/:id/revisions/:version/restore', requireAuth, apiLimit
 
 // Rendered system-prompt preview per channel/language. `lang` (optional) previews
 // with languages.default overridden on a COPY — never persisted.
-router.get('/api/tenants/:id/prompt-preview', requireAuth, requireTenantId, async (req, res) => {
+router.get('/api/tenants/:id/prompt-preview', requireAuth, requireUuidPathParam, async (req, res) => {
   const config = await configService.getTenantConfig(req.params.id);
   if (!config) return res.status(404).json({ error: 'no config to preview' });
 
@@ -585,7 +585,7 @@ function expandSkips(names) {
   return [...new Set(out)];
 }
 
-router.post('/api/tenants/:id/validate', requireAuth, apiLimiter, requireAdminHeader, requireTenantId, express.json(), async (req, res) => {
+router.post('/api/tenants/:id/validate', requireAuth, apiLimiter, requireAdminHeader, requireUuidPathParam, express.json(), async (req, res) => {
   const raw = Array.isArray(req.body && req.body.skip) ? req.body.skip : [];
   let skip;
   try {
@@ -601,7 +601,7 @@ router.post('/api/tenants/:id/validate', requireAuth, apiLimiter, requireAdminHe
   }
 });
 
-router.post('/api/tenants/:id/activate', requireAuth, apiLimiter, requireAdminHeader, requireTenantId, async (req, res) => {
+router.post('/api/tenants/:id/activate', requireAuth, apiLimiter, requireAdminHeader, requireUuidPathParam, async (req, res) => {
   try {
     res.json(await lifecycleService.transition(req.params.id, 'activate'));
   } catch (err) {
@@ -609,7 +609,7 @@ router.post('/api/tenants/:id/activate', requireAuth, apiLimiter, requireAdminHe
   }
 });
 
-router.post('/api/tenants/:id/pause', requireAuth, apiLimiter, requireAdminHeader, requireTenantId, async (req, res) => {
+router.post('/api/tenants/:id/pause', requireAuth, apiLimiter, requireAdminHeader, requireUuidPathParam, async (req, res) => {
   try {
     res.json(await lifecycleService.transition(req.params.id, 'pause'));
   } catch (err) {
@@ -619,7 +619,7 @@ router.post('/api/tenants/:id/pause', requireAuth, apiLimiter, requireAdminHeade
 
 // Validation history (Issue 16) — read-only list of past runs, newest first.
 // The panel renders each run's stored `result` (checks/skipped) inline.
-router.get('/api/tenants/:id/validation-runs', requireAuth, requireTenantId, async (req, res) => {
+router.get('/api/tenants/:id/validation-runs', requireAuth, requireUuidPathParam, async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 50);
   const { rows } = await db.query(
     `SELECT id, passed, result, created_at
@@ -658,7 +658,7 @@ function generateTempPassword() {
 }
 
 router.post('/api/tenants/:id/owner',
-  requireAuth, apiLimiter, requireAdminHeader, requireTenantId, express.json(),
+  requireAuth, apiLimiter, requireAdminHeader, requireUuidPathParam, express.json(),
   async (req, res) => {
     const raw = req.body && typeof req.body.email === 'string' ? req.body.email.trim() : '';
     // Store lowercased so it matches portal login, which lowercases the input and
@@ -669,8 +669,9 @@ router.post('/api/tenants/:id/owner',
     }
 
     try {
-      // requireTenantId only shape-checks the UUID — confirm the tenant exists so a
-      // stray id is a clean 404 rather than an FK-violation 500.
+      // Existence, not syntax. requireUuidPathParam has already rejected a malformed
+      // id; a well-formed absent one must 404 here rather than reach the INSERT below
+      // as an FK-violation 500.
       const t = await db.query('SELECT id FROM tenants WHERE id = $1', [req.params.id]);
       if (!t.rows[0]) return res.status(404).json({ error: 'Tenant not found' });
 
@@ -748,7 +749,7 @@ async function findTenantOwner(tenantId) {
 // Deliberately narrow: NO password_hash, and no user fields beyond the email. The
 // counts and flags below are this route's own status, not user data.
 router.get('/api/tenants/:id/owner',
-  requireAuth, apiLimiter, requireTenantId,
+  requireAuth, apiLimiter, requireUuidPathParam,
   async (req, res) => {
     try {
       const t = await db.query('SELECT id FROM tenants WHERE id = $1', [req.params.id]);
@@ -796,7 +797,7 @@ router.get('/api/tenants/:id/owner',
 // intruder signed in is a false assurance delivered at the worst possible moment.
 // See migration 027 and src/portal/auth.js:sessionEpochMatches.
 router.post('/api/tenants/:id/owner/reset',
-  requireAuth, apiLimiter, requireAdminHeader, requireTenantId,
+  requireAuth, apiLimiter, requireAdminHeader, requireUuidPathParam,
   async (req, res) => {
     try {
       const t = await db.query('SELECT id FROM tenants WHERE id = $1', [req.params.id]);
