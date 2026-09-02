@@ -1,6 +1,6 @@
 'use strict';
 
-// ── The admin shell is ONE file, and the nine pages are held to it (A1) ─────
+// ── The admin shell is ONE file, and the four pages are held to it (A1) ─────
 //
 // No DB, no server, no browser: the shipped files, read off disk. Everything
 // this file can prove statically it proves here; everything that needs a
@@ -17,7 +17,7 @@
 // one edit away from the same fate.
 //
 // FOUR test() blocks, deliberately no more, following the rule tokenDrift.test.js
-// and adminNav.test.js both state: a per-page test would report one fault nine
+// and adminNav.test.js both state: a per-page test would report one fault four
 // times and say nothing extra.
 
 const { describe, it } = require('node:test');
@@ -38,9 +38,9 @@ const read = (f) => fs.readFileSync(path.join(ADMIN, f), 'utf8');
 const noCssComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, ' ');
 const noHtmlComments = (html) => html.replace(/<!--[\s\S]*?-->/g, ' ');
 
-// The nine. login.html is deliberately absent, as it is in adminNav.test.js:
-// it is the signed-out door, has no nav, and moved onto tokens at S4 under its
-// own rules.
+// The pages, named below rather than counted. login.html is deliberately
+// absent, as it is in adminNav.test.js: it is the signed-out door, has no nav,
+// and moved onto tokens at S4 under its own rules.
 const PAGES = [
   'tenants.html', 'tenant-new.html', 'tenant-detail.html', 'conversations.html',
 ];
@@ -57,7 +57,7 @@ const EXPECTED_IDS = {
 };
 
 describe('admin shell + page header (A1)', () => {
-  it('is one stylesheet: shell.css last on all nine, and no nav rule anywhere else', () => {
+  it('is one stylesheet: shell.css last on all four, and no nav rule anywhere else', () => {
     for (const f of PAGES) {
       const html = read(f);
       const links = [...noHtmlComments(html).matchAll(/<link[^>]+href="([^"]+\.css)"/g)]
@@ -70,7 +70,7 @@ describe('admin shell + page header (A1)', () => {
         + 'tokens.css (.page-head*, .content) and style.css (body, nav, .container), '
         + 'and a reorder would hand those selectors back.');
       assert.ok(links.includes('/portal/fonts/fonts.css'),
-        `${f} must link /portal/fonts/fonts.css — one type family across all nine. `
+        `${f} must link /portal/fonts/fonts.css — one type family across all four. `
         + 'It is fourteen @font-face rules and nothing else, so it adds no cascade '
         + 'surface and downloads nothing until a rule asks for the face.');
 
@@ -79,7 +79,7 @@ describe('admin shell + page header (A1)', () => {
         [...noHtmlComments(html).matchAll(/<style>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n'));
       assert.ok(!/(^|[\s,>])nav\s*(\{|a\b|\.brand)/m.test(inline),
         `${f} declares nav CSS in an inline <style>. The bar lives in `
-        + '/admin/shell.css, once, for all nine pages.');
+        + '/admin/shell.css, once, for all four pages.');
     }
 
     const style = noCssComments(fs.readFileSync(path.join(ADMIN, 'style.css'), 'utf8'));
@@ -87,20 +87,21 @@ describe('admin shell + page header (A1)', () => {
       '/admin/style.css must no longer declare the nav — it moved to shell.css '
       + 'at A1 and a second copy is how the three-way drift started.');
 
-    // shell.css must survive on the seven pages that have no custom properties
-    // at all, so the only var() it may use is the one it declares itself.
+    // shell.css must survive on conversations.html and tenant-detail.html, which
+    // carry no custom properties at all, so the only var() it may use is the one
+    // it declares itself.
     const shell = noCssComments(fs.readFileSync(path.join(ADMIN, 'shell.css'), 'utf8'));
     const vars = [...shell.matchAll(/var\((--[a-z0-9-]+)/g)].map((m) => m[1]);
     const foreign = [...new Set(vars)].filter((v) => v !== '--admin-rail');
     assert.deepStrictEqual(foreign, [],
       'shell.css may only reference --admin-rail, which it declares itself. '
-      + 'Seven of the nine pages load no custom properties, so any other var() '
+      + 'conversations.html and tenant-detail.html load no custom properties, so any other var() '
       + `resolves to nothing there and the rule silently vanishes. Found: ${foreign}`);
     assert.match(shell, /--admin-rail:\s*920px/,
       'shell.css must declare the rail it derives the bar padding from');
   });
 
-  it('gives all nine a page header with a title and its own subtitle', () => {
+  it('gives all four a page header with a title and its own subtitle', () => {
     const subs = new Map();
     for (const f of PAGES) {
       const html = read(f);
@@ -123,7 +124,7 @@ describe('admin shell + page header (A1)', () => {
       subs.set(f, found[0]);
     }
 
-    // Nine pages, nine different sentences. A copied subtitle is worse than
+    // Four pages, four different sentences. A copied subtitle is worse than
     // none: it tells the operator this page is the same as the last one.
     const seen = new Map();
     for (const [f, s] of subs) {
@@ -231,7 +232,7 @@ describe('admin shell + page header (A1)', () => {
     // The bar ground moved #1a1a2e -> #17150f at A1 and every pair on it
     // improved. The old navy's numbers are in docs/design/brand-values.md.
     const INK = '#17150f';      // bar ground, the product's ink
-    const PAPER = '#faf8f5';    // page ground on all nine
+    const PAPER = '#faf8f5';    // page ground on all four
     const CARD = '#ffffff';
 
     const PAIRS = [

@@ -76,7 +76,7 @@ body.col-narrow .card { max-width: 560px; }
  * `html body` rather than `body`, so this beats BOTH `/admin/style.css:3` and
  * tokens.css's `body` on specificity and not merely on link order.
  *
- * The ground moves #f5f5f5 -> #faf8f5 on the seven unmigrated pages. That is a
+ * The ground moves #f5f5f5 -> #faf8f5 on the two unmigrated pages. That is a
  * CONSISTENCY change, recorded as one: the panel was the last cool-grey surface
  * in a warm-paper product. It is NOT a contrast repair — every pair the header
  * introduces clears its floor on both grounds, and the two numbers are within
@@ -104,10 +104,10 @@ html body {
  * 17.06 -> 18.25, the idle item 10.62 -> 11.37, the accent 6.85 -> 7.33.
  *
  * `min-height` and not `height`: below 768 the eight items wrap to a second
- * row and the bar must be allowed to grow. It must never scroll — today's bar
- * puts a horizontal scrollbar on the whole document at 380px (leads measured
+ * row and the bar must be allowed to grow. It must never scroll — the pre-A1
+ * bar put a horizontal scrollbar on the whole document at 380px (leads measured
  * scrollWidth 547 against a 380 viewport, tenants 582), and that is the defect
- * this rule exists to end.
+ * this rule ended.
  *
  * gap is AUTHORED. The bar was `justify-content: space-between` with no gap, so
  * item spacing was a residue of viewport width minus the sum of eight text
@@ -129,8 +129,8 @@ nav {
 
 /* `flex: none` + `white-space: nowrap` together are what make the wrap safe.
  * Without them the flex items shrink instead of wrapping and the brand breaks
- * across two lines — which is what it does today at 640px, taking the bar from
- * 59px to 86px on a page that has not otherwise changed. */
+ * across two lines — which is what the pre-A1 bar did at 640px, taking it from
+ * 59px to 86px on a page that had not otherwise changed. */
 nav a {
   flex: none;
   white-space: nowrap;
@@ -173,9 +173,9 @@ nav a:last-child { margin-left: auto; }
 @media (max-width: 1000px) { nav { gap: 0 14px; } }
 
 /* Below 768 the eight items no longer fit on one row at any gap worth having.
- * They wrap; the bar grows; the document never scrolls sideways. Today's bar
- * instead puts a horizontal scrollbar on the whole document at 380 (leads
- * measured scrollWidth 547, tenants 582) and that must not survive. */
+ * They wrap; the bar grows; the document never scrolls sideways. The pre-A1 bar
+ * instead put a horizontal scrollbar on the whole document at 380 (leads
+ * measured scrollWidth 547, tenants 582) and that did not survive. */
 @media (max-width: 767px) {
   nav {
     gap: 6px 16px;
@@ -243,12 +243,11 @@ main.content {
  * a real cap for the wrapped case, where a 920px line on the two pages with no
  * actions would be genuinely hard to track back to the next line's start.
  *
- * Three pages still take two lines at 1440 and NOT because of this number —
+ * Two pages still take two lines at 1440 and NOT because of this number —
  * their sentence is wider than the column their own action block leaves them,
  * measured at 1440 with a 920px rail:
  *
  *   tenant-detail   sentence 655px, column 653px   short by 2px
- *   leads           sentence 767px, column 691px   short by 76px
  *   conversations   sentence 833px, column 474px   short by 359px
  *
  * conversations is the extreme because its action block is 430px — three

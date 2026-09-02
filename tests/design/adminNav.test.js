@@ -1,10 +1,10 @@
 'use strict';
 
-// ── The admin nav is nine copies of one block (S5) ──────────────────────────
+// ── The admin nav is four copies of one block (S5) ──────────────────────────
 //
 // No DB, no server, no browser: the shipped files. The panel has no nav
 // COMPONENT — every page carries hand-written markup — so the only thing that
-// can hold nine copies in agreement is a test that reads all nine and compares
+// can hold four copies in agreement is a test that reads all four and compares
 // them to each other.
 //
 // This is the defect it exists to stop coming back, measured at S5's Phase A:
@@ -15,7 +15,7 @@
 // page was the one that offered the least. Tenants was never a nav item at all.
 //
 // TWO test() blocks, deliberately no more, following tokenDrift.test.js's rule:
-// a per-page test would report the same fault nine times and say nothing extra.
+// a per-page test would report the same fault four times and say nothing extra.
 //
 // A1 MADE IT NINE. `tenant-detail.html` was the last holdout: it still carried
 // the pre-S5 five-link block — no Tenants, no Appointments, no Workflow — so an
@@ -81,11 +81,11 @@ describe('admin nav parity (S5)', () => {
         'The panel has no nav component; all copies must be edited together.');
     }
 
-    // And the block is the one we meant, not merely nine copies of a wrong one.
+    // And the block is the one we meant, not merely four copies of a wrong one.
     const hrefs = [...navOf(first).matchAll(/<a href="([^"]+)"/g)].map((x) => x[1]);
     assert.deepStrictEqual(hrefs, EXPECTED_HREFS,
-      'the canonical nav must offer Tenants, Conversations, Leads, Appointments, ' +
-      'Workflow, Notifications and Logout, behind a brand link to Tenants');
+      'the canonical nav must offer Tenants, Conversations and Logout, ' +
+      'behind a brand link to Tenants');
     assert.ok(/class="brand">Veprio Admin</.test(navOf(first)),
       'the brand reads "Veprio Admin" — "WhatsApp CRM" is a retired product name');
   });

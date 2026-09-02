@@ -18,7 +18,7 @@
  *
  * WHAT IT DOES. Serves `public/` over a loopback port, drives headless Chrome
  * over CDP, and reads geometry, horizontal overflow, focus rings and tab order
- * off the nine admin pages at whatever widths you name, and prints numbers.
+ * off the four admin pages at whatever widths you name, and prints numbers.
  *
  * It will also capture a PNG on demand (`--mode shot`), for a human to look at.
  * What it will NEVER do is COMPARE one against a baseline. That is the whole
@@ -36,14 +36,14 @@
  * output labels every such row FORCED.
  *
  * USAGE
- *   node scripts/admin/measure.js                     # geometry, all 9, default widths
+ *   node scripts/admin/measure.js                     # geometry, all four, default widths
  *   node scripts/admin/measure.js --widths 1440,768   # pick the viewports
- *   node scripts/admin/measure.js --pages leads,tenants
+ *   node scripts/admin/measure.js --pages tenant-detail,tenants
  *   node scripts/admin/measure.js --mode overflow     # scrollWidth vs viewport
  *   node scripts/admin/measure.js --mode focus        # tab order + computed rings
  *   node scripts/admin/measure.js --mode all
  *   node scripts/admin/measure.js --json out.json     # machine-readable too
- *   node scripts/admin/measure.js --mode shot --pages leads --widths 1900 --out dir
+ *   node scripts/admin/measure.js --mode shot --pages tenants --widths 1900 --out dir
  *   CHROME_PATH=/path/to/chrome node scripts/admin/measure.js
  *
  * A2-A5 measure with this file. If a run of it disagrees with a number in
@@ -62,8 +62,9 @@ const CHROME = process.env.CHROME_PATH
 const DEVPORT = Number(process.env.ADMIN_MEASURE_PORT || 9420);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/* The nine. login.html is not one of them: it is the signed-out door, has no
- * nav, and moved onto tokens at S4 under a different set of rules. */
+/* The pages, named below rather than counted. login.html is not one of them:
+ * it is the signed-out door, has no nav, and moved onto tokens at S4 under a
+ * different set of rules. */
 const ALL_PAGES = [
   'tenants.html', 'tenant-new.html', 'tenant-detail.html', 'conversations.html',
 ];
@@ -75,7 +76,7 @@ const ALL_PAGES = [
 const DEFAULT_WIDTHS = [1440, 1280, 1024, 768];
 /* The overflow mode's widths go further down, because the defect it exists to
  * catch — a horizontal scrollbar on the whole document — was invisible above
- * 480 and is what today's bar does at 380 on every page. */
+ * 480 and is what the pre-A1 bar did at 380 on every page. */
 const OVERFLOW_WIDTHS = [768, 640, 380, 320];
 
 function arg(name, fallback) {
@@ -188,8 +189,8 @@ const GEOMETRY = `(() => {
                   maxW: ccs.maxWidth, padL, padR,
                   railL: +(cb.l + padL).toFixed(2), railR: +(cb.r - padR).toFixed(2) };
 
-  /* The page title: the .page-head__title that is actually rendered. Two of the
-   * nine carry more than one (conversations has a header per view), so this
+  /* The page title: the .page-head__title that is actually rendered.
+   * conversations.html carries more than one (a header per view), so this
    * takes the visible one rather than the first. */
   const titles = [...document.querySelectorAll('.page-head__title')];
   const t = titles.find((h) => h.getClientRects().length) || titles[0] || null;

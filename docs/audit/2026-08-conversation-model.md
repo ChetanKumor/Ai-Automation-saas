@@ -363,17 +363,21 @@ turn. No `messages`, no `conversations`, no `customers`, no `appointments`.
 
 **Admin (`/admin/api/*`, `src/admin/adminRoutes.js`)** — the only conversational
 reads in the codebase, all behind `requireAuth` (single `ADMIN_PASSWORD`
-operator session, not tenant-scoped):
+operator session). *As filed this line ended "not tenant-scoped", which was true
+at `474761b` and is not true now: ADMIN-S3a (2026-09-03) made a tenant mandatory
+on both conversations routes and both traces routes. `GET /api/tenants` stays
+cross-tenant by design. The `Line` column below is re-derived at `c60f012`;
+three rows named routes ADMIN-S2 deleted and are struck.*
 
 | Route | Line | Reads |
 |---|---|---|
-| `GET /api/conversations` | `:398` | `conversations` ⋈ `tenants` ⋈ `customers`, with `message_count`, `array_agg(DISTINCT m.channel)`, and a lateral last-message preview |
-| `GET /api/conversations/:id` | `:475` | meta + newest-500 `messages` (with `channel`, `direction`, `sender`, `msg_type`, `external_id`) + linked `call_sessions` |
-| `GET /api/leads` | `:206` | `leads` |
-| `GET /api/appointments` | `:278` | `appointments` |
-| `GET /api/tenants/:id/reminders` | `:195` | `appointments` reminder state |
-| `GET /api/notifications` | `:145` | `notifications` |
-| `GET /api/traces`, `/api/traces/:turn_id` | `:992`, `:1026` | `turn_traces` |
+| `GET /api/conversations` | `:261` | `conversations` ⋈ `tenants` ⋈ `customers`, with `message_count`, `array_agg(DISTINCT m.channel)`, and a lateral last-message preview |
+| `GET /api/conversations/:id` | `:355` | meta + newest-500 `messages` (with `channel`, `direction`, `sender`, `msg_type`, `external_id`) + linked `call_sessions` |
+| ~~`GET /api/leads`~~ | — | deleted at ADMIN-S2 (`f394e3b`‑series), with its page at ADMIN-S1 |
+| ~~`GET /api/appointments`~~ | — | deleted at ADMIN-S2, with its page at ADMIN-S1 |
+| `GET /api/tenants/:id/reminders` | `:176` | `tenants` reminder state — `reminders_enabled`, `reminder_hours_before`, `reminder_template_id`. *Filed as `appointments`; it has never read that table.* |
+| ~~`GET /api/notifications`~~ | — | deleted at ADMIN-S2, with its page at ADMIN-S1 |
+| `GET /api/traces`, `/api/traces/:turn_id` | `:898`, `:940` | `turn_traces` |
 
 **This is the single most reusable thing in the audit.**
 `/admin/api/conversations` is already Inbox-shaped: it filters by `tenant_id`,

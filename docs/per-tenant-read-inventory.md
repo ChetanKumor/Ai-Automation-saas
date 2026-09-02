@@ -12,6 +12,14 @@ re-verified against `main` @ 824194e with fresh file:line evidence** — nothing
 here is transcribed from session memory. Data claims (dev tenant rows) were
 re-checked against the live dev database on 2026-07-07.
 
+⚠️ **Every `file:line` below is `824194e`-era and has NOT been re-derived since.**
+Measured at `c60f012` (2026-09-03): **37 of 41 citations no longer resolve to what
+they name** — two files have moved path outright. Locate by symbol, never by line.
+They are left as written because they are evidence about `824194e`, and re-pointing
+them at HEAD would falsify the paragraph above without making this document
+current: several of the *claims* moved too. Those are corrected in place below and
+marked; anything unmarked is a 2026-07-07 statement and may have moved.
+
 ## Classification legend
 
 | Class | Meaning |
@@ -30,12 +38,12 @@ active_handoff_customer …`), cached per `phone_number_id`.
 
 | Column | Runtime read site(s) | Class | Notes |
 |---|---|---|---|
-| `ai_prompt` | `src/modules/ai/aiService.js:331` — the ONLY runtime read, inside `buildSystemPrompt()` (`aiService.js:305`), the single prompt-assembly point for both channels (callers: `generateReply` `:93` ← `whatsapp/routes.js:168`; `generateReplyStream` `:204` ← `internalVoice.js:185` JSON turn and `:363` SSE turn). Writers: `adminRoutes.js:60-63` (create), `scripts/update-prompt.js:7`, admin form `public/admin/tenant-new.html:38,69`. | `SKIP-ISSUE-10` | Current quirk: a null `ai_prompt` renders the literal string `"null"` into the prompt (template interpolation, `aiService.js:331`) — dev tenant 'Test Biz' hits this today. Issue 10's precedence chain replaces this line. |
+| `ai_prompt` | `src/modules/ai/aiService.js:331` — the ONLY runtime read, inside `buildSystemPrompt()` (`aiService.js:305`), the single prompt-assembly point for both channels (callers: `generateReply` `:93` ← `whatsapp/routes.js:168`; `generateReplyStream` `:204` ← `internalVoice.js:185` JSON turn and `:363` SSE turn). Writers: `adminRoutes.js:60-63` (create), `scripts/update-prompt.js:7`, admin form `public/admin/tenant-new.html:38,69`. | `SKIP-ISSUE-10` | Current quirk: a null `ai_prompt` renders the literal string `"null"` into the prompt (template interpolation, `aiService.js:331`) — dev tenant 'Test Biz' hits this today. Issue 10's precedence chain replaces this line. **[Superseded at `c60f012`.** Issue 10 shipped the precedence chain (`4f760f5`), so the `"null"` quirk is gone. Issue 34 (`69ceb7f`) removed **two of the three writers**: the admin form no longer carries the field and `POST /admin/api/tenants` refuses a non-empty `ai_prompt`. The writers at HEAD are `scripts/update-prompt.js` and `scripts/seed_voice_test_customer.js`, both deliberate. The read itself is unchanged and still legacy-first — see A-007.**]** |
 | `business_name` | `reminderCron.js:88,152,273`; `collectionsCron.js:90,249`; `seedRules.js:24,44`; `notificationService.js:16` (log only); admin list/join queries (`adminRoutes.js:46,75,143,177,212,247`) | `DEFER-WRITER` | Written only at create (`adminRoutes.js:60-63`). Config twin is `business.display_name` — see landmine #4 ('New Clinic'). |
 | `ai_enabled` | `whatsapp/routes.js:132`; `internalVoice.js:165,337` (mode gates) | `DEFER-WRITER` | Written at create. No config twin (channel toggles `whatsapp.enabled` / `voice.enabled` exist but are unread — see below). |
 | `owner_notify_phone` | `whatsapp/routes.js:87,135,140` (owner-command auth + handoff alert); `notificationService.js:14-21` | — | **Unrepresentable in config**: `notifications.owner_numbers` requires E.164 (`schema.js:20,79`), but the dev value `'1210047605526057'` is a `phone_number_id` (verified live 2026-07-07). It also doubles as owner-command **authentication** (`routes.js:87`). Untangling is an Issue 25 design decision, not a repoint. |
 | `active_handoff_customer` | `ownerCommands.js:93,185,231` (read-write) | — | Live mutable state, not config. Permanently out of scope for configService. |
-| `reminders_enabled`, `reminder_hours_before`, `reminder_template_id` | `reminderCron.js:88`; admin PATCH/GET `adminRoutes.js:114,125` | `DEFER-WRITER` | Live admin write path; no config section exists for reminders yet. |
+| `reminders_enabled`, `reminder_hours_before`, `reminder_template_id` | `reminderCron.js:88`; admin PATCH/GET `adminRoutes.js:114,125` | `DEFER-WRITER` | Live admin write path; no config section exists for reminders yet. **[Still true at `c60f012`, and the pair is now known to be load-bearing: they are the *sole* writer and reader of these columns, `reminderCron` gates on them, and ADMIN-S2 came within one deletion of removing them — F-A010.]** |
 | `wa_token`, `phone_number_id`, `waba_id` | WhatsApp send path / tenant resolution | — | Secrets/identifiers stay in `tenants` columns by design (`schema.js:11-13` SECRETS RULE). Never move. |
 
 ## Config sections with no runtime read (`SKIP-NO-BEHAVIOR`)
@@ -43,6 +51,16 @@ active_handoff_customer …`), cached per `phone_number_id`.
 The **only** runtime consumer of configService today is the admin cache-invalidate
 endpoint (`adminRoutes.js:7,284`). Every section below is stored, validated,
 versioned — and read by nothing:
+
+⚠️ **Both sentences are false at `c60f012`, and this is the most misleading
+paragraph in the file.** Fifteen modules under `src/` now read the config
+document, Issue 10's renderer among them. The list below is a 2026-07-07
+snapshot: `greeting`, `hours`, `personality`, `recording_consent`, `languages`,
+`business.display_name` and `escalation.*` are rendered into the prompt by
+`prompts/templates/clinic.js`; `booking.*` is *enforced* server-side by
+`appointmentService` (F-006); `crm.extraction.*` gates extraction (Issue 30);
+`voice.*` is read by `tenantService.getByDid` and `validationService`. Treat the
+list as history, not as an inventory of dead config.
 
 `greeting`, `hours`, `booking.*`, `escalation.*`, `notifications.on_*`,
 `personality.*`, `tools.booking`, `crm.extraction.*`, `voice.*`,
@@ -73,6 +91,12 @@ The brain's `/call/start` bridge does **not** pass voice params per-call
 a v2-era voice the worker no longer uses. Whoever wires `voice.*` per-call
 (Issues 11–14) must correct the defaults (and note `anushka` may not be valid
 for `bulbul:v3`), or every tenant silently changes voice on cutover.
+
+⚠️ **The divergence is CLOSED at `c60f012`.** The defaults now read
+`sarvam_speaker: 'shubh'`, `sarvam_voice_id: 'bulbul:v3'` and match the worker's
+env, so the cutover hazard described above no longer exists. The rest of this
+landmine — that voice params are worker-env and not per-call, and that the
+Node-side Sarvam adapter has no `src/` consumer — still holds.
 
 Also: the Node-side Sarvam adapter is **dead code** — nothing in `src/`
 requires `src/modules/voice/voiceProvider.js` (which registers
@@ -107,6 +131,11 @@ add `channel` to the `MESSAGE_RECEIVED` envelope (all three emit sites) —
 the consumer cannot enforce a per-channel policy on an envelope that doesn't
 say which channel it came from. Do not let this be rediscovered mid-issue.
 
+⚠️ **CLOSED at `c60f012` — Issue 30 (`2948a10`) did exactly this.** The envelope
+now carries `channel` and `msg_type` at every emit site, and `extractionHandler`
+gates on the per-channel policy and warns when either field is absent. The
+prerequisite was honoured; this landmine is history, not a live trap.
+
 ### 4. Backfill planted `display_name: 'New Clinic'` on every dev tenant
 
 `scripts/backfill-tenant-configs.js:33` writes `clinicDefaults` verbatim
@@ -130,6 +159,13 @@ one (`internalVoice.js:497-501`). **No greeting is spoken today.** Wiring
 that belongs to the voice-config issues, not to a repoint — and Issue 10's
 renderer must account for this topology (greeting-as-instruction in the
 prompt does not double-greet, because nothing else greets).
+
+⚠️ **CLOSED at `c60f012` — V1c (`dd93bec`) wired it.** `/call/start` now builds a
+greeting from `config.greeting` for the caller's resolved language, with the
+recording-consent line inside it, and the worker speaks it on join. A greeting
+**is** spoken today. The double-greet topology note above is the reason
+`clinic.js` §3 no longer instructs the consent line: that path is now the only
+one that speaks it.
 
 ## Baselines
 
