@@ -171,9 +171,22 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1148 tests / 186 suites / 0 fail** (`npm test`, raw: `# tests 1148 /
-  # suites 186 / # pass 1148 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  **+2 tests / +1 suite at S5**, the admin nav-parity pin:
+- Test suite: **1152 tests / 187 suites / 0 fail** (`npm test`, raw: `# tests 1152 /
+  # suites 187 / # pass 1152 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  **+4 tests / +1 suite at A1**, the admin shell pin:
+  `tests/design/adminShell.test.js`, one `describe()` with four `it()`s. It holds the
+  panel to ONE stylesheet (`/admin/shell.css` linked last on all nine, no `nav` rule
+  left in `style.css` or in any inline `<style>`, and no `var()` in `shell.css` but
+  the one it declares itself); to a page header on all nine with a distinct
+  non-empty subtitle; to every preservation contract A1 was bound by (the id count
+  per page, the two `style.display` toggles `scripts/portal/shoot.js` pins,
+  tenant-new's five `name=` attributes and absent `ai_prompt`, `X-Zyon-Admin`, the
+  401 redirect, Logout as a GET `<a href>`, and the badge-class literals in the JS
+  maps); and to every contrast floor the shell introduces, computed with
+  `contrast/core.js`. `tests/design/adminNav.test.js` gained `tenant-detail.html` in
+  the same session and is finally the NINE-way comparison its title claimed — that
+  change adds no test, it widens the two that exist.
+  Before that, **+2 tests / +1 suite at S5**, the admin nav-parity pin:
   `tests/design/adminNav.test.js`, one `describe()` with two `it()`s. It reads the
   eight shipped admin pages and compares their `<nav>` blocks to EACH OTHER with
   `aria-current` stripped, because the panel has no nav COMPONENT — nine hand-copied
@@ -5424,6 +5437,172 @@ Additions since the original 1–28, all in the plan's Phase 8:
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
 
+### Admin shell and page-header system — 2026-09-02 (A1)
+
+**Nothing under `src/`.** `git diff --name-only` is nine pages plus two
+stylesheets under `public/admin/`, one new instrument under `scripts/admin/`,
+two files under `tests/design/`, and `docs/`. **No `public/portal/` file, no
+`tests/design/contrast/` file, no `scripts/portal/` file.** Tests **1148 -> 1152
+/ 186 -> 187 suites / 0 fail**, the predicted delta exactly. The portal contrast
+signature is **`b98ea30d` unmoved, 10 lines, 0 FAIL** — no portal file is in the
+set and the sweep has never looked at an admin page other than `login.html`,
+which A1 does not touch. `tokenDrift`'s `EXPECTED_NAMES.portal` is still 100 and
+`SURFACES` is still four files: **`tokens.css` was not touched.**
+
+#### The structural finding, which decided the file set
+
+The nav was declared in **three** places, not two: the block in
+`/admin/style.css`, and a verbatim copy inlined into `tenants.html` and
+`tenant-new.html` when S5 moved those two onto portal tokens. `tokens.css`
+declares **no** `nav` rule at all — its shell is `.app` / `.side` / `.side__nav`
+/ `.top`, a fixed sidebar plus a top bar, which is a different shape from the
+admin panel's single horizontal bar. So the two migrated pages had not taken the
+nav from tokens; they had copied it out of `style.css`.
+
+Because the nav has zero selector overlap with `tokens.css`, one shared file
+resolves it with no collision. The page header does not: `.page-head*` and
+`.content` are already declared in `tokens.css`. `public/admin/shell.css` is
+therefore linked **LAST on all nine pages** and deliberately wins where it
+overlaps — one declaration governs all nine, and `tokens.css`'s copies stay live
+for the portal's thirteen pages. Where it was free to, `shell.css` writes the
+override at a specificity that beats the file it overrides (`html body`,
+`main.content`) so a `<link>` reorder cannot hand the selector back;
+`.page-head` and `:focus-visible` tie and are settled by order alone, so their
+values are equivalent on both sides and a reorder is invisible rather than wrong.
+
+`shell.css` is **literals, not tokens**. Seven of the nine pages load no custom
+properties, so a `var(--teal-500)` there resolves to nothing and the rule
+silently disappears. The one property it uses (`--admin-rail`) it declares
+itself. `tests/design/adminShell.test.js` asserts there is no other.
+
+#### What was measured, and by what
+
+`scripts/admin/measure.js` is **committed**, and that is the point of it. It was
+a scratchpad throwaway during Phase A — both existing shooters are red at HEAD
+(`shoot.js` does not complete, `shootD5a.js` red since before S4) and the panel
+had to be measured anyway. It is in the repo because that is exactly the shape
+of thing **F-H003** was filed about, and because **D-016's "532 pairs" is
+unreproducible today for this reason**: the number was real, the instrument was
+not kept, so the number cannot be checked or disproved. A measurement whose
+instrument was deleted is an assertion, not evidence. A2–A5 measure with this
+file; if a run disagrees with a number in `brand-values.md` or here, the
+document is wrong.
+
+It needs **no database, no server and no environment variable** — it serves
+`public/` itself and the pages render their empty state. Its `CDP.send` has a
+deadline on every call, which `scripts/portal/shoot.js`'s does not; that is how
+that file wedged for 33 minutes.
+
+| Claim | Before | After |
+|---|---|---|
+| brand left edge == page title left edge | 240–448px apart at 1440 | **0.00 in all 36 rows** |
+| Logout right edge == content right edge | 220–420px apart at 1440 | **0.00 in all 36 rows** |
+| bar height | 60.8 on two pages, 59 on seven | **56 in all 36 rows** |
+| `scrollWidth == innerWidth` at 768/640/380/320 | leads **547** at a 380 viewport, tenants **582** | **clean, 36/36** |
+| focusables with an authored ring | **24 of 92** | **96 of 96** (106 of 106 populated) |
+
+36 rows is nine pages at 1440 / 1280 / 1024 / 768. The overflow row is nine
+pages at 768 / 640 / 380 / 320.
+
+**The seven unmigrated pages carried no focus rule of any kind** — not a nav
+ring, not a button ring, nothing. `/admin/style.css` was 34 rules and none
+mentioned focus; neither did the inline blocks on `tenant-detail` (12 rules) or
+`conversations` (22). Their focusables fell through to the browser's own
+outline, which computes as `rgb(16,16,16)` and measures **1.12:1** against the
+bar: on the dark strip a keyboard operator could not see where they were.
+
+Focus is read the way a keyboard operator meets it — real `Tab` keystrokes
+dispatched through the browser's input pipeline, not scripted `.focus()`, which
+does not reliably match `:focus-visible`. And a ring is an outline **or** a
+box-shadow that changes from its resting value: `tokens.css:295` deliberately
+suppresses the outline on `.input` and paints a glow instead, and an
+outline-only probe scored those four fields BARE on `tenant-new` when they were
+fully dressed. That is the model `core.js` `judgeRing()` uses.
+
+#### The one ruling that the measurement amended
+
+Ruling 2 was: content column 960 for eight, **tenant-new keeps 560**, and the
+bar's rail follows whatever column the page owns. The mechanism works —
+`padding: 0 max(20px, calc((100% - var(--admin-rail)) / 2))` puts both rails
+together at every width with no wrapper element in any of the nine navs. But a
+520px rail **cannot hold the bar**: its eight items need ~728px, so
+`tenant-new`'s bar wrapped to two rows at every viewport and measured **64.5px
+against the other eight pages' 56**.
+
+A bar that changes height when you click "Add tenant" is a worse defect than a
+wide column, and *bar height identical across all nine* is the one DoD line with
+no escape hatch — the 60.8-vs-59 split it replaces was itself the defect. So the
+**shell** keeps the shared rail on all nine and the **form** is capped inside it
+(`body.col-narrow .card { max-width: 560px }`). The page owns a narrow form, not
+a narrow shell. `--admin-rail` remains the parameter and the override remains in
+the file, unused by any page today, for a future page that owns a genuinely
+different column. Reversible in one line if the trade is ever judged the other
+way.
+
+#### tenant-detail: the last five-link nav, and the primary action that was navigation
+
+`tenant-detail.html` carried the pre-S5 five-link block — no Tenants, no
+Appointments, no Workflow — so an operator on a tenant could not get back to the
+tenant list except through the brand. Its measured symptom: with three fewer
+items in a `space-between` bar, its item spacing was **254.80px at 1440** against
+every other page's ~116. It now carries the canonical block and is in
+`adminNav.test.js`'s `PAGES`, which makes that test the nine-way comparison its
+title has always claimed. It takes no `aria-current`: it is not a nav
+destination, and marking a link the operator is not on is a false claim to a
+screen reader.
+
+Its header was a bare `<h2>` beside two links, of which the one wearing
+`.btn-primary` was **navigation** ("Conversations →"). The page's real primary
+actions — Validate, Activate, Pause — were in a card below the fold. They are
+now the header's actions. `#convLink` keeps its id and href and moves to the
+status toolbar; `← Tenants` is deleted rather than moved (it carried no id, and
+the nav now offers Tenants twice over).
+
+**Neither `style.display` toggle was converted to a class.**
+`scripts/portal/shoot.js:2553` waits on `document.getElementById('detail').style
+.display==='block'` and `:2560` reads `#ownerResult`'s **computed** display — two
+of the four expressions pin an inline style, and a class toggle would satisfy
+the page while leaving the shot green and blind. All four expressions were run
+**verbatim** against the rebuilt page and all four pass; a **control run** with
+`tenant-detail.js` sabotaged to reveal `#detail` by class instead took
+expression 1 red, which is what makes the pass mean anything. Both facts are
+pinned statically in `adminShell.test.js`.
+
+#### Colour, and one number recorded but deliberately not graded
+
+The bar ground moved `#1a1a2e` -> `#17150f`. Every pair on it improved: brand
+17.06 -> **18.25**, idle item 10.62 -> **11.11**, accent 6.85 -> **7.33**. The
+nav keeps its own focus ring (`#14b8a6`, 7.33) rather than the shared one
+(`#0f766e`, **3.33** on this ground — over the SC 1.4.11 floor by 0.33 and
+nothing else). Full table in `docs/design/brand-values.md`.
+
+**The nav ring against the item's own glyphs measures 2.49.** It is recorded as
+*measured and not graded*: `core.js` `judgeRing()` compares an outline to its
+**outer backdrop**, which is the 7.33, and designing around a threshold the
+instrument does not apply would trade a real 7.33 for an imaginary one.
+
+The seven pages' ground moved `#f5f5f5` -> `#faf8f5` and that is recorded as a
+**consistency change, not a contrast fix**: every pair clears its floor on both
+grounds and the two are within 0.21 (title 16.74 -> 17.22, subtitle 7.10 ->
+7.31). Nothing was failing and nothing is fixed by it. The panel was simply the
+last cool-grey surface in a warm-paper product.
+
+⚠️ `--faint-strong` (`#857f79`) measures **3.73** on the new ground and **3.63**
+on the old — under AA body on both. It is **not** a legal subtitle colour;
+`adminShell.test.js` asserts so, so that nobody reaches for it later as a
+"quieter" subtitle.
+
+#### What A1 did NOT do
+
+- **`/admin/style.css` still exists and still dresses seven pages** for cards,
+  tables, badges, buttons and forms. Its `body` and `.container` declarations are
+  left in place, now overridden, as the correct fallback if `shell.css` fails to
+  load. S6 retires the file.
+- The two dead rules S5 found (`.error`, `.btn-danger`) are **still dead and
+  still standing**. Out of A1's file set; still S6's business.
+- **No shot DoD.** Both shooters are red at HEAD and were neither run nor
+  repaired, per the ruling.
+
 ### Admin panel: nav, copy and the first two pages onto tokens — 2026-09-02 (S5)
 
 **Nothing under `src/`.** `git diff --name-only` is twelve files under
@@ -5460,6 +5639,9 @@ It was excluded from S5's file set (it is S6), and only its two stale product
 strings were changed there. `tests/design/adminNav.test.js`'s `PAGES` list is the
 eight; add the ninth when S6 migrates it.
 
+> **Superseded by A1 (above).** The ninth page took the canonical block and
+> `PAGES` is now nine. It did not wait for S6.
+
 #### The panel is now half on portal tokens, and that is a deliberate split
 
 `tenants.html` and `tenant-new.html` link `/portal/tokens.css` and
@@ -5470,6 +5652,12 @@ a page linking both is decided by link order rather than by design. Verified: no
 admin page links both.
 
 `/admin/style.css` now dresses **seven** pages, not nine.
+
+> **Superseded by A1 (above).** It still dresses seven pages for cards,
+> tables, badges, buttons and forms, but no longer for the ground, the type
+> family, the bar, the page header or the column — all nine pages link
+> `/admin/shell.css` last for those. The bar duplication A1 was to collapse at
+> S6 was collapsed at A1 instead; `style.css` carries no `nav` rule at all now.
 
 The panel bar is REPRODUCED in each migrated page's `<style>` rather than shared,
 because the seven unmigrated pages still take it from `style.css`. The values are

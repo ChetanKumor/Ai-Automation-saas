@@ -378,7 +378,7 @@ reader would otherwise mistake for drift.
 |---|---|---|
 | Portal sign-in | `public/portal/tokens.css` | Was already on it. `public/portal/login.css` (S4) holds this page's layout only, declares **no** custom property, and every control on the page is a tokens.css component. |
 | Admin sign-in | `public/portal/tokens.css`, via `<link href="/portal/tokens.css">` | S4. Reachable because `server.js:90` serves `public/` at the root. The page no longer links `/admin/style.css`. |
-| The other 8 admin pages | `public/admin/style.css` | **Unmoved.** Zero custom properties, and none of the values below changed. |
+| The other 8 admin pages | `public/admin/style.css` + `public/admin/shell.css` | **Partly moved at A1.** They still take cards, tables, badges, buttons and forms from `style.css`. The ground, the type family, the bar, the page header and the content column now come from `shell.css`, which all nine pages link **last**. See *The admin shell (A1)* below. |
 
 This adds no row to the tables above: the sign-in pages consume portal tokens,
 they do not declare any, and the parser in `tests/design/tokenDrift.test.js`
@@ -467,9 +467,9 @@ must not be reconciled into the tables above:
 |---|---|---|
 | `#4361ee` | `.btn-primary` fill | White label on it measures **5.02:1** — clears 4.5:1, so the 14px/500 text it carries is **not** a failure. Corrected in S5: the 4.31:1 recorded here before was wrong. |
 | `#e63946` | `.error` text, `.btn-danger` fill | `#e63946` on `#fff` measures **4.17:1** at 13px — under AA body. Corrected in S5: the **3.76:1** recorded here is `#e63946` on **`#f5f5f5`** (3.82:1), the page GROUND — the error was a **wrong backdrop**, not a wrong arithmetic. `.error` renders inside a `.card`, so `#fff` is the backdrop that applies, and the verdict (under AA) survives either way. |
-| `#f5f5f5` | page ground | Cool grey, not the warm `#faf8f5` every other surface uses. |
-| `#1a1a2e` | `nav` | — |
-| system font stack | `body` | Not Noto Sans; carries no Telugu or Devanagari. |
+| ~~`#f5f5f5`~~ | ~~page ground~~ | **Superseded at A1.** Still declared in `style.css:body`, but `/admin/shell.css` overrides it to `#faf8f5` on all nine pages. Left in place as the correct fallback if `shell.css` fails to load. |
+| ~~`#1a1a2e`~~ | ~~`nav`~~ | **Gone at A1.** The nav block was deleted from this file; the bar is `#17150f` in `shell.css`. See below for what moving it bought. |
+| ~~system font stack~~ | ~~`body`~~ | **Superseded at A1.** `shell.css` sets Noto Sans and the seven pages now link `/portal/fonts/fonts.css`, so the panel carries Telugu and Devanagari like everything else. |
 
 **Both ratios are READ FROM SOURCE and computed, NOT instrument-measured** — and that is exactly how both of them came to be wrong. S5 recomputed them with `tests/design/contrast/core.js`'s own `contrastRatio()`, the function the live sweep judges with, so the corrected figures are at least derived from the instrument's arithmetic even though no instrument has looked at the pixels. The lesson is the second row's: an offline figure carries its backdrop as an
 *assumption*, where a sweep would have carried it as a *measurement*.
@@ -507,3 +507,106 @@ and `--red` / `--red-200` / `--red-50` for their error surfaces, all from
 `tokens.css`. The two liabilities above are scoped to whatever still links
 `/admin/style.css`, and they shrink by one page each time S6 and its successors
 move one.
+---
+
+## The admin shell (A1)
+
+`public/admin/shell.css` is the panel's shell and only the shell: the ground and
+type family, the top bar, the page header, and the content column. All nine
+pages link it **last**, so where it overlaps `tokens.css` (`.page-head*`,
+`.content`, `:focus-visible`) or `style.css` (`body`, `nav`, `.container`) it
+wins. `tokens.css` is **not touched** and keeps every one of those rules for the
+portal's thirteen pages.
+
+Its values are literals, not tokens, for the reason `/admin/style.css` already
+argued for itself: seven of the nine pages load no custom properties at all, so
+a `var(--teal-500)` there resolves to nothing and the rule silently disappears.
+The file is not a `tokenDrift` SURFACE and `SURFACES` is still four files;
+`EXPECTED_NAMES.portal` is still 100.
+
+### Why the bar moved off `#1a1a2e`
+
+It was a cold navy left from two product names ago, and the only object in the
+panel not on the warm axis. Moving it to the product's ink improved **every**
+pair on it. Both columns are **COMPUTED** with `tests/design/contrast/core.js`
+`contrastRatio()` — the function the portal's live sweep judges with:
+
+| Pair | on `#1a1a2e` (was) | on `#17150f` (is) | Floor |
+|---|---|---|---|
+| brand `#ffffff` | 17.06 | **18.25** | 4.5 |
+| idle item (`#ccc` → `#cfc9c1`) | 10.62 | **11.11** | 4.5 |
+| hover / current item `#ffffff` | 17.06 | **18.25** | 4.5 |
+| current-page underline `#14b8a6` | 6.85 | **7.33** | 3 |
+| nav focus ring `#14b8a6` | 6.85 | **7.33** | 3 |
+| *(rejected)* focus ring `#0f766e` | 3.12 | **3.33** | 3 |
+
+The last row is why `nav a:focus-visible` overrides the shared ring. `--teal-700`
+clears the SC 1.4.11 floor on the bar by 0.33 and nothing else; `--teal-500` is
+the accent `tokens.css` reserves for an ink ground (`--accent-on-field`) and
+clears it by more than four. This is the same reasoning `verbatim.css` gives for
+overriding the ring on the Verbatim panel, and `tests/design/adminShell.test.js`
+pins both numbers so a later edit cannot walk them back.
+
+### The rest of the shell
+
+| Pair | Ratio | Floor | Where |
+|---|---|---|---|
+| bar `#17150f` against the page ground `#faf8f5` | 17.22 | 3 | the bar's bottom edge |
+| page title `#17150f` on `#faf8f5` | 17.22 | 4.5 | `.page-head__title`, 22px/600 |
+| page subtitle `#57524a` on `#faf8f5` | 7.31 | 4.5 | `.page-head__sub`, 13.5px/400 |
+| shared focus ring `#0f766e` on `#faf8f5` | 5.16 | 3 | `:focus-visible` |
+| shared focus ring `#0f766e` on `#ffffff` | 5.47 | 3 | `:focus-visible` inside a `.card` |
+
+⚠️ **`--faint-strong` (`#857f79`) is not a legal subtitle colour.** It measures
+**3.73** on `#faf8f5` and **3.63** on the `#f5f5f5` the seven pages used to
+carry — under AA body on both. Recorded here, and asserted in
+`adminShell.test.js`, so that nobody reaches for it later as a "quieter"
+subtitle. The subtitle is `--muted`.
+
+### One number that is measured and deliberately not graded
+
+**The nav focus ring against the item's own glyphs measures 2.49.**
+
+It is recorded because it is real and because it is the only sub-3 figure the
+shell produces. It is **not** treated as a failure and the design does not move
+for it: `core.js`'s `judgeRing()` — the function that will actually grade this
+surface if the sweep is ever pointed at `/admin` — compares an outline to its
+**outer backdrop**, which is the 7.33 above, and a glow to its inner fill.
+Designing around a threshold the instrument does not apply would trade a real
+7.33 for an imaginary one, and would end with a ring that is harder to see.
+
+This is the same class of error as the `#e63946` row further up, inverted: that
+one was a real failure hidden behind the *wrong* backdrop; this one is a
+non-failure that only appears if you pick a backdrop the grader never uses.
+
+### The ground flip is a consistency change, not a contrast repair
+
+The seven pages moved `#f5f5f5` → `#faf8f5`. Every pair the header introduces
+clears its floor on **both** grounds and the two are within 0.21 of each other
+(title 16.74 → 17.22, subtitle 7.10 → 7.31). Nothing was failing before and
+nothing is fixed by it. It is recorded as what it is: the panel was the last
+cool-grey surface in a warm-paper product.
+
+### What is now measured rather than asserted
+
+`scripts/admin/measure.js` is committed and is the instrument for A2–A5. It
+serves `public/`, drives headless Chrome, and reads geometry, horizontal
+overflow and real tab-order focus rings off all nine pages. Against A1's change
+it reports, at 1440 / 1280 / 1024 / 768 on every page:
+
+- brand left edge **==** page title left edge, and Logout right edge **==**
+  content right edge, delta **0.00** in all 36 rows;
+- bar height **56px** in all 36 rows (it was 60.8 on the two token pages and 59
+  on the seven, because the type family differed);
+- `document.scrollWidth == innerWidth` at 768 / 640 / 380 / 320 on all nine. It
+  did **not** hold before: `leads` measured 547 against a 380 viewport and
+  `tenants` 582, so the panel put a horizontal scrollbar on the whole document
+  on every phone;
+- **96 focusables with an authored ring out of 96** (106 of 106 with
+  `tenant-detail` populated). It was 24 of 92: the seven unmigrated pages
+  carried no focus rule of any kind, and the browser's own outline computes as
+  `rgb(16,16,16)` — **1.12:1** against the bar.
+
+Unlike the two ratios in the section above, these are **instrument-measured, not
+read from source.** That distinction is the whole reason the instrument is in
+the repo rather than in a scratch directory.

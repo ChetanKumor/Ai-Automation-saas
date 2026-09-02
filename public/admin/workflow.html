@@ -4,7 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Workflow — Veprio Admin</title>
+  <link rel="stylesheet" href="/portal/fonts/fonts.css">
   <link rel="stylesheet" href="/admin/style.css">
+  <!-- LAST, deliberately. shell.css owns the ground, the bar, the page header
+       and the content column on all nine admin pages, and overrides tokens.css
+       and style.css where they collide. See the file header. -->
+  <link rel="stylesheet" href="/admin/shell.css">
 </head>
 <body>
   <nav>
@@ -19,9 +24,10 @@
   </nav>
 
   <div class="container">
-    <div class="flex-between mb-20" style="margin-top:20px;">
-      <h2>Workflow Executions</h2>
-      <div style="display:flex;gap:8px;align-items:center;">
+    <div class="page-head">
+      <h1 class="page-head__title">Workflow Executions</h1>
+      <p class="page-head__sub">Every automation rule that fired, and what it did. A run that failed names its error here.</p>
+      <div class="page-head__actions">
         <select id="tenantFilter" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
           <option value="">All tenants</option>
         </select>

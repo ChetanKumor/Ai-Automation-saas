@@ -1,0 +1,296 @@
+/* ============================================================================
+ * public/admin/shell.css — the admin panel's shell, and only the shell (A1)
+ *
+ * WHAT THIS FILE OWNS, exhaustively: the page ground and type family, the top
+ * bar, the page header, and the content column. Nothing else. Cards, tables,
+ * badges, buttons and form controls stay with whichever base stylesheet the
+ * page already links — `/admin/style.css` on seven pages, `/portal/tokens.css`
+ * on two. That split is S5's and A1 does not close it; S6 does.
+ *
+ * WHY IT EXISTS. Before A1 the nav was declared in THREE places: the block in
+ * `/admin/style.css`, and a verbatim copy inlined into tenants.html and
+ * tenant-new.html when S5 moved those two onto portal tokens. Three copies of
+ * one design is three chances to drift, and the drift `tests/design/
+ * adminNav.test.js` was filed against had already happened once in the markup.
+ *
+ * LOAD ORDER. This file is linked LAST on all nine pages. Where a selector here
+ * also exists in tokens.css (`.page-head*`, `.content`, `:focus-visible`) or in
+ * style.css (`body`, `nav`, `.container`), THIS FILE WINS — deliberately, so
+ * that one declaration governs all nine admin pages. tokens.css's copies stay
+ * live for the portal's thirteen pages and are untouched.
+ *
+ * Where it was free to do so, a rule here is written at a specificity that
+ * beats the file it overrides (`html body`, `main.content`) so the override
+ * survives someone reordering the <link> tags. `.page-head` and `:focus-visible`
+ * could not be — they tie with tokens.css and are settled by order alone. The
+ * values are equivalent in both, so a reorder is invisible rather than wrong.
+ *
+ * LITERALS, NOT TOKENS. Seven of the nine pages carry no custom properties at
+ * all, so a `var(--teal-500)` here resolves to nothing on them and the rule
+ * silently disappears. Every colour below is therefore a literal, which is the
+ * position `/admin/style.css` already argued for itself: this is not a
+ * tokenDrift SURFACE and making it one is a cost with no payer. The one
+ * property this file DECLARES (`--admin-rail`) it also owns, so there is
+ * nothing to resolve against a file that may not be loaded.
+ *
+ * Every literal here is recorded in docs/design/brand-values.md with its
+ * measured contrast. They are the admin panel's private values and are not
+ * canonical for the product.
+ * ========================================================================== */
+
+/* ── The rail ────────────────────────────────────────────────────────────────
+ * ONE number decides the whole shell: the width of the column the page's own
+ * content occupies, rail to rail. The bar's padding is derived from it, which
+ * is what puts the brand exactly on the page title and Logout exactly on the
+ * content's right edge at every viewport, on every page, with no per-page
+ * arithmetic and no wrapper element in any of the nine navs.
+ *
+ * It is a variable rather than a constant so that the bar aligns to whatever
+ * column its page owns rather than to one hardcoded width. No page overrides it
+ * today; the note under the override below says why, and why the override is
+ * kept anyway.
+ *
+ * The `max()` floor is the gutter: once the viewport is narrower than the
+ * column, the derived padding goes negative and the bar falls back to sitting
+ * 20px off each edge — which is exactly where the content column's own padding
+ * puts its text at those widths, so the two rails stay together all the way
+ * down. */
+:root { --admin-rail: 920px; }
+
+/* MEASURED, and it amends the plan. tenant-new was going to own a 520px rail,
+ * because it is a form and a 920px form reads as a ransom note. It cannot: the
+ * bar's own content needs ~728px, so a 520px rail wrapped it to two rows at
+ * EVERY viewport — 64.5px against the other eight pages' 56 — and a bar that
+ * changes height when you click "Add tenant" is a worse defect than a wide
+ * column. Bar-height parity across the nine wins; it is the one DoD line with
+ * no escape hatch, and the 60.8-vs-59 split it replaces was itself the defect.
+ *
+ * So the SHELL keeps the shared rail on all nine and the FORM is capped inside
+ * it. The page owns a narrow form, not a narrow shell. The override below is
+ * the whole of the per-page parameterisation and it is deliberately still here,
+ * unused by any page today: a future page that owns a genuinely different
+ * column sets it and the bar follows, which is what A2-A5 will need. */
+body.col-narrow .card { max-width: 560px; }
+
+/* ── Ground and type ─────────────────────────────────────────────────────────
+ * `html body` rather than `body`, so this beats BOTH `/admin/style.css:3` and
+ * tokens.css's `body` on specificity and not merely on link order.
+ *
+ * The ground moves #f5f5f5 -> #faf8f5 on the seven unmigrated pages. That is a
+ * CONSISTENCY change, recorded as one: the panel was the last cool-grey surface
+ * in a warm-paper product. It is NOT a contrast repair — every pair the header
+ * introduces clears its floor on both grounds, and the two numbers are within
+ * 0.21 of each other (see brand-values.md). Nothing here was failing before.
+ *
+ * One family across all nine. The seven pages now link /portal/fonts/fonts.css
+ * — fourteen @font-face rules and nothing else, so it adds no cascade surface
+ * and downloads nothing until a rule below asks for the face. Without it the
+ * two migrated pages would have had to fall back off Noto Sans to keep the
+ * panel consistent, which is the wrong direction to resolve it in. */
+html body {
+  background: #faf8f5;
+  color: #17150f;
+  font-family: 'Noto Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ============================================================================
+ * The bar
+ * ==========================================================================*/
+/* GROUND: #17150f, the product's ink. It replaces #1a1a2e, a cold navy left
+ * over from two product names ago and the only object in the panel that was
+ * not on the warm axis. Every pair on the bar improved by moving: the brand
+ * 17.06 -> 18.25, the idle item 10.62 -> 11.37, the accent 6.85 -> 7.33.
+ *
+ * `min-height` and not `height`: below 768 the eight items wrap to a second
+ * row and the bar must be allowed to grow. It must never scroll — today's bar
+ * puts a horizontal scrollbar on the whole document at 380px (leads measured
+ * scrollWidth 547 against a 380 viewport, tenants 582), and that is the defect
+ * this rule exists to end.
+ *
+ * gap is AUTHORED. The bar was `justify-content: space-between` with no gap, so
+ * item spacing was a residue of viewport width minus the sum of eight text
+ * widths — it changed with the viewport AND with the words, measuring 110.76px
+ * on tenants, 115.85 on appointments and 254.80 on tenant-detail's five-link
+ * block, all at the same 1440. A bar whose rhythm is decided by how long the
+ * page titles happen to be is not a design. */
+nav {
+  background: #17150f;
+  color: #ffffff;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0 20px;
+  min-height: 56px;
+  padding: 0 max(20px, calc((100% - var(--admin-rail)) / 2));
+}
+
+/* `flex: none` + `white-space: nowrap` together are what make the wrap safe.
+ * Without them the flex items shrink instead of wrapping and the brand breaks
+ * across two lines — which is what it does today at 640px, taking the bar from
+ * 59px to 86px on a page that has not otherwise changed. */
+nav a {
+  flex: none;
+  white-space: nowrap;
+  color: #cfc9c1;
+  text-decoration: none;
+  font-size: 14px;
+  padding: 4px 2px;
+  border-bottom: 2px solid transparent;
+}
+nav a:hover { color: #ffffff; }
+
+nav .brand {
+  font-weight: 700;
+  font-size: 17px;
+  color: #ffffff;
+  border-bottom: 0;
+  margin-right: 8px;
+}
+
+/* Current page: colour AND a shape change, never colour alone — the rule
+ * tokens.css:274-276 states for the focus ring, and D-018's for the nav.
+ * #14b8a6 is the portal's --teal-500, the accent it reserves for an ink
+ * ground (--accent-on-field); it measures 7.33:1 here. */
+nav a[aria-current] {
+  color: #ffffff;
+  font-weight: 600;
+  border-bottom-color: #14b8a6;
+}
+
+/* Logout is the only item on the right rail. `margin-left: auto` and not a
+ * spacer element, because that would be a markup change in nine files to say
+ * something one rule already says — and it keeps working when the bar wraps:
+ * whichever row Logout lands on, it ends at the rail. */
+nav a:last-child { margin-left: auto; }
+
+/* The gap tightens once before it gives way. At 20px the eight items stop
+ * fitting at about 830; at 14px they fit to 768, which is the narrowest width
+ * the DoD scores alignment at and the last one where a single-row bar is
+ * honest. Below that they wrap. */
+@media (max-width: 1000px) { nav { gap: 0 14px; } }
+
+/* Below 768 the eight items no longer fit on one row at any gap worth having.
+ * They wrap; the bar grows; the document never scrolls sideways. Today's bar
+ * instead puts a horizontal scrollbar on the whole document at 380 (leads
+ * measured scrollWidth 547, tenants 582) and that must not survive. */
+@media (max-width: 767px) {
+  nav {
+    gap: 6px 16px;
+    padding-top: 9px;
+    padding-bottom: 9px;
+    min-height: 0;
+  }
+}
+
+/* ============================================================================
+ * The content column
+ * ==========================================================================*/
+/* `.container` is style.css's name for it and `main.content` is tokens.css's.
+ * Both are given the same geometry here so the nine pages share one column
+ * whichever base they link. `main.content` is (0,1,1) and so beats tokens.css's
+ * `.content` (0,1,0) on specificity rather than on order. */
+.container,
+main.content {
+  width: 100%;
+  max-width: calc(var(--admin-rail) + 40px);
+  margin: 0 auto;
+  padding: 28px 20px 72px;
+}
+
+/* ============================================================================
+ * The page header
+ * ==========================================================================*/
+/* Grid and not flex, for the reason tokens.css:755-758 gives: the title and the
+ * description are DIRECT children, and a flex row would sit them side by side.
+ * Explicit column placement stacks them and still leaves a right-aligned action
+ * slot; with no actions present column 2 collapses to zero and nothing shifts.
+ *
+ * The slot is where a page's PRIMARY action goes and the only place it goes.
+ * Before A1 that was true on exactly one of nine pages. */
+.page-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 16px;
+  margin: 0 0 26px;
+  padding: 0;
+  border: 0;
+}
+.page-head__title {
+  grid-column: 1;
+  margin: 0;
+  font: 600 22px/1.27 'Noto Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  letter-spacing: -.018em;
+  color: #17150f;
+}
+/* #57524a is the portal's --muted: 7.31:1 on warm paper, 7.10:1 on the grey the
+ * seven pages used to carry. The quieter --faint-strong (#857f79) measures 3.73
+ * and 3.63 and is NOT a legal subtitle colour on either ground; it is recorded
+ * in brand-values.md so nobody reaches for it later. */
+.page-head__sub {
+  grid-column: 1;
+  margin: 6px 0 0;
+  font: 400 13.5px/1.48 'Noto Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: #57524a;
+  max-width: 64ch;
+}
+.page-head__actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Below 560 the action slot cannot sit beside a title without crushing both. */
+@media (max-width: 560px) {
+  .page-head { grid-template-columns: minmax(0, 1fr); }
+  .page-head__actions {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
+    margin-top: 14px;
+  }
+  .page-head__title { font-size: 20px; }
+}
+
+/* ============================================================================
+ * Focus
+ * ==========================================================================*/
+/* The seven unmigrated pages carried NO focus rule of any kind — not a nav
+ * ring, not a button ring, nothing. /admin/style.css is 34 rules and none of
+ * them mentions focus, and neither do the inline blocks on tenant-detail (12
+ * rules) or conversations (22). Sixty-eight focusables fell through to the
+ * browser's own outline, which computes as rgb(16,16,16) and measures 1.12:1
+ * against the bar: on the dark strip a keyboard operator could not see where
+ * they were at all.
+ *
+ * ONE ring, every surface, matching tokens.css:278. #0f766e is --teal-700:
+ * 5.16 on warm paper, 5.02 on grey, 5.47 on a white card.
+ *
+ * :focus-visible, so a mouse user never sees it. NEVER colour-only — the ring
+ * is a shape change, which is what survives greyscale and low vision. */
+:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* On the ink bar the shared ring is the wrong colour: --teal-700 measures 3.33
+ * there — over the SC 1.4.11 floor of 3, but only just. #14b8a6 is the accent
+ * tokens.css reserves for an ink ground and measures 7.33. Same override, and
+ * the same reasoning, verbatim.css uses on the Verbatim panel.
+ *
+ * Against the item's own GLYPHS the ring measures 2.49. That is recorded in
+ * brand-values.md as measured-and-not-graded: judgeRing() compares an outline
+ * to its outer backdrop, which is the 7.33, and designing around a threshold
+ * the instrument does not apply would trade a real 7.33 for an imaginary one. */
+nav a:focus-visible {
+  outline-color: #14b8a6;
+  border-radius: 2px;
+}

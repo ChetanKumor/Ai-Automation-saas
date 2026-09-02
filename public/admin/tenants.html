@@ -5,48 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tenants — Veprio Admin</title>
   <!-- ==========================================================================
-       ON PORTAL TOKENS (S5). Same move login.html made at S4, same rule: this
-       page links /portal/tokens.css and does NOT link /admin/style.css. A page
-       migrates whole or not at all — .badge, .btn, .card and `body` are declared
-       in BOTH stylesheets, so a page linking both would be decided by link order
-       rather than by design.
+       ON PORTAL TOKENS (S5) + THE SHARED SHELL (A1). This page links
+       /portal/tokens.css and does NOT link /admin/style.css: a page migrates
+       whole or not at all, because .badge, .btn, .card and `body` are declared
+       in BOTH stylesheets and a page linking both would be decided by link
+       order rather than by design.
 
-       The panel bar below is reproduced against tokens rather than shared,
-       because the seven pages that have not migrated still take it from
-       /admin/style.css. The VALUES are identical on both sides so a half-
-       migrated panel does not read as two products. S6 collapses the
-       duplication when tenant-detail.html moves and /admin/style.css loses its
-       last consumer.
+       The panel bar used to be reproduced here in full, because the seven pages
+       that had not migrated still took it from /admin/style.css — one design in
+       three copies. A1 ends that: /admin/shell.css carries the bar, the page
+       header and the content column ONCE for all nine, in literals, and is
+       linked last so it wins where it overlaps tokens.css. What is left below
+       is only what is genuinely this page's own.
        ========================================================================= -->
   <link rel="stylesheet" href="/portal/fonts/fonts.css">
   <link rel="stylesheet" href="/portal/tokens.css">
+  <!-- LAST, deliberately. shell.css owns the ground, the bar, the page header
+       and the content column on all nine admin pages, and overrides tokens.css
+       and style.css where they collide. See the file header. -->
+  <link rel="stylesheet" href="/admin/shell.css">
   <style>
-    /* ── The panel bar (see the note above) ──────────────────────────────── */
-    nav {
-      background: #1a1a2e;
-      color: #fff;
-      padding: 12px 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    nav a {
-      color: #ccc; text-decoration: none; font-size: 14px;
-      padding: 4px 2px; border-bottom: 2px solid transparent;
-    }
-    nav a:hover { color: #fff; }
-    nav .brand { font-weight: 700; font-size: 18px; color: #fff; text-decoration: none; border-bottom: 0; }
-    /* Current page: colour AND a shape change, never colour alone — the rule
-     * tokens.css:274-276 states for the focus ring. --teal-500 is the accent
-     * the portal uses on a dark ground. */
-    nav a[aria-current] { color: #fff; font-weight: 600; border-bottom-color: var(--teal-500); }
-    /* The shared ring is --teal-700, tuned for the light ground; on this dark
-     * bar it measures 3.12:1 — over the SC 1.4.11 floor of 3, but only just.
-     * --teal-500 is the accent tokens.css reserves for an ink ground
-     * (--accent-on-field) and measures 6.85:1 here. Same reasoning verbatim.css
-     * gives for overriding the ring on the Verbatim panel. */
-    nav a:focus-visible { outline-color: var(--teal-500); }
-
     /* ── Table ───────────────────────────────────────────────────────────────
      * The portal deliberately has no <table> rules — spec §2.9 turns its lists
      * into stacked cards on mobile ("div rows, not a <table>", history.css:4).

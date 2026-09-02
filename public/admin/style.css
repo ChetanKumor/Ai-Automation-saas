@@ -1,3 +1,24 @@
+/* ============================================================================
+ * public/admin/style.css — the seven unmigrated admin pages (S5, A1)
+ *
+ * WHAT LEFT AT A1. The nav block that used to sit between .container and
+ * .card is gone. It lived here AND, verbatim, inside the <style> block of
+ * tenants.html and tenant-new.html — one design, three copies. It is now in
+ * /admin/shell.css, once, for all nine pages.
+ *
+ * WHAT IS STILL HERE BUT NO LONGER APPLIES. `body` and `.container` below are
+ * both overridden by /admin/shell.css, which every page linking this file also
+ * links, LAST. shell.css sets the ground to #faf8f5 (not the #f5f5f5 declared
+ * here), the family to Noto Sans, and the column from --admin-rail. The
+ * declarations are left in place rather than deleted because they are still
+ * the correct fallback if shell.css ever fails to load, and because deleting
+ * them would put this file's `body` and tokens.css's `body` in a different
+ * relationship than the one shell.css was written against.
+ *
+ * Everything else here — cards, tables, badges, buttons, forms, utilities — is
+ * unchanged and is still what dresses the seven. S6 retires the file.
+ * ========================================================================== */
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
@@ -12,28 +33,6 @@ body {
   margin: 0 auto;
   padding: 20px;
 }
-
-/* ── Nav ──────────────────────────────────────────── */
-nav {
-  background: #1a1a2e;
-  color: #fff;
-  padding: 12px 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-nav a {
-  color: #ccc; text-decoration: none; font-size: 14px;
-  padding: 4px 2px; border-bottom: 2px solid transparent;
-}
-nav a:hover { color: #fff; }
-nav .brand { font-weight: 700; font-size: 18px; color: #fff; text-decoration: none; border-bottom: 0; }
-/* Current page. Colour AND a shape change, never colour alone — the same rule
- * the portal's focus ring follows (tokens.css:274-276). #14b8a6 is the portal's
- * --teal-500, the accent it uses on a dark ground; written literally because
- * this file has no custom properties and must not grow one (it is not a
- * tokenDrift SURFACE, and making it one is a cost with no payer). */
-nav a[aria-current] { color: #fff; font-weight: 600; border-bottom-color: #14b8a6; }
 
 /* ── Cards / Panels ───────────────────────────────── */
 .card {

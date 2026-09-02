@@ -4,38 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Add Tenant — Veprio Admin</title>
-  <!-- ON PORTAL TOKENS (S5). Links /portal/tokens.css and NOT /admin/style.css —
-       a page migrates whole or not at all, because .badge, .btn, .card and body
-       are declared in both files. See tenants.html for the full note. -->
+  <!-- ON PORTAL TOKENS (S5) + THE SHARED SHELL (A1). Links /portal/tokens.css
+       and NOT /admin/style.css — a page migrates whole or not at all, because
+       .badge, .btn, .card and body are declared in both files. The bar, the page
+       header and the content column come from /admin/shell.css, linked last,
+       once for all nine pages. See tenants.html for the full note. -->
   <link rel="stylesheet" href="/portal/fonts/fonts.css">
   <link rel="stylesheet" href="/portal/tokens.css">
+  <!-- LAST, deliberately. shell.css owns the ground, the bar, the page header
+       and the content column on all nine admin pages, and overrides tokens.css
+       and style.css where they collide. See the file header. -->
+  <link rel="stylesheet" href="/admin/shell.css">
   <style>
-    /* The panel bar. Identical values to /admin/style.css, which still dresses
-     * the seven unmigrated pages. S6 collapses the duplication. */
-    nav {
-      background: #1a1a2e;
-      color: #fff;
-      padding: 12px 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    nav a {
-      color: #ccc; text-decoration: none; font-size: 14px;
-      padding: 4px 2px; border-bottom: 2px solid transparent;
-    }
-    nav a:hover { color: #fff; }
-    nav .brand { font-weight: 700; font-size: 18px; color: #fff; text-decoration: none; border-bottom: 0; }
-    nav a[aria-current] { color: #fff; font-weight: 600; border-bottom-color: var(--teal-500); }
-    /* The shared ring is --teal-700, tuned for the light ground; on this dark
-     * bar it measures 3.12:1 — over the SC 1.4.11 floor of 3, but only just.
-     * --teal-500 is the accent tokens.css reserves for an ink ground
-     * (--accent-on-field) and measures 6.85:1 here. Same reasoning verbatim.css
-     * gives for overriding the ring on the Verbatim panel. */
-    nav a:focus-visible { outline-color: var(--teal-500); }
-
-    .narrow { max-width: 560px; }
-
     /* Form-level error: layer 2 of the portal's error ladder (a card banner).
      * tokens.css carries layer 1 (.field__error) and layer 3 (.pg-err, a
      * whole-page state) but not this one, so it is written here. */
@@ -72,7 +52,7 @@
     }
   </style>
 </head>
-<body>
+<body class="col-narrow">
   <nav>
     <a href="/admin/tenants.html" class="brand">Veprio Admin</a>
     <a href="/admin/tenants.html">Tenants</a>
@@ -84,7 +64,7 @@
     <a href="/admin/logout">Logout</a>
   </nav>
 
-  <main class="content narrow">
+  <main class="content">
     <div class="page-head">
       <h1 class="page-head__title">Add tenant</h1>
       <p class="page-head__sub">Creates the clinic record. Configuration, validation and go-live all happen on the tenant page afterwards.</p>

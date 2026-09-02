@@ -17,13 +17,18 @@
 // TWO test() blocks, deliberately no more, following tokenDrift.test.js's rule:
 // a per-page test would report the same fault nine times and say nothing extra.
 //
+// A1 MADE IT NINE. `tenant-detail.html` was the last holdout: it still carried
+// the pre-S5 five-link block — no Tenants, no Appointments, no Workflow — so an
+// operator on a tenant could not get back to the tenant list except through the
+// brand. It now carries the canonical block and is in PAGES, and this test is
+// finally the nine-way comparison its title has always claimed. Its measured
+// symptom is worth keeping: with three fewer items in a space-between bar, its
+// item spacing was 254.80px at 1440 against every other page's ~116. The bar no
+// longer uses space-between at all — see /admin/shell.css.
+//
 // What is NOT asserted here, on purpose:
-//   • Anything about `tenant-detail.html`. It is S6's file and still carries
-//     the old five-link block; EXPECTED lists the eight pages S5 was allowed to
-//     touch. When S6 migrates it, add it to PAGES and this test becomes the
-//     nine-way comparison its title claims.
-//   • CSS. The block is markup; how it is painted is style.css's business on
-//     seven pages and tokens.css's on two, and that split is the point of S5.
+//   • CSS. The block is markup; how it is painted is /admin/shell.css's
+//     business now, and tests/design/adminShell.test.js is where that is gated.
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
@@ -35,14 +40,15 @@ const DIR = path.join(__dirname, '..', '..', 'public', 'admin');
 // Every page that carries the canonical block. login.html is deliberately
 // absent: it is the signed-out door and has no nav at all.
 const PAGES = [
-  'tenants.html', 'tenant-new.html', 'conversations.html', 'appointments.html',
-  'leads.html', 'collections.html', 'notifications.html', 'workflow.html',
+  'tenants.html', 'tenant-new.html', 'tenant-detail.html', 'conversations.html',
+  'appointments.html', 'leads.html', 'collections.html', 'notifications.html',
+  'workflow.html',
 ];
 
-// aria-current marks a page that IS a nav destination. tenant-new.html and
-// collections.html are not (collections has no nav item — it is orphaned and
-// feature-flagged off), so they carry none: marking a link the operator is not
-// on would be a false claim to a screen reader.
+// aria-current marks a page that IS a nav destination. tenant-new.html,
+// tenant-detail.html and collections.html are not (collections has no nav item
+// — it is orphaned and feature-flagged off), so they carry none: marking a link
+// the operator is not on would be a false claim to a screen reader.
 const CURRENT = {
   'tenants.html': '/admin/tenants.html',
   'conversations.html': '/admin/conversations.html',
