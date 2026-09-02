@@ -66,8 +66,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * nav, and moved onto tokens at S4 under a different set of rules. */
 const ALL_PAGES = [
   'tenants.html', 'tenant-new.html', 'tenant-detail.html', 'conversations.html',
-  'leads.html', 'appointments.html', 'collections.html', 'workflow.html',
-  'notifications.html',
 ];
 
 /* 1440 and 1024 are the pair Phase A reported and the pair the founder scores

@@ -41,31 +41,20 @@ const DIR = path.join(__dirname, '..', '..', 'public', 'admin');
 // absent: it is the signed-out door and has no nav at all.
 const PAGES = [
   'tenants.html', 'tenant-new.html', 'tenant-detail.html', 'conversations.html',
-  'appointments.html', 'leads.html', 'collections.html', 'notifications.html',
-  'workflow.html',
 ];
 
-// aria-current marks a page that IS a nav destination. tenant-new.html,
-// tenant-detail.html and collections.html are not (collections has no nav item
-// — it is orphaned and feature-flagged off), so they carry none: marking a link
-// the operator is not on would be a false claim to a screen reader.
+// aria-current marks a page that IS a nav destination. tenant-new.html and
+// tenant-detail.html are not, so they carry none: marking a link the operator
+// is not on would be a false claim to a screen reader.
 const CURRENT = {
   'tenants.html': '/admin/tenants.html',
   'conversations.html': '/admin/conversations.html',
-  'leads.html': '/admin/leads.html',
-  'appointments.html': '/admin/appointments.html',
-  'workflow.html': '/admin/workflow.html',
-  'notifications.html': '/admin/notifications.html',
 };
 
 const EXPECTED_HREFS = [
   '/admin/tenants.html',        // the brand
   '/admin/tenants.html',
   '/admin/conversations.html',
-  '/admin/leads.html',
-  '/admin/appointments.html',
-  '/admin/workflow.html',
-  '/admin/notifications.html',
   '/admin/logout',
 ];
 

@@ -1,10 +1,10 @@
 /* ============================================================================
- * public/admin/style.css — the seven unmigrated admin pages (S5, A1)
+ * public/admin/style.css — conversations.html and tenant-detail.html (S5, A1)
  *
  * WHAT LEFT AT A1. The nav block that used to sit between .container and
  * .card is gone. It lived here AND, verbatim, inside the <style> block of
  * tenants.html and tenant-new.html — one design, three copies. It is now in
- * /admin/shell.css, once, for all nine pages.
+ * /admin/shell.css, once, for all four pages.
  *
  * WHAT IS STILL HERE BUT NO LONGER APPLIES. `body` and `.container` below are
  * both overridden by /admin/shell.css, which every page linking this file also
@@ -16,7 +16,8 @@
  * relationship than the one shell.css was written against.
  *
  * Everything else here — cards, tables, badges, buttons, forms, utilities — is
- * unchanged and is still what dresses the seven. S6 retires the file.
+ * unchanged and is still what dresses conversations.html and tenant-detail.html.
+ * S6 retires the file.
  * ========================================================================== */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

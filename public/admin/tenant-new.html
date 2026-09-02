@@ -8,11 +8,11 @@
        and NOT /admin/style.css — a page migrates whole or not at all, because
        .badge, .btn, .card and body are declared in both files. The bar, the page
        header and the content column come from /admin/shell.css, linked last,
-       once for all nine pages. See tenants.html for the full note. -->
+       once for all four pages. See tenants.html for the full note. -->
   <link rel="stylesheet" href="/portal/fonts/fonts.css">
   <link rel="stylesheet" href="/portal/tokens.css">
   <!-- LAST, deliberately. shell.css owns the ground, the bar, the page header
-       and the content column on all nine admin pages, and overrides tokens.css
+       and the content column on all four admin pages, and overrides tokens.css
        and style.css where they collide. See the file header. -->
   <link rel="stylesheet" href="/admin/shell.css">
   <style>
@@ -57,10 +57,6 @@
     <a href="/admin/tenants.html" class="brand">Veprio Admin</a>
     <a href="/admin/tenants.html">Tenants</a>
     <a href="/admin/conversations.html">Conversations</a>
-    <a href="/admin/leads.html">Leads</a>
-    <a href="/admin/appointments.html">Appointments</a>
-    <a href="/admin/workflow.html">Workflow</a>
-    <a href="/admin/notifications.html">Notifications</a>
     <a href="/admin/logout">Logout</a>
   </nav>
 

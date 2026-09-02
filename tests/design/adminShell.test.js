@@ -43,8 +43,6 @@ const noHtmlComments = (html) => html.replace(/<!--[\s\S]*?-->/g, ' ');
 // own rules.
 const PAGES = [
   'tenants.html', 'tenant-new.html', 'tenant-detail.html', 'conversations.html',
-  'appointments.html', 'leads.html', 'collections.html', 'notifications.html',
-  'workflow.html',
 ];
 
 // Measured at A1's Phase A and re-measured after the change. An id that
@@ -56,11 +54,6 @@ const EXPECTED_IDS = {
   'tenant-new.html': 6,
   'tenant-detail.html': 44,
   'conversations.html': 12,
-  'appointments.html': 3,
-  'leads.html': 3,
-  'collections.html': 3,
-  'notifications.html': 3,
-  'workflow.html': 3,
 };
 
 describe('admin shell + page header (A1)', () => {
@@ -222,7 +215,7 @@ describe('admin shell + page header (A1)', () => {
       const src = fs.readFileSync(path.join(ADMIN, f), 'utf8');
       for (const m of src.matchAll(/'(badge-[a-z]+)'/g)) emitted.add(m[1]);
     }
-    assert.ok(emitted.size >= 4, 'expected the badge maps to still emit class names');
+    assert.ok(emitted.size >= 3, 'expected the badge maps to still emit class names');
     for (const cls of emitted) {
       assert.ok(styleCss.includes('.' + cls),
         `JS emits "${cls}" but /admin/style.css declares no .${cls} rule. A badge `

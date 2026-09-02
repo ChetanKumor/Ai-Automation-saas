@@ -4,7 +4,7 @@
  * WHAT THIS FILE OWNS, exhaustively: the page ground and type family, the top
  * bar, the page header, and the content column. Nothing else. Cards, tables,
  * badges, buttons and form controls stay with whichever base stylesheet the
- * page already links — `/admin/style.css` on seven pages, `/portal/tokens.css`
+ * page already links — `/admin/style.css` on two pages, `/portal/tokens.css`
  * on two. That split is S5's and A1 does not close it; S6 does.
  *
  * WHY IT EXISTS. Before A1 the nav was declared in THREE places: the block in
@@ -13,10 +13,10 @@
  * one design is three chances to drift, and the drift `tests/design/
  * adminNav.test.js` was filed against had already happened once in the markup.
  *
- * LOAD ORDER. This file is linked LAST on all nine pages. Where a selector here
+ * LOAD ORDER. This file is linked LAST on all four pages. Where a selector here
  * also exists in tokens.css (`.page-head*`, `.content`, `:focus-visible`) or in
  * style.css (`body`, `nav`, `.container`), THIS FILE WINS — deliberately, so
- * that one declaration governs all nine admin pages. tokens.css's copies stay
+ * that one declaration governs all four admin pages. tokens.css's copies stay
  * live for the portal's thirteen pages and are untouched.
  *
  * Where it was free to do so, a rule here is written at a specificity that
@@ -25,7 +25,7 @@
  * could not be — they tie with tokens.css and are settled by order alone. The
  * values are equivalent in both, so a reorder is invisible rather than wrong.
  *
- * LITERALS, NOT TOKENS. Seven of the nine pages carry no custom properties at
+ * LITERALS, NOT TOKENS. Two of the four pages carry no custom properties at
  * all, so a `var(--teal-500)` here resolves to nothing on them and the rule
  * silently disappears. Every colour below is therefore a literal, which is the
  * position `/admin/style.css` already argued for itself: this is not a
@@ -43,7 +43,7 @@
  * content occupies, rail to rail. The bar's padding is derived from it, which
  * is what puts the brand exactly on the page title and Logout exactly on the
  * content's right edge at every viewport, on every page, with no per-page
- * arithmetic and no wrapper element in any of the nine navs.
+ * arithmetic and no wrapper element in any of the four navs.
  *
  * It is a variable rather than a constant so that the bar aligns to whatever
  * column its page owns rather than to one hardcoded width. No page overrides it
@@ -62,10 +62,10 @@
  * bar's own content needs ~728px, so a 520px rail wrapped it to two rows at
  * EVERY viewport — 64.5px against the other eight pages' 56 — and a bar that
  * changes height when you click "Add tenant" is a worse defect than a wide
- * column. Bar-height parity across the nine wins; it is the one DoD line with
+ * column. Bar-height parity across the four wins; it is the one DoD line with
  * no escape hatch, and the 60.8-vs-59 split it replaces was itself the defect.
  *
- * So the SHELL keeps the shared rail on all nine and the FORM is capped inside
+ * So the SHELL keeps the shared rail on all four and the FORM is capped inside
  * it. The page owns a narrow form, not a narrow shell. The override below is
  * the whole of the per-page parameterisation and it is deliberately still here,
  * unused by any page today: a future page that owns a genuinely different
@@ -82,7 +82,7 @@ body.col-narrow .card { max-width: 560px; }
  * introduces clears its floor on both grounds, and the two numbers are within
  * 0.21 of each other (see brand-values.md). Nothing here was failing before.
  *
- * One family across all nine. The seven pages now link /portal/fonts/fonts.css
+ * One family across all four. The two pages now link /portal/fonts/fonts.css
  * — fourteen @font-face rules and nothing else, so it adds no cascade surface
  * and downloads nothing until a rule below asks for the face. Without it the
  * two migrated pages would have had to fall back off Noto Sans to keep the
@@ -161,7 +161,7 @@ nav a[aria-current] {
 }
 
 /* Logout is the only item on the right rail. `margin-left: auto` and not a
- * spacer element, because that would be a markup change in nine files to say
+ * spacer element, because that would be a markup change in four files to say
  * something one rule already says — and it keeps working when the bar wraps:
  * whichever row Logout lands on, it ends at the rail. */
 nav a:last-child { margin-left: auto; }
@@ -189,7 +189,7 @@ nav a:last-child { margin-left: auto; }
  * The content column
  * ==========================================================================*/
 /* `.container` is style.css's name for it and `main.content` is tokens.css's.
- * Both are given the same geometry here so the nine pages share one column
+ * Both are given the same geometry here so the four pages share one column
  * whichever base they link. `main.content` is (0,1,1) and so beats tokens.css's
  * `.content` (0,1,0) on specificity rather than on order. */
 .container,

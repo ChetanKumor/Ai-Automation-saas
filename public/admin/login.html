@@ -8,9 +8,8 @@
        THE ONE ADMIN PAGE ON PORTAL TOKENS (S4).
 
        This page no longer links /admin/style.css. S5 moved tenants.html and
-       tenant-new.html off it too, so that file now dresses the SEVEN pages that
-       still link it (conversations, appointments, leads, collections,
-       notifications, workflow, tenant-detail). A page migrates whole or not at
+       tenant-new.html off it too, so that file now dresses the TWO pages that
+       still link it (conversations, tenant-detail). A page migrates whole or not at
        all: .badge, .btn, .card and body are declared in BOTH stylesheets, so a
        page that linked both would cascade by link order.
 
@@ -42,7 +41,7 @@
   <style>
     /* Same geometry as the portal's sign-in page (public/portal/login.css) and
      * deliberately not the same FILE: a shared stylesheet across the two would
-     * either drag all nine admin pages onto portal tokens sight-unseen, or hold
+     * either drag all four admin pages onto portal tokens sight-unseen, or hold
      * the customer-facing portal to admin's blue. They are two products — one
      * customer-facing surface on a v2 design system, one shared-password
      * operator door — and the only thing they owe each other is that a person
