@@ -44,6 +44,11 @@
     const res = await adminFetch('/admin/api/tenants');
     const tenants = await res.json();
     const sel = $('tenantFilter');
+    // The list route requires a tenant (ADMIN-S3a), so there is no all-tenants
+    // view left to offer. Drop the placeholder option the markup ships with
+    // rather than leave a choice the API will refuse; the first clinic is then
+    // selected by default.
+    sel.innerHTML = '';
     tenants.forEach((t) => {
       const opt = document.createElement('option');
       opt.value = t.id;
@@ -74,6 +79,14 @@
     loading = true;
     const tbody = $('convRows');
     const params = currentFilters();
+    // No tenant, no request. Firing it anyway would render the route's 400 as
+    // "No conversations found", which is a different and untrue answer.
+    if (!params.get('tenant_id')) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-muted" style="text-align:center; padding:24px;">No clinics yet.</td></tr>';
+      $('loadMoreBtn').style.display = 'none';
+      loading = false;
+      return;
+    }
     if (reset) { nextBefore = null; }
     if (nextBefore) params.set('before', nextBefore);
     params.set('limit', '25');

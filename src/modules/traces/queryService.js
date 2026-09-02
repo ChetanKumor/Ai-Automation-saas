@@ -6,16 +6,20 @@
 const db = require('../../db/db');
 
 /**
- * List traces, newest first. Exactly the filters the route validated:
- * at least one of conversation_id / correlation_id / tenant_id.
+ * List traces for ONE tenant, newest first, optionally narrowed by conversation
+ * or correlation id.
+ *
+ * tenantId is required (ADMIN-S3a). The three used to be interchangeable — any
+ * one of them satisfied the check — so a conversation id or a correlation id on
+ * its own listed traces for whatever tenant owned them. Neither value carries a
+ * tenant, and a caller holding one is not thereby entitled to the row.
  */
 async function listTraces({ conversationId = null, correlationId = null, tenantId = null, limit = 50 }) {
-  const where = [];
-  const params = [];
+  if (!tenantId) throw new Error('listTraces: tenantId is required');
+  const params = [tenantId];
+  const where = ['tenant_id = $1'];
   if (conversationId) { params.push(conversationId); where.push(`conversation_id = $${params.length}`); }
   if (correlationId)  { params.push(correlationId);  where.push(`correlation_id = $${params.length}`); }
-  if (tenantId)       { params.push(tenantId);       where.push(`tenant_id = $${params.length}`); }
-  if (!where.length) throw new Error('listTraces: at least one filter is required');
 
   params.push(limit);
   const { rows } = await db.query(

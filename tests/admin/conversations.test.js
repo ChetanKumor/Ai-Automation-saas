@@ -183,7 +183,7 @@ describe('conversations admin API (route-level)', { skip: ADMIN ? false : 'DATAB
     assert.equal(res.status, 400);
   });
   it('bad cursor → 400', async () => {
-    const res = await req(server, { method: 'GET', path: L('before=not-a-cursor'), cookie });
+    const res = await req(server, { method: 'GET', path: L('tenant_id=00000000-0000-0000-0000-0000000000ee&before=not-a-cursor'), cookie });
     assert.equal(res.status, 400);
   });
 
@@ -203,6 +203,31 @@ describe('conversations admin API (route-level)', { skip: ADMIN ? false : 'DATAB
     assert.equal(res.status, 200);
     assert.deepEqual(res.body.rows, []);
     assert.equal(res.body.next_before, null);
+  });
+
+  // ── The list has no all-tenants default any more (ADMIN-S3a) ─────────────────
+  // `WHERE 1=1` with tenant_id omitted listed every tenant's threads to any
+  // authenticated caller — customer name, phone and a message preview per row.
+  it('the list refuses to default to every tenant', async () => {
+    const a = await newTenant('ScopeA'); const b = await newTenant('ScopeB');
+    const ca = await newCustomer(a, { name: 'Anaya Rao' });
+    const cb = await newCustomer(b, { name: 'Bhavna Rao' });
+    const convA = await newConversation(a, ca.id);
+    await newMessage(convA, a, ca.id, { content: 'ALPHA-SECRET-BODY' });
+    const convB = await newConversation(b, cb.id);
+    await newMessage(convB, b, cb.id, { content: 'BETA-SECRET-BODY' });
+
+    const none = await req(server, { method: 'GET', path: L(), cookie });
+    assert.equal(none.status, 400, 'no tenant_id is a refusal, not every tenant');
+    for (const secret of ['ALPHA-SECRET-BODY', 'BETA-SECRET-BODY', 'Anaya Rao', 'Bhavna Rao', ca.phone]) {
+      assert.ok(!none.raw.includes(secret), `the refusal must not carry ${secret}`);
+    }
+
+    // Non-vacuity: a named tenant still lists its own threads, and only those.
+    const scoped = await req(server, { method: 'GET', path: L(`tenant_id=${a}`), cookie });
+    assert.equal(scoped.status, 200);
+    assert.ok(scoped.body.rows.some((r) => r.id === convA));
+    assert.ok(!scoped.body.rows.some((r) => r.id === convB));
   });
 
   // ── Pagination: two pages, no overlap/gap, stable ordering ───────────────────

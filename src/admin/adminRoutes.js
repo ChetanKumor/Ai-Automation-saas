@@ -251,17 +251,27 @@ function decodeCursor(raw) {
   } catch (_) { return null; }
 }
 
-// List: filter bar over tenant/channel/status + cursor pagination on (updated_at, id).
+// List: ONE tenant, narrowed by channel/status + cursor pagination on (updated_at, id).
+//
+// tenant_id is REQUIRED (ADMIN-S3a). The filter used to be optional over a
+// `WHERE 1=1` default, so omitting it listed every tenant's threads to any
+// authenticated caller — customer name, phone number and a message preview on
+// every row. There is no all-tenants view here any more; the tenant picker at
+// GET /api/tenants is the one route that is cross-tenant by design.
 router.get('/api/conversations', requireAuth, async (req, res) => {
   const { tenant_id, channel, status } = req.query;
   if (status && !CONV_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status filter' });
   if (channel && !MSG_CHANNELS.includes(channel)) return res.status(400).json({ error: 'Invalid channel filter' });
+  // Deliberately AFTER the two checks above and not before them: a request whose
+  // status or channel filter is garbage is malformed in its own right, and
+  // answering it with the tenant message would make those two 400s unreachable
+  // for exactly the requests that test them.
+  if (!UUID_RE.test(tenant_id)) return res.status(400).json({ error: 'tenant_id is required and must be a UUID' });
 
   const limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 100);
-  const params = [];
-  let where = 'WHERE 1=1';
+  const params = [tenant_id];
+  let where = 'WHERE c.tenant_id = $1';
 
-  if (tenant_id) { params.push(tenant_id); where += ` AND c.tenant_id = $${params.length}`; }
   if (status)    { params.push(status);    where += ` AND c.status = $${params.length}`; }
   if (channel) {
     params.push(channel);
@@ -880,16 +890,14 @@ router.post('/api/tenants/:id/owner/reset',
 // The queryable twin of the correlation-id log chains. Issue 27's viewer page
 // consumes exactly these two endpoints; no UI here.
 
-// List traces, newest first. Requires at least one filter; each filter is
+// List traces for ONE tenant, newest first. tenant_id is required (ADMIN-S3a)
+// and conversation_id / correlation_id narrow within it; each filter is
 // shape-validated (400 on garbage — a malformed UUID must not 500 as a
 // Postgres 22P02, and a malformed correlation id is a caller bug, not an
 // empty result).
 router.get('/api/traces', requireAuth, async (req, res) => {
   const { conversation_id, correlation_id, tenant_id, limit } = req.query;
 
-  if (!conversation_id && !correlation_id && !tenant_id) {
-    return res.status(400).json({ error: 'Provide at least one filter: conversation_id, correlation_id or tenant_id' });
-  }
   if (conversation_id !== undefined && !UUID_RE.test(conversation_id)) {
     return res.status(400).json({ error: 'conversation_id must be a UUID' });
   }
@@ -898,6 +906,13 @@ router.get('/api/traces', requireAuth, async (req, res) => {
   }
   if (correlation_id !== undefined && !requestContext.isValidCorrelationId(correlation_id)) {
     return res.status(400).json({ error: 'correlation_id must look like <prefix>_<16 hex>' });
+  }
+  // The three filters used to be interchangeable — any one of them satisfied the
+  // check — so a conversation id or a correlation id on its own listed traces
+  // for whatever tenant owned them. Required last, after the shape checks above,
+  // for the same reason as the conversations list.
+  if (!tenant_id) {
+    return res.status(400).json({ error: 'tenant_id is required; conversation_id and correlation_id narrow within it' });
   }
   const parsedLimit = limit === undefined ? 50 : Number(limit);
   if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 200) {

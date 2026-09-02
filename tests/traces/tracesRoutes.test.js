@@ -175,10 +175,10 @@ describe('turn trace admin routes (Issue 22)', { skip: ADMIN ? false : 'DATABASE
   });
 
   it('filters by conversation_id and by correlation_id; filters combine (AND)', async () => {
-    const byConv = await req(server, { path: `/admin/api/traces?conversation_id=${conversationId}`, cookie });
+    const byConv = await req(server, { path: `/admin/api/traces?tenant_id=${tenantId}&conversation_id=${conversationId}`, cookie });
     assert.equal(byConv.body.length, 3);
 
-    const byCorr = await req(server, { path: `/admin/api/traces?correlation_id=${CORR}`, cookie });
+    const byCorr = await req(server, { path: `/admin/api/traces?tenant_id=${tenantId}&correlation_id=${CORR}`, cookie });
     assert.equal(byCorr.body.length, 2);
     assert.ok(byCorr.body.every((t) => t.correlation_id === CORR));
 
@@ -233,4 +233,24 @@ describe('turn trace admin routes (Issue 22)', { skip: ADMIN ? false : 'DATABASE
     assert.equal(own.body.stage_timings.total_ms, 103);
   });
 
+  // ADMIN-S3a. tenant_id used to be one of three interchangeable filters, so a
+  // conversation id or a correlation id on its own listed traces for whatever
+  // tenant owned them. It is now required and the other two narrow within it.
+  it('the list requires a tenant — a conversation or correlation filter alone is refused', async () => {
+    assert.equal((await req(server, { path: `/admin/api/traces?conversation_id=${conversationId}`, cookie })).status, 400);
+    assert.equal((await req(server, { path: `/admin/api/traces?correlation_id=${CORR}`, cookie })).status, 400);
+
+    // Non-vacuity: with a tenant named, both still filter exactly as before.
+    const byConv = await req(server, {
+      path: `/admin/api/traces?tenant_id=${tenantId}&conversation_id=${conversationId}`, cookie });
+    assert.equal(byConv.status, 200);
+    assert.equal(byConv.body.length, 3);
+
+    // And tenant 2 asking about tenant 1's conversation gets an empty list —
+    // the same answer a tenant with no such thread gets, not an error.
+    const foreign = await req(server, {
+      path: `/admin/api/traces?tenant_id=${otherTenantId}&conversation_id=${conversationId}`, cookie });
+    assert.equal(foreign.status, 200);
+    assert.deepEqual(foreign.body, []);
+  });
 });
