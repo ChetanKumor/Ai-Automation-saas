@@ -204,12 +204,33 @@ describe('turn trace admin routes (Issue 22)', { skip: ADMIN ? false : 'DATABASE
   });
 
   it('fetches one trace by turn_id; 404 unknown; 400 malformed', async () => {
-    const ok = await req(server, { path: `/admin/api/traces/${turnIds[0]}`, cookie });
+    const ok = await req(server, { path: `/admin/api/traces/${turnIds[0]}?tenant_id=${tenantId}`, cookie });
     assert.equal(ok.status, 200);
     assert.equal(ok.body.turn_id, turnIds[0]);
     assert.equal(ok.body.stage_timings.total_ms, 100);
 
-    assert.equal((await req(server, { path: `/admin/api/traces/${crypto.randomUUID()}`, cookie })).status, 404);
-    assert.equal((await req(server, { path: '/admin/api/traces/nope', cookie })).status, 400);
+    assert.equal((await req(server, { path: `/admin/api/traces/${crypto.randomUUID()}?tenant_id=${tenantId}`, cookie })).status, 404);
+    assert.equal((await req(server, { path: `/admin/api/traces/nope?tenant_id=${tenantId}`, cookie })).status, 400);
   });
+
+  // ADMIN-S3a. getTrace lived inside a service and read by primary key alone, so
+  // any turn_id fetched any tenant's trace. Routing a read through the service
+  // layer conferred no tenant scoping — F-A011's "raw SQL in a handler is where a
+  // missing predicate hides" does not hold here, and this is the counterexample.
+  it('a trace on another tenant answers exactly as a trace that does not exist', async () => {
+    // turnIds[3] is the only trace seeded on tenant 2.
+    const foreign = await req(server, { path: `/admin/api/traces/${turnIds[3]}?tenant_id=${tenantId}`, cookie });
+    const absent = await req(server, { path: `/admin/api/traces/${crypto.randomUUID()}?tenant_id=${tenantId}`, cookie });
+    assert.equal(foreign.status, 404, "tenant 1 must not read tenant 2's trace");
+    assert.equal(foreign.status, absent.status);
+    assert.deepEqual(foreign.body, absent.body, 'deny answers exactly as absent does — no oracle');
+
+    // Non-vacuity: the owning tenant still reads it, so the 404 above is scoping
+    // and not a route that stopped working.
+    const own = await req(server, { path: `/admin/api/traces/${turnIds[3]}?tenant_id=${otherTenantId}`, cookie });
+    assert.equal(own.status, 200);
+    assert.equal(own.body.turn_id, turnIds[3]);
+    assert.equal(own.body.stage_timings.total_ms, 103);
+  });
+
 });

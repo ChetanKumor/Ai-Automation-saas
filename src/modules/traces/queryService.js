@@ -28,10 +28,19 @@ async function listTraces({ conversationId = null, correlationId = null, tenantI
   return rows;
 }
 
-/** One trace by primary key, or null. */
-async function getTrace(turnId) {
+/**
+ * One trace by primary key WITHIN a tenant, or null.
+ *
+ * tenantId is required and is never defaulted. This read sat INSIDE a service and
+ * was unscoped for as long as it existed: routing a read through the service
+ * layer conferred no tenant scoping, so a turn_id alone fetched any tenant's
+ * trace. A trace on another tenant is indistinguishable here from one that does
+ * not exist — both are null. (ADMIN-S3a; supersedes F-A011's "raw SQL in a
+ * handler is where a missing predicate hides".)
+ */
+async function getTrace(tenantId, turnId) {
   const { rows } = await db.query(
-    `SELECT * FROM turn_traces WHERE turn_id = $1`, [turnId]
+    `SELECT * FROM turn_traces WHERE turn_id = $1 AND tenant_id = $2`, [turnId, tenantId]
   );
   return rows[0] || null;
 }

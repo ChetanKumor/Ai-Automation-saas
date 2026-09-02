@@ -918,12 +918,19 @@ router.get('/api/traces', requireAuth, async (req, res) => {
   }
 });
 
+// One trace. `tenant_id` is required and shape-checked exactly like every filter
+// on the list route above (ADMIN-S3a) — naming no tenant is a malformed request,
+// which is a 400. The two cases that must be indistinguishable are a trace on
+// ANOTHER tenant and a trace that does not exist, and both are the 404 below.
 router.get('/api/traces/:turn_id', requireAuth, async (req, res) => {
   if (!UUID_RE.test(req.params.turn_id)) {
     return res.status(400).json({ error: 'turn_id must be a UUID' });
   }
+  if (!UUID_RE.test(req.query.tenant_id)) {
+    return res.status(400).json({ error: 'tenant_id is required and must be a UUID' });
+  }
   try {
-    const trace = await tracesQuery.getTrace(req.params.turn_id);
+    const trace = await tracesQuery.getTrace(req.query.tenant_id, req.params.turn_id);
     if (!trace) return res.status(404).json({ error: 'Trace not found' });
     res.json(trace);
   } catch (err) {
