@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 776764c0dd0fc01ad36570236ff04114028df26a
-Verified-on: 2026-09-02
+Verified-at: f394e3b74a0e7b97c910e20b653ff75dac8be98b
+Verified-on: 2026-09-03
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -171,9 +171,14 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1152 tests / 187 suites / 0 fail** (`npm test`, raw: `# tests 1152 /
-  # suites 187 / # pass 1152 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  **+4 tests / +1 suite at A1**, the admin shell pin:
+- Test suite: **1157 tests / 187 suites / 0 fail** (`npm test`, raw: `# tests 1157 /
+  # suites 187 / # pass 1157 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  **+5 tests / +0 suites at ADMIN-S3a**, five cross-tenant deny cases added to the two
+  existing `describe()` blocks — two on the conversations detail route, one on its
+  list, one on `GET /api/traces/:turn_id`, one on the traces list. `# suites` did not
+  move because no new file was created. Every one was shown RED against the
+  pre-conversion code before its conversion landed.
+  Before that, **+4 tests / +1 suite at A1**, the admin shell pin:
   `tests/design/adminShell.test.js`, one `describe()` with four `it()`s. It holds the
   panel to ONE stylesheet (`/admin/shell.css` linked last on all nine, no `nav` rule
   left in `style.css` or in any inline `<style>`, and no `var()` in `shell.css` but
@@ -5437,6 +5442,202 @@ Additions since the original 1–28, all in the plan's Phase 8:
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
 
+### Tenant-scoped admin reads — 2026-09-03 (ADMIN-S3a)
+
+**Six commits, six files.** `git diff --stat 92bd5f2..HEAD` is `adminRoutes.js`,
+`traces/queryService.js`, `conversation/conversationService.js`,
+`public/admin/conversations.js`, the two test files and this one — nothing else.
+Empty for `'*.sql'`, `tests/crm/`, `web/`, `public/portal/`, `public/demo/`. Tests
+**1152 → 1157 / 187 suites / 0 fail**, matching the session's predicted 1157 exactly.
+
+Seven sites. **Four reads had no tenant predicate at all and two defaulted to every
+tenant.** The seventh was a guard whose name asserted tenancy and whose body
+asserted UUID syntax. No schema change, no new table, no actor identity — that is
+ADMIN-S3b and it is blocked on a storage decision (**F-A017**).
+
+#### What was reachable, measured rather than argued
+
+A 24-case probe on a genesis scratch DB with `adminRoutes` mounted on a bare
+express app — never `server.js`, which schedules `reminderCron` and sends real
+patient WhatsApp messages — run against `92bd5f2` and against HEAD. The probe is
+an instrument, not an anecdote: 24/24 rows are byte-identical across two identical
+runs on the same tree. It only became one after the fixture stopped letting two
+messages share a `created_at`; the list route's last-message lateral breaks that
+tie on `id DESC`, and the ids are `gen_random_uuid()`, so `preview` moved between
+runs and would have masqueraded as a real byte difference.
+
+| request | at `92bd5f2` | at HEAD |
+|---|---|---|
+| `GET /api/conversations/:id` naming **another tenant** | **200**, 1024 B | 404, 34 B |
+| …naming **no tenant at all** | 200, 1024 B | 404, 34 B |
+| `GET /api/conversations` with **no query string** | 200, 566 B — both tenants' threads | 400, 52 B |
+| `GET /api/traces/:turn_id` naming another tenant | 200, 387 B | 404, 27 B |
+| `GET /api/traces?conversation_id=…` alone | 200 — tenant 1's traces | 400 |
+| `GET /api/traces?correlation_id=…` alone | 200, 743 B — **both** tenants' traces | 400 |
+| `GET`/`PATCH …/reminders`, malformed id | **500**, 524 B of HTML carrying the SQL error | 404, 28 B |
+
+The first row is the one worth reading twice. The wrong-tenant response was not
+*similar* to the owning tenant's — it was **byte-identical**: patient name, phone
+number, both message bodies, the call session. The recon predicted the `channels`
+array would empty and it does not, which is itself the finding: the one call that
+took a tenant, `getParticipatingChannels`, was handed the tenant read **out of the
+row it was guarding**, so it returned the row's own channels and could never
+refuse. A guard that sources its scope from its subject is not a guard.
+
+#### Deny is indistinguishable from absent, and that is checked as bytes
+
+Every converted read answers a wrong tenant exactly as it answers a row that does
+not exist — same status **and** same body, asserted with `assert.equal(r.raw,
+absent.raw)` rather than on status alone. On the conversations detail route a
+malformed id, a malformed tenant, a missing tenant, an absent row and a foreign
+row are one 34-byte answer; 404 rather than 400 there is the route's own existing
+convention for a malformed `:id`. On the traces routes a *missing* tenant is a
+400, because naming no tenant is a malformed request and that is the sibling list
+route's convention — the two cases that must not be distinguishable are foreign
+and absent, and both are 404.
+
+#### Order inside the handlers is load-bearing
+
+Both required-tenant checks land **after** the existing filter and shape
+validation, never before. Ahead of it they would answer requests that are
+malformed in their own right, and those 400s would stop being reachable for
+exactly the requests that test them — `bad status filter`, `bad channel filter`
+and `bad cursor` on the conversations route, and the three shape checks on
+`/api/traces`.
+
+The bad-cursor case had to be re-pointed anyway: with no tenant it is now answered
+by the new 400 and never reaches `decodeCursor`, so it would have kept passing
+without testing a cursor. That is a **seventh** re-point beyond the six the recon
+measured, and it is the reason to look for them: a re-point that is skipped does
+not go red, it goes vacuous.
+
+#### The admin conversations page loses its all-tenants view
+
+Necessarily — that view *was* the leak. `public/admin/conversations.js` now drops
+the `All tenants` placeholder the markup ships with, so the select can only hold a
+real clinic, and short-circuits the request when there is none rather than
+rendering the route's 400 as *"No conversations found."* The row already carried
+`tenant_id`, so the detail fetch takes the thread's own tenant from `data-tenant`.
+`conversations.html` is untouched; the option is removed at runtime.
+
+`GET /api/tenants` stays cross-tenant **by design** — it is the picker that makes
+the scoped views usable, and it is a role-scope question for S3b, not a predicate
+question. Its authenticated path still has zero test coverage.
+
+#### Isolation coverage and the byte instrument
+
+Cross-tenant negative tests over `/admin` routes: **7 before, 12 after.** The
+seven survive unedited except `tracesRoutes.test.js:177`, whose two unscoped
+filters were re-pointed; its actual isolation probe — tenant 2 plus tenant 1's
+shared correlation id → 0 rows — is untouched. No `it()` removed, no assertion
+weakened, no subject or operator changed.
+
+ADMIN-S2's whole-file stripped-byte check was carried forward and **had to be
+rebuilt to remain an instrument**. Deriving the excluded regions from `git diff`
+excises whatever changed and can therefore never go red — a tautology wearing the
+shape of a proof. The regions are instead the edit specs **declared before the
+diff existed**, each required to match exactly once on its own side; red-checked by
+injecting a one-word change outside them, which the check named to the byte
+offset. Cumulatively over the session, with the C1 rename normalised on both
+images: `adminRoutes.js` 31485 stripped bytes `15f2949f622eab86` both sides;
+`conversationService.js` 12877 `a5d9434b5708f759`; `queryService.js` 378
+`9abcd74940c2f98d`. Every 200-path body in the probe is byte-identical to
+`92bd5f2`, including both reminders routes and the conversations detail route.
+
+#### ADMIN-S3a findings — F-A014 … F-A020, and two amendments
+
+Carrying **F-A001 … F-A009** and **F-A012 … F-A013** unchanged.
+
+- **F-A010 AMENDED.** *"Both PK-only"* is literally true but misleading: on
+  `tenants` the primary key **is** the tenant id, so the reminders pair were
+  always correctly scoped. Their real gap was a response-shape one — a malformed
+  id reached the query and raised a 22P02 that rendered as a 500 HTML page
+  carrying the SQL error text. Closed at C2. The kill-switch survival ruling is
+  unaffected, and both routes still have no test: `D4` confined this session to
+  two test files and neither is their home.
+
+- **F-A011 SUPERSEDED.** *"Raw SQL in a handler is where a missing tenant
+  predicate hides"* is **3-of-4 true**. The fourth unscoped read was **inside a
+  service** — `traces/queryService.getTrace` had never taken a tenant — so routing
+  a read through the service layer conferred no scoping whatever. **Standing rule:
+  audit scope derived from call style misses reads. Enumerate by table and
+  predicate, never by call shape.**
+
+- **F-A014 — a guard's name is read far more often than its body.**
+  `requireTenantId` asserted tenancy and delivered UUID syntax across **14 mount
+  points**; the gap was documented in a comment at exactly one of them, so thirteen
+  middleware chains read as though ownership had been checked. Renamed to
+  `requireUuidPathParam` at C1 — a pure token substitution, proven by normalising
+  both names to one token and hashing the whole file.
+
+- **F-A015 — a wrong safety comment is worse than none.**
+  `conversationService.js:28-32` carried a confident, specific, well-argued and
+  **false** claim: that an id-only read there would be *"the one place a caller
+  could learn something about another tenant's thread."* Three id-only reads sat
+  directly above its only call site, and that call site fed it the row's own
+  tenant. It reads to the next engineer as an audit already completed. Rewritten
+  at C3 to say what was true.
+
+- **F-A016 — two admin routes read `req.body` with no per-route parser.**
+  `PATCH /api/tenants/:id/reminders` (`:146`) and `POST /api/tenants` (`:101`)
+  depend on `server.js:51` mounting `express.json()` before `:87`. The file's own
+  convention is a per-route parser (`:66`, `:195`, `:477`, `:623`, `:696`). A test
+  that mounts the router without a global parser gets `Cannot destructure property
+  'enabled' of 'req.body'` — a 500 that reads as a route bug and is not one.
+  `tenantCreate.test.js:143-146` shows the workaround. Not fixed here.
+
+- **F-A017 — ADMIN-S3b BLOCKER, for `decisions.md`.**
+  `tenant_config_revisions.actor_user_id` (`schema.sql:601`) references
+  `users(id)`; `users.tenant_id` is `NOT NULL` (`:95`) and `role` is
+  `CHECK (role IN ('owner','admin','agent'))` (`:100-101`). **A platform operator
+  has no representable row.** Recording an admin actor is structurally impossible
+  without new storage — a `platform_users` table, or widening `users`. That is a
+  decision, not a session's improvisation, and **S3b cannot be scoped until it is
+  made.**
+
+- **F-A018 — DOC DIVERGENCE, `ARCHITECTURE.md:257`.** *"Audit is inherited: config
+  revisions, validation runs, and commit evidence make every applied learning
+  artifact attributable to a person."* False on the admin side. All three admin
+  config writes (`adminRoutes.js:483`, `:501`, `:545`) call
+  `configService.writeTenantConfig` without `actorUserId`, which defaults to
+  `null` (`configService.js:92`) and lands as `NULL` (`:140`); `validation_runs`
+  has **no actor column at all** (`schema.sql:610-616`); and the portal renders
+  that NULL as **"Veprio"** (`portal/routes.js:2320`, `:2379`) — so an operator's
+  edit is indistinguishable from a provisioning write in the owner's own history.
+  Note also that `ARCHITECTURE.md:251`, `:256` and `:370` defer a Support role,
+  role-scoped access and proposer/approver separation to **Phase 3**; a
+  predecessor brief's claim that the architecture "makes present" per-actor audit
+  was the brief's, not the repository's.
+
+- **F-A019 — this file's own invariant line understated HEAD.** *"`tenant_id`
+  scoping everywhere — holds"* (below, in *Architecture invariants*) was true of
+  the runtime paths and silent about the admin surface, where four reads had no
+  predicate and two defaulted to all tenants. The honest reading is that the admin
+  panel was **carved out by design**:
+  `docs/deploy/audit/2026-07-production-readiness.md:120-123` says so in terms —
+  *"single platform operator, one password"* — and names *"every
+  `/api/conversations/:id`-style PK-only read"* as the leak path that opens the day
+  per-tenant panel users arrive. ADMIN-S3a closed the carve-out ahead of that day.
+  The line is amended below to cite both.
+
+- **F-A020 — an exclusion derived from the diff cannot fail.** ADMIN-S2's
+  stripped-byte instrument is now the default for every session, and the first
+  attempt at carrying it forward derived the excluded regions from `git diff`.
+  That version reports IDENTICAL for **any** change, including one it was written
+  to catch — verified by injecting a stray edit and watching it pass. The regions
+  must be **declared from intent before the diff exists**, and each must be
+  required to match exactly once, or a cut that silently matches nothing proves
+  nothing. Red-checked in the rebuilt form. **Standing rule: an instrument that
+  has never been shown red is not evidence.**
+
+#### Recon drift, for the record
+
+The ADMIN-S3a recon was the most accurate brief of the A-series — the two drifts
+were citation-level, not semantic: `WHERE 1=1` is at `:262`, not `:264`, and the
+`requireTenantId only shape-checks` comment at `:672-673`, not `:671-672`. Its one
+substantive miss was the conversation-detail leak shape (above): the response was
+byte-identical to the owning tenant's, not "everything but the channels array".
+
 ### Admin API subtraction — 2026-09-02 (ADMIN-S2)
 
 **Two files: `src/admin/adminRoutes.js` and this one.** `git diff --stat` is
@@ -8575,7 +8776,16 @@ Verified against `package.json` and `voice-agent/pyproject.toml` + `voice-agent/
 Verified at HEAD:
 
 - **Node is the sole reasoning brain** — the worker's dependency list contains no LLM SDK.
-- **`tenant_id` scoping everywhere** — holds, with the two open F-016 letter-violations noted above.
+- **`tenant_id` scoping everywhere** — holds on the runtime paths, and **since
+  ADMIN-S3a (2026-09-03) on the admin read surface too**. Until then this line
+  understated HEAD: four admin reads carried no tenant predicate and two defaulted to
+  every tenant. They were less a gap in this invariant than outside it —
+  `docs/deploy/audit/2026-07-production-readiness.md:120-123` carved the admin panel
+  out **by design** (*"single platform operator, one password"*) and named *"every
+  `/api/conversations/:id`-style PK-only read"* as the leak path that would open the
+  day per-tenant panel users arrived. ADMIN-S3a closed the carve-out ahead of that
+  day; see F-A019. The two open F-016 letter-violations noted above are unaffected
+  and remain open.
 - **`configService` is the single config path** — every reader and writer of the config
   document goes through it. `doctorService` (`tenant_entities`) and `faqService`
   (`knowledge_chunks`) use separate storage **by design**, per `docs/specs/portal-v1-spec.md` §7.
