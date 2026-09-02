@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: f394e3b74a0e7b97c910e20b653ff75dac8be98b
+Verified-at: cb10ee54eca01f4a3825a87d65451e4720267d78
 Verified-on: 2026-09-03
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -171,8 +171,10 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1157 tests / 187 suites / 0 fail** (`npm test`, raw: `# tests 1157 /
-  # suites 187 / # pass 1157 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+- Test suite: **1159 tests / 188 suites / 0 fail** (`npm test`, raw: `# tests 1159 /
+  # suites 188 / # pass 1159 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  **+2 tests / +1 suite at ADMIN-S3c**, the reminders-pair guard test in a new file
+  (`tests/admin/tenantReminders.test.js`), shown RED against `ec03aa8^` first.
   **+5 tests / +0 suites at ADMIN-S3a**, five cross-tenant deny cases added to the two
   existing `describe()` blocks — two on the conversations detail route, one on its
   list, one on `GET /api/traces/:turn_id`, one on the traces list. `# suites` did not
@@ -5441,6 +5443,224 @@ Additions since the original 1–28, all in the plan's Phase 8:
   **The capability was preserved, not removed** — `scripts/update-prompt.js` still sets a
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
+
+### Stale-text batch and document reconciliation — 2026-09-03 (ADMIN-S3c)
+
+**Nine files, one commit, zero executable lines.** The S6 batch brought forward,
+because ADMIN-S3b is blocked on F-A017 and because three consecutive sessions had
+been slowed by text asserting things that stopped being true. Tests **1157 → 1159
+/ 187 → 188 suites / 0 fail**, run twice, the predicted delta exactly.
+
+`git diff --stat cb10ee5^..cb10ee5` is `measure.js`, `shell.css`, the two
+`tests/design/admin*` files, four documents, and one new test file. No `src/`, no
+route, no migration, no schema, no value.
+
+#### Not one executable line moved, and that is checked three ways
+
+The edit specs were **declared in a file before the edit was applied**, so no
+instrument here derives its input from the diff it checks (F-A020). Per touched
+`.js`/`.css` file:
+
+| instrument | what it proves |
+|---|---|
+| (a) reverse-spec identity | reverse-applying every declared spec to the working tree reproduces the HEAD image **byte for byte** — so nothing outside the specs moved, anywhere in the file |
+| (b) comment + whitespace stripped | what changed is confined to comments and the five declared assertion-message strings |
+| (c) (b), plus comments inside template literals | the browser-evaluated probe expressions in `measure.js` are unmoved |
+
+Stripped-byte figures, identical on both sides: `measure.js` 12298 / 11913
+`55b520222c49fa79` / `9be20416cec316f2`; `adminShell.test.js` 7843
+`21b8e51cd1815579`; `adminNav.test.js` 1881 `1094eae89f084c75`; `shell.css` 1897
+`374963a4ffdbd60c`.
+
+**Red-checked, and the red-check found two real defects in the instruments** —
+which is the whole argument for running one:
+
+1. The comment stripper mistook a **regex literal** for a block comment.
+   `adminShell.test.js:38` is `css.replace(/\/\*[\s\S]*?\*\//g, ' ')`; a scanner
+   without a regex arm swallows real code from there to the next `*/` in the
+   file, and reported `adminShell.test.js` as DIFFERING with nothing injected
+   into it — 1397 bytes of live code were being eaten. Fixed by tracking regex
+   context, and the stripped image dropped 9240 → 7843 bytes.
+2. One `shell.css` cut had an **empty `after`** (a deleted table row). An empty
+   cut matches at every offset, which is F-A020's failure mirrored: not "a cut
+   that matches nothing", but a cut that matches everything. Re-anchored on the
+   surviving line above it, same net edit, non-empty on both sides.
+
+The final red-check injects `min-height: 56px → 57px` into `shell.css` and
+`'font/woff' → 'font/woff2'` into `measure.js`. All three instruments go red on
+**exactly those two files** and stay green on the two untouched ones; after
+revert, all twelve checks are IDENTICAL and the runner exits 0.
+
+#### One edit is a comment that a comment-stripper cannot see
+
+`measure.js:191-193` sits **inside the `GEOMETRY` template literal** — a `/* */`
+comment in the JavaScript Chrome evaluates, not in `measure.js`. It survives a
+Node-level strip because the literal is copied verbatim. It is declared as its
+own kind (`strcomment`), normalised in (b), and left un-normalised in (c) so it
+has to vanish on its own there or it was never a comment. Recorded because
+"every changed line is inside a comment" has a third case nobody had met:
+comment-inside-a-string.
+
+#### What was corrected, and what was deliberately left
+
+Enumerated by **reading** all four code files end to end, per F-A008 — and the
+reading found sites the brief did not name in every one of them. 29 declared
+specs landed. Corrected sites are all **present tense and all false at HEAD**:
+
+- `measure.js` — "the nine admin pages"; "all 9"; two usage lines invoking
+  `--pages leads`, a page deleted at ADMIN-S1; "Two of the nine carry more than
+  one" (measured: **one** does, `conversations.html`, and it is now named);
+  "is what today's bar does at 380 on every page".
+- `adminShell.test.js` — both `it()` titles saying "all nine", the file header,
+  three assertion messages, and "the seven pages that have no custom properties"
+  → **named** rather than counted, per F-A006's rule.
+- `adminNav.test.js` — the banner "nine copies", two comments, and the `:87-88`
+  assertion message naming **Leads, Appointments, Workflow, Notifications**. The
+  assertion compares `EXPECTED_HREFS` and was already right; only its message
+  lied. **`:104` is accurate and untouched** (F-A013).
+- `shell.css` — "the seven unmigrated pages" → two; the subtitle table's "Three
+  pages" → two, its `leads` row gone with the page; and three claims that
+  *today's* bar overflows the document at 380 or breaks the brand at 640, all
+  three describing the **pre-A1** bar and now tensed as such. ADMIN-S1 measured
+  the four-item bar at **no horizontal overflow at any width**, so the file was
+  asserting a live defect its own rule had ended.
+
+Deliberately unchanged:
+
+- **RULE 1, past tense** — `shell.css:63` ("the other eight pages' 56"),
+  `:112-116` (the `space-between` measurements, naming `appointments`), `:212`,
+  `:230`, `:234`, `:292-295`; `adminNav.test.js:10-15` and `:20-27`. The last is
+  the interesting one: the paragraph is headed *"A1 MADE IT NINE"* and its closing
+  clause reads *"this test is finally the nine-way comparison its title has always
+  claimed"* — present tense inside a past-tense narrative, now pointing at a title
+  this session corrected to "four". Correcting the numeral would assert A1 built a
+  four-way comparison, which is false. Left whole. See **F-A021**.
+- **RULE 2, count coupled to a live threshold** — `shell.css:106`, `:169`, `:175`
+  ("the eight items", beside 1000/830/768) and `measure.js:72-74` (768 as the
+  width "the eight-item bar stops fitting"). F-A009's ruling stands; the last is a
+  **fourth** such site, in a file F-A009 never looked at.
+- `shell.css:20` "the portal's thirteen pages" — 14 files under `public/portal/`
+  link `tokens.css`, but 13 of them are not `login.html`, which is exactly the
+  exclusion this file's own convention makes twice elsewhere. Ambiguous rather
+  than false; not touched.
+- `shell.css:293` "/admin/style.css is 34 rules" — a brace count returns 33.
+  `style.css` has not changed since A1, so this is a counting-method difference,
+  not drift. Not touched.
+- `measure.js:49` and `adminShell.test.js:9` "A2-A5 measure with this file" — a
+  statement of intent about future sessions, not a claim about HEAD.
+
+#### The documents, and the one instruction that was overruled
+
+- **`ARCHITECTURE.md` §6.7** — *"Audit is inherited: … attributable to a person"*
+  corrected (F-A018). Verified at HEAD: all three admin config writes
+  (`adminRoutes.js:483`, `:501`, `:545`) pass no `actorUserId`, which defaults to
+  `null` and lands NULL; `validation_runs` has **no actor column**; and
+  `portal/routes.js:2320`, `:2379` render that NULL as **"Veprio"**. F-A017 named
+  as the open work; the fix is not designed here.
+- **`2026-08-conversation-model.md` §2.5** — three rows named routes ADMIN-S2
+  deleted; the reminders row said it reads `appointments` and **has never read
+  that table**; every line number had moved; and *"not tenant-scoped"* stopped
+  being true at ADMIN-S3a. All corrected in the document's own established idiom
+  — it already carries an in-place correction note about §4/§5.
+- **`notes-scratch.md`** — *"Collections: NO feature flag exists"* (closed by
+  F-010; `COLLECTIONS_ENABLED` gates init, cron and actions at `server.js:114`)
+  and *"GET reminders routes lack UUID guard (22P02→500)"* (closed at ADMIN-S3a,
+  and tested this session).
+- **`docs/os/state.md:8779`** — the brief asked for the tenant-scoping invariant
+  line to be amended to record S3a's closure and cite the readiness audit's
+  carve-out. **It already does both**, at `c60f012`. The brief's citation
+  (`:8578`) also pointed 201 lines off. Nothing to do; the premise was stale.
+
+**`per-tenant-read-inventory.md` — the citations were NOT re-derived, against the
+brief's instruction, and the measurement is the reason.** 37 of its 41 `file:line`
+citations no longer resolve to what they name; two cited paths do not exist at all
+(`whatsapp/routes.js`, `ownerCommands.js`). But the citations are not the problem
+— the document **stamps them to `main @ 824194e` in its own provenance paragraph**,
+so under RULE 1 they assert nothing false, and re-pointing them at HEAD would
+falsify the one paragraph in the file that is unambiguously true. Worse, it would
+decorate false claims with accurate addresses: **five of the document's claims had
+themselves moved**, three of them landmines the file exists to preserve —
+
+| claim | status at HEAD |
+|---|---|
+| landmine 3: `MESSAGE_RECEIVED` has no `channel` field | **CLOSED**, Issue 30 (`2948a10`) — `channel` + `msg_type` at every emit site |
+| landmine 5: *"No greeting is spoken today."* | **CLOSED**, V1c (`dd93bec`) — spoken on join, consent line inside it |
+| landmine 1: defaults diverge (`anushka`/`bulbul:v2`) | **CLOSED** — now `shubh`/`bulbul:v3`, matching the worker |
+| *"The **only** runtime consumer of configService today is the admin cache-invalidate endpoint"* | **FALSE** — fifteen modules under `src/` read the config document |
+| `ai_prompt` writers include the admin form and create route | **FALSE** — Issue 34 (`69ceb7f`) removed both |
+
+So: the five claims are corrected in place and marked; the citation block is
+**stamped** rather than chased, with the 37-of-41 measurement recorded in the file
+itself and the instruction to locate by symbol. Partial re-derivation was rejected
+as the worse outcome — a document with 2 fresh citations and 39 stale ones under
+one provenance stamp gives a reader no way to tell which is which. See **F-A022**.
+
+#### T2 — the guard test ADMIN-S3a could not write
+
+`tests/admin/tenantReminders.test.js`, +2 tests / +1 suite. A malformed `:id` on
+**both** halves of the reminders pair is answered 404 by `requireUuidPathParam`,
+not the 500 that a 22P02 rendered as an HTML page carrying the SQL error text.
+
+**RED against `ec03aa8^`: 2/2 fail, `500 !== 404`**, with the stack naming
+`adminRoutes.js:177` — the raw query reached with a malformed id. The guard
+*function* already existed at that commit (16 mounts); it simply was not on this
+pair, which is F-A010's shape exactly. GREEN at HEAD 2/2, and `adminRoutes.js` was
+restored byte-clean afterwards (`git diff` empty).
+
+It uses a **malformed** id deliberately. F-A016's missing global `express.json()`
+would 500 a *well-formed* PATCH here with `Cannot destructure property 'enabled'
+of 'req.body'`; the guard answers before `req.body` is read, so the trap is
+unreachable and the route needed no fix. Both facts are written into the file's
+header so the next reader does not rediscover them.
+
+Cross-tenant negative count over `/admin` routes: **12, unmoved from ADMIN-S3a.**
+Proven the strong way rather than by re-counting — ADMIN-S3a recorded the number
+but not its selection rule — `tests/admin/conversations.test.js` and
+`tests/traces/tracesRoutes.test.js` are **byte-identical to HEAD** (`62d810e2039fb710`,
+`d0102af06d48e4d1`; `git diff` empty). The two new tests are guard cases, not
+isolation cases.
+
+#### ADMIN-S3c findings — F-A021 … F-A024
+
+Carrying **F-A001 … F-A020** unchanged, and **F-A020 is now generalised**: an
+instrument whose input is derived from the change it is checking proves nothing;
+every instrument is red-checked against a deliberate wrong state before its green
+is trusted. This session is the first to run that rule and it caught two
+instrument defects on the first try.
+
+- **F-A021 — a historical paragraph that cites its own file's title goes stale
+  when the title is corrected.** `adminNav.test.js:20-27` is headed *"A1 MADE IT
+  NINE"* and closes *"this test is finally the nine-way comparison its title has
+  always claimed"*. RULE 1 protects the paragraph; this session corrected the
+  title it refers to. The result is a second-order inconsistency no rule covers:
+  the narrative is true, the title is true, and the sentence joining them is not.
+  **Standing rule: a past-tense note may quote a measurement, but must not refer
+  to a mutable statement elsewhere in the file.**
+
+- **F-A022 — a citation block must be stamped or chased, never half-chased.**
+  `per-tenant-read-inventory.md` has 41 `file:line` citations of which 37 have
+  drifted in two months. The brief asked for all of them; the correct answer was
+  **none**, because the document stamps them to a commit and the claims around
+  them had moved further than the numbers. A document carrying a mix of fresh and
+  stale citations under one provenance stamp is strictly worse than one carrying
+  only stale ones, because the reader loses the ability to distrust them all.
+  Generalises F-A006 (*name, do not count*) from counts to addresses.
+
+- **F-A023 — a comment can live inside a string, and no stripper will find it.**
+  `measure.js`'s probe expressions are template literals containing their own
+  `/* */` commentary. Every byte-identity instrument this program has built strips
+  comments at the file's own syntax level and therefore reads those as content. A
+  third pass (strip inside template literals) is now part of the check. Any future
+  session touching a file that ships code as a string inherits this.
+
+- **F-A024 — three consecutive briefs' §3 citations have been stale, and the
+  count is rising.** ADMIN-S1 found two stale premises, ADMIN-S2 four (F-A013),
+  ADMIN-S3a two citation-level drifts, and this brief: `state.md:8578` (the line
+  is `:8779` and already carried the amendment asked for), plus an instruction to
+  re-derive citations that RULE 1 forbids. **This is not a brief-quality problem,
+  it is a line-number problem** — the same one F-A022 is about. Standing rule:
+  a brief's `file:line` is a hint, never an authority; resolve by reading before
+  acting, and report the drift rather than following it.
 
 ### Tenant-scoped admin reads — 2026-09-03 (ADMIN-S3a)
 
