@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: ef5d7273357df54e2264f03095291088f5ec315d
+Verified-at: 4b2e3776da16ba64f55aa3a2566cabc032ccdd11
 Verified-on: 2026-09-02
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -5436,6 +5436,177 @@ Additions since the original 1–28, all in the plan's Phase 8:
   **The capability was preserved, not removed** — `scripts/update-prompt.js` still sets a
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
+
+### Admin presentation subtraction — 2026-09-02 (ADMIN-S1)
+
+**Nothing under `src/`. Nothing under `public/portal/`, `public/demo/` or `web/`.**
+`git diff --name-only` is fifteen files: five deleted pages, four surviving pages,
+two stylesheets, `scripts/admin/measure.js` and the two `tests/design/admin*`
+files. Tests **1152 / 187 / 0 fail, unmoved**, run twice — the predicted delta of
+**zero** was exact. No route, table, column, cron or migration was touched;
+`git diff public/admin/app.js` and `git diff src/` are both empty.
+
+The panel is now **four pages plus login**: `tenants`, `tenant-new`,
+`tenant-detail`, `conversations`. Deleted: `leads`, `collections`,
+`appointments`, `workflow`, `notifications`. The admin API routes behind them
+(`/api/leads`, `/api/collections`, `/api/appointments`,
+`/api/workflow-executions`, `/api/notifications`, and the orphaned reminders
+pair) are all still mounted and are **ADMIN-S2's** business. A dead route is not
+a defect today.
+
+#### Two premises the session was given were stale, and Phase 0 caught both
+
+The brief asked to replace the brand string `WhatsApp CRM` with
+`Veprio Operations`, and to remove a Collections link at `tenant-detail.html:32`
+as "the unmet half of a filed readiness-audit finding". Neither existed.
+
+- **`WhatsApp CRM` has not been in `public/admin/` since S5** (`7659e0b`) retired
+  all twenty strings; this file already recorded that at the S5 section. The
+  brand is `Veprio Admin`, pinned by `adminNav.test.js:101`. The rename clause
+  was **struck** and deferred (F-A005).
+- **F-010 closed at `ba45acc`**, which removed the Collections nav link from all
+  eight pages that carried it, `tenant-detail.html` included. Line 32 is
+  `<body>`. `collections.html` had **zero inbound references anywhere in
+  `public/`** — verified by `git grep -in "collection" -- public/`, which returns
+  only the file itself and one comment in `login.html`. Deleting it removes an
+  orphan and closes nothing that was open.
+
+Recorded because both premises read as current fact and were two months out of
+date. The Phase 0 sweep that caught them is the reason the session did not ship
+a rename nobody wanted and a claim to have closed an already-closed finding.
+
+#### The one assertion that was re-pinned, and why it is not a weakening
+
+`adminShell.test.js`'s `assert.ok(emitted.size >= 4)` is a **liveness guard**: it
+exists so the loop beneath it — which checks that every `badge-*` class a JS map
+emits still resolves to a rule in `style.css` — cannot pass vacuously on an empty
+set. Measured: `badge-blue` was emitted by **all five deleted pages and by
+nothing else**. None of the four surviving HTML pages emits a badge literal at
+all; the three that survive (`green`, `red`, `yellow`) come from
+`conversations.js` and `tenant-detail.js` alone.
+
+So the bound was re-pinned `>= 4` -> `>= 3`, its message unchanged. The loop
+still checks three real classes against three real rules. That is the **only**
+assertion touched in either test file; every other changed line there is the
+removal of a registry entry naming a deleted page.
+
+#### Stylesheet values were proven unchanged, not asserted
+
+The empty-diff requirement was replaced by a stronger mechanical test, because
+the session needed to correct comments inside both files. Every changed line in
+`shell.css` and `style.css` lies inside a `/* */` block, and with all comments
+stripped the two files are **byte-identical before and after**:
+
+| file | bytes | sha256 (16) |
+|---|---|---|
+| `shell.css` | 2417 before, 2417 after | `c7bd8dea94d7b944` both |
+| `style.css` | 2239 before, 2239 after | `67faf00a756ffaf0` both |
+
+The A1-fix figures were re-measured and are unmoved: `100ch` resolves to
+**772.2px** on all four pages, and the subtitle line count at 1440 is
+**tenants 1, tenant-new 1, tenant-detail 2, conversations 2**. `tenant-detail`'s
+column measures 652.92px against the 653 A1 recorded, and `conversations`
+473.97 against 474. `scripts/admin/measure.js` does not read this — a Range over
+the text node, one client rect per line box, does.
+
+#### Past-tense comments were deliberately left alone. This is precedent.
+
+`shell.css:212` ("Before A1 that was true on exactly one of nine pages"),
+`:230` ("the grey the seven pages **used to** carry") and `:234` ("that **was**
+the binding constraint on all nine pages") were on the correction list and were
+**not corrected**. A permission to fix comments that assert a false page count
+does not extend to a statement about the past that was true when written:
+changing those counts would introduce the error, not remove it. The same reading
+governs every later subtraction session.
+
+#### What the four-item bar actually measures, and the defect that fell out
+
+| viewport | 1000 | 900 | 830 | 768 | 640 | 380 | 320 |
+|---|---|---|---|---|---|---|---|
+| bar height | 56 | 56 | 56 | 56 | 51.5 | **88.5** | **88.5** |
+
+Identical on all four pages, no horizontal overflow at any width. The bar is one
+row down to 640 and wraps only below it. **Three comments describing the bar's
+wrap behaviour were left saying "the eight items"** — see F-A009. Swapping the
+count alone would have asserted three measurably false things, because the
+thresholds beside it (830, 768) were measured against an eight-item bar.
+
+#### ADMIN-S1 findings — F-A001 … F-A009
+
+A new prefix. The existing series are each bound to one document —
+`F-001`–`F-017` to `docs/deploy/audit/2026-07-production-readiness.md`,
+`F-F001`–`F-F010` to `docs/audit/2026-07-frontend.md`, `F-H003` to its own dated
+file — and numbering into any of them would falsify that document's scope.
+`F-H003`'s own dated-file precedent is followed here, except that the findings
+live in this file rather than a new one under `docs/audit/`, because
+`scripts/os-check.js`'s `EXEMPT` list is `docs/os/` and `docs/prompts/` only: a
+new `docs/audit/` file in the provenance commit would invalidate its own
+`Verified-at` and turn `os:check` red.
+
+- **F-A001 — load-sensitive flake, `tests/crm/extraction.unit.test.js:103`.**
+  A fixed `100ms` `setTimeout` awaits an async bus handler; under full-suite
+  parallel load (187 suites including the ~225s Chrome contrast sweep) the
+  handler has not run when the assertions fire — `lastGenerationConfig` null,
+  `warnCalls.length` 0. Green 3/3 in isolation. **It did not reproduce across
+  five full-suite runs in this session**, which confirms load-sensitivity rather
+  than absence. Pre-existing. Corrupts the delta gate every session it fires in,
+  until it is replaced with a deterministic await.
+
+- **F-A002 — `scripts/admin/measure.js` omits `--disable-lcd-text`.** Captures
+  carry Chrome RGB subpixel fringing (measured max off-line distance 85.0 live
+  against 1.4 with the flag) and so misrepresent the render. **Not** a contrast
+  defect: A1-fix proved every glyph computes `rgb(87,82,74)` on every page, and
+  `-webkit-font-smoothing: antialiased` does not prevent it. Untouched here —
+  ADMIN-S1's authorisation over that file was `ALL_PAGES` and nothing else.
+
+- **F-A003 — the page-header subtitle cannot reach one line on `tenant-detail`,**
+  short by 2px, because the action block takes 251px of the row. `leads` (76px
+  short) is deleted by this session; `conversations` (359px short) is rebuilt at
+  the Incidents session. The measured fix — subtitle on its own row,
+  `grid-column: 1 / -1` — is **deferred to that session on purpose**, so it is
+  decided against the real Incidents header rather than today's.
+
+- **F-A004 — harness serialisation.** Background tasks do not survive a turn
+  boundary in a Claude Code session; `os:check` must run **foreground** (412s,
+  inside the 600s cap). A concurrent `measure.js` headless Chrome wedged
+  `os:check` past **40 minutes**, because `scripts/portal/shoot.js`'s `CDP.send`
+  has no deadline (`measure.js`'s does). Screenshots and `os:check` must be
+  serialised in every future session. Cost this session ~45 minutes.
+
+- **F-A005 — the admin brand is `Veprio Admin`,** pinned by
+  `tests/design/adminNav.test.js:101`. The architecture names the surface
+  "Veprio Operations". The rename is **deferred to the Fleet session**, which is
+  what makes the name accurate; taking it requires editing that test literal.
+
+- **F-A006 — `public/admin/style.css` now has two consumers,** `conversations.html`
+  and `tenant-detail.html`, down from seven. Direct input to the S6
+  stylesheet-retirement decision: the file is now two pages from having no
+  consumer at all. The header comment names them rather than counting them, so
+  the claim cannot go stale silently.
+
+- **F-A007 — `public/admin/style.css:60` `.badge-blue` is dead.** It was emitted
+  only by the five pages this session deleted; no surviving page, script or test
+  emits it. **Third** dead rule alongside `.error` and `.btn-danger`, both of
+  which S5 left standing. With F-A006, all three are input to S6. Not removed:
+  stylesheet values are out of ADMIN-S1's scope.
+
+- **F-A008 — a count asserted in a comment is not greppable by the noun it
+  counts.** This session's Phase 0 comment inventory used the pattern
+  `nine|seven pages|all 9|the nine` and **missed five false-count sites** —
+  "seven unmigrated admin pages" twice and "the eight items" three times — all
+  found only after the deletion had landed. Any future session correcting stale
+  comments should enumerate by reading the files, not by pattern.
+
+- **F-A009 — the bar's two responsive breakpoints are untuned for four items.**
+  `shell.css` tightens the gap at `max-width: 1000px` and wraps at
+  `max-width: 768px`; both were tuned when the bar held eight items. Measured
+  above, the four-item bar is one row down to 640 and wraps only below it, so
+  neither breakpoint is doing the work its comment describes. The three comments
+  at `:106`, `:169` and `:175` still say "the eight items" **deliberately**:
+  correcting the count alone would assert that four items wrap below 768 (they
+  do not) and stop fitting at 830 (they do not). The count and the thresholds
+  have to move together, and moving the thresholds is a stylesheet **value**
+  change — S6's, not this session's.
 
 ### Admin shell and page-header system — 2026-09-02 (A1)
 
