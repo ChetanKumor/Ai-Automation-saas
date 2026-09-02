@@ -230,12 +230,39 @@ main.content {
  * seven pages used to carry. The quieter --faint-strong (#857f79) measures 3.73
  * and 3.63 and is NOT a legal subtitle colour on either ground; it is recorded
  * in brand-values.md so nobody reaches for it later. */
+/* MEASURE. `64ch` resolves to 494.2px at this size, and that was the binding
+ * constraint on all nine pages: eight of the nine wrapped to two lines at 1440
+ * inside a 920px rail with 474-920px of column available to them. A cap that
+ * wraps a one-sentence subtitle in half the space it has is not a measure, it
+ * is a leftover — 64ch is the right number for a paragraph and these are not
+ * paragraphs.
+ *
+ * 100ch (772.2px) is deliberately ABOVE the widest sentence that any column can
+ * actually hold, so max-width no longer decides anything at desktop widths; the
+ * grid's column 1 does, which is the constraint that should decide it. It stays
+ * a real cap for the wrapped case, where a 920px line on the two pages with no
+ * actions would be genuinely hard to track back to the next line's start.
+ *
+ * Three pages still take two lines at 1440 and NOT because of this number —
+ * their sentence is wider than the column their own action block leaves them,
+ * measured at 1440 with a 920px rail:
+ *
+ *   tenant-detail   sentence 655px, column 653px   short by 2px
+ *   leads           sentence 767px, column 691px   short by 76px
+ *   conversations   sentence 833px, column 474px   short by 359px
+ *
+ * conversations is the extreme because its action block is 430px — three
+ * filter selects and a Refresh button. Raising this cap cannot reach them;
+ * the levers are the copy or the header's shape, and both are the founder's.
+ * `node scripts/admin/measure.js` does not read this — subwrap in the session
+ * log does; re-derive with a Range over the text node, one client rect per
+ * line box, never a height divided by a line-height. */
 .page-head__sub {
   grid-column: 1;
   margin: 6px 0 0;
   font: 400 13.5px/1.48 'Noto Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: #57524a;
-  max-width: 64ch;
+  max-width: 100ch;
 }
 .page-head__actions {
   grid-column: 2;
