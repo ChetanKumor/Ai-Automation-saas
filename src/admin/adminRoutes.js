@@ -143,7 +143,7 @@ router.post('/api/tenants', requireAuth, apiLimiter, requireAdminHeader, async (
 });
 
 // ── API: Toggle tenant reminders ────────────────────────────
-router.patch('/api/tenants/:id/reminders', requireAuth, apiLimiter, requireAdminHeader, async (req, res) => {
+router.patch('/api/tenants/:id/reminders', requireAuth, apiLimiter, requireAdminHeader, requireUuidPathParam, async (req, res) => {
   const { id } = req.params;
   const { enabled, hours_before } = req.body;
 
@@ -173,7 +173,7 @@ router.patch('/api/tenants/:id/reminders', requireAuth, apiLimiter, requireAdmin
 });
 
 // ── API: Get tenant reminder settings ───────────────────────
-router.get('/api/tenants/:id/reminders', requireAuth, async (req, res) => {
+router.get('/api/tenants/:id/reminders', requireAuth, requireUuidPathParam, async (req, res) => {
   const { rows } = await db.query(
     `SELECT id, business_name, reminders_enabled, reminder_hours_before, reminder_template_id
      FROM tenants WHERE id = $1`,
@@ -406,7 +406,11 @@ router.get('/api/conversations/:id', requireAuth, async (req, res) => {
 
 // Guard the :id path param so a malformed UUID renders a clean 404 instead of a
 // Postgres 22P02 (invalid_text_representation) 500. A well-formed but absent id
-// still 404s naturally from the query below.
+// still 404s naturally from each route's own query. Syntax only: it says nothing
+// about who owns the tenant, which is why it is not named for tenancy.
+//
+// Hoisted on purpose — the two reminders routes above this line mount it too
+// (ADMIN-S3a). The declaration stays here, beside the routes it was written for.
 function requireUuidPathParam(req, res, next) {
   if (UUID_RE.test(req.params.id)) return next();
   res.status(404).json({ error: 'Tenant not found' });
