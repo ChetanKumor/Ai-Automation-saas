@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 4b2e3776da16ba64f55aa3a2566cabc032ccdd11
+Verified-at: 776764c0dd0fc01ad36570236ff04114028df26a
 Verified-on: 2026-09-02
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -5436,6 +5436,178 @@ Additions since the original 1–28, all in the plan's Phase 8:
   **The capability was preserved, not removed** — `scripts/update-prompt.js` still sets a
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
+
+### Admin API subtraction — 2026-09-02 (ADMIN-S2)
+
+**Two files: `src/admin/adminRoutes.js` and this one.** `git diff --stat` is
+`160 deletions(-)`, **zero insertions**, in two hunks. Tests **1152 / 187 / 0
+fail, unmoved**, run twice on each side — the predicted delta of **zero** was
+exact, for the second subtraction session running. `git diff` against `3b5f15f`
+is empty for `tests/`, `public/`, `scripts/`, `web/ public/portal/ public/demo/`
+and `'*.sql'`. No test file was deleted, edited or touched.
+
+The router is now **29 mounted entries, down from 34**. Gone:
+
+| route | was at | read |
+|---|---|---|
+| `GET /admin/api/notifications` | `:146-163` | `notifications` |
+| `GET /admin/api/leads` | `:207-238` | `leads` |
+| `GET /admin/api/collections` | `:241-276` | `payment_schedules` |
+| `GET /admin/api/appointments` | `:279-311` | `appointments` |
+| `GET /admin/api/workflow-executions` | `:314-344` | `workflow_executions` |
+
+All five served pages ADMIN-S1 deleted. Phase 0 established they had **zero
+consumers** — not a page, not a script, not a test, not a cron, not an internal
+caller — by enumerating every `/admin/api` literal that exists anywhere in
+`public/ src/ scripts/ tests/ web/ voice-agent/ server.js` (23 distinct paths,
+none of them these) and then resolving each templated path (`P(id, suffix)`,
+`P(id, verb)`, `${action}`) against its own call sites. They also had **no
+scheduled surface**: the launch plan's only remaining admin page is Issue 27, the
+trace viewer, and Issue 25 shipped tenant-detail with *"collections hidden"*.
+
+#### The deletion set was seven. It should have been five, and that is the finding
+
+The session was scoped to delete the "dead read routes" behind the five deleted
+pages. Two of the seven routes that description swept up are the reminders pair:
+
+```
+PATCH /admin/api/tenants/:id/reminders
+GET   /admin/api/tenants/:id/reminders
+```
+
+They have zero consumers, which is why they were in the set. **They are also the
+sole writer and the sole reader, in the entire codebase, of
+`tenants.reminders_enabled` and `tenants.reminder_hours_before`** — and those two
+columns are what `reminderCron` gates on (`src/scheduler/reminderCron.js:99`,
+`:101`), a live job that sends real patient-facing WhatsApp messages on `*/15`
+ungated from `server.js`. Both columns are `NOT NULL DEFAULT TRUE / 24`.
+
+Deleting them would have left **every tenant permanently reminders-on at 24
+hours, with no operator control short of direct SQL** — while every check in the
+session stayed green, because nothing calls them and nothing tests them. Both
+routes survive. See **F-A010**.
+
+The *S5* section below records these two under *"Five routes have no frontend
+caller … the reminders pair is genuinely orphaned."* That reading is
+**superseded, not corrected**: it predates the cron analysis and was a statement
+about consumers, which is true. Orphaned by consumer is not orphaned by function.
+The *ADMIN-S1* section's line beginning *"The admin API routes behind them"*
+lists all seven as ADMIN-S2's business; five of them were. Both lines are left
+standing as the record of what was believed when written, per the F-A009
+past-tense ruling. They are superseded by this section.
+
+#### Nothing outside the two blocks moved, and that is measured, not asserted
+
+ADMIN-S1's §A6(b) technique, applied twice — once per handler and once to the
+whole file, which is the stronger of the two because it covers comments, helpers
+and imports as well as handler bodies:
+
+| instrument | before | after |
+|---|---|---|
+| whole file, the two blocks excluded from the before-image, whitespace stripped | 34303 bytes, `de554fedd2bbfd18` | 34303 bytes, `de554fedd2bbfd18` |
+| per-handler stripped bytes, all 29 survivors | 29 rows | **0 differing rows** |
+
+`sed` was not used. `adminRoutes.js` is uniformly CRLF (1069 terminators before,
+909 after, zero bare LF, no BOM) and `sed` in this Git Bash strips CR on output,
+so the edit ran through a `node` script that splits and rejoins on the literal
+terminator and asserts sixteen exact line boundaries before writing a byte. The
+first two boundary assertions **failed** on a banner's dash count and aborted the
+run with the file untouched, which is the guard working.
+
+Both join points read `});` + blank + banner, the file's existing convention. No
+import became unused: all 19 top-level requires still have a use elsewhere, so
+not one import line changed.
+
+#### The orphan inventory is empty, and the emptiness is the finding
+
+Every identifier-dot call inside the deleted region, exhaustively: `params.push`,
+`res.status`, `res.json`, **`db.query`**, `router.get`, `Math.min`,
+`logger.error`, `VALID.includes`, `updates.push`, `VALID_STAGES.includes`,
+`VALID_RS.includes`, `updates.join`, `router.patch`, `Math.max`. A targeted sweep
+for `*Service.`, `tracesQuery.`, `renderSystemPrompt`, `estimateTokens`,
+`hashPassword`, `encrypt(` and `crypto.` returns **nothing**.
+
+No service function was orphaned because **no service function was called**. See
+**F-A011**. No route-local helper was orphaned either: not one `function`,
+`const` or `let` is declared anywhere in the deleted region — every helper the
+file owns is declared below it and serves survivors.
+
+#### Reserved routes, present and still tested
+
+- `GET /admin/api/traces` and `GET /admin/api/traces/:turn_id` — now `:861-893`
+  and `:895-907`. Reserved for **Issue 27**, an open plan-of-record item;
+  `src/modules/traces/queryService.js:3-4` names that page as their consumer.
+  Eight `it()` blocks in `tests/traces/tracesRoutes.test.js`.
+- `POST /admin/api/cache/invalidate` — deliberately headless, exercised by three
+  test files.
+- The reminders pair — see above.
+
+#### Isolation and the collections flag are provably unmoved
+
+Cross-tenant negative tests touching `/admin` routes: **7 before, 7 after**, at
+identical line numbers, because `tests/` was not touched at all. None of the
+seven ever exercised a deleted route. `tests/traces/tracesRoutes.test.js:170`
+counts in that set on evidence rather than its title: the fixture seeds four
+traces, three on tenant 1 and one on tenant 2, and the test asserts `length === 3`.
+
+`COLLECTIONS_ENABLED` gates exactly what it gated. `server.js:114` still gates
+the module's action registration and its 30-minute cron;
+`tests/collections/collectionsFlag.unit.test.js` asserts only on
+`src/modules/collections` and never issued an HTTP request to the route that was
+deleted. The 503 arm that lived at `adminRoutes.js:242` went with the route it
+belonged to; no other site changed meaning.
+
+#### ADMIN-S2 findings — F-A010 … F-A013
+
+Carrying **F-A001 … F-A009** unchanged.
+
+- **F-A010 — `PATCH`/`GET /admin/api/tenants/:id/reminders` survive ADMIN-S2
+  despite zero consumers.** They are the sole writer and sole reader of
+  `reminders_enabled` / `reminder_hours_before`, which gate `reminderCron`, a
+  live patient-facing job. The S5 section's *"genuinely orphaned"* is
+  **superseded** — orphaned by consumer is not orphaned by function. A
+  write-only kill switch whose state cannot be read back is worse than either
+  endpoint alone, so the pair moves together or not at all. **Neither carries
+  `requireTenantId`**; both are PK-only and are **ADMIN-S3** items, to be
+  converted **as a pair**.
+
+- **F-A011 — all five deleted handlers called `db.query()` directly and
+  referenced zero service functions.** The orphaned-service inventory ADMIN-S6
+  was to inherit is **empty**, and the emptiness is the finding: this region of
+  `adminRoutes.js` bypassed the service layer entirely. **ADMIN-S3 must establish
+  whether the surviving routes share the pattern**, because raw SQL in a handler
+  is where a missing tenant predicate hides. Not investigated here.
+
+- **F-A012 — PRODUCT GAP, portal roadmap. No portal route writes
+  `reminders_enabled` or `reminder_hours_before`.** Verified: zero hits in
+  `src/portal/` and `public/portal/`. A clinic owner cannot turn off their own
+  patients' reminders; only an operator can, through a route no page calls. This
+  is patient-facing behaviour with no owner control, and it is the same shape as
+  A-008 (`voice.did` declared, read, and written by nothing with a UI) and B1
+  (`owner_notify_phone` shipped with no production writer). Filed, not built.
+
+- **F-A013 — ADMIN-S2's prompt carried four stale premises, all caught at
+  Phase 0.** (i) A predicted non-zero test delta; the actual delta was **0**,
+  because these five routes never had a test. (ii) *"their HTTP **read** routes"*
+  describing a set that contained a **write** route — the `PATCH`. (iii) A
+  presumed orphaned-service inventory that is empty (F-A011). (iv) A mis-citation
+  of `adminNav.test.js:104` for the stale text actually at `:87-88`. **The second
+  nearly authorised deleting a patient-facing kill switch.** Standing rule: *a
+  deletion set described by verb class must be verified per route, not accepted
+  from the description.* This is the second consecutive session whose Phase 0
+  found stale premises in its own brief — ADMIN-S1 found two, this found four.
+
+#### S6 batch-list correction
+
+The stale assertion message is **`tests/design/adminNav.test.js:87-88`** — *"the
+canonical nav must offer Tenants, Conversations, **Leads, Appointments,
+Workflow, Notifications** and Logout"*, naming four deleted pages. **`:104` is
+accurate** (*"must mark exactly its own nav link with `aria-current`"*) and must
+never be "corrected". Both remain out of scope; a later session working from
+`:104` would have corrected nothing. The rest of the S6 batch is unchanged:
+`measure.js:41,46,65`; `adminShell.test.js` `it()` titles and header;
+`shell.css:108,177,251` and the "seven"/"eight" sites; `.badge-blue`, `.error`,
+`.btn-danger`.
 
 ### Admin presentation subtraction — 2026-09-02 (ADMIN-S1)
 
