@@ -58,7 +58,7 @@
   function rowHtml(r) {
     const chips = (r.channels || []).map(channelChip).join('') || '<span class="text-muted">—</span>';
     return `
-      <tr class="conv-row" data-id="${esc(r.id)}">
+      <tr class="conv-row" data-id="${esc(r.id)}" data-tenant="${esc(r.tenant_id)}">
         <td><strong>${esc(r.customer_display)}</strong></td>
         <td>${chips}</td>
         <td>${esc(r.preview) || '<span class="text-muted">—</span>'}</td>
@@ -145,8 +145,11 @@
     thread.innerHTML = items.map((it) => it.kind === 'call' ? callCardHtml(it.v) : bubbleHtml(it.v)).join('');
   }
 
-  async function openDetail(id) {
-    const res = await adminFetch('/admin/api/conversations/' + encodeURIComponent(id));
+  // The detail route requires the thread's tenant and takes it from nowhere else
+  // (ADMIN-S3a), so the row carries it: `tenant_id` is already on every list row.
+  async function openDetail(id, tenantId) {
+    const res = await adminFetch('/admin/api/conversations/' + encodeURIComponent(id) +
+      '?tenant_id=' + encodeURIComponent(tenantId || ''));
     if (res.status === 404) { alert('Conversation not found.'); return; }
     const data = await res.json();
 
@@ -173,7 +176,7 @@
   // ── Wiring ─────────────────────────────────────────────────────────────────
   $('convRows').addEventListener('click', (e) => {
     const tr = e.target.closest('tr.conv-row');
-    if (tr) openDetail(tr.dataset.id);
+    if (tr) openDetail(tr.dataset.id, tr.dataset.tenant);
   });
   $('backBtn').addEventListener('click', showList);
   $('refreshBtn').addEventListener('click', () => loadList(true));

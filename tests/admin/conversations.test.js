@@ -275,7 +275,7 @@ describe('conversations admin API (route-level)', { skip: ADMIN ? false : 'DATAB
     // as `channel` — 'whatsapp' here, since newConversation defaults
     // origin_channel — while the list beside it derived ['voice','whatsapp'].
     // Both now read messages.channel, so they cannot disagree.
-    const mixDetail = await req(server, { method: 'GET', path: '/admin/api/conversations/' + convMix, cookie });
+    const mixDetail = await req(server, { method: 'GET', path: '/admin/api/conversations/' + convMix + '?tenant_id=' + t, cookie });
     assert.equal(mixDetail.status, 200);
     assert.deepEqual([...mixDetail.body.channels].sort(), ['voice', 'whatsapp'],
       'detail derives participation, it does not report how the thread began');
@@ -336,7 +336,7 @@ describe('conversations admin API (route-level)', { skip: ADMIN ? false : 'DATAB
     await newMessage(conv, t, cust.id, { channel: 'voice', content: 'second', direction: 'outbound', sender: 'ai', createdAt: new Date(Date.UTC(2026, 2, 1, 0, 1)).toISOString() });
     const callId = await newCall(t, cust.id, conv, { language: 'te', duration: 30 });
 
-    const res = await req(server, { method: 'GET', path: '/admin/api/conversations/' + conv, cookie });
+    const res = await req(server, { method: 'GET', path: '/admin/api/conversations/' + conv + '?tenant_id=' + t, cookie });
     assert.equal(res.status, 200);
     assert.equal(res.body.customer_display, 'Kavya');
     assert.deepEqual(res.body.messages.map((m) => m.content), ['first', 'second']);
@@ -351,15 +351,65 @@ describe('conversations admin API (route-level)', { skip: ADMIN ? false : 'DATAB
     const cust = await newCustomer(t);
     const conv = await newConversation(t, cust.id);
     await newMessage(conv, t, cust.id, { channel: 'whatsapp' });
-    const res = await req(server, { method: 'GET', path: '/admin/api/conversations/' + conv, cookie });
+    const res = await req(server, { method: 'GET', path: '/admin/api/conversations/' + conv + '?tenant_id=' + t, cookie });
     assert.equal(res.body.call_sessions.length, 0);
+  });
+
+  // ── Cross-tenant denial: the detail route's three reads (ADMIN-S3a) ──────────
+  // The tenant now comes from the request, never from the row. Before this the
+  // route read the row by id alone and then handed the tenant it had just read
+  // OUT of that row to its own guard, so the guard could not refuse: a request
+  // naming any other tenant still returned the patient's name, phone number and
+  // every message body.
+  it('detail denies a non-matching tenant with the absent-row answer, byte for byte', async () => {
+    const a = await newTenant('DenyA'); const b = await newTenant('DenyB');
+    const cust = await newCustomer(a, { name: 'Anaya Rao' });
+    const conv = await newConversation(a, cust.id);
+    await newMessage(conv, a, cust.id, { content: 'ALPHA-SECRET-BODY' });
+    const D = (id, tid) => '/admin/api/conversations/' + id + (tid ? '?tenant_id=' + tid : '');
+
+    // Non-vacuity: the owning tenant still reads its own thread.
+    const own = await req(server, { method: 'GET', path: D(conv, a), cookie });
+    assert.equal(own.status, 200);
+    assert.equal(own.body.customer_display, 'Anaya Rao');
+
+    const absent = await req(server, { method: 'GET', path: D('00000000-0000-0000-0000-0000000000fe', a), cookie });
+    assert.equal(absent.status, 404, 'the absent-row answer is the reference shape');
+
+    // Deny must be indistinguishable from absent — status AND body — or the
+    // shape of the refusal is itself the answer.
+    for (const [what, path] of [['a non-matching tenant', D(conv, b)],
+                                ['no tenant at all', D(conv, null)],
+                                ['a malformed tenant', D(conv, 'not-a-uuid')]]) {
+      const r = await req(server, { method: 'GET', path, cookie });
+      assert.equal(r.status, absent.status, `${what} answers with the absent-row status`);
+      assert.equal(r.raw, absent.raw, `${what} answers with the absent-row body`);
+    }
+  });
+
+  it('a denied detail carries no customer name, phone, message body or call session', async () => {
+    const a = await newTenant('LeakA'); const b = await newTenant('LeakB');
+    const cust = await newCustomer(a, { name: 'Kavya Reddy' });
+    const conv = await newConversation(a, cust.id);
+    await newMessage(conv, a, cust.id, { channel: 'voice', content: 'ALPHA-SECRET-BODY' });
+    const callId = await newCall(a, cust.id, conv, { language: 'te' });
+
+    const res = await req(server, {
+      method: 'GET', path: `/admin/api/conversations/${conv}?tenant_id=${b}`, cookie });
+    assert.equal(res.status, 404);
+    // One assertion per converted read: meta (name, phone), messages (content),
+    // call_sessions (id). A 404 that still shipped a body would pass a
+    // status-only check.
+    for (const secret of ['Kavya Reddy', cust.phone, 'ALPHA-SECRET-BODY', callId]) {
+      assert.ok(!res.raw.includes(secret), `denied body must not carry ${secret}`);
+    }
   });
 
   it('detail for a conversation with zero messages renders empty, not a crash', async () => {
     const t = await newTenant('Empty');
     const cust = await newCustomer(t);
     const conv = await newConversation(t, cust.id);
-    const res = await req(server, { method: 'GET', path: '/admin/api/conversations/' + conv, cookie });
+    const res = await req(server, { method: 'GET', path: '/admin/api/conversations/' + conv + '?tenant_id=' + t, cookie });
     assert.equal(res.status, 200);
     assert.deepEqual(res.body.messages, []);
     assert.equal(res.body.message_count, 0);

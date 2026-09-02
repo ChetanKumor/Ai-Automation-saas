@@ -329,9 +329,27 @@ function previewOf(content, msgType) {
 }
 
 // Detail: meta + ordered messages + linked call_sessions (by conversation_id).
+//
+// `tenant_id` is a REQUIRED query parameter and is the only source of the tenant
+// (ADMIN-S3a). It cannot come from the row. Until this change all three reads
+// below keyed on the conversation id alone, and the one call that did take a
+// tenant — getParticipatingChannels — was handed the tenant read OUT of the row
+// it was guarding, so it could never refuse: a request naming any other tenant
+// returned the patient's name, phone number and every message body.
+//
+// A wrong tenant, an absent conversation, a malformed conversation id and a
+// missing or malformed tenant_id all answer with the SAME 404. Deny has to be
+// indistinguishable from absent, or the shape of the refusal is the answer.
+// 404 rather than 400 on the malformed cases is this route's own convention,
+// already established for a malformed :id.
 router.get('/api/conversations/:id', requireAuth, async (req, res) => {
-  if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Conversation not found' });
   const id = req.params.id;
+  // tenant_id may arrive absent, or repeated (Express yields an array for a
+  // repeated key). test() coerces: 'undefined' and 'a,b' are both non-UUIDs.
+  const tenantId = req.query.tenant_id;
+  if (!UUID_RE.test(id) || !UUID_RE.test(tenantId)) {
+    return res.status(404).json({ error: 'Conversation not found' });
+  }
   try {
     const { rows: metaRows } = await db.query(
       `SELECT c.id, c.tenant_id, c.mode, c.status, c.created_at, c.updated_at,
@@ -340,8 +358,8 @@ router.get('/api/conversations/:id', requireAuth, async (req, res) => {
        FROM conversations c
        JOIN tenants t   ON t.id = c.tenant_id
        JOIN customers cust ON cust.id = c.customer_id
-       WHERE c.id = $1`,
-      [id]
+       WHERE c.id = $1 AND c.tenant_id = $2`,
+      [id, tenantId]
     );
     if (!metaRows[0]) return res.status(404).json({ error: 'Conversation not found' });
     const meta = metaRows[0];
@@ -351,25 +369,28 @@ router.get('/api/conversations/:id', requireAuth, async (req, res) => {
       `SELECT id, direction, sender, channel, msg_type, content, created_at, external_id
        FROM (
          SELECT id, direction, sender, channel, msg_type, content, created_at, external_id
-         FROM messages WHERE conversation_id = $1
+         FROM messages WHERE conversation_id = $1 AND tenant_id = $2
          ORDER BY created_at DESC, id DESC LIMIT 500
        ) sub
        ORDER BY created_at ASC, id ASC`,
-      [id]
+      [id, tenantId]
     );
 
     const { rows: callSessions } = await db.query(
       `SELECT id, direction, provider, status, language_detected,
               started_at, ended_at, duration_seconds
-       FROM call_sessions WHERE conversation_id = $1
+       FROM call_sessions WHERE conversation_id = $1 AND tenant_id = $2
        ORDER BY started_at ASC NULLS LAST, created_at ASC`,
-      [id]
+      [id, tenantId]
     );
 
     // Derived from ALL of this thread's messages, not from the `messages` array
     // above — that one is capped at the newest 500, so a channel that only
     // appears earlier in a long thread would silently drop out of the answer.
-    const channels = await conversationService.getParticipatingChannels(meta.tenant_id, id);
+    // The tenant is the request's, not meta.tenant_id: a read must not source its
+    // own scope from the row it is reading, even where the two are now provably
+    // equal. That circularity is what made this call unable to deny.
+    const channels = await conversationService.getParticipatingChannels(tenantId, id);
 
     res.json({
       id: meta.id,

@@ -25,11 +25,17 @@ const getOrCreateOpenConversation = async (tenantId, customerId, channel = 'what
 // messages.channel is NOT NULL DEFAULT 'whatsapp' and written explicitly at
 // every INSERT site, so a message can never be missing from this.
 //
-// Tenant-scoped on purpose: a conversation id is a UUID and looks unguessable,
-// but every other query in this codebase filters by tenant_id and an id-only
-// read here would be the one place a caller could learn something about
-// another tenant's thread. An unknown id, or one belonging to another tenant,
-// returns [] — indistinguishable, which is the point.
+// Tenant-scoped on purpose: an unknown id, and one belonging to another tenant,
+// both return [] — indistinguishable, which is the point.
+//
+// This comment used to claim that an id-only read HERE would be "the one place a
+// caller could learn something about another tenant's thread". That was false
+// when written and stayed false for two releases: three id-only reads sat
+// directly above this function's only call site, and that caller passed this
+// function the tenant it had just read out of the row — so the scoping below
+// could not refuse anything. All four reads take the tenant from the request as
+// of ADMIN-S3a. A confident, specific, wrong safety comment is worse than none:
+// it reads to the next engineer as an audit already done.
 //
 // Sorted so callers and assertions get a stable order. Returns [] for a
 // conversation that exists but has never spoken.
