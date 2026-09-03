@@ -998,3 +998,103 @@ only known domain out of step three weeks before filing.
 Review: 2026-09-19 — the same date D-020 predicts the first live production call, so
 both are settled in one sitting.
 Outcome: pending
+
+## D-022 — Platform actor identity ahead of G-PAY
+
+Date: 2026-09-03
+Overrides: G-PAY — "do not generalise anything: plans, entitlements, roles,
+permissions" — by creating a `platform_users` table, and a `role` column on it,
+before any clinic has paid and while exactly one human holds admin access.
+Closes: **F-A017**, the ADMIN-S3b blocker. F-A017 established that recording an
+admin actor is structurally impossible without new storage, that the choice
+between a new table and widening `users` is a decision rather than a session's
+improvisation, and that S3b could not be scoped until it was made. This entry is
+that decision.
+
+Reason: the retrofit cost is asymmetric, and that asymmetry is the whole argument.
+Every audit row written before actors exist is retroactively anonymous. A later
+session can add the column; no later session can recover who made the change a
+revision already records. Today `POST /admin/login` compares against
+`ADMIN_PASSWORD` and sets `req.session.admin = true`; identity after `requireAuth`
+is a boolean with three references in all of `src/`
+(`adminRoutes.js:50`, `:56`, `:76`). All three admin config writes
+(`adminRoutes.js:483`, `:501`, `:545`) reach `configService.writeTenantConfig`
+without `actorUserId`, which defaults to `null` (`configService.js:92`) and lands
+NULL (`:140`). `validation_runs` has no actor column (`schema.sql:610-616`). The
+one mutating admin route that records anything actor-shaped records the constant
+string `'admin_session'` (`adminRoutes.js:877`), and its own adjacent comment
+explains why: *"naming a human here would be fiction."* The generalisation G-PAY
+prohibits is being paid for here in a currency G-PAY does not price — history
+that cannot be reconstructed later.
+
+Decision: a **new `platform_users` table**. `users` is **not** widened.
+
+  `users.tenant_id` is `NOT NULL` (`schema.sql:95`) and `users.role` is
+  `CHECK (role IN ('owner','admin','agent'))` (`:99-100`), so a platform operator
+  has no representable row there today. Widening `users` means making `tenant_id`
+  nullable and adding a platform member to the role CHECK, which gives **every**
+  tenant-scoped query over `users` a null-tenant case it does not currently have
+  to consider. The portal's login lookup is the sharpest example: it is the one
+  deliberately tenant-agnostic query in the portal, keyed on email alone, and it
+  admits a row only on `rows.length === 1` (`src/portal/routes.js:118`) precisely
+  so a cross-tenant email collision fails closed instead of guessing a tenant
+  (INV-1). A platform row sharing an operator's email address would become a
+  second match on that query and silently lock a real owner out of the portal —
+  an auth defect introduced by a schema change made for auditing.
+
+  A separate table makes "platform actor" **unrepresentable inside tenant scope by
+  construction** rather than by discipline. `platform_users` has no `tenant_id`
+  and must never acquire one; that absence is the property, not an omission.
+
+  Storage shape for the actor columns, ruled over two alternatives:
+  `tenant_config_revisions` and `validation_runs` each take a **second nullable
+  column** `actor_platform_user_id` referencing `platform_users(id)`, with a CHECK
+  that at most one of the two actor columns is non-null. Rejected: dropping the FK
+  in favour of a bare UUID plus a discriminator, which trades referential
+  integrity for convenience and makes a wrong id unverifiable at write time; and a
+  polymorphic actors view, which is machinery for a problem two columns solve.
+  The second-column shape leaves `actor_user_id`'s meaning **exactly** as it is, so
+  every existing query over it keeps behaving — including the portal's
+  `LEFT JOIN users u ON u.id = r.actor_user_id` (`routes.js:2303-2305`, `:2349-2351`).
+
+  The display consequence is correct rather than merely tolerated. A clinic owner
+  must not be shown an operator's identity, so a platform-actor revision still
+  renders **"Veprio"** in the owner's history — the LEFT JOIN returns NULL for a
+  row whose `actor_user_id` is NULL, and the render falls through to its existing
+  fallback (`routes.js:2320`, `:2379`). Nothing in the portal changes. What changes
+  is that the revision is now **distinguishable in the data** from a provisioning
+  write, which is the actual defect. Provisioning's own revision write
+  (`provisioningService.js:93`, `source='provision'`) has no human actor and
+  correctly leaves both columns NULL; the CHECK accepts that.
+
+Scope limit — attribution only. Deliberately narrower than this entry authorises:
+
+  - **No role behaviour.** `platform_users.role` carries the single value
+    `'operator'` and a CHECK reserving `'support'`. Nothing reads it. There is no
+    second human, and a role split before one exists is the generalisation G-PAY
+    names.
+  - **No per-user login.** `ADMIN_PASSWORD` remains the credential, with the same
+    `safeEqual` comparison, the same rate limiter and the same session
+    regeneration. The session resolves to a **bootstrap operator row** and carries
+    its id. Identity becomes a row; the credential mechanism is unchanged.
+    Per-user passwords are a later session, triggered by a second human existing.
+  - **No content-access gate and no reason-required transcript logging.** That
+    work needs the role split first.
+
+Prediction (falsifiable): by the review date, with a second person holding admin
+  access, **every mutating admin action in the preceding 30 days resolves to a
+  named `platform_users` row, and no audit row carries a null or constant actor.**
+  The falsifier is specific and likely: if a second person is granted access by
+  **sharing the bootstrap credential** instead of getting a row, then the table
+  bought attribution on paper only, every action of both humans collapses back
+  onto one id, and the credential work — not the storage — was the real
+  requirement all along. In that outcome this entry is superseded by one that
+  builds per-user login, and the honest reading is that S3b was sequenced a
+  session too early.
+
+Review: the first date a second human holds admin access, or clinic #10, or
+  **2026-12-03**, whichever comes first. The calendar backstop is deliberate: the
+  first two conditions are both contingent on commercial events that have not
+  happened, and a prediction whose review date can never arrive is not falsifiable.
+
+Outcome: pending
