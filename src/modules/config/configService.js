@@ -86,10 +86,24 @@ function deepMerge(base, overlay) {
 // row (portal owner writes pass their user id). NULL for operator/CLI writes,
 // whose provenance is the `source` label. Backward-compatible: existing callers
 // that omit it record NULL, exactly as before the column existed (migration 024).
+//
+// `opts.actorPlatformUserId` (optional, migration 031 / D-022) is the same idea
+// for the OTHER kind of actor: an operator acting through the admin panel. It is
+// purely additive — the portal's eleven call sites pass actorUserId and are
+// unchanged, and a caller that passes neither records two NULLs, which is still
+// exactly what provisioning and the CLI want.
+//
+// At most one may be set. The database enforces it (tenant_config_revisions_one_actor);
+// this raises first so a programming error reads as one instead of arriving as a
+// bare 23514 rendered as a 500.
 async function writeTenantConfig(tenantId, input, source, opts = {}) {
   if (!tenantId) throw new Error('writeTenantConfig: tenantId is required');
   if (!source) throw new Error('writeTenantConfig: source is required');
-  const { expectedVersion, actorUserId = null } = opts;
+  const { expectedVersion, actorUserId = null, actorPlatformUserId = null } = opts;
+  if (actorUserId && actorPlatformUserId) {
+    throw new Error('writeTenantConfig: a revision has at most one actor — ' +
+      'pass actorUserId or actorPlatformUserId, never both');
+  }
 
   // Write-materialize: merge defaults in, validate the whole document strict.
   const materialized = deepMerge(clinicDefaults, input || {});
@@ -135,9 +149,9 @@ async function writeTenantConfig(tenantId, input, source, opts = {}) {
     // Append the immutable revision, then move the head. UNIQUE(tenant_id,
     // version) is the backstop should two writers ever race past the lock.
     await client.query(
-      `INSERT INTO tenant_config_revisions (tenant_id, version, config, source, actor_user_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [tenantId, version, JSON.stringify(config), source, actorUserId]);
+      `INSERT INTO tenant_config_revisions (tenant_id, version, config, source, actor_user_id, actor_platform_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [tenantId, version, JSON.stringify(config), source, actorUserId, actorPlatformUserId]);
     await client.query(
       `INSERT INTO tenant_configs (tenant_id, version, config, updated_at)
        VALUES ($1, $2, $3, now())

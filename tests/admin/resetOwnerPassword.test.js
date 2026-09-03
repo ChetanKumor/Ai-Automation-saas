@@ -509,8 +509,16 @@ describe('operator owner password reset + session epoch (F3-R1)', { skip: ADMIN 
     assert.equal(line.level, 'info');
     assert.equal(line.obj.tenantId, t, 'names WHICH TENANT');
     assert.equal(line.obj.userId, owner.userId, 'names which account');
-    assert.equal(line.obj.actor, 'admin_session',
-      'names the actor honestly — admin auth has no operator identity, so it must not name a human');
+    // Was the constant 'admin_session' until ADMIN-S3b: admin auth had no operator
+    // identity, so naming anything would have been fiction. It now carries the
+    // acting operator's platform_users id — a UUID, and the SAME id the config
+    // writes on this request record. Still a row rather than a person, because the
+    // credential is still shared; that gap is what D-022's review checks.
+    assert.match(String(line.obj.actor), /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+      'names the acting operator row, not a constant');
+    const { rows: op } = await db.query(
+      'SELECT id FROM platform_users WHERE id = $1', [line.obj.actor]);
+    assert.equal(op.length, 1, 'and the id is a real platform_users row, not a fabricated uuid');
     assert.match(String(line.obj.correlation_id), /^adm_[0-9a-f]{16}$/,
       'carries the correlation id the admin router installs');
 

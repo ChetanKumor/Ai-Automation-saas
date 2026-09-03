@@ -49,10 +49,17 @@ router.use(securityHeaders);
 // the session has no actor until login succeeds — and on every unauthenticated
 // request, which is correct: those write nothing to attribute.
 const requestContext = require('../core/requestContext');
+
+// The operator acting on this request. One expression, used by the correlation
+// wiring below and by every write that records an actor, so the two cannot
+// drift apart. Null before login succeeds and on any unauthenticated request —
+// neither writes anything to attribute.
+const actingOperator = (req) => (req.session && req.session.platformUserId) || null;
+
 router.use(requestContext.middleware({
   prefix: 'adm',
   channel: 'admin',
-  actor: (req) => (req.session && req.session.platformUserId) || null,
+  actor: actingOperator,
 }));
 
 // ── Auth middleware ──────────────────────────────────────────
@@ -543,7 +550,8 @@ router.put('/api/tenants/:id/config', requireAuth, apiLimiter, requireAdminHeade
   }
   try {
     const { version } = await configService.writeTenantConfig(
-      req.params.id, config, 'admin', { expectedVersion: expected_version });
+      req.params.id, config, 'admin',
+      { expectedVersion: expected_version, actorPlatformUserId: actingOperator(req) });
     res.json({ version });
   } catch (err) {
     if (err.name === 'ConfigValidationError') return res.status(422).json({ issues: err.issues });
@@ -560,7 +568,8 @@ router.post('/api/tenants/:id/config/defaults', requireAuth, apiLimiter, require
   const { rows } = await db.query('SELECT 1 FROM tenant_configs WHERE tenant_id = $1', [req.params.id]);
   if (rows[0]) return res.status(409).json({ error: 'config already exists' });
   try {
-    const { version } = await configService.writeTenantConfig(req.params.id, {}, 'admin');
+    const { version } = await configService.writeTenantConfig(req.params.id, {}, 'admin',
+      { actorPlatformUserId: actingOperator(req) });
     res.status(201).json({ version });
   } catch (err) {
     if (/tenant not found/.test(err.message)) return res.status(404).json({ error: 'Tenant not found' });
@@ -605,7 +614,8 @@ router.post('/api/tenants/:id/revisions/:version/restore', requireAuth, apiLimit
   if (!rows[0]) return res.status(404).json({ error: 'Revision not found' });
   try {
     const { version: newVersion } = await configService.writeTenantConfig(
-      req.params.id, rows[0].config, 'admin');
+      req.params.id, rows[0].config, 'admin',
+      { actorPlatformUserId: actingOperator(req) });
     res.status(201).json({ version: newVersion });
   } catch (err) {
     if (err.name === 'ConfigValidationError') return res.status(422).json({ issues: err.issues });
@@ -928,15 +938,19 @@ router.post('/api/tenants/:id/owner/reset',
 
       // The audit line. Follows the create route's shape above; correlation_id is
       // attached automatically by the pino mixin (Issue 21) from the adm_ context
-      // this router installs. actor is 'admin_session' and NOT a person: admin auth
-      // is one shared ADMIN_PASSWORD with no operator identity (requireAuth checks
-      // a boolean), so naming a human here would be fiction. A named operator needs
-      // operator accounts, which do not exist.
+      // this router installs. `actor` was the constant string 'admin_session'
+      // because admin auth was one shared ADMIN_PASSWORD with no operator identity
+      // and naming a human would have been fiction. Operator rows now exist
+      // (D-022), so it is the acting operator's id — the same value the config
+      // writes record, and the same defect closed in the same commit.
+      //
+      // The credential is still shared, so this id names a ROW rather than a
+      // person until per-user login exists. That is the gap D-022's review checks.
       //
       // The password is NOT logged, and neither is the email — the userId
       // identifies the row and carries less PII.
       logger.info(
-        { scope: 'owner_auth', tenantId: req.params.id, userId: owner.id, actor: 'admin_session' },
+        { scope: 'owner_auth', tenantId: req.params.id, userId: owner.id, actor: actingOperator(req) },
         'owner portal password reset');
 
       // The new password crosses the wire exactly here, once. It is never stored
