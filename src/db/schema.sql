@@ -583,6 +583,36 @@ CREATE INDEX idx_call_sessions_external
 --      Issue 8). No runtime code reads these yet.
 -- ============================================================
 
+-- Platform operators (migration 031, D-022). The admin panel's own identity,
+-- deliberately NOT a row in `users`: users.tenant_id is NOT NULL and its role
+-- CHECK carries no platform member, so a platform actor has no representable
+-- row there. Widening `users` would hand every tenant-scoped query over it a
+-- null-tenant case — including the portal login lookup, which admits a row only
+-- on `rows.length === 1` so a cross-tenant email collision fails closed (INV-1).
+--
+-- This table has NO tenant_id and must never acquire one. That absence is the
+-- property, not an omission: it makes "platform actor" unrepresentable inside
+-- tenant scope by construction rather than by discipline.
+--
+-- `role` carries the single value 'operator' and a CHECK reserving 'support'.
+-- NOTHING READS IT (D-022 scope limit) — there is no second human, and a role
+-- split before one exists is generalisation ahead of G-PAY. There is also no
+-- per-user login: ADMIN_PASSWORD remains the credential and the session
+-- resolves to a bootstrap operator row, so password_hash is nullable and the
+-- later credential session adds behaviour, not storage. Rows are never deleted
+-- (disabled_at is the revocation seam) because deleting one would orphan the
+-- audit trail it exists to carry.
+CREATE TABLE platform_users (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email         TEXT NOT NULL UNIQUE,
+  password_hash TEXT,                       -- scrypt (src/portal/auth.js format); NULL for the bootstrap row
+  role          TEXT NOT NULL DEFAULT 'operator'
+                  CHECK (role IN ('operator', 'support')),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_login_at TIMESTAMPTZ,
+  disabled_at   TIMESTAMPTZ                 -- NULL = active
+);
+
 -- One config row per tenant (tenant_id IS the primary key).
 CREATE TABLE tenant_configs (
   tenant_id   UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
@@ -599,8 +629,14 @@ CREATE TABLE tenant_config_revisions (
   config      JSONB NOT NULL,
   source      TEXT NOT NULL,             -- 'provision' | 'admin' | 'cli' | 'portal' (free text, no enum)
   actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL, -- acting user (INV-4); NULL for operator/CLI writes (migration 024)
+  actor_platform_user_id UUID REFERENCES platform_users(id) ON DELETE SET NULL, -- acting operator (migration 031, D-022)
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (tenant_id, version)
+  UNIQUE (tenant_id, version),
+  -- A revision's actor is EITHER a tenant user or a platform user, never both,
+  -- and may be neither: provisioningService writes source='provision' with no
+  -- human actor at all, and that state is accepted deliberately.
+  CONSTRAINT tenant_config_revisions_one_actor
+    CHECK (actor_user_id IS NULL OR actor_platform_user_id IS NULL)
 );
 
 CREATE INDEX idx_tenant_config_revisions_tenant_version
@@ -612,7 +648,13 @@ CREATE TABLE validation_runs (
   tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   passed      BOOLEAN NOT NULL,
   result      JSONB NOT NULL,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,                   -- acting owner (migration 031)
+  actor_platform_user_id UUID REFERENCES platform_users(id) ON DELETE SET NULL, -- acting operator (migration 031)
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- Same rule as tenant_config_revisions: at most one actor, possibly neither
+  -- (a run triggered by the lifecycle CLI has no human actor).
+  CONSTRAINT validation_runs_one_actor
+    CHECK (actor_user_id IS NULL OR actor_platform_user_id IS NULL)
 );
 
 CREATE INDEX idx_validation_runs_tenant_created
