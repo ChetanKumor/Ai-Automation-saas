@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: cb10ee54eca01f4a3825a87d65451e4720267d78
+Verified-at: 4d9537324708e57252eb9412b114137afe020f15
 Verified-on: 2026-09-03
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -171,9 +171,21 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1159 tests / 188 suites / 0 fail** (`npm test`, raw: `# tests 1159 /
-  # suites 188 / # pass 1159 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  **+2 tests / +1 suite at ADMIN-S3c**, the reminders-pair guard test in a new file
+- Test suite: **1184 tests / 192 suites / 0 fail** (`npm test`, raw: `# tests 1184 /
+  # suites 192 / # pass 1184 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  **+25 tests / +4 suites at ADMIN-S3b**, the platform-actor work, run twice with
+  identical counts and matching the predicted delta exactly: +8/+1
+  (`tests/db/platformActors.test.js`, migration 031's shape and constraints), +6/+1
+  (`tests/admin/platformActor.test.js`, the bootstrap operator row), +3/+0 (three
+  tests added to the existing `tests/core/requestContext.test.js` — no new file, so
+  `# suites` did not move), +4/+1 (`tests/admin/configActor.test.js`), and +4/+1
+  (`tests/validation/validationActor.test.js`). A sixth change added no test:
+  `resetOwnerPassword.test.js`'s `'admin_session'` assertion was **rewritten, not
+  added to**, so that file stayed at 18. Every one was shown RED before its green,
+  and the concurrency case only became an instrument after being raised from four
+  logins to sixteen — at four it stayed green under the very defect it exists to
+  catch.
+  Before that, **+2 tests / +1 suite at ADMIN-S3c**, the reminders-pair guard test in a new file
   (`tests/admin/tenantReminders.test.js`), shown RED against `ec03aa8^` first.
   **+5 tests / +0 suites at ADMIN-S3a**, five cross-tenant deny cases added to the two
   existing `describe()` blocks — two on the conversations detail route, one on its
@@ -5443,6 +5455,197 @@ Additions since the original 1–28, all in the plan's Phase 8:
   **The capability was preserved, not removed** — `scripts/update-prompt.js` still sets a
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
+
+### Platform actors and attribution — 2026-09-03 (ADMIN-S3b)
+
+**Admin actions are attributable to a row rather than to a shared password.**
+Seven commits, `85967b8` (D-022, alone and first) through `4d95373` plus this
+provenance commit, **not pushed**. Tests **1159 → 1184 / 188 → 192
+suites / 0 fail**, run twice with identical counts, matching the predicted +25
+exactly. Migration **031**, decision **D-022**, and **F-A017 CLOSED**.
+
+Before this session, identity after `requireAuth` was a boolean with three
+references in all of `src/`. Every admin-originated config revision recorded
+`actor_user_id` NULL, indistinguishable in the data from a provisioning write;
+`validation_runs` had no actor column; and the one mutating admin route that
+recorded anything actor-shaped recorded the constant string `'admin_session'`.
+The retrofit cost is what made this urgent rather than important: a later session
+can add the column, but no session can recover attribution for a revision already
+written.
+
+#### What landed
+
+- **D-022** (`85967b8`, committed alone and first). Overrides G-PAY. `users` is
+  not widened — `users.tenant_id` is `NOT NULL` and its role CHECK carries no
+  platform member, so widening hands every tenant-scoped query over `users` a
+  null-tenant case, including the portal login's `rows.length === 1` rule where a
+  platform row sharing an operator's email would become a second match and lock a
+  real owner out. A separate table makes "platform actor" unrepresentable inside
+  tenant scope **by construction**.
+- **Migration 031 + `schema.sql` in lockstep** (`943fc6e`). `platform_users`
+  (no `tenant_id`, and it must never acquire one); `actor_platform_user_id` on
+  `tenant_config_revisions`; the whole actor pair on `validation_runs`; an
+  at-most-one-actor CHECK on both. Neither-set is accepted deliberately —
+  `provisioningService.js` writes `source='provision'` with no human actor, and
+  that is a **fourth writer** of the revisions table, correctly left alone.
+- **The bootstrap operator row** (`e7a7a08`). One statement,
+  `INSERT … ON CONFLICT (email) DO UPDATE SET last_login_at = NOW() RETURNING id`,
+  which is idempotent and concurrency-safe together. The credential is unchanged:
+  same `safeEqual`, same limiter, same regeneration. The boolean stays.
+- **The actor rides `requestContext`** (`fb0f973`), as one field sourced from the
+  session through an optional resolver function.
+- **The three admin config call sites and the `'admin_session'` constant**
+  (`452a075`) — the same defect, closed together.
+- **The validation path** (`4d95373`), carrying the actor across the probe
+  context switch.
+
+#### The four things measurement contradicted
+
+1. **The pino mixin does not stamp the actor, and was ruled out of scope.**
+   `logger.js:10-13` returns `{ correlation_id }` and nothing else. The brief's
+   claim that the actor "reaches every log line via the existing pino mixin" is
+   **false at HEAD**; reaching it means calling `requestContext.get()`.
+   `logger.js` is **untouched by this session**, and a test now pins that
+   boundary so a later session that puts an operator id on every admin log line
+   does it against a red test rather than assuming it was always there.
+
+2. **`runWith` REPLACES the store; it does not merge.** The `validation_runs`
+   INSERT runs inside the `probe_` context, so wiring the column without carrying
+   the actor across the switch records NULL — silently, with every other test in
+   the session still green. The carry-through has its own test and its own
+   red-check for exactly that reason.
+
+3. **The concurrency test was measured, not chosen.** It was written with four
+   concurrent logins and stayed **GREEN** when the atomic upsert was deliberately
+   replaced by a non-atomic SELECT-then-INSERT — four produces no contention at
+   all. Sixteen detects the defect 5/5 and is clean 5/5. **The symptom is not
+   duplicate rows**, which the unique index prevents: it is 8–12 failed logins out
+   of 16, so a row count alone can never catch it.
+
+4. **`DATABASE_URL` and `TEST_DATABASE_URL` are different databases.**
+   `npm run db:migrate` and `npm run db:status` operate on `DATABASE_URL` (remote
+   Neon); the suite runs against `TEST_DATABASE_URL` (local). Migrating one leaves
+   the other behind, and the failure appeared as six unexplained failures in
+   `adminSecurity.test.js`. Both were migrated.
+
+#### Instruments, and the four that failed their own red-check first
+
+Every instrument was red-checked before its green was trusted (RULE 3 / F-A020).
+**Four failed on the first attempt**, which is the whole argument for the rule:
+
+- **The genesis-diff red-check failed for the wrong reason.** Removing
+  `disabled_at` left a dangling comma, so Path B died with `syntax error at or
+  near ")"` — proving the SQL parser works, not that the catalog diff can see a
+  missing column. Corrected, it names exactly `platform_users.disabled_at`.
+- **Its guard then fired on a comment.** `disabled_at` also appears in the
+  migration's prose, so a bare `/disabled_at/` check reported the column still
+  present after it was gone. Same class as S3c's "a comment can hide inside a
+  string", inverted.
+- **The I2 test passed vacuously.** `platform_users has NO tenant_id` stayed
+  **GREEN** against a database with no `platform_users` at all — `columnExists()`
+  is false for a missing table exactly as for a missing column, and the FK query
+  returns zero rows for both. It was the one test of eight that did not go red,
+  and it guards the session's central invariant. It now asserts the table exists
+  first.
+- **The patcher corrupted a file while printing `ok`.** `String.replace` with a
+  string replacement interprets `$$`, `$&`, `` $` ``, `$'` and `$n`. A replacement
+  containing `` $` `` spliced the entire prefix of `requestContext.test.js` into
+  the middle of itself; the only symptom was a `SyntaxError` three steps later.
+  Fixed with a function replacement plus a length assertion.
+
+**K3 / I6 genesis integrity.** Two real scratch databases — genesis from HEAD's
+`schema.sql`, versus genesis from `298f349`'s plus migration 031 through the
+runner — diffed on the full catalog: **235 columns, 275 constraints, 73 indexes,
+zero differences.** Two normalisations are declared rather than assumed:
+`ordinal_position` is compared separately (5 differences, a **pre-existing** class
+— migration 024 already appends `actor_user_id` where `schema.sql` declares it
+before `created_at`, so genesis and migrate have disagreed on ordinals since 024),
+and `schema_migrations` rows are excluded because `031` is stamped on one path and
+run on the other, which is the evidence the two paths differ, not a defect.
+
+**K4 / I7 stripped-byte identity.** All eight touched source files identical
+outside regions **declared from §5's commit descriptions**, which predate any
+diff. `tests/admin/tenantReminders.test.js` is identical with **zero** declared
+regions, which is what proves the A3 header correction touched only prose. The
+stripper is a scanner with its own 17-case self-test (comment markers inside
+strings and templates, quotes inside comments, regex literals containing `//`,
+character classes containing `/`, division-versus-regex, SQL `--` inside a quoted
+string). Red-checked twice: a stray edit outside every region is caught and named,
+and a region that matches **zero** times fails loudly instead of passing silently.
+
+**K5 / I1 isolation.** `tests/admin/conversations.test.js` and
+`tests/traces/tracesRoutes.test.js` are byte-identical to their ADMIN-S3c state,
+so the cross-tenant negative count is **12, unmoved**, proved by identity rather
+than by recount. **The algorithm, which S3c recorded values for but never named:
+sha256 over CRLF-normalised bytes, first 16 hex** — `62d810e2039fb710` and
+`d0102af06d48e4d1`. Raw sha256 of the on-disk bytes gives `b95b421f…` and
+`0e5935e8…`; a session that reached for the obvious hash would have read drift
+where there is none.
+
+**K6 / I3 the portal does not change.** `git diff 298f349..HEAD -- src/portal/
+public/portal/` is **empty**, and a runtime probe on a scratch database drives the
+real portal history route: a platform-actor revision and a no-actor revision at
+the same version position render **byte-identically** (`"Veprio"`), while the
+owner's own edit still renders `"You"` — so the probe can tell rows apart and is
+not merely reporting sameness. The first comparison used v1 against v2 and
+reported DIFFERENT for a reason that had nothing to do with the actor: v1 is the
+creation revision and renders "Configuration created" purely because of its
+position. Red-checked by changing the owner-facing fallback, after which
+`src/portal/routes.js` was restored byte-clean.
+
+**K7 probe matrix**, scratch DB, both real routers on bare express apps, never
+`server.js`: a login creates exactly one bootstrap row and a second creates none;
+an admin config write records `actor_platform_user_id`; a portal config write
+still records `actor_user_id` with the platform column NULL; and the CHECK rejects
+both-set on **both** tables (`23514` each).
+
+#### Deliberately not built, and why
+
+Per D-022's scope limit: no role behaviour (`platform_users.role` carries
+`'operator'`, reserves `'support'`, and **nothing reads it**), no per-user login
+(`ADMIN_PASSWORD` remains the credential), no content-access gate, no new admin
+route or page, and no portal change.
+
+**`validation_runs.actor_user_id` has no writer.** The column exists because C2
+gave both audit tables the same pair; its writer would be the portal, which
+triggers runs and which this session must leave byte-unchanged (I3). Recorded in
+the code and pinned by a tripwire test rather than left to be discovered later —
+which is how `tenants.owner_notify_phone` shipped as a silent no-op (B1).
+
+#### Findings
+
+- **F-A017 — CLOSED** at `85967b8` by **D-022**. It named the blocker exactly:
+  recording an admin actor was structurally impossible without new storage, and
+  the choice between a new table and widening `users` was a decision rather than a
+  session's improvisation. The decision is a separate `platform_users` table; the
+  reasoning and the falsifiable prediction are in D-022.
+
+- **F-A025 — the brief was stale against a document that was not.** Six premises
+  in the ADMIN-S3b brief failed measurement. The sharpest: its admin
+  `writeTenantConfig` call sites (`:448/:466/:510`) were wrong, while **this
+  file's own F-A018 already carried the correct trio** (`:483/:501/:545`). Also:
+  `LOGIN-F5`'s rule is `rows.length === 1` (`portal/routes.js:118`), not
+  `rows.length !== 1`, and that token appears nowhere in `src/`; the login blast
+  radius is **105 tests over 9 files**, not 98 over 8, the ninth being
+  `tests/traces/tracesRoutes.test.js`; and the two pino-mixin claims above.
+  **Standing rule (F-A024) held in both directions this time:** the brief's
+  content descriptions were right and its line numbers were not.
+
+- **F-A026 — two no-scratch test files became DB-dependent, and the hermeticity
+  loss is FILED, not fixed.** `tests/admin/adminSecurity.test.js` (14 tests, 6
+  successful logins) and `tests/admin/tenantReminders.test.js` (2 tests) build the
+  admin app with no scratch database. Their routes still touch nothing; their
+  **logins** now do. 16 tests that pass today with `DATABASE_URL` unset would
+  newly fail. `tenantReminders.test.js`'s "NO DATABASE." header was corrected in
+  the commit that falsified it. Giving both files a scratch database is a session
+  scoped to it.
+
+- **F-A027 — `requestContext.js`'s documented context shape cites a module that
+  does not exist.** Its header names `core/events.js` as maintaining `eventDepth`
+  and `eventId`; there is no `src/core/events.js`, and **nothing in `src/` sets
+  either field**. Noticed while editing that same comment block and deliberately
+  **not fixed** — §6's drift prohibition covers pre-existing stale text, and this
+  session's change did not falsify it.
 
 ### Stale-text batch and document reconciliation — 2026-09-03 (ADMIN-S3c)
 
