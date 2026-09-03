@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Traces — Veprio Admin</title>
+  <link rel="stylesheet" href="/portal/fonts/fonts.css">
+  <link rel="stylesheet" href="/admin/style.css">
+  <!-- LAST, deliberately. shell.css owns the ground, the bar, the page header
+       and the content column on all five admin pages, and overrides tokens.css
+       and style.css where they collide. See the file header. -->
+  <link rel="stylesheet" href="/admin/shell.css">
+  <style>
+    /* Channel chips reuse conversations.html's palette so one channel reads the
+       same on both pages. `test` is the third value turn_traces.channel really
+       carries (testTurnService opens its collector with it); the DDL comment
+       naming only two is stale and is filed, not fixed here. */
+    .chip { font-size:11px; padding:2px 7px; border-radius:10px; text-transform:capitalize; }
+    .chip-whatsapp { background:#e6f4ea; color:#137333; }
+    .chip-voice    { background:#e8f0fe; color:#1a56c4; }
+    .chip-test     { background:#f3e8fd; color:#6b21a8; }
+    .chip-other    { background:#eee; color:#555; }
+
+    /* Ids are the column that gets scanned, so they are monospace and they are
+       ELIDED, never reflowed — a wrapped uuid is unreadable at a glance. The
+       full value rides in title= and in the copy target. */
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; }
+
+    /* The one honest line, and the shape of the answer above it. */
+    .empty-note { text-align:center; padding:28px 16px; color:#57524a; font-size:13.5px; line-height:1.55; }
+    .empty-note strong { display:block; color:#17150f; font-size:14px; margin-bottom:4px; }
+
+    .filter-input { padding:6px 10px; border:1px solid #ddd; border-radius:6px; font-size:13px; font-family:inherit; }
+    .filter-input.mono { width:220px; }
+    .filter-select { padding:6px 10px; border:1px solid #ddd; border-radius:6px; font-size:13px; }
+
+    /* A refused request states the route's OWN reason. The page does not carry a
+       second copy of the route's validation, so it cannot drift out of step
+       with it — see the note in traces.js. */
+    .filter-note { margin:0 0 14px; font-size:13px; color:#721c24; background:#f8d7da;
+      border-radius:6px; padding:8px 12px; display:none; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/admin/tenants.html" class="brand">Veprio Admin</a>
+    <a href="/admin/tenants.html">Tenants</a>
+    <a href="/admin/conversations.html">Conversations</a>
+    <a href="/admin/traces.html" aria-current="page">Traces</a>
+    <a href="/admin/logout">Logout</a>
+  </nav>
+
+  <div class="container">
+    <div id="traceList">
+      <div class="page-head">
+        <h1 class="page-head__title">Traces</h1>
+        <p class="page-head__sub">One row per AI turn — where the time went, what was retrieved, and what broke.</p>
+        <div class="page-head__actions">
+          <select id="tenantFilter" class="filter-select"></select>
+          <input id="convFilter" class="filter-input mono" type="text" placeholder="conversation id" aria-label="Filter by conversation id">
+          <input id="corrFilter" class="filter-input mono" type="text" placeholder="correlation id" aria-label="Filter by correlation id">
+          <select id="limitFilter" class="filter-select" aria-label="Rows to fetch">
+            <option value="25">25 rows</option>
+            <option value="50" selected>50 rows</option>
+            <option value="100">100 rows</option>
+            <option value="200">200 rows</option>
+          </select>
+          <button id="refreshBtn" class="btn" style="background:#eee; color:#333;">Refresh</button>
+        </div>
+      </div>
+
+      <p id="filterNote" class="filter-note" role="status"></p>
+
+      <div class="card" style="padding:0; overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Correlation id</th>
+              <th class="hide-mobile">Conversation</th>
+              <th>Channel</th>
+              <th>Total</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="traceRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="/admin/app.js"></script>
+  <script src="/admin/traces.js"></script>
+</body>
+</html>

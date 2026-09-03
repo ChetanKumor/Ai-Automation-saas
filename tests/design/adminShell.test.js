@@ -1,6 +1,13 @@
 'use strict';
 
-// ── The admin shell is ONE file, and the four pages are held to it (A1) ─────
+// ── The admin shell is ONE file, and the five pages are held to it (A1) ─────
+//
+// ADMIN-S4 MADE IT FIVE. `traces.html` (Issue 27) is the fourth and last of the
+// admin pages the approved architecture keeps, and it enters the registries
+// below as ADDED ENTRIES only: PAGES, EXPECTED_IDS, and the badge-literal scan
+// list. No assertion here was weakened to admit it and no bound was re-pinned.
+// The badge-scan list also gained `traces.js` — a deliberate strengthening,
+// because it was otherwise the only page script outside that gate.
 //
 // No DB, no server, no browser: the shipped files, read off disk. Everything
 // this file can prove statically it proves here; everything that needs a
@@ -17,8 +24,9 @@
 // one edit away from the same fate.
 //
 // FOUR test() blocks, deliberately no more, following the rule tokenDrift.test.js
-// and adminNav.test.js both state: a per-page test would report one fault four
-// times and say nothing extra.
+// and adminNav.test.js both state: a per-page test would report one fault five
+// times and say nothing extra. The block count is four and the page count is
+// five; they were never the same number and adding a page must not add a block.
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
@@ -43,6 +51,7 @@ const noHtmlComments = (html) => html.replace(/<!--[\s\S]*?-->/g, ' ');
 // and moved onto tokens at S4 under its own rules.
 const PAGES = [
   'tenants.html', 'tenant-new.html', 'tenant-detail.html', 'conversations.html',
+  'traces.html',
 ];
 
 // Measured at A1's Phase A and re-measured after the change. An id that
@@ -54,10 +63,11 @@ const EXPECTED_IDS = {
   'tenant-new.html': 6,
   'tenant-detail.html': 44,
   'conversations.html': 12,
+  'traces.html': 8,
 };
 
 describe('admin shell + page header (A1)', () => {
-  it('is one stylesheet: shell.css last on all four, and no nav rule anywhere else', () => {
+  it('is one stylesheet: shell.css last on all five, and no nav rule anywhere else', () => {
     for (const f of PAGES) {
       const html = read(f);
       const links = [...noHtmlComments(html).matchAll(/<link[^>]+href="([^"]+\.css)"/g)]
@@ -70,7 +80,7 @@ describe('admin shell + page header (A1)', () => {
         + 'tokens.css (.page-head*, .content) and style.css (body, nav, .container), '
         + 'and a reorder would hand those selectors back.');
       assert.ok(links.includes('/portal/fonts/fonts.css'),
-        `${f} must link /portal/fonts/fonts.css — one type family across all four. `
+        `${f} must link /portal/fonts/fonts.css — one type family across all five. `
         + 'It is fourteen @font-face rules and nothing else, so it adds no cascade '
         + 'surface and downloads nothing until a rule asks for the face.');
 
@@ -79,7 +89,7 @@ describe('admin shell + page header (A1)', () => {
         [...noHtmlComments(html).matchAll(/<style>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n'));
       assert.ok(!/(^|[\s,>])nav\s*(\{|a\b|\.brand)/m.test(inline),
         `${f} declares nav CSS in an inline <style>. The bar lives in `
-        + '/admin/shell.css, once, for all four pages.');
+        + '/admin/shell.css, once, for all five pages.');
     }
 
     const style = noCssComments(fs.readFileSync(path.join(ADMIN, 'style.css'), 'utf8'));
@@ -101,7 +111,7 @@ describe('admin shell + page header (A1)', () => {
       'shell.css must declare the rail it derives the bar padding from');
   });
 
-  it('gives all four a page header with a title and its own subtitle', () => {
+  it('gives all five a page header with a title and its own subtitle', () => {
     const subs = new Map();
     for (const f of PAGES) {
       const html = read(f);
@@ -124,7 +134,7 @@ describe('admin shell + page header (A1)', () => {
       subs.set(f, found[0]);
     }
 
-    // Four pages, four different sentences. A copied subtitle is worse than
+    // Five pages, five different sentences. A copied subtitle is worse than
     // none: it tells the operator this page is the same as the last one.
     const seen = new Map();
     for (const [f, s] of subs) {
@@ -212,7 +222,7 @@ describe('admin shell + page header (A1)', () => {
     //    must still resolve to a rule in style.css.
     const styleCss = fs.readFileSync(path.join(ADMIN, 'style.css'), 'utf8');
     const emitted = new Set();
-    for (const f of [...PAGES, 'conversations.js', 'tenant-detail.js']) {
+    for (const f of [...PAGES, 'conversations.js', 'tenant-detail.js', 'traces.js']) {
       const src = fs.readFileSync(path.join(ADMIN, f), 'utf8');
       for (const m of src.matchAll(/'(badge-[a-z]+)'/g)) emitted.add(m[1]);
     }
@@ -232,7 +242,7 @@ describe('admin shell + page header (A1)', () => {
     // The bar ground moved #1a1a2e -> #17150f at A1 and every pair on it
     // improved. The old navy's numbers are in docs/design/brand-values.md.
     const INK = '#17150f';      // bar ground, the product's ink
-    const PAPER = '#faf8f5';    // page ground on all four
+    const PAPER = '#faf8f5';    // page ground on all five
     const CARD = '#ffffff';
 
     const PAIRS = [

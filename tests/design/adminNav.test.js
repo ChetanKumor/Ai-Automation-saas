@@ -1,10 +1,10 @@
 'use strict';
 
-// ── The admin nav is four copies of one block (S5) ──────────────────────────
+// ── The admin nav is five copies of one block (S5) ──────────────────────────
 //
 // No DB, no server, no browser: the shipped files. The panel has no nav
 // COMPONENT — every page carries hand-written markup — so the only thing that
-// can hold four copies in agreement is a test that reads all four and compares
+// can hold five copies in agreement is a test that reads all five and compares
 // them to each other.
 //
 // This is the defect it exists to stop coming back, measured at S5's Phase A:
@@ -15,13 +15,21 @@
 // page was the one that offered the least. Tenants was never a nav item at all.
 //
 // TWO test() blocks, deliberately no more, following tokenDrift.test.js's rule:
-// a per-page test would report the same fault four times and say nothing extra.
+// a per-page test would report the same fault five times and say nothing extra.
 //
-// A1 MADE IT NINE. `tenant-detail.html` was the last holdout: it still carried
+// ⚠ THE HEADER BELOW SAID "NINE" AND THE ARRAY SAID FOUR. A1 really did hold
+// nine pages; ADMIN-S1 then deleted five of them, taking PAGES to four, and the
+// prose was never corrected — so a comment claiming a nine-way comparison sat
+// above a four-way one for three sessions. Corrected at ADMIN-S4, which takes
+// it to FIVE: `traces.html` (Issue 27) enters PAGES, CURRENT and
+// EXPECTED_HREFS as added entries, with no assertion weakened.
+//
+// A1 MADE IT NINE, and here is what that meant at the time.
+// `tenant-detail.html` was the last holdout: it still carried
 // the pre-S5 five-link block — no Tenants, no Appointments, no Workflow — so an
 // operator on a tenant could not get back to the tenant list except through the
 // brand. It now carries the canonical block and is in PAGES, and this test is
-// finally the nine-way comparison its title has always claimed. Its measured
+// then the nine-way comparison its title claimed. Its measured
 // symptom is worth keeping: with three fewer items in a space-between bar, its
 // item spacing was 254.80px at 1440 against every other page's ~116. The bar no
 // longer uses space-between at all — see /admin/shell.css.
@@ -41,6 +49,7 @@ const DIR = path.join(__dirname, '..', '..', 'public', 'admin');
 // absent: it is the signed-out door and has no nav at all.
 const PAGES = [
   'tenants.html', 'tenant-new.html', 'tenant-detail.html', 'conversations.html',
+  'traces.html',
 ];
 
 // aria-current marks a page that IS a nav destination. tenant-new.html and
@@ -49,12 +58,14 @@ const PAGES = [
 const CURRENT = {
   'tenants.html': '/admin/tenants.html',
   'conversations.html': '/admin/conversations.html',
+  'traces.html': '/admin/traces.html',
 };
 
 const EXPECTED_HREFS = [
   '/admin/tenants.html',        // the brand
   '/admin/tenants.html',
   '/admin/conversations.html',
+  '/admin/traces.html',
   '/admin/logout',
 ];
 
@@ -81,7 +92,7 @@ describe('admin nav parity (S5)', () => {
         'The panel has no nav component; all copies must be edited together.');
     }
 
-    // And the block is the one we meant, not merely four copies of a wrong one.
+    // And the block is the one we meant, not merely five copies of a wrong one.
     const hrefs = [...navOf(first).matchAll(/<a href="([^"]+)"/g)].map((x) => x[1]);
     assert.deepStrictEqual(hrefs, EXPECTED_HREFS,
       'the canonical nav must offer Tenants, Conversations and Logout, ' +
