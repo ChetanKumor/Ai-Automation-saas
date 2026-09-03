@@ -103,6 +103,65 @@ describe('requestContext', () => {
       mw(req, res, () => { inside = requestContext.get(); });
       assert.match(inside.correlationId, /^call_[0-9a-f]{16}$/);
     });
+
+    // ── the acting operator rides the context (ADMIN-S3b C4, D-022) ──
+
+    it('an actor resolver puts the platform user id on the context', () => {
+      const actorId = '11111111-2222-3333-4444-555555555555';
+      const seen = [];
+      const mw = requestContext.middleware({
+        prefix: 'adm', channel: 'admin',
+        actor: (req) => { seen.push(req); return req.session.platformUserId; },
+      });
+      const req = { headers: {}, session: { admin: true, platformUserId: actorId } };
+      const res = buildRes();
+      let inside = null;
+      mw(req, res, () => { inside = requestContext.get(); });
+
+      assert.equal(inside.platformUserId, actorId, "the id reaches get() without a route signature change");
+      assert.deepEqual(seen, [req], "the resolver is handed the request, not the session");
+      // The two existing fields are untouched — C4 adds, it does not redefine.
+      assert.match(inside.correlationId, /^adm_[0-9a-f]{16}$/);
+      assert.equal(inside.channel, 'admin');
+    });
+
+    it('surfaces with no actor resolver carry null, and are otherwise unmoved', () => {
+      // The webhook and voice edges have no session at all; a reader must never
+      // have to tell "no actor" apart from "field not set".
+      for (const [prefix, channel] of [['wa', 'whatsapp'], ['call', 'voice']]) {
+        const mw = requestContext.middleware({ prefix, channel });
+        const res = buildRes();
+        let inside = null;
+        mw({ headers: {} }, res, () => { inside = requestContext.get(); });
+
+        assert.ok('platformUserId' in inside, `${channel}: the field is present`);
+        assert.equal(inside.platformUserId, null, `${channel}: and it is null, not undefined`);
+        assert.match(inside.correlationId, new RegExp(`^${prefix}_[0-9a-f]{16}$`));
+        assert.equal(inside.channel, channel);
+      }
+    });
+
+    it('the actor is NOT stamped on log lines — the mixin still emits correlation_id alone', () => {
+      // Ruled deliberately (ADMIN-S3b A1): reaching this value means calling
+      // get(). Extending the pino mixin would put an operator id on every line
+      // of every admin request, which is a different decision than attribution
+      // and was not this session's to make. Pinned so a later session that adds
+      // it has to do so on purpose, against a red test, rather than assuming it
+      // was always there.
+      const mw = requestContext.middleware({
+        prefix: 'adm', channel: 'admin', actor: () => 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      });
+      let stamped = null;
+      let inside = null;
+      mw({ headers: {}, session: {} }, buildRes(), () => {
+        inside = requestContext.get();
+        stamped = logger._mixin();
+      });
+
+      assert.ok(inside.platformUserId, 'the actor IS on the context');
+      assert.deepEqual(Object.keys(stamped), ['correlation_id'],
+        'but the log line carries correlation_id and nothing else');
+    });
   });
 
   it('the three wired surfaces use the pinned prefixes and trust', () => {

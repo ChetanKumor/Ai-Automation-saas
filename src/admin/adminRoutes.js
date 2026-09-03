@@ -42,8 +42,18 @@ router.use(securityHeaders);
 
 // Correlation context (Issue 21). Admin is a public (session-authed) edge:
 // always a fresh adm_ id, never adopted from the request.
+//
+// The acting operator rides the same context (ADMIN-S3b, D-022). Sourced from
+// the session, which express-session populates before this router is mounted
+// (server.js), so it is available here. Null on the login request itself —
+// the session has no actor until login succeeds — and on every unauthenticated
+// request, which is correct: those write nothing to attribute.
 const requestContext = require('../core/requestContext');
-router.use(requestContext.middleware({ prefix: 'adm', channel: 'admin' }));
+router.use(requestContext.middleware({
+  prefix: 'adm',
+  channel: 'admin',
+  actor: (req) => (req.session && req.session.platformUserId) || null,
+}));
 
 // ── Auth middleware ──────────────────────────────────────────
 function requireAuth(req, res, next) {

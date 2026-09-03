@@ -13,6 +13,15 @@ const crypto = require('crypto');
  * two are maintained by the event bus (core/events.js) so events emitted
  * inside a handler inherit the causal chain (depth + causation_id).
  *
+ * platformUserId (ADMIN-S3b, D-022) is the acting operator, present only on
+ * the admin surface and null everywhere else. It rides here rather than
+ * through route signatures so a service several calls deep can attribute a
+ * write without every caller in between growing a parameter it does not use.
+ *
+ * It is NOT stamped on log lines. The pino mixin emits correlation_id and
+ * nothing else, and extending it was ruled out of scope — reaching this value
+ * means calling get(), which is what configService and validationService do.
+ *
  * Trust boundary: only HMAC-authenticated internal endpoints may ADOPT an id
  * from the `X-Correlation-Id` request header (`trusted: true`); public edges
  * (Meta webhook, admin) always generate fresh. A supplied id must match the
@@ -51,15 +60,25 @@ function get() {
  * (HMAC'd internal routes only — mount AFTER the auth middleware) a
  * well-formed inbound `X-Correlation-Id` is adopted; otherwise a fresh
  * `<prefix>_` id is generated.
+ *
+ * `actor` (optional) is a function of the request returning the acting
+ * platform user id, or null. It is a function, and supplied per surface,
+ * rather than this module reading a session field directly: requestContext is
+ * mounted on the Meta webhook and the voice edge too, and neither has a
+ * session. Teaching it the admin session's shape would couple a core module
+ * to one surface's auth for no gain.
  */
-function middleware({ prefix, channel, trusted = false }) {
+function middleware({ prefix, channel, trusted = false, actor }) {
   return (req, res, next) => {
     const supplied = trusted ? req.headers['x-correlation-id'] : undefined;
     const correlationId = isValidCorrelationId(supplied)
       ? supplied
       : newCorrelationId(prefix);
     res.setHeader('X-Correlation-Id', correlationId);
-    runWith({ correlationId, channel }, next);
+    // Null rather than absent on every surface that has no actor, so a reader
+    // never has to distinguish "no actor" from "field not set".
+    const platformUserId = typeof actor === 'function' ? (actor(req) || null) : null;
+    runWith({ correlationId, channel, platformUserId }, next);
   };
 }
 
