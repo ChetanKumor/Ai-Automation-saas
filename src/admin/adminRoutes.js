@@ -62,10 +62,59 @@ router.get('/', (req, res) => {
 // ── Serve admin static files (CSS, JS, HTML pages) ───────────
 router.use(express.static(ADMIN_PUBLIC));
 
+// ── The bootstrap operator row (ADMIN-S3b, D-022) ────────────
+//
+// Admin identity is a ROW, not a boolean. The CREDENTIAL is unchanged — one
+// shared ADMIN_PASSWORD, same safeEqual, same limiter, same regeneration — but
+// a successful comparison now resolves to a platform_users row and the session
+// carries its id. That id is what lands in the audit columns, so an operator
+// edit stops being indistinguishable from a provisioning write.
+//
+// D-022 scope limit: this is NOT per-user login. There is one row because there
+// is one human. When a second human needs access they get a row and a password
+// of their own, and that is a named later session — sharing this credential
+// instead is exactly what D-022 predicts against.
+//
+// .invalid is reserved by RFC 2606 and can never be delivered to, so the
+// bootstrap address can never collide with a real operator's.
+const BOOTSTRAP_OPERATOR_EMAIL = 'bootstrap@veprio.invalid';
+
+// Idempotent and concurrency-safe in ONE statement: two simultaneous logins
+// cannot create two rows, because the unique index on email arbitrates and the
+// loser takes the DO UPDATE branch instead of erroring. DO UPDATE rather than
+// DO NOTHING because DO NOTHING returns no row on conflict, which would force a
+// follow-up SELECT and put the race back. last_login_at is stamped on both
+// branches. disabled_at is deliberately NOT cleared here — resurrecting a
+// disabled row as a side effect of logging in would be a revocation bug, and
+// nothing reads that column yet anyway.
+async function resolveBootstrapOperator() {
+  const { rows } = await db.query(
+    `INSERT INTO platform_users (email, role, last_login_at)
+     VALUES ($1, 'operator', NOW())
+     ON CONFLICT (email) DO UPDATE SET last_login_at = NOW()
+     RETURNING id`,
+    [BOOTSTRAP_OPERATOR_EMAIL]
+  );
+  return rows[0].id;
+}
+
 // ── Auth endpoints ───────────────────────────────────────────
-router.post('/login', loginLimiter, express.json(), (req, res) => {
+router.post('/login', loginLimiter, express.json(), async (req, res) => {
   const supplied = req.body && req.body.password;
   if (safeEqual(supplied, process.env.ADMIN_PASSWORD || '')) {
+    // Resolved BEFORE the session is written, so a session is never minted
+    // without an actor. Failing the login is the honest outcome: every route
+    // behind requireAuth queries this same database, so a session that could
+    // not reach it is useless — and a fail-soft that carried on with a NULL
+    // actor would silently reproduce the exact defect D-022 was written to
+    // remove.
+    let platformUserId;
+    try {
+      platformUserId = await resolveBootstrapOperator();
+    } catch (err) {
+      logger.error({ err: err.message }, 'bootstrap operator resolve failed');
+      return res.status(500).json({ error: 'Login failed' });
+    }
     // Session fixation defense: issue a fresh session id on privilege change so a
     // pre-login (attacker-planted) cookie can't be reused as an authenticated one.
     return req.session.regenerate((err) => {
@@ -73,7 +122,10 @@ router.post('/login', loginLimiter, express.json(), (req, res) => {
         logger.error({ err: err.message }, 'session regenerate failed');
         return res.status(500).json({ error: 'Login failed' });
       }
+      // The boolean STAYS. requireAuth and the `/` redirect read it and are
+      // unchanged; the id rides alongside it.
       req.session.admin = true;
+      req.session.platformUserId = platformUserId;
       res.json({ ok: true });
     });
   }

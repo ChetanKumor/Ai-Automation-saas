@@ -17,10 +17,13 @@
 // `/api/tenants/:id/config` routes — and it is what makes a malformed id, an
 // absent tenant and a foreign tenant one indistinguishable answer.
 //
-// NO DATABASE. The guard runs ahead of the handler, so a malformed id never
-// reaches `db.query`. The app below is `adminRoutes` on a bare express app with
-// a session — never `server.js`, which schedules `reminderCron` and would send
-// real messages.
+// NO DATABASE ON THE ROUTE PATH. The guard runs ahead of the handler, so a
+// malformed id never reaches `db.query`. The LOGIN path does reach it as of
+// ADMIN-S3b: a successful ADMIN_PASSWORD comparison resolves the bootstrap
+// platform_users row (D-022), so this file needs a migrated DATABASE_URL even
+// though the routes under test still touch nothing. The app below is
+// `adminRoutes` on a bare express app with a session — never `server.js`, which
+// schedules `reminderCron` and would send real messages.
 //
 // NAMED TRAP (F-A016). This app mounts no global `express.json()`, and the
 // PATCH route carries no parser of its own — it depends on `server.js:51`. A
