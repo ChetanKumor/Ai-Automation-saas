@@ -63,7 +63,7 @@ const EXPECTED_IDS = {
   'tenant-new.html': 6,
   'tenant-detail.html': 44,
   'conversations.html': 12,
-  'traces.html': 8,
+  'traces.html': 18,
 };
 
 describe('admin shell + page header (A1)', () => {

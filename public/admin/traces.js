@@ -171,6 +171,218 @@
     return rows.map(rowHtml).join('');
   }
 
+  // ── Detail: null versus absent ────────────────────────────────────────────
+  //
+  // A trace with no tool calls and a trace whose tool_calls failed to record are
+  // DIFFERENT FACTS and this page must not merge them. What the page can
+  // actually distinguish is the column's value, so that is what it reports:
+  //   • SQL NULL  — nothing was stored. writer.js maps "no tools this turn" to
+  //     null (`j(snap.tools.length ? snap.tools : null)`), so a turn that used
+  //     no tools and a turn whose list never reached the row are the same value
+  //     here and the copy says so rather than picking one.
+  //   • []        — an empty list really was stored. Something wrote "zero", and
+  //     that is a stronger statement than null.
+  // Same rule for retrieval: contextAssembler records null, never [], when no
+  // retrieval ran — so null there conflates a KB-less tenant with a RAG failure.
+  function absence(value, nullCopy, emptyCopy) {
+    if (value == null) return '<p class="sec-note" style="margin:0">' + esc(nullCopy) + '</p>';
+    if (Array.isArray(value) && value.length === 0) {
+      return '<p class="sec-note" style="margin:0">' + esc(emptyCopy) + '</p>';
+    }
+    return null;
+  }
+
+  // ── ⚠ CONTENT-CLASS:FREE-TEXT ─────────────────────────────────────────────
+  //
+  // Two fields on this row are UNSANITISED FREE TEXT and can carry strings the
+  // system did not choose:
+  //
+  //   error.message              collector.setErrorFromException writes raw
+  //                              err.message, from catches that wrap entire turn
+  //                              bodies (internalVoice.js) — anything that
+  //                              throws puts its message here.
+  //   tool_calls[].outcome.error String(output.error) — and appointmentService's
+  //                              doctor_not_found interpolates the model's own
+  //                              `doctor` argument, which the model took from
+  //                              the patient's utterance, verbatim.
+  //
+  // The DDL's "never full text" promise covers `prompt` and only `prompt`. The
+  // real defect is upstream, at the writer, and is filed as its own session: a
+  // fix here would leave every future reader of turn_traces re-inheriting it.
+  //
+  // Until then this page: renders the CLOSED-SET fields plainly, puts both free-
+  // text fields behind a collapsed disclosure whose label says what they are,
+  // and TRUNCATES in the renderer. The full value is never interpolated into the
+  // DOM — eliding is permitted, synthesising is not, and neither is smuggling.
+  const FREE_TEXT_CAP = 240;
+
+  function freeText(value, what) {
+    if (value == null) return '';
+    const s = String(value);
+    const clipped = s.length > FREE_TEXT_CAP;
+    const shown = clipped ? s.slice(0, FREE_TEXT_CAP) : s;
+    return '<details class="rawtext">'
+      + '<summary>Show the raw ' + esc(what) + ' — unsanitised, and may contain text the system did not choose</summary>'
+      + '<pre>' + esc(shown) + '</pre>'
+      + (clipped
+        ? '<span class="cap">… truncated at ' + FREE_TEXT_CAP + ' characters, ' + s.length + ' in the row.</span>'
+        : '')
+      + '</details>';
+  }
+
+  // ── Detail renderers ──────────────────────────────────────────────────────
+  function kv(label, value) {
+    return '<div><span>' + esc(label) + ':</span> ' + (value == null || value === '' ? DASH : value) + '</div>';
+  }
+  const monoOr = (v) => (v == null || v === '' ? DASH : '<span class="mono">' + esc(v) + '</span>');
+
+  function metaHtml(t) {
+    const st = statusOf(t);
+    return kv('Turn', monoOr(t.turn_id))
+      + kv('Correlation', monoOr(t.correlation_id))
+      + kv('Channel', channelChip(t.channel))
+      + kv('Conversation', monoOr(t.conversation_id))
+      + kv('Call session', monoOr(t.call_session_id))
+      + kv('Recorded', esc(fmtTime(t.created_at)))
+      + kv('Status', '<span class="badge ' + st.badge + '">' + esc(st.label) + '</span>');
+  }
+
+  /**
+   * Proportional bars over `total_ms`, longest first, with `total_ms` itself
+   * removed from the set — it is the denominator, not a stage.
+   *
+   * Without a positive total_ms there is no denominator, and inventing one (the
+   * largest stage, the sum) would be inventing the proportions the reader is
+   * here to read. The values are listed instead, and the page says why.
+   */
+  function stagesHtml(stageTimings) {
+    const absent = absence(stageTimings, 'No stage timings on this row.', 'An empty timing object was recorded.');
+    if (absent) return absent;
+    if (typeof stageTimings !== 'object') return absence(null, 'No stage timings on this row.', '');
+
+    const entries = Object.keys(stageTimings)
+      .filter((k) => k !== 'total_ms')
+      .map((k) => [k, stageTimings[k]])
+      .filter(([, v]) => typeof v === 'number' && isFinite(v))
+      .sort((a, b) => b[1] - a[1]);
+
+    if (!entries.length) {
+      return '<p class="sec-note" style="margin:0">No named stages on this row — only a turn total.</p>';
+    }
+
+    const total = stageTimings.total_ms;
+    const scaled = typeof total === 'number' && isFinite(total) && total > 0;
+
+    const rows = entries.map(([name, ms]) => {
+      const pct = scaled ? Math.max(0.4, Math.min(100, (ms / total) * 100)) : null;
+      const track = scaled
+        ? '<div class="tw-track"><div class="tw-bar" style="width:' + pct.toFixed(2) + '%"></div></div>'
+        : '<div></div>';
+      return '<div class="tw-name">' + esc(name) + '</div>' + track
+        + '<div class="tw-ms">' + esc(fmtMs(ms)) + '</div>';
+    }).join('');
+
+    const note = scaled
+      ? '<p class="sec-note" style="margin:12px 0 0">Turn total ' + esc(fmtMs(total)) + '.</p>'
+      : '<p class="sec-note" style="margin:12px 0 0">This row carries no <code>total_ms</code>, so there is '
+        + 'no denominator to draw bars against. The durations are listed as recorded.</p>';
+
+    return '<div class="tw">' + rows + '</div>' + note;
+  }
+
+  function retrievalHtml(retrieval) {
+    const absent = absence(retrieval, 'No retrieval ran on this turn. The row stores null both for a tenant with '
+      + 'no knowledge base and for a retrieval that failed — they are the same value here.',
+    'An empty retrieval list was recorded.');
+    if (absent) return absent;
+    if (!Array.isArray(retrieval)) return absence(null, 'Retrieval is not a list on this row.', '');
+
+    const rows = retrieval.map((c) => {
+      const below = c && c.below_floor
+        ? ' <span class="badge badge-yellow">below floor</span>' : '';
+      const score = c && typeof c.score === 'number' ? c.score.toFixed(4) : DASH;
+      return '<div>' + monoOr(c ? c.chunk_id : null) + ' &nbsp;<span>score</span> ' + esc(score) + below + '</div>';
+    }).join('');
+    return '<div class="kv">' + rows + '</div>';
+  }
+
+  function promptHtml(prompt) {
+    const absent = absence(prompt, 'No prompt provenance on this row — the turn did not reach prompt preparation.', '');
+    if (absent) return absent;
+    return '<div class="kv">'
+      + kv('Hash', monoOr(prompt.hash))
+      + kv('Config version', prompt.config_version == null
+        ? DASH + ' <span>(null unless the prompt was rendered from a config document)</span>'
+        : esc(String(prompt.config_version)))
+      + kv('Mode', prompt.mode == null ? DASH : esc(String(prompt.mode)))
+      + '</div>';
+  }
+
+  function llmHtml(llm) {
+    const absent = absence(llm, 'The turn never reached the model.', '');
+    if (absent) return absent;
+    const calls = Array.isArray(llm.calls) ? llm.calls : [];
+    const perCall = calls.map((c) => '<div>'
+      + '<span>call ' + esc(c.n) + '</span> ' + esc(c.model == null ? DASH : c.model)
+      + ' &nbsp;<span>in</span> ' + esc(c.input_tokens == null ? DASH : c.input_tokens)
+      + ' &nbsp;<span>out</span> ' + esc(c.output_tokens == null ? DASH : c.output_tokens)
+      + ' &nbsp;<span>thinking</span> ' + esc(c.thinking_tokens == null ? DASH : c.thinking_tokens)
+      + ' &nbsp;<span>took</span> ' + esc(fmtMs(typeof c.latency_ms === 'number' ? c.latency_ms : null))
+      + ' &nbsp;<span>finish</span> ' + esc(c.finish_reason == null ? DASH : c.finish_reason)
+      + (c.streamed ? ' &nbsp;<span class="badge badge-blue">streamed</span>' : '')
+      + '</div>').join('');
+    return '<div class="kv">'
+      + kv('Model', llm.model == null ? null : esc(String(llm.model)))
+      + kv('Input tokens', llm.input_tokens == null ? null : esc(String(llm.input_tokens)))
+      + kv('Output tokens', llm.output_tokens == null ? null : esc(String(llm.output_tokens)))
+      + kv('Model latency', esc(fmtMs(typeof llm.latency_ms === 'number' ? llm.latency_ms : null)))
+      + kv('Finish reason', llm.finish_reason == null ? null : esc(String(llm.finish_reason)))
+      + (perCall ? '<div style="margin-top:8px">' + perCall + '</div>' : '')
+      + '</div>';
+  }
+
+  function toolCallsHtml(toolCalls) {
+    const absent = absence(toolCalls,
+      'Nothing recorded — the column is null. A turn that used no tools and a turn whose tool list never '
+      + 'reached the row are the same value here.',
+      'An empty list was recorded: this turn ran no tools, and said so.');
+    if (absent) return absent;
+    if (!Array.isArray(toolCalls)) return absence(null, 'Tool calls are not a list on this row.', '');
+
+    return toolCalls.map((c) => {
+      const o = c && c.outcome;
+      const status = o && typeof o === 'object' && o.status != null ? String(o.status) : null;
+      const badge = status === 'error' ? 'badge-red' : status === 'ok' ? 'badge-green' : 'badge-blue';
+      const success = o && typeof o === 'object' && o.success !== undefined
+        ? ' &nbsp;<span>success</span> ' + esc(String(o.success)) : '';
+      // ⚠ CONTENT-CLASS:FREE-TEXT — outcome.error, site 1 of 2.
+      const raw = o && typeof o === 'object' && o.error != null ? freeText(o.error, 'tool error') : '';
+      return '<div style="margin-bottom:10px">'
+        + '<div><span>' + esc(c && c.n != null ? c.n : DASH) + '.</span> <strong>'
+        + esc(c && c.name != null ? c.name : DASH) + '</strong>'
+        + ' &nbsp;<span>took</span> ' + esc(fmtMs(c && typeof c.latency_ms === 'number' ? c.latency_ms : null))
+        + ' &nbsp;' + (status ? '<span class="badge ' + badge + '">' + esc(status) + '</span>'
+          : '<span>outcome ' + DASH + '</span>')
+        + success + '</div>' + raw + '</div>';
+    }).join('');
+  }
+
+  function errorHtml(err) {
+    const absent = absence(err, 'No error on this row — the turn completed.', '');
+    if (absent) return absent;
+    const aborted = err.outcome === 'aborted';
+    return '<div class="kv">'
+      + kv('Outcome', aborted ? 'aborted' : 'failed')
+      + (aborted ? kv('Abort reason', err.abort_reason == null ? null : esc(String(err.abort_reason))) : '')
+      + (aborted ? kv('After commit', err.aborted_after_commit == null
+        ? null : esc(String(err.aborted_after_commit))) : '')
+      + kv('Stage', err.stage == null ? null : esc(String(err.stage)))
+      + (aborted ? '' : kv('Status', err.status == null ? null : esc(String(err.status))))
+      // ⚠ CONTENT-CLASS:FREE-TEXT — error.message, site 2 of 2.
+      + freeText(err.message, 'error message')
+      + '</div>';
+  }
+
   // ── The DOM half ──────────────────────────────────────────────────────────
   function _wire(win, doc) {
     const $ = (id) => doc.getElementById(id);
@@ -184,6 +396,7 @@
 
     async function loadTenants() {
       const res = await win.adminFetch('/admin/api/tenants');
+      if (!res.ok) throw new Error('tenant list unavailable (' + res.status + ')');
       const tenants = await res.json();
       const sel = $('tenantFilter');
       // Same reasoning as conversations.js: the list route requires a tenant, so
@@ -211,7 +424,11 @@
           correlationId: $('corrFilter').value.trim(),
           limit: $('limitFilter').value,
         });
-        if (!url) { note(''); tbody.innerHTML = emptyHtml('no-tenant'); return; }
+        // Deliberately does NOT clear the note: the reason there is no tenant
+        // may be the failure loadTenants just reported, and clearing it here
+        // wiped that message off the page. Only a request that SUCCEEDS clears
+        // the note.
+        if (!url) { tbody.innerHTML = emptyHtml('no-tenant'); return; }
 
         const res = await win.adminFetch(url);
         if (!res.ok) {
@@ -231,24 +448,76 @@
       }
     }
 
+    /* The detail route takes the tenant from NOWHERE but the query string
+     * (ADMIN-S3a), so the row carries its own tenant_id and this hands it back.
+     * A 404 here is both "no such trace" and "not your trace" — the route makes
+     * them indistinguishable on purpose, so the page says the honest thing
+     * rather than guessing which one it was. */
+    async function openDetail(turnId, tenantId) {
+      const url = detailUrl(turnId, tenantId);
+      if (!url) return;
+      const res = await win.adminFetch(url);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        note((body && body.error) || ('Request failed (' + res.status + ').'));
+        return;
+      }
+      note('');
+      const t = await res.json();
+
+      $('dTitle').textContent = 'Turn ' + (elide(t.turn_id, 8) || '');
+      $('dMeta').innerHTML = metaHtml(t);
+      $('dStages').innerHTML = stagesHtml(t.stage_timings);
+      $('dRetrieval').innerHTML = retrievalHtml(t.retrieval);
+      $('dPrompt').innerHTML = promptHtml(t.prompt);
+      $('dLlm').innerHTML = llmHtml(t.llm);
+      $('dTools').innerHTML = toolCallsHtml(t.tool_calls);
+      $('dError').innerHTML = errorHtml(t.error);
+
+      $('traceList').style.display = 'none';
+      $('traceDetail').style.display = 'block';
+      win.scrollTo(0, 0);
+    }
+
+    function showList() {
+      $('traceDetail').style.display = 'none';
+      $('traceList').style.display = 'block';
+    }
+
+    $('traceRows').addEventListener('click', (e) => {
+      const tr = e.target.closest('tr.trace-row');
+      if (tr) openDetail(tr.dataset.turn, tr.dataset.tenant);
+    });
+    $('backBtn').addEventListener('click', showList);
     $('refreshBtn').addEventListener('click', loadList);
     ['tenantFilter', 'limitFilter'].forEach((id) =>
       $(id).addEventListener('change', loadList));
     ['convFilter', 'corrFilter'].forEach((id) =>
       $(id).addEventListener('change', loadList));
 
+    // loadList ALWAYS runs, even when the tenant fetch failed. The empty state
+    // is this page's primary state, so the one thing it may never do is leave
+    // the reader a drawn table with no sentence under it: an unhandled rejection
+    // in loadTenants used to do exactly that, and it was caught by looking at a
+    // capture rather than by any assertion.
     (async () => {
-      await loadTenants();
+      try {
+        await loadTenants();
+      } catch (err) {
+        note('Could not load the clinic list, so there is no tenant to ask about. '
+          + (err && err.message ? err.message : ''));
+      }
       await loadList();
     })();
   }
 
   return {
-    DASH, COLUMNS,
+    DASH, COLUMNS, FREE_TEXT_CAP,
     esc, fmtTime, fmtMs, elide, channelChip,
-    statusOf, totalMsOf,
+    statusOf, totalMsOf, absence, freeText,
     listUrl, detailUrl,
     emptyHtml, rowHtml, rowsHtml,
+    metaHtml, stagesHtml, retrievalHtml, promptHtml, llmHtml, toolCallsHtml, errorHtml,
     _wire,
   };
 });

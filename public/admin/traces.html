@@ -30,6 +30,7 @@
     .empty-note { text-align:center; padding:28px 16px; color:#57524a; font-size:13.5px; line-height:1.55; }
     .empty-note strong { display:block; color:#17150f; font-size:14px; margin-bottom:4px; }
 
+    .filters { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 16px; }
     .filter-input { padding:6px 10px; border:1px solid #ddd; border-radius:6px; font-size:13px; font-family:inherit; }
     .filter-input.mono { width:220px; }
     .filter-select { padding:6px 10px; border:1px solid #ddd; border-radius:6px; font-size:13px; }
@@ -39,6 +40,37 @@
        with it — see the note in traces.js. */
     .filter-note { margin:0 0 14px; font-size:13px; color:#721c24; background:#f8d7da;
       border-radius:6px; padding:8px 12px; display:none; }
+
+    /* ── Detail ──────────────────────────────────────────────────────────── */
+    #traceDetail { display:none; }
+    tr.trace-row { cursor:pointer; }
+    tr.trace-row:hover { background:#f7f7f9; }
+    .backlink { background:#eee; color:#333; }
+
+    .sec-title { margin:0 0 4px; font-size:14px; font-weight:600; color:#17150f; }
+    .sec-note  { margin:0 0 14px; font-size:12.5px; color:#57524a; line-height:1.5; }
+    .kv { font-size:13px; color:#333; line-height:1.75; }
+    .kv span { color:#57524a; }
+
+    /* Stage DURATIONS — not offsets. The row records how long each stage took,
+       never when it started, so a staggered waterfall would have to invent the
+       offsets. Bars are proportional to total_ms and may overrun 100% together,
+       because stages nest (fetch_parallel contains fetch_parallel_*). That is a
+       true fact about the data, not a rendering bug. */
+    .tw { display:grid; grid-template-columns:minmax(110px,240px) 1fr 82px; gap:5px 12px; align-items:center; }
+    .tw-name { font-size:12.5px; color:#333; overflow-wrap:anywhere; }
+    .tw-track { background:#f6f2ed; border:1px solid #857f79; border-radius:3px; height:13px; }
+    .tw-bar { background:#0f766e; height:100%; border-radius:2px; }
+    .tw-ms { text-align:right; font-size:12.5px; color:#333; font-variant-numeric:tabular-nums; }
+
+    /* ⚠ CONTENT-CLASS:FREE-TEXT — the collapsed disclosure that guards the two
+       unsanitised strings this page can receive. See traces.js for both sites
+       and for why they are not rendered plainly. */
+    .rawtext { margin-top:8px; }
+    .rawtext > summary { cursor:pointer; font-size:12.5px; color:#721c24; }
+    .rawtext pre { margin:8px 0 0; padding:10px 12px; background:#fdf6f6; border:1px solid #857f79;
+      border-radius:6px; font-size:12px; white-space:pre-wrap; overflow-wrap:anywhere; color:#333; }
+    .rawtext .cap { display:block; margin-top:6px; font-size:11.5px; color:#721c24; }
   </style>
 </head>
 <body>
@@ -56,17 +88,28 @@
         <h1 class="page-head__title">Traces</h1>
         <p class="page-head__sub">One row per AI turn — where the time went, what was retrieved, and what broke.</p>
         <div class="page-head__actions">
-          <select id="tenantFilter" class="filter-select"></select>
-          <input id="convFilter" class="filter-input mono" type="text" placeholder="conversation id" aria-label="Filter by conversation id">
-          <input id="corrFilter" class="filter-input mono" type="text" placeholder="correlation id" aria-label="Filter by correlation id">
-          <select id="limitFilter" class="filter-select" aria-label="Rows to fetch">
-            <option value="25">25 rows</option>
-            <option value="50" selected>50 rows</option>
-            <option value="100">100 rows</option>
-            <option value="200">200 rows</option>
-          </select>
           <button id="refreshBtn" class="btn" style="background:#eee; color:#333;">Refresh</button>
         </div>
+      </div>
+
+      <!-- The filters are a BAR, not header actions, and that is a measurement
+           rather than a preference. shell.css reserves .page-head__actions for a
+           page's PRIMARY action; five controls there measured 690px wide, which
+           left this subtitle a 214px column at 1440 (3 lines) and a 22px column
+           at 768 — sixteen lines, one word each. Refresh stays in the slot; the
+           four filters live here. This is NOT the deferred F-A003 header-grid
+           fix and does not touch shell.css: the header behaved exactly as
+           documented, and the page was asking it for the wrong thing. -->
+      <div class="filters">
+        <select id="tenantFilter" class="filter-select"></select>
+        <input id="convFilter" class="filter-input mono" type="text" placeholder="conversation id" aria-label="Filter by conversation id">
+        <input id="corrFilter" class="filter-input mono" type="text" placeholder="correlation id" aria-label="Filter by correlation id">
+        <select id="limitFilter" class="filter-select" aria-label="Rows to fetch">
+          <option value="25">25 rows</option>
+          <option value="50" selected>50 rows</option>
+          <option value="100">100 rows</option>
+          <option value="200">200 rows</option>
+        </select>
       </div>
 
       <p id="filterNote" class="filter-note" role="status"></p>
@@ -85,6 +128,60 @@
           </thead>
           <tbody id="traceRows"></tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- ── Detail view ───────────────────────────────────────── -->
+    <div id="traceDetail">
+      <div class="page-head">
+        <h1 class="page-head__title" id="dTitle">Turn</h1>
+        <p class="page-head__sub">One turn, as the row recorded it. Nothing here is derived from anything but this row.</p>
+        <div class="page-head__actions">
+          <button id="backBtn" class="btn backlink">← Back to list</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div id="dMeta" class="kv"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="sec-title">Stage durations</h2>
+        <p class="sec-note">How long each stage took — not when it started. The row records durations only, so
+          there are no offsets to lay out. Stages nest, so the bars can sum past the turn total.</p>
+        <div id="dStages"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="sec-title">Retrieval</h2>
+        <p class="sec-note">Chunk ids and similarity scores. Chunk text is never written to a trace — it lives in
+          <code>knowledge_chunks</code>. Rows marked below floor were retrieved and then discarded.</p>
+        <div id="dRetrieval"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="sec-title">Prompt provenance</h2>
+        <p class="sec-note">A hash of the final system prompt, the config version it was rendered from, and which
+          precedence branch produced it. The prompt text itself is never stored.</p>
+        <div id="dPrompt"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="sec-title">Model</h2>
+        <p class="sec-note">Token counts and latency per call, aggregated across the turn's tool loop.</p>
+        <div id="dLlm"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="sec-title">Tool calls</h2>
+        <p class="sec-note">In execution order, with the tool's own reported outcome — never its output.</p>
+        <div id="dTools"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="sec-title">Error</h2>
+        <p class="sec-note">Present only on a turn that failed or was aborted.</p>
+        <div id="dError"></div>
       </div>
     </div>
   </div>
