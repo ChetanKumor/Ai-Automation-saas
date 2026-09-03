@@ -336,8 +336,15 @@ async function validateTenant(tenantId, opts = {}) {
   // without it, grepping the triggering chain would never reach the run.
   const probeId = requestContext.newCorrelationId('probe');
   logger.info({ probe_correlation_id: probeId, tenantId }, 'validation run starting');
+  // The acting operator, read BEFORE the switch and carried across it
+  // (ADMIN-S3b C6, D-022). runWith REPLACES the store rather than merging into
+  // it, so without this line the run executes in a context that has no actor at
+  // all and the validation_runs row records NULL — silently, and with every
+  // other test in this session still passing. The carry-through is the whole
+  // mechanism, which is why it has a test of its own.
+  const platformUserId = requestContext.get()?.platformUserId ?? null;
   return requestContext.runWith(
-    { correlationId: probeId, channel: 'validation' },
+    { correlationId: probeId, channel: 'validation', platformUserId },
     () => runValidation(tenantId, opts)
   );
 }
@@ -402,9 +409,21 @@ async function runValidation(tenantId, opts) {
     service_version: SERVICE_VERSION,
   };
 
+  // Who caused this run. Read from the context rather than a parameter so the
+  // three callers — the admin route, the portal, and the lifecycle CLI — keep
+  // their signatures; validateTenant put it there.
+  //
+  // actor_user_id is NOT written here and has NO writer anywhere yet. Its writer
+  // would be the portal, which triggers runs at portal/routes.js and which this
+  // session must leave byte-unchanged (I3). The column exists because C2 gave
+  // both audit tables the same pair; the tenant half is storage waiting for a
+  // writer, and it is recorded as such rather than left to be discovered the way
+  // tenants.owner_notify_phone was.
+  const actorPlatformUserId = requestContext.get()?.platformUserId ?? null;
   await db.query(
-    'INSERT INTO validation_runs (tenant_id, passed, result) VALUES ($1, $2, $3)',
-    [tenantId, passed, JSON.stringify(result)]);
+    `INSERT INTO validation_runs (tenant_id, passed, result, actor_platform_user_id)
+     VALUES ($1, $2, $3, $4)`,
+    [tenantId, passed, JSON.stringify(result), actorPlatformUserId]);
 
   return { passed, ...result };
 }
