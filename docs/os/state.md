@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 4d9537324708e57252eb9412b114137afe020f15
+Verified-at: 088bb95677a3167536ff71a674f51b4e4631a117
 Verified-on: 2026-09-03
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -171,9 +171,18 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1184 tests / 192 suites / 0 fail** (`npm test`, raw: `# tests 1184 /
-  # suites 192 / # pass 1184 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
-  **+25 tests / +4 suites at ADMIN-S3b**, the platform-actor work, run twice with
+- Test suite: **1203 tests / 198 suites / 0 fail** (`npm test`, raw: `# tests 1203 /
+  # suites 198 / # pass 1203 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  **+19 tests / +6 suites at ADMIN-S4**, the trace viewer: +12/+4
+  (`tests/admin/tracePage.unit.test.js`, the renderers, no DB) and +7/+2
+  (`tests/admin/tracePageContract.integration.test.js`, the page's own call path over
+  seeded rows, plus the seed script's guards). Run twice with identical counts.
+  **The prediction was +10/+4 and the actual was +19/+6** — a miss, inside the
+  session's +20 hard ceiling but not by much. The first draft of the unit suite was
+  **thirty** blocks; consolidating it to eleven, per the rule tokenDrift/adminNav/
+  adminShell all state, is what kept it under. Every one of the nineteen was shown
+  RED before its green, one deliberate defect per block.
+  Before that, **+25 tests / +4 suites at ADMIN-S3b**, the platform-actor work, run twice with
   identical counts and matching the predicted delta exactly: +8/+1
   (`tests/db/platformActors.test.js`, migration 031's shape and constraints), +6/+1
   (`tests/admin/platformActor.test.js`, the bootstrap operator row), +3/+0 (three
@@ -5456,6 +5465,166 @@ Additions since the original 1–28, all in the plan's Phase 8:
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
 
+### The trace viewer — 2026-09-03 (ADMIN-S4, Issue 27)
+
+**The fourth and last admin page the approved architecture keeps.** Four commits,
+`e6fb13b` through this one. Not pushed. Both read APIs already existed and were
+tested; this session built only the page, its fixtures and its instrument. **No
+route, no migration, no schema, no read-path change** — `git diff --stat` carries
+no `src/` route file and no `.sql`.
+
+**What it answers:** correlation id → turn trace → stage timings → retrieval →
+tool calls → error. `public/admin/traces.html` + `public/admin/traces.js`, static
+and vanilla, UMD-lite so node requires the exact file the browser loads.
+
+#### The empty state is the primary state, and will be until Issue 20
+
+`turn_traces` has **zero rows** and will until the first production deploy, so
+every real visit renders empty. The page draws its six columns and one honest
+line naming what will fill them. It never defaults, interpolates or synthesises:
+an absent number is an em dash, never `0`; an unparseable timestamp is a dash,
+never today's date; an empty result renders **zero** rows that could be mistaken
+for data.
+
+#### ⚠ TWO UNSANITISED FREE-TEXT FIELDS REACH THIS PAGE (I3, ruled A①)
+
+Phase 0 found, and the ruling confirmed, that the DDL's *"never full text"*
+promise covers `prompt` and **only** `prompt`. Two other fields are unbounded:
+
+- **`error.message`** — `collector.setErrorFromException` writes raw
+  `err.message`, from catches that wrap **entire turn bodies**
+  (`src/routes/internalVoice.js`, both the unary and SSE paths). Anything that
+  throws anywhere in a turn puts its message in the row.
+- **`tool_calls[].outcome.error`** — `String(output.error)` in
+  `aiService.toolOutcome`, and `appointmentService`'s `doctor_not_found` builds
+  that string by interpolating the model's own `doctor` argument, which the model
+  took from the patient's utterance, **verbatim and unvalidated**.
+
+Neither is *proven* to carry a message body today. Neither is *prevented* from
+doing so. The page therefore renders every closed-set field plainly
+(`error.stage`, `error.status`, `error.abort_reason`, tool name / n / latency /
+outcome status) and puts both free-text fields behind a **collapsed disclosure**
+whose label states they are unsanitised and may contain text the system did not
+choose, **truncated at 240 characters** in the renderer with an explicit
+indicator. The full value is never interpolated into the DOM. Both sites carry
+the greppable token `CONTENT-CLASS:FREE-TEXT`.
+
+**The real defect is upstream and is F-A031 below.** Fixing it at the page would
+leave every future reader of `turn_traces` — health, Incidents, log drains,
+exports — re-inheriting it.
+
+#### Stage DURATIONS, not a waterfall
+
+`stage_timings` records how long each stage took and **never when it started**.
+There are no offsets in the row, so a staggered waterfall would have to invent
+them. The bars are proportional to `total_ms`, ordered longest first, with
+`total_ms` removed from the set because it is the denominator and not a stage.
+Bars can sum past 100% because stages nest (`fetch_parallel` contains
+`fetch_parallel_*`) — true of the data, not a rendering fault. A row with no
+positive `total_ms` gets its durations listed and a line saying there is no
+denominator, rather than a synthesised one.
+
+#### Null and absent are different facts
+
+`writer.js` maps "no tools this turn" to SQL NULL, so null conflates a turn that
+used no tools with one whose list never reached the row; a real `[]` is a
+stronger statement than either. The page reports the column's value and says what
+it can and cannot tell apart, on `tool_calls` and on `retrieval` both. The sixth
+seed fixture exists solely to make the `[]` branch reachable — the live writer
+never produces it.
+
+#### The filter bar, measured
+
+The four filters do **not** sit in `.page-head__actions`. shell.css reserves that
+slot for a page's *primary* action; five controls in it measured **690px**,
+leaving the subtitle a **214px column at 1440 (3 lines)** and a **22px column at
+768 — sixteen lines of one word each**. With only Refresh in the slot the
+subtitle is **one line at both widths**, against conversations.html's 2 and 4.
+This is **not** the deferred F-A003 header-grid fix and touches no shared CSS:
+the header behaved exactly as documented and the page was asking it for the wrong
+thing.
+
+#### Registries: added entries only (A2b, A⑤)
+
+`adminNav.test.js` gained `traces.html` in PAGES, CURRENT and EXPECTED_HREFS;
+`adminShell.test.js` gained it in PAGES and EXPECTED_IDS (**18**, re-pinned from 8
+when the detail view landed, named rather than slipped in) and gained `traces.js`
+in the badge-literal scan list — **a deliberate strengthening**, since it was
+otherwise the only page script outside that gate. Four assertion strings stating a
+page count moved four → five. **No assertion was weakened.**
+
+⚠ **The obvious red-check on those registries FAILED, and found a real hole.**
+Removing `traces.html` from `PAGES` left both design tests **green**: `CURRENT`
+and `EXPECTED_IDS` are keyed *off* `PAGES`, so an entry in them that `PAGES` does
+not list is never checked, and dropping a page from `PAGES` silently drops it from
+every assertion. Filed as **F-A034**. The registry addition was then red-checked
+correctly — by breaking the new page itself (nav parity red on one page, id count
+red at 7-vs-8), which is what proves the entry is load-bearing.
+
+#### The instrument (A③) and its interlocks (A④)
+
+`scripts/admin/trace-capture.js` is a **second** instrument, not a mode on
+`measure.js`. measure.js needs no database, and that guarantee is why its geometry
+figures have been a stable preservation check across four sessions; coupling it to
+a scratch DB would make geometry depend on migration state. It carries
+`--disable-lcd-text` **from birth** (F-A002 stays open on measure.js) and a
+deadline on every CDP call.
+
+web/'s **BUILD_ID interlock does not transfer** — this surface has no build step,
+so there is no build id. Two things are checked instead:
+
+- **CONTENT** — the page re-fetches its own URL and the sha256 of what the browser
+  received is compared to the sha256 of the file on disk at that moment.
+  Red-checked by corrupting the hash: refused, naming both values.
+- **TREE** — `treeId` over the sorted (path, content-hash) pairs of everything
+  under `public/admin/`. `--mode compare` **REFUSES** when
+  `before.treeId === after.treeId`. Red-checked both ways: same tree → exit 1,
+  genuine pair (`9c65ceb357357eb4` → `97dcadca69887f25`) → exit 0.
+
+⚠ **The capture instrument shipped a defect and it was caught by looking at the
+picture.** Its first version slept 700ms after clicking a row and saved whatever
+was on screen: at 1440 that was the detail view, at 768 it was **still the list**,
+saved as `traces-detail-768.png`. Each view now waits on a condition only true in
+that state and **throws** if it never becomes true. Red-checked by clicking
+nothing: `never reached the detail state at 1440px — refusing to save a shot of
+something else`.
+
+#### I4, proven by measurement
+
+The four surviving pages differ from their `10c04d9` captures by **252–263
+pixels each, all inside one 42×10 box at y 23–33** — the nav baseline where the
+word "Traces" now sits. Same dimensions, nothing else moved, at 1440 and 768.
+
+#### The seed (A⑥)
+
+`scripts/seed-turn-traces.js`, six fixtures reaching every branch the page has.
+It carries **both** guards from `seed-portal-owner.js`, copied in shape: the
+`NODE_ENV=production` refusal no flag overrides, and the host check on the
+**parsed** connection target. Both are exercised by a test. Channel is
+`'whatsapp'` and `'voice'` **only, never `'test'`** — `testTurnService` counts
+`channel='test'` rows created today as the portal's owner-facing daily "Test your
+receptionist" allowance, so a seeded row there would silently spend a real clinic
+owner's quota. There is a test for that too.
+
+Its `db` handle is **lazy**, and that was learned the hard way: `src/db/db.js`
+builds its pool at import time and captures `DATABASE_URL` there, so a top-level
+require pinned the pool the moment anything merely read this file's exports. The
+integration suite's router then queried the developer's database while the test
+seeded a scratch one, and every row count came back zero. The PORTAL-P1-S1 lesson,
+re-learned.
+
+#### On the day of genesis
+
+**For the 48-hour live watch:** on day one this page shows the *shape* of the
+answer and nothing else — five clinics in the selector, six drawn columns, and one
+line saying a row lands here for every AI turn. **The first row appears the first
+time a patient messages a connected number**, and from then on it is the only
+place that says where a slow turn spent its time. Until real traffic exists it
+will **not** show a trend, a rate, a comparison or a p95 — there is no aggregation
+anywhere on it, by design — and it will not show anything at all about turns that
+crashed before a tenant was resolved, because `writeTrace` skips a row it cannot
+attribute.
+
 ### Platform actors and attribution — 2026-09-03 (ADMIN-S3b)
 
 **Admin actions are attributable to a row rather than to a shared password.**
@@ -5646,6 +5815,92 @@ which is how `tenants.owner_notify_phone` shipped as a silent no-op (B1).
   either field**. Noticed while editing that same comment block and deliberately
   **not fixed** — §6's drift prohibition covers pre-existing stale text, and this
   session's change did not falsify it.
+- **F-A028 — `String.replace` with a STRING replacement interprets `$$`, `$&`,
+  `` $` ``, `$'` and `$n`. Environment, permanent.** At ADMIN-S3b a replacement
+  containing dollar-backtick spliced the entire file prefix into itself while the
+  patcher printed ok; it surfaced three steps later as an unrelated
+  `SyntaxError`. **Function replacement plus a length assertion, always.** Every
+  patch at ADMIN-S4 went through one 40-line `inject.js` that asserts the anchor
+  matches exactly once, asserts the byte delta equals the intended delta, refuses
+  if a CR appeared, and **writes nothing** on any failure.
+
+- **F-A029 — `DATABASE_URL` and `TEST_DATABASE_URL` are different databases.
+  Environment, permanent.** Neon `ep-dry-bird-…/neondb` versus
+  `localhost:5432/saas_crm_test`. `db:migrate`/`db:status` reach only the first;
+  the suite runs against the second. A session that migrates one and tests
+  against the other produces evidence about a schema it is not running. **Both
+  were confirmed `Pending (0)` before ADMIN-S4's baseline run.**
+
+- **F-A030 — a patcher that reports success while doing nothing. Environment,
+  permanent.** ADMIN-S4's first I7 red-check injected a stray edit anchored on
+  `class="container"` into `tenants.html` — which has no such string, being a
+  tokens.css page that uses `main.content`. `String.replace` returned the input
+  unchanged, the same bytes were written back, and the I7 instrument reported
+  **green on a file that was never touched**; the green was read as evidence for
+  one step before the byte count gave it away. Same shape as A1's heredoc that
+  printed "patched" while eating the patch. **Every mutation asserts its match
+  count and its byte delta, or it is not a mutation.**
+
+- **F-A031 — `turn_traces` accepts unbounded free text into a table whose DDL
+  promises mechanics only. Upstream, FILED not fixed (ruled A②).** Two carriers,
+  both at HEAD:
+  - `src/modules/traces/collector.js` `setErrorFromException` writes raw
+    `err.message` into `error.message`, from catches wrapping **entire turn
+    bodies** — `src/routes/internalVoice.js` in both the unary and SSE paths,
+    plus `channels/whatsapp/routes.js` and `testTurnService.js`.
+  - `src/modules/appointment/appointmentService.js`'s `doctor_not_found`
+    interpolates the model's own `doctor` tool argument — taken from the
+    patient's utterance, with no schema, length cap or sanitiser — into an error
+    string that `aiService.toolOutcome` persists as
+    `tool_calls[].outcome.error`. `aiService.js`'s `Unknown tool: ${name}` does
+    the same with a model-supplied name.
+
+  The DDL comment's *"never full text"* constrains `prompt` and nothing else.
+  **This is a writer-side session of its own**: fixing it at the page would leave
+  health, Incidents, log drains and exports each re-inheriting it. ADMIN-S4
+  mitigates at the one reader that exists — disclosure, truncation at 240
+  characters, and the `CONTENT-CLASS:FREE-TEXT` token at both sites.
+
+- **F-A032 — `turn_traces.channel` has three values in production and its DDL
+  comment names two.** `schema.sql` and `migrations/022_turn_traces.sql` both say
+  `-- 'whatsapp' | 'voice' (open set)`. `src/modules/ai/testTurnService.js` opens
+  its collector with `channel: 'test'` and flushes it, and
+  `countTestTurnsToday` reads those rows back as the portal's owner-facing daily
+  test-turn budget. A live doc-vs-code divergence, not a stale number. The page
+  renders all three plus an unknown fourth; **no seed may ever write `'test'`**,
+  or it spends a clinic owner's allowance.
+
+- **F-A033 — two seed scripts write fabricated rows to whatever `DATABASE_URL`
+  names, with no refusal of any kind.** `scripts/seed-schedules.js` and
+  `scripts/seed_voice_test_customer.js` each open a pool on
+  `process.env.DATABASE_URL` — which on this machine is **production Neon** — and
+  write under hard-coded ids. `scripts/seed-portal-owner.js` is the one seed with
+  guards, and ADMIN-S4's `seed-turn-traces.js` copies both of them. Giving the
+  other two the same treatment is a small session; they are out of ADMIN-S4's
+  scope and filed here so the next seed author copies the right file.
+
+- **F-A034 — the admin design registries are not keyed to each other, so
+  removing a page from `PAGES` silently removes it from every assertion.**
+  `CURRENT` and `EXPECTED_HREFS` in `adminNav.test.js`, and `EXPECTED_IDS` in
+  `adminShell.test.js`, are only ever read **through** `PAGES`. Deleting
+  `'traces.html'` from both `PAGES` arrays left all six blocks **green** with the
+  registry entries still present and the page still shipped. Found because the
+  obvious red-check for a registry addition failed to go red. Nothing was fixed —
+  A⑤ authorised one strengthening and it was spent on the badge-scan list — but
+  the hole is real and one assertion (`every key of CURRENT / EXPECTED_IDS must
+  appear in PAGES`) closes it.
+
+- **F-A035 — stale premises found in the ADMIN-S4 brief and in `state.md`.
+  Seventh consecutive session.** (i) `state.md` cited the trace routes at
+  `:861-893` and `:895-907`; they are at **`:974`** and **`:1016`**. (ii)
+  `state.md` said *"Eight `it()` blocks in `tests/traces/tracesRoutes.test.js`"*;
+  there are **nine**. (iii) the brief carried web/'s **BUILD_ID interlock** into
+  a surface with no build step — corrected in-session to a content hash plus a
+  treeId (ruled A④). (iv) `adminNav.test.js`'s header claimed a **nine-way**
+  comparison over a **four**-entry array: A1 really did hold nine pages, ADMIN-S1
+  deleted five, and the prose was never corrected — fixed on the way past. **The
+  F-A024 standing rule held again: the brief's content descriptions were right
+  and its numbers were not.**
 
 ### Stale-text batch and document reconciliation — 2026-09-03 (ADMIN-S3c)
 
