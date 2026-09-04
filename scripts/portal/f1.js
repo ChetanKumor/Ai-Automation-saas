@@ -253,7 +253,7 @@ function deriveGoLive(run) { // public/portal/shell.js deriveGoLive
   fs.mkdirSync(OUT, { recursive: true });
   const scratchName = 'zyon_f1_' + crypto.randomBytes(5).toString('hex');
   const scratchCs = swapDb(ADMIN_DB, scratchName);
-  let db, server, chrome, ws;
+  let db, server, chrome, ws, udd;
 
   const c0 = new Client({ connectionString: ADMIN_DB, ssl: SSL });
   await c0.connect();
@@ -401,7 +401,7 @@ function deriveGoLive(run) { // public/portal/shell.js deriveGoLive
     must(run.stale === true, 'the run predates the FAQ writes and must report itself stale');
 
     // ── 3. photograph Home, click Check again, photograph it again ───────────
-    const udd = fs.mkdtempSync(path.join(require('os').tmpdir(), 'f1-chrome-'));
+    udd = fs.mkdtempSync(path.join(require('os').tmpdir(), 'f1-chrome-'));
     chrome = spawn(CHROME, [
       '--headless=new', `--remote-debugging-port=${DEVPORT}`, `--user-data-dir=${udd}`,
       '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--hide-scrollbars',
@@ -571,5 +571,21 @@ function deriveGoLive(run) { // public/portal/shell.js deriveGoLive
       await c1.query('DROP DATABASE IF EXISTS ' + scratchName);
     } finally { await c1.end(); }
     console.log('cleaned up scratch DB');
+
+    /* The Chrome profile, unlinked LAST — after the chrome.kill() above,
+     * because Windows holds a file lock on the profile while the browser is
+     * alive and an unlink placed at the kill loses that race. rmSync covers
+     * the rest of the window with maxRetries.
+     *
+     * Never throws: housekeeping that throws inside a `finally` replaces
+     * whatever error sent us here with its own, and this harness's job is
+     * capture, not tidying. This file leaked one `f1-chrome-` dir per run.
+     *
+     * scripts/portal/shoot.js:2621 carries the full note (F-A036). */
+    try {
+      if (udd) fs.rmSync(udd, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+    } catch (err) {
+      console.warn('warning: Chrome profile left behind at', udd, '-', err.message);
+    }
   }
 })().catch((e) => { console.error('\n' + e.stack); process.exit(1); });

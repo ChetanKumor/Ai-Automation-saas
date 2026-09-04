@@ -467,6 +467,22 @@ async function capture() {
     server.close();
     await require('../../src/db/db').close().catch(() => {});
     await dropScratch(scratch.name);
+
+    /* The Chrome profile, unlinked LAST — after the chrome.kill() above,
+     * because Windows holds a file lock on the profile while the browser is
+     * alive and an unlink placed at the kill loses that race. rmSync covers
+     * the rest of the window with maxRetries.
+     *
+     * Never throws: housekeeping that throws inside a `finally` replaces
+     * whatever error sent us here with its own, and this harness's job is
+     * capture, not tidying. This file leaked one `trace-capture-` dir per run.
+     *
+     * scripts/portal/shoot.js:2621 carries the full note (F-A036). */
+    try {
+      fs.rmSync(udd, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+    } catch (err) {
+      console.warn('warning: Chrome profile left behind at', udd, '-', err.message);
+    }
   }
 }
 

@@ -538,7 +538,7 @@ const IN_SHEET = `(function(){
   await c0.end();
   console.log('scratch DB:', scratchName);
 
-  let server, chrome, ws, db;
+  let server, chrome, ws, db, udd;
   try {
     await require('../../src/db/migrate').genesis({ connectionString: scratchCs, logger: SILENT });
 
@@ -627,7 +627,7 @@ const IN_SHEET = `(function(){
     const ckClean = await loginCookie(port, 'owner@sri.test', 'demo-portal-pass');
     const ckLegacy = await loginCookie(port, 'owner@apollo.test', 'demo-portal-pass');
 
-    const udd = fs.mkdtempSync(path.join(os.tmpdir(), 'portal-d5a-'));
+    udd = fs.mkdtempSync(path.join(os.tmpdir(), 'portal-d5a-'));
     chrome = spawn(CHROME, [
       '--headless=new', '--remote-debugging-port=' + DEVPORT, '--user-data-dir=' + udd,
       '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--hide-scrollbars',
@@ -1000,5 +1000,21 @@ const IN_SHEET = `(function(){
     await c1.query('DROP DATABASE IF EXISTS ' + scratchName);
     await c1.end();
     console.log('dropped scratch DB', scratchName);
+
+    /* The Chrome profile, unlinked LAST — after the chrome.kill() above,
+     * because Windows holds a file lock on the profile while the browser is
+     * alive and an unlink placed at the kill loses that race. rmSync covers
+     * the rest of the window with maxRetries.
+     *
+     * Never throws: housekeeping that throws inside a `finally` replaces
+     * whatever error sent us here with its own, and this harness's job is
+     * capture, not tidying. Four `portal-d5a-` dirs, 65 MB, were still in %TEMP% at ADMIN-S6 Phase 0.
+     *
+     * scripts/portal/shoot.js:2621 carries the full note (F-A036). */
+    try {
+      if (udd) fs.rmSync(udd, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+    } catch (err) {
+      console.warn('warning: Chrome profile left behind at', udd, '-', err.message);
+    }
   }
 })().catch((e) => { console.error(e); process.exit(1); });
