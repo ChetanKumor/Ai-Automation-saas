@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 088bb95677a3167536ff71a674f51b4e4631a117
-Verified-on: 2026-09-03
+Verified-at: df1c5c9f46d14c27340ba81965f97570dad3c528
+Verified-on: 2026-09-04
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -171,8 +171,12 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1203 tests / 198 suites / 0 fail** (`npm test`, raw: `# tests 1203 /
-  # suites 198 / # pass 1203 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+- Test suite: **1205 tests / 198 suites / 0 fail** (`npm test`, raw: `# tests 1205 /
+  # suites 198 / # pass 1205 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  **+2 tests / +0 suites at ADMIN-S5**: one registry-keying block in each of
+  `tests/design/adminNav.test.js` and `tests/design/adminShell.test.js`. Predicted
+  per test-BLOCK — the unit ADMIN-S4 got wrong by costing assertions instead — and
+  hit exactly. Run twice with identical counts.
   **+19 tests / +6 suites at ADMIN-S4**, the trace viewer: +12/+4
   (`tests/admin/tracePage.unit.test.js`, the renderers, no DB) and +7/+2
   (`tests/admin/tracePageContract.integration.test.js`, the page's own call path over
@@ -5465,6 +5469,147 @@ Additions since the original 1–28, all in the plan's Phase 8:
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
 
+### Instrument repair — 2026-09-04 (ADMIN-S5)
+
+**Two instrument defects, both measured at ADMIN-S4 and both unfixed until now.**
+Two commits, `c45c8b9` and `df1c5c9`, plus this one. Not pushed. No route, no
+migration, no page, no schema: `git diff --stat 0b5a42c..HEAD` carries two harness
+scripts, two design test files and this document, and nothing else.
+
+#### ⚠ The disk precondition was UNMET and was re-pinned by the founder, not by me
+
+The brief made `≥10 GB free on C:` a hard precondition with an explicit STOP.
+Measured at Phase 0: **7.11 GB**. The other three were clean — zero orphan node
+processes, zero `zyon_test_*` scratch databases, and **zero** leaked profile dirs.
+Reclaiming every byte of harness garbage in `%TEMP%` reached only ~7.4 GB, so the
+gate could not be met from this session's own rubbish. It was put to the founder
+with the numbers and **re-pinned to 7 GB**, with an abort at 4 GB that was never
+reached. Free C: moved 7.18 → 6.53 GB across nine suite-scale runs, fluctuating
+rather than falling; `%TEMP%` finished at 1.92 GB total and the local Postgres at
+11 MB with **zero** leftover `zyon_*` databases, so the drift is not this repo's.
+**Recorded because a bound that moves without being named is the thing this
+program does not do.**
+
+#### C1 — the harnesses unlink their Chrome profile
+
+`scripts/portal/shoot.js` and `scripts/portal/shootWizard.js` each `mkdtemp` a
+profile, hand it to `--user-data-dir`, and never removed it.
+`tests/design/contrast/portalLive.test.js:227` spawns shoot.js on **every**
+`npm test`, so the panel leaked one profile per suite run.
+
+The unlink went into the **existing** `finally` in each file as its **last** step.
+Nothing was restructured or reordered and no new cleanup path was added. Last
+rather than beside the `chrome.kill()` above it, because Windows holds a file lock
+on the profile while the browser is alive: the scratch-DB teardown in between is
+real elapsed time and `rmSync`'s `maxRetries` covers the rest of the window. It
+never throws — a failed cleanup is a warning naming the path, since housekeeping
+that throws inside a `finally` replaces whatever error sent it there. `udd` moved
+from a `const` inside the `try` to the outer `let`, because the `finally` could
+not otherwise see it.
+
+⚠ **The suite can only red-check HALF of this commit, and the brief did not say
+so.** Nothing in `tests/` runs `shootWizard.js` — `git grep` finds no caller
+outside documentation. Its half was proven by driving it directly against the
+local test database (`DATABASE_URL=$TEST_DATABASE_URL`, never Neon: the script
+reads `ADMIN = process.env.DATABASE_URL` and would have created and dropped a
+database on production).
+
+**Red-checked both ways, both halves.** With the fix: `npm test` 0 → 0
+`portal-shot-` dirs and a direct `shootWizard.js` run 0 → 0 `portal-shotwiz-`.
+Reverted to a tree `git diff` proved byte-identical to `0b5a42c`, the same two
+runs give **0 → 1 and 0 → 1**. A cleanup that silently no-ops would have been
+F-A030 in a new file.
+
+#### C2 — the design registries are keyed to each other and to disk
+
+F-A034, closed. The page set is derived from the `.html` files in `public/admin/`
+and each file's `PAGES` is held to it by **set equality**, so a page on disk that
+no registry lists now fails. `CURRENT`'s key set is held to the nav destinations
+`EXPECTED_HREFS` states independently; `EXPECTED_IDS`'s key set is held to `PAGES`
+exactly. **`EXPECTED_IDS`'s VALUES are untouched and stay hand-pinned per page** —
+a count that derived itself from the page it checks would pass on any page and
+prove nothing (F-A020). A2b held: registry entries and the new keying only, no
+existing assertion weakened, no bound re-pinned.
+
+**The exclusion is a NAMED file, never a pattern**, and each name must still exist
+on disk. The two `EXCLUDED` maps are deliberately a second copy rather than a
+shared import: a single shared list would make the cross-file comparison compare
+nothing. The sibling's `PAGES` is read by **parsing its source**, never by
+`require` — requiring one `node:test` file from another registers its suites a
+second time and moves the suite's own count. That reader fails loudly on zero
+matches, on a second declaration, and on an entry that is not a `.html` name.
+
+**Four red-checks, each shown red and reverted.** (a) `reports.html` added to disk
+and absent from both registries → 2 failures, one per file, both naming it. (b)
+`'traces.html'` removed from adminNav's `PAGES` **only** — the exact ADMIN-S4 edit
+that stayed green → 2 failures; **adminShell goes red on a change made only to
+adminNav**, which is the keying working. (c) `sso-login.html` added to disk:
+`'sso-login.html'.endsWith('login.html')` and `/login/.test(…)` are **both true**,
+so either pattern form of the exclusion would have swallowed it → 2 failures. (c2)
+a stale `EXCLUDED` entry naming a file not on disk → red, named.
+
+#### The checks
+
+**K1** `npm test` twice: **1205 / 198 / 0 fail / 0 cancelled / 0 skipped**, both
+runs, against a 1203 baseline measured at `0b5a42c` on this machine. Two distinct
+runs, not one log read twice: 390794 vs 390793 bytes, different md5, nine minutes
+apart. **K3** isolation byte-identity unmoved — `62d810e2039fb710` and
+`d0102af06d48e4d1`, sha256 over CRLF-normalised bytes, first 16 hex; the raw hashes
+(`b95b421f…`, `0e5935e8…`) are recorded again so nobody reaches for the obvious
+one. **K4** stripped-byte identity outside the declared regions: all four touched
+files IDENTICAL, regions taken from the `apply.js` specs themselves — written
+before each edit and therefore before each diff. Both halves red-checked: a stray
+undeclared edit is caught and located, and a region matching **zero** times fails
+loudly instead of passing silently. The two header-prose regions strip to nothing
+on both sides, which is what proves those two changes were prose. **K5** zero new
+profile dirs across both K1 runs.
+
+#### ADMIN-S5 findings — F-A036 … F-A040
+
+- **F-A036 — eight harnesses leak a Chrome profile and this session fixed two.**
+  `shootD3.js`, `shootD4.js`, `shootD5a.js`, `shootD5b.js`,
+  `scripts/admin/measure.js`, `scripts/admin/trace-capture.js`,
+  `scripts/portal/f1.js` and `scripts/portal/f3.js` all `mkdtemp` a profile
+  under their own prefix and none
+  removes it. Four `portal-d5a-` dirs (61.7 MB) and one `f3-chrome-` (14.7 MB)
+  were sitting in `%TEMP%` at Phase 0. Out of ADMIN-S5's scope and filed so the
+  next reader does not think the class is closed; the fix is the same four lines.
+
+- **F-A037 — a hard kill runs no `finally`, so C1 cannot cover the timeout path.**
+  `portalLive.test.js` spawns shoot.js with `timeout: SWEEP_TIMEOUT_MS`, and a
+  `spawnSync` timeout kills the child outright. The profile is then still leaked
+  and no code in the child can prevent it. Structural, named rather than papered
+  over: the fix covers every exit the process controls and none of the ones it
+  does not.
+
+- **F-A038 — `grep -c $'\r'` reports EVERY line in this Git Bash. Environment,
+  permanent.** Phase 0's line-ending census used it and read all four target files
+  as CRLF. Two of them — both design test files — are **LF** in the working tree.
+  The wrong reading was caught only because `git` warned about the opposite
+  conversion later. **`git ls-files --eol` is the authoritative answer** (`i/` the
+  index, `w/` the working tree) and it says `w/crlf` for the two harness scripts
+  and `w/lf` for the two test files, with `core.autocrlf=true` and no
+  `.gitattributes`. Mixed conventions are pre-existing: untouched files show both.
+
+- **F-A039 — ADMIN-S4's patcher guarded the EOL direction that could not happen.**
+  It refused a CR appearing in an LF file and would have silently seeded LF-only
+  lines into a CRLF file. ADMIN-S5's `apply.js` joins every spec — authored as an
+  array of LINES, never as embedded newlines — with the target file's **own**
+  dominant terminator, refuses a file that is already mixed, and asserts the
+  finished image still has exactly one style, on top of the F-A028/F-A030
+  match-count and byte-delta assertions it inherits.
+
+- **F-A040 — stale premises in the ADMIN-S5 brief. Eighth consecutive session.**
+  (i) The brief's headline evidence — *"194 dirs / 8.71 GB / 121,977 files since
+  08-31"* — was **gone**: `%TEMP%` held **zero** `portal-shot-*` dirs at Phase 0.
+  The leak itself was still real and was reproduced from scratch. (ii) The brief's
+  own census wording, `portal-shot-*`, **does not match** `portal-shotwiz-*`, so a
+  census written to it counts one harness and silently misses the other; both are
+  counted by exact prefix here. (iii) K5 as written — *"zero new after a full suite
+  run"* — can only ever exercise `shoot.js`, because nothing in the suite runs
+  `shootWizard.js`. **Standing rule (F-A024) held again**: the brief's content
+  descriptions were right and its measured numbers were not.
+
 ### The trace viewer — 2026-09-03 (ADMIN-S4, Issue 27)
 
 **The fourth and last admin page the approved architecture keeps.** Four commits,
@@ -5889,6 +6034,14 @@ which is how `tenants.owner_notify_phone` shipped as a silent no-op (B1).
   A⑤ authorised one strengthening and it was spent on the badge-scan list — but
   the hole is real and one assertion (`every key of CURRENT / EXPECTED_IDS must
   appear in PAGES`) closes it.
+  ✅ **CLOSED at `df1c5c9`** (ADMIN-S5 C2), by more than the one assertion this
+  entry proposed: the page set is now DERIVED from the `.html` files in
+  `public/admin/` and each `PAGES` is held to it by set equality, the exclusion is
+  a NAMED file rather than a pattern, and the two files' registries are compared
+  **to each other** — because each agreeing with disk is only as strong as their
+  two exclusion lists agreeing, and neither file can see the other's. The exact
+  ADMIN-S4 edit that stayed green (delete `'traces.html'` from ONE `PAGES`) now
+  fails **both** files.
 
 - **F-A035 — stale premises found in the ADMIN-S4 brief and in `state.md`.
   Seventh consecutive session.** (i) `state.md` cited the trace routes at
