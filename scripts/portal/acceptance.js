@@ -24,7 +24,7 @@
  * knows. What it does prove is that the path exists, is unblocked, and needs no
  * developer. Friction points a human would hit are reported at the end.
  *
- * Usage:  node scripts/portal/acceptance.js
+ * Usage:  node scripts/portal/acceptance.js [--allow-remote-host]
  * ========================================================================== */
 
 require('dotenv').config();
@@ -53,8 +53,62 @@ const path = require('path');
 const crypto = require('crypto');
 const { Client } = require('pg');
 
-const ADMIN_DB = process.env.DATABASE_URL;
-if (!ADMIN_DB) { console.error('DATABASE_URL required'); process.exit(1); }
+/* ── The control connection, and the two guards that keep it off production ──
+ *
+ * This script mints `zyon_acc_<hex>` with CREATE DATABASE and drops it again on
+ * the way out, on whatever this connection names — and its default used to be
+ * DATABASE_URL, which on this machine is production Neon
+ * (ep-dry-bird-….neon.tech/neondb), not a dev database.  The suite's
+ * TEST_DATABASE_URL is localhost:5432/saas_crm_test.
+ *
+ * Of the twelve harnesses that carried that default, this is the ONE with proof
+ * it reached production: `zyon_acc_c6100d85e4` was still on neondb when
+ * ADMIN-S7R took its census, left there by a run whose cleanup never reached the
+ * DROP.  Nothing in tests/ spawns this file — it is founder-run, from the usage
+ * line above — so no preload repoints it and this default is the whole of its
+ * safety.  A default that has to be remembered is not a guard.
+ *
+ * So: TEST_DATABASE_URL first, and both guards below, copied in shape from
+ * scripts/seed-portal-owner.js — the one script in scripts/ that already had
+ * them:
+ *   Guard 1  NODE_ENV=production.  Refused, with NO override.  Every other
+ *            guard here has an escape hatch; this is the one that makes
+ *            offering them safe.
+ *   Guard 2  the host, asserted on the target pg would really dial, parsed by
+ *            pg's own parser.  A regex over the URL text passes
+ *            `…?options=host%3Dlocalhost` and rejects a unix socket path;
+ *            this does neither.  Non-local requires --allow-remote-host.
+ *
+ * Both sit BELOW the `require('dotenv').config()` at the top of this file, which
+ * is F-A041: a guard placed above the code that loads its own inputs reads an
+ * empty environment and refuses every run.
+ *
+ * pg-connection-string is not a new dependency: pg requires this exact module
+ * (node_modules/pg/lib/connection-parameters.js:7).
+ */
+const { parse: parseAdminCs } = require('pg-connection-string');
+const ADMIN_DB = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
+if (!ADMIN_DB) { console.error('✗ neither TEST_DATABASE_URL nor DATABASE_URL is set.'); process.exit(1); }
+if (process.env.NODE_ENV === 'production') {
+  console.error('✗ NODE_ENV=production. This script creates and drops databases and will not run against production.');
+  process.exit(1);
+}
+{
+  let adminHost;
+  try { adminHost = parseAdminCs(ADMIN_DB).host || 'localhost'; } catch (err) {
+    console.error(`✗ the control connection string could not be parsed by pg's own parser: ${err.message}`);
+    process.exit(1);
+  }
+  const local = adminHost.startsWith('/')
+    || ['localhost', '127.0.0.1', '::1', '[::1]'].includes(adminHost.toLowerCase());
+  if (!local && !process.argv.includes('--allow-remote-host')) {
+    console.error(`✗ database host '${adminHost}' is not local.\n`
+      + '  This script creates and drops databases.\n'
+      + '  If that really is your dev database, re-run with --allow-remote-host.');
+    process.exit(1);
+  }
+  if (!local) console.warn(`⚠ Host '${adminHost}' is NOT local — proceeding only because --allow-remote-host was passed.`);
+}
 const SSL = process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false;
 const SILENT = { log() {}, error() {} };
 const CSRF = 'x-zyon-admin';
