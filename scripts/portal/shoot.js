@@ -1562,7 +1562,7 @@ const adminLoginCookie = (port, password) =>
   await c0.end();
   console.log('scratch DB:', scratchName);
 
-  let server, chrome, ws, db;
+  let server, chrome, ws, db, udd;
   try {
     const runner = require('../../src/db/migrate');
     await runner.genesis({ connectionString: scratchCs, logger: SILENT });
@@ -1949,7 +1949,7 @@ const adminLoginCookie = (port, password) =>
     const adminCookie = await adminLoginCookie(port, process.env.ADMIN_PASSWORD);
 
     // Launch Chrome (reduced motion → deterministic ring/pulse).
-    const udd = fs.mkdtempSync(path.join(os.tmpdir(), 'portal-shot-'));
+    udd = fs.mkdtempSync(path.join(os.tmpdir(), 'portal-shot-'));
     chrome = spawn(CHROME, [
       '--headless=new', `--remote-debugging-port=${DEVPORT}`, `--user-data-dir=${udd}`,
       '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--hide-scrollbars',
@@ -2618,5 +2618,27 @@ const adminLoginCookie = (port, password) =>
       await c1.query('DROP DATABASE IF EXISTS ' + scratchName);
     } finally { await c1.end(); }
     console.log('cleaned up scratch DB');
+
+    /* And the Chrome profile. `--user-data-dir` above names a scratch dir
+     * this script creates and nothing else ever reads, and until ADMIN-S5
+     * nothing ever removed it: 194 had collected in %TEMP% (8.71 GB,
+     * 121,977 files), roughly 45 MB per suite run, because
+     * tests/design/contrast/portalLive.test.js spawns this file on every
+     * `npm test`. One of them filled C: and voided a run.
+     *
+     * It goes LAST, not beside the chrome.kill() above. Windows holds a
+     * file lock on the profile for as long as the browser is alive, so an
+     * unlink placed at the kill loses that race; the scratch-DB teardown in
+     * between is real elapsed time, and maxRetries covers the rest of the
+     * window.
+     *
+     * A failure here is a WARNING and never more. This harness captures
+     * shots, and housekeeping that throws inside a `finally` would replace
+     * whatever error sent us here with its own. */
+    try {
+      if (udd) fs.rmSync(udd, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+    } catch (err) {
+      console.warn('warning: Chrome profile left behind at', udd, '-', err.message);
+    }
   }
 })().catch((e) => { console.error('shoot failed:', e); process.exit(1); });

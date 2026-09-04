@@ -168,7 +168,7 @@ const loginCookie = (port, email, password) =>
   await c0.end();
   console.log('scratch DB:', scratchName);
 
-  let server, chrome, ws, db;
+  let server, chrome, ws, db, udd;
   try {
     const runner = require('../../src/db/migrate');
     await runner.genesis({ connectionString: scratchCs, logger: SILENT });
@@ -253,7 +253,7 @@ const loginCookie = (port, email, password) =>
     const midCookie = await loginCookie(port, midEmail, midPassword);
     const readyCookie = await loginCookie(port, readyEmail, readyPassword);
 
-    const udd = fs.mkdtempSync(path.join(os.tmpdir(), 'portal-shotwiz-'));
+    udd = fs.mkdtempSync(path.join(os.tmpdir(), 'portal-shotwiz-'));
     chrome = spawn(CHROME, [
       '--headless=new', `--remote-debugging-port=${DEVPORT}`, `--user-data-dir=${udd}`,
       '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--hide-scrollbars',
@@ -331,5 +331,16 @@ const loginCookie = (port, email, password) =>
       await c1.query('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname=$1 AND pid<>pg_backend_pid()', [scratchName]);
       await c1.query('DROP DATABASE IF EXISTS ' + scratchName);
     } finally { await c1.end(); }
+
+    /* The Chrome profile, unlinked LAST — after the chrome.kill() above,
+     * because Windows holds a file lock on it while the browser is alive.
+     * Never throws: a failed cleanup is a warning, not a failed capture.
+     * shoot.js carries the full note; this file leaked one
+     * `portal-shotwiz-` dir per run beside it. */
+    try {
+      if (udd) fs.rmSync(udd, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+    } catch (err) {
+      console.warn('warning: Chrome profile left behind at', udd, '-', err.message);
+    }
   }
 })().catch((err) => { console.error(err); process.exit(1); });
