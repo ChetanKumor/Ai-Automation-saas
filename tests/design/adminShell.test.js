@@ -23,10 +23,14 @@
 // exists because the MARKUP had drifted into three variants once. The CSS was
 // one edit away from the same fate.
 //
-// FOUR test() blocks, deliberately no more, following the rule tokenDrift.test.js
-// and adminNav.test.js both state: a per-page test would report one fault five
-// times and say nothing extra. The block count is four and the page count is
-// five; they were never the same number and adding a page must not add a block.
+// FIVE test() blocks, following the rule tokenDrift.test.js and adminNav.test.js
+// both state: a per-page test would report one fault five times and say nothing
+// extra. It was FOUR until ADMIN-S5 added the registry-keying block at the
+// bottom, which is a different concern from the other four and names a
+// different fault when it fails. The block count and the page count are
+// independent numbers that, as of this session, happen to be the same one;
+// that is a coincidence and not a rule, and adding a PAGE must still not add
+// a block.
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
@@ -46,9 +50,21 @@ const read = (f) => fs.readFileSync(path.join(ADMIN, f), 'utf8');
 const noCssComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, ' ');
 const noHtmlComments = (html) => html.replace(/<!--[\s\S]*?-->/g, ' ');
 
-// The pages, named below rather than counted. login.html is deliberately
-// absent, as it is in adminNav.test.js: it is the signed-out door, has no nav,
-// and moved onto tokens at S4 under its own rules.
+// The pages this file does NOT hold to the shell contract, NAMED one by one
+// with the reason, never matched by a pattern. A pattern is the same hole in a
+// new shape: `/login/` would silently exempt a future sso-login.html or
+// login-v2.html from every assertion here, and nobody would be told. Each
+// entry must also still EXIST on disk — a stale exclusion exempts nothing
+// today and silently exempts whatever takes that name tomorrow. This list is
+// deliberately a SECOND copy of adminNav.test.js's, not a shared import: the
+// two are compared against each other in the last block, and a single shared
+// list would make that comparison compare nothing.
+const EXCLUDED = {
+  'login.html': 'the signed-out door: no nav, and it moved onto tokens at S4',
+};
+
+// The pages, named below rather than counted. Derived from disk and checked
+// against it by the fifth block below — this array is a claim, not a source.
 const PAGES = [
   'tenants.html', 'tenant-new.html', 'tenant-detail.html', 'conversations.html',
   'traces.html',
@@ -65,6 +81,28 @@ const EXPECTED_IDS = {
   'conversations.html': 12,
   'traces.html': 18,
 };
+
+// Reads the SIBLING design test's PAGES literal without executing it. It must
+// not be `require`d: both files are node:test files, so requiring one from the
+// other would register its suites a second time and move the suite's own
+// count. Fails loudly on zero matches and on more than one declaration — a
+// parser that quietly returned [] would make the cross-file check vacuous,
+// which is precisely the shape of the defect it exists to close (F-A034).
+function pagesDeclaredIn(file) {
+  const src = fs.readFileSync(path.join(__dirname, file), 'utf8');
+  const decls = src.split('\nconst PAGES = [').length - 1;
+  assert.strictEqual(decls, 1,
+    `${file} must declare 'const PAGES = [' exactly once; found ${decls}`);
+  const body = src.match(/\nconst PAGES = \[([\s\S]*?)\];/)[1];
+  const names = [...body.matchAll(/'([^']*)'/g)].map((m) => m[1]);
+  assert.ok(names.length > 0, `parsed zero page names out of ${file}'s PAGES`);
+  for (const n of names) {
+    assert.match(n, /\.html$/, `${file}'s PAGES holds ${JSON.stringify(n)},`
+      + ' which is not a page. A reader that silently drops the entries it did'
+      + ' not expect compares less than it claims to.');
+  }
+  return names.sort();
+}
 
 describe('admin shell + page header (A1)', () => {
   it('is one stylesheet: shell.css last on all five, and no nav rule anywhere else', () => {
@@ -284,5 +322,52 @@ describe('admin shell + page header (A1)', () => {
     assert.ok(contrastRatio(parseColor('#857f79'), parseColor(PAPER)) < AA_BODY,
       '--faint-strong is under AA body on this ground — the subtitle uses '
       + '--muted (#57524a) at 7.31 and must keep doing so');
+  });
+
+  // ── The registries are keyed to disk and to each other (F-A034, S5) ──────
+  //
+  // ADMIN-S4 red-checked its traces.html registry addition by deleting the
+  // entry from PAGES, and both design tests stayed GREEN. EXPECTED_IDS is only
+  // ever read THROUGH PAGES, so a key PAGES does not list is never looked at,
+  // and dropping a page from PAGES silently drops it from every assertion
+  // above — the id count, the header, the stylesheet order, the transport
+  // contracts, all of it. These registries had been the guard that a page
+  // satisfies the shell contract for five sessions, and in that direction they
+  // were decorative.
+  //
+  // EXPECTED_IDS's VALUES are untouched by this and stay hand-pinned per page.
+  // A count that derived itself from the page it checks would pass on any page
+  // and prove nothing (F-A020); only its KEY SET is held to PAGES here.
+  it('keys PAGES to disk, EXPECTED_IDS to PAGES, and PAGES to adminNav', () => {
+    const html = fs.readdirSync(ADMIN).filter((f) => f.endsWith('.html')).sort();
+    assert.ok(html.length > 0,
+      'read zero .html files out of public/admin — the derivation is broken, '
+      + 'not the registry, and a derivation that yields nothing must not pass');
+
+    for (const [name, why] of Object.entries(EXCLUDED)) {
+      assert.ok(html.includes(name),
+        `EXCLUDED names ${name} (${why}) but public/admin holds no such file. `
+        + 'A stale exclusion exempts nothing today and silently exempts whatever '
+        + 'takes that name tomorrow.');
+    }
+
+    const expected = html.filter((f) => !(f in EXCLUDED));
+    assert.deepStrictEqual([...PAGES].sort(), expected,
+      'PAGES must be EXACTLY the .html files in public/admin minus the named '
+      + 'exclusions. A page on disk that PAGES does not list is a page no '
+      + 'assertion in this file covers, and it ships looking checked.');
+
+    // F-A034 proper, in this file: EXPECTED_IDS is read only through PAGES, so
+    // its key set must BE the page set — no orphan key, and no page without a
+    // pinned count.
+    assert.deepStrictEqual(Object.keys(EXPECTED_IDS).sort(), [...PAGES].sort(),
+      'every page needs a pinned id count and no key may name a page PAGES '
+      + 'does not list: a key outside PAGES is never read, and a page without '
+      + 'a key would fail the id assertion with `expected undefined`.');
+
+    assert.deepStrictEqual([...PAGES].sort(), pagesDeclaredIn('adminNav.test.js'),
+      'adminShell.test.js and adminNav.test.js must cover the same pages. Each '
+      + 'agreeing with disk is only as strong as their two EXCLUDED lists '
+      + 'agreeing, which is what this compares.');
   });
 });
