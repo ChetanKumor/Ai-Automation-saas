@@ -61,10 +61,13 @@ const { Client } = require('pg');
  * (ep-dry-bird-….neon.tech/neondb), not a dev database.  The suite's
  * TEST_DATABASE_URL is localhost:5432/saas_crm_test.
  *
- * Of the twelve harnesses that carried that default, this is the ONE with proof
- * it reached production: `zyon_acc_c6100d85e4` was still on neondb when
- * ADMIN-S7R took its census, left there by a run whose cleanup never reached the
- * DROP.  Nothing in tests/ spawns this file — it is founder-run, from the usage
+ * It is one of THREE entry points with proof it reached production, and the only
+ * one of those that still carried the default.  ADMIN-S7R's read-only census of
+ * `pg_database` on neondb found `zyon_acc_c6100d85e4` there — alongside two
+ * `zyon_d4_*` and three `zyon_d5b_*` from shootD4.js and shootD5b.js, which
+ * `f8504a8` had already fixed, and two more from scripts nobody committed.  All
+ * eight were left by runs whose cleanup never reached the DROP.
+ * Nothing in tests/ spawns this file — it is founder-run, from the usage
  * line above — so no preload repoints it and this default is the whole of its
  * safety.  A default that has to be remembered is not a guard.
  *
