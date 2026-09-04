@@ -228,10 +228,21 @@ test('the portal contrast baseline is RE-MEASURED on the live portal, not recite
     cwd: ROOT,
     encoding: 'utf8',
     timeout: SWEEP_TIMEOUT_MS,
-    // The scratch DB, the port and the Chrome profile all come from the child's
-    // own env. Inherited as-is so the sweep measures against the same database
-    // the rest of the suite does.
-    env: process.env,
+    // The port and the Chrome profile come from the child's own env. The
+    // DATABASE it mints its scratch on is STATED here rather than inherited,
+    // in the shape provisionCli.integration.test.js:149 already uses.
+    //
+    // It resolves to the same string either way: `tests/_support/testEnv.js` is
+    // a `--require` preload on the `test` script and has already assigned this
+    // value to DATABASE_URL before any test module loaded, so this is belt to
+    // the preload's braces and moves nothing. What it buys is that a reader of
+    // THIS line can see the target. ADMIN-S6 read `env: process.env` here and
+    // filed that every `npm test` minted a scratch database on production Neon;
+    // measurement at ADMIN-S7R showed the child had been dialling
+    // localhost:5432/saas_crm_test all along. The spawn line could not settle
+    // that, because the target was two files away — and a claim that cannot be
+    // checked where it is made is one that gets carried instead of tested.
+    env: { ...process.env, DATABASE_URL: process.env.TEST_DATABASE_URL || process.env.DATABASE_URL },
     maxBuffer: 64 * 1024 * 1024,
   });
 
