@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: df1c5c9f46d14c27340ba81965f97570dad3c528
+Verified-at: 2fc0e8a9f4fb36b1b5f7d6cf0da604fb82a1944b
 Verified-on: 2026-09-04
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -173,6 +173,9 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   set the verdict — see the V1a note below for the mechanism and the red-check.
 - Test suite: **1205 tests / 198 suites / 0 fail** (`npm test`, raw: `# tests 1205 /
   # suites 198 / # pass 1205 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  **+0 tests / +0 suites at ADMIN-S6**: this session touches no test file.
+  Predicted per BLOCK as zero movement everywhere before either run, and met;
+  the two runs' top-level block sets are identical.
   **+2 tests / +0 suites at ADMIN-S5**: one registry-keying block in each of
   `tests/design/adminNav.test.js` and `tests/design/adminShell.test.js`. Predicted
   per test-BLOCK — the unit ADMIN-S4 got wrong by costing assertions instead — and
@@ -5469,6 +5472,250 @@ Additions since the original 1–28, all in the plan's Phase 8:
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
 
+### The harness leak closed, and the production default — 2026-09-04 (ADMIN-S6)
+
+**Four commits, `f8504a8` → `2fc0e8a` plus this one. Not pushed.** No route, no
+migration, no schema, no page, no test. `git diff --stat` carries nine harness
+scripts and this file, and nothing else. `docs/os/clocks.md` was founder-modified
+throughout and was never opened, never staged, and excluded by explicit pathspec
+(`-- . ':!docs/os/clocks.md'`) from every diff this session ran.
+
+**Test count unmoved: 1205 / 198 / 0 fail, twice, with identical block sets.**
+Predicted per BLOCK before the runs — this session touches no test file, so the
+prediction was zero movement everywhere — and hit exactly. The two `not ok`
+matches in each log are inside a passing test's *name*
+(`(6) a \`not ok\` SUITE line is not counted as a failing test`), not results.
+
+#### The count in the brief was wrong, and so was the count in F-A036
+
+ADMIN-S5 closed the profile leak in two harnesses of what it called eight. The
+brief for this session said six remained. **Both numbers were wrong, and reading
+the files is what showed it.**
+
+`git grep mkdtemp` finds **ten** Chrome-profile harnesses, and it **misses an
+eleventh**: `tests/design/contrast/web.js` builds its profile path from
+`process.pid` rather than `mkdtemp`, so no `mkdtemp` census can see it at all. It
+is also the only one that already removed its own profile (`web.js:1426`), so it
+needed no change — but a session that had enumerated by that grep would never
+have learned either fact. The full set, by exact prefix:
+
+| prefix | harness | state |
+|---|---|---|
+| `portal-shot-` | `scripts/portal/shoot.js` | fixed at ADMIN-S5 |
+| `portal-shotwiz-` | `scripts/portal/shootWizard.js` | fixed at ADMIN-S5 |
+| `portal-d3-` | `scripts/portal/shootD3.js` | fixed here |
+| `portal-d4-` | `scripts/portal/shootD4.js` | fixed here |
+| `portal-d5a-` | `scripts/portal/shootD5a.js` | fixed here |
+| `portal-d5b-` | `scripts/portal/shootD5b.js` | fixed here |
+| `admin-measure-` | `scripts/admin/measure.js` | fixed here |
+| `trace-capture-` | `scripts/admin/trace-capture.js` | fixed here |
+| `f1-chrome-` | `scripts/portal/f1.js` | fixed here |
+| `f3-chrome-` | `scripts/portal/f3.js` | fixed here |
+| `web-contrast-` | `tests/design/contrast/web.js` | already clean, untouched |
+
+**The trailing hyphen is load-bearing.** `portal-shot-` and `portal-shotwiz-` are
+distinct prefixes, but `portal-shot*` as a glob matches both, so a census written
+as one glob counts one harness and silently misses another (F-A040/#2). Every
+census this session ran matches literally, hyphen included, with `startsWith`.
+
+**Each of the eight was red-checked individually** — fixed arm, then reverted to
+the previous commit, censused by its own prefix both times. None of them is
+spawned by the suite (only `shoot.js` is), so "the suite exercises it" would have
+been eight non-red-checks, which is F-A040/#3 exactly. Every one gave 0 new dirs
+with the fix and 1 without:
+
+    shootD3 0/1 (171s/140s)   shootD4 0/1 (95s/89s)   shootD5a 0/1 (85s/83s)
+    shootD5b 0/1 (298s/292s)  f1 0/1 (38s/39s)        f3 0/1 (36s/32s)
+    measure 0/1 (37s/37s)     trace-capture 0/1 (22s/21s)
+
+`shootD5a` exits 1 on **both** arms — *"capture never repeated itself in 8 frames:
+d5a-buttons-1440.png"*. Pre-existing (S3g recorded it red at HEAD), identical
+either side of this change, out of scope, and it makes the red-check **stronger**:
+the cleanup is proven on the error path, not only on the happy one.
+
+`measure.js` was the one placement worth doubting. ADMIN-S5's note argues the
+unlink survives the Windows file lock because the scratch-DB teardown between the
+`chrome.kill()` and the `rmSync` is real elapsed time — and `measure.js` has no
+database and so no teardown, only `server.close()`. It cleans up anyway;
+`rmSync`'s `maxRetries` carries it alone. The placement rule needed no exception.
+
+#### C1 — nine harnesses were pointed at production, not one
+
+`shootWizard.js` read `ADMIN = process.env.DATABASE_URL` and then ran `CREATE
+DATABASE` and `DROP DATABASE` on it. The audit the brief asked for found the same
+default in **twelve** places. Nine are fixed here; three are filed:
+
+**Fixed:** `shootWizard.js`, `shootD3/D4/D5a/D5b.js`, `f1.js`, `f3.js`,
+`admin/trace-capture.js` — every one of which mints and drops a scratch database
+on that connection — plus `seed-schedules.js`, which the brief's own F-A033
+carve-out pulls in (*"unless one is in C1's audit list"*).
+
+**Filed, not fixed:**
+
+- ⚠️ **`scripts/portal/shoot.js` — the highest-priority one left, and it is not a
+  latent risk but a live one.** `tests/design/contrast/portalLive.test.js:236`
+  spawns it with `env: process.env`, so **every `npm test` on this machine mints
+  and drops a scratch database on production Neon.** It is the one harness the
+  suite runs, which is exactly why it was not changed here: redirecting it moves
+  suite behaviour, and K1's prediction did not cover that. It wants its own
+  session and should get one before any other harness work.
+- `scripts/portal/acceptance.js` — same default, not in this session's file set.
+- `scripts/seed_voice_test_customer.sql` — psql, no JS entry point to guard.
+
+The guard shape is **copied** from `scripts/seed-portal-owner.js:88-127`, not
+reinvented: Guard 1 refuses `NODE_ENV=production` with no override; Guard 2
+asserts on the host **pg would really dial**, parsed by pg's own
+`pg-connection-string`, and requires `--allow-remote-host` for a non-local one. A
+regex over the URL text would pass `…?options=host%3Dlocalhost` and reject a unix
+socket path; this does neither.
+
+Red-checked in both directions, all three arms, all nine files: remote host
+without the flag refuses naming the host; `NODE_ENV=production` refuses even
+*with* the flag; the flag warns and proceeds. **And reverted to HEAD the same
+environment DIALS the remote host** (`getaddrinfo ENOTFOUND db.example.invalid`)
+instead of refusing — so the guard catches a failure that really occurs, which is
+F-A039's own requirement turned on itself.
+
+#### ADMIN-S6 findings — F-A041 … F-A045
+
+Carrying **F-A001 … F-A040** unchanged, with F-A036 amended below.
+
+- **F-A036 — amended. CLOSED for every exit the process controls.** All ten
+  committed Chrome harnesses now unlink their profile; the eleventh already did.
+  It is **not** closed on the timeout path — see F-A037, restated immediately
+  below, which no later session may skip past.
+
+- **F-A037 — restated, and it is the reason "the leak is closed" is the wrong
+  sentence.** `portalLive.test.js:229` spawns `shoot.js` with
+  `timeout: SWEEP_TIMEOUT_MS` (15 min), and a `spawnSync` timeout kills the child
+  outright. **A hard kill runs no `finally`.** No code in the child can prevent
+  the leak on that path, so it is structurally uncoverable by this fix and by any
+  fix shaped like it. The correct statement is: *the leak is closed on every
+  ordinary exit and remains open on a timeout kill.* A session that writes
+  anything stronger has overclaimed.
+
+- **F-A041 — a guard placed above the code that loads its own inputs is a guard
+  that refuses everything.** `trace-capture.js` calls `require('dotenv').config()`
+  at the **bottom** of the file, inside its `require.main === module` block, while
+  C1's guard sits at module top level. The guard therefore read an unpopulated
+  environment and refused **every** run with *"neither TEST_DATABASE_URL nor
+  DATABASE_URL is set"*. It was the only one of the nine shaped that way; the
+  other eight load dotenv above the guard. **K4 was green on it. The three guard
+  red-checks were green on it** — they set the environment explicitly in the
+  child, so they could not see it. It was caught only by C2's individual
+  red-check driving the harness for real, and it is the entire argument for
+  "drive every harness directly" being a rule rather than a formality. Fixed in
+  the same commit (amended, not pushed).
+
+- **F-A042 — `git checkout` rewrites working-tree line endings, so a file's EOL
+  is not stable across a revert. Environment, permanent.** With
+  `core.autocrlf=true` and no `.gitattributes`, `git checkout HEAD -- <file>`
+  materialises the file as **CRLF** regardless of what it was in the working tree
+  a moment earlier. Seven of this session's nine files read `w/lf` at Phase 0 and
+  `w/crlf` after one revert-and-reapply cycle. The index stays `i/lf` and
+  `git diff` shows no churn, so **nothing is wrong with the commit** — but a
+  patcher that read a file's convention once and cached it would seed the wrong
+  terminator on the second pass. This one re-reads the bytes for every spec and
+  reported the flip in its own output, which is how it was noticed. Extends
+  F-A038: `git ls-files --eol` is authoritative *at the moment you ask it*, and
+  the answer changes.
+
+- **F-A043 — the K4 instrument's own zero-match guard caught a defect in the K4
+  instrument.** Its first run cut normalised needles out of raw CRLF haystacks
+  and matched **zero** times on exactly the two `w/crlf` files. Because a
+  zero-match region is specified to fail **loudly** rather than pass silently, it
+  reported *"replacement matches ZERO times in the working tree"* and named both
+  files, instead of quietly cutting nothing and declaring the remainder
+  identical. A guard that is only ever green teaches nothing; this one earned its
+  place on its first run. Both K4 halves were then red-checked as specified: a
+  stray undeclared edit is caught **and located by line**, and a zero-match region
+  fails loudly.
+
+- **F-A044 — generated code needs its escapes read, not reasoned about.** The
+  spec that emits C1's guard was authored with four backslashes where it needed
+  two, so the refusal printed a **literal `\n`** in the middle of the message.
+  Every assertion was green: the match count, the byte delta, the EOL check, K4,
+  and all three guard red-checks. It was visible only in the terminal output of a
+  refusal that was *read*. Same family as F-A028, one layer further out: F-A028 is
+  about `String.replace` interpreting `$`-sequences, this is about the template
+  that writes the replacement interpreting backslashes. **Read the output of the
+  thing you generated, in the form a human will see it.**
+
+- **F-A045 — stale premises in the ADMIN-S6 brief. Ninth consecutive session.**
+  (i) *"the remaining six harnesses"* — there were **eight**, and F-A036's own
+  header said "eight" while its list named the eight that were *not* fixed, making
+  the true total ten. ADMIN-S5's commit message says "Six other Chrome harnesses"
+  and then lists eight. Three documents, three different counts, none of them
+  right. (ii) The brief's C1 scope reads as one file in its title, bullets and
+  red-check, while *"fix only those in this session's file set"* and the OUT
+  list's *"unless one is in C1's audit list"* both reach wider; the session
+  resolved the conflict by fixing all nine, on the brief's own opening argument
+  that fixing two of eight is the state most easily mistaken for fixed.
+  (iii) The K2 precondition **≥7 GB free on C: was not met** — 7.00 GB at Phase 0,
+  6.36 GB after the sixteen red-check harness runs, 6.44 GB after K1. It was
+  measured, reported, and **waived by the founder**, not silently ignored.
+  **Standing rule (F-A024) held for the ninth time**: the brief's content
+  descriptions were right and its measured numbers were not.
+
+#### F-A039 promoted to a standing instrument rule
+
+Beside **F-A020** (*an instrument whose input derives from the change it checks
+proves nothing*) and **A⑤**:
+
+> **A guard aimed at a failure that cannot occur passes forever and reads as
+> protection.** Every guard states which real failure it catches, and is
+> red-checked against that failure specifically.
+
+ADMIN-S4's patcher guarded the one EOL direction that was impossible in this
+environment. This session applied the rule to its own work in three places: the
+patcher's mixed-EOL assertion was forced red by embedding a `\n` inside an
+authored line; the C1 host guard was shown to refuse a host that the reverted code
+really dials; and the `if (udd)` guard was **deliberately omitted** from
+`measure.js` and `trace-capture.js`, where the `mkdtemp` happens above the `try`
+and reaching the `finally` at all means `udd` is set — a guard there would have
+been dead forever while reading as care.
+
+#### The leak class is wider than the repository
+
+`%TEMP%` also holds Chrome profiles under `ring-probe-` (89 MB), `a1-shootgate-`
+(52 MB), `a1-udd-`, `console-` and `verify-` — leaked by **throwaway probe scripts
+earlier sessions wrote and did not commit**. They are not in the repository, so
+they are in no census and there is nothing to fix; they are named here so the next
+reader knows the committed harnesses were not the whole of it, and so that the
+next session that writes a one-off Chrome driver removes its own profile.
+
+C3 deleted only F-A036's own retained evidence — five dirs, 76.5 MB, each checked
+three ways (parent resolves to exactly `os.tmpdir()`, name starts with one of two
+prefixes literally, entry is a directory and not a symlink) before being touched.
+No glob and no blanket wipe: founder scratch in `%TEMP%` is not ours.
+
+#### Checks
+
+**K1** `npm test` twice: **1205 / 198 / 0 fail / 0 cancelled / 0 skipped**, both
+runs, top-level block sets **identical** between them. Predicted delta zero per
+block before either run, and met. **K2** `npm run os:check` exit 0 twice, run
+foreground and alone; both `.os-check-last.log` mtimes and byte counts are
+recorded in the session report and **differ between runs** — byte-identical logs
+would mean one run was read twice. **K3** isolation byte-identity unmoved:
+`tests/admin/conversations.test.js` `62d810e2039fb710` and
+`tests/traces/tracesRoutes.test.js` `d0102af06d48e4d1`, sha256 over
+CRLF-normalised bytes, first 16 hex; the raw on-disk hashes still begin
+`b95b421f` and `0e5935e8`, and `git diff` on both is empty. **K4** stripped-byte
+identity outside declared regions, the regions taken from the `apply.js` specs
+themselves and therefore written before any diff existed; both halves red-checked.
+**K5** profile-dir census by enumerated prefix — **0 across all eleven prefixes**
+after C3, between the K1 runs, and after both K1 runs and both `os:check` runs.
+**K6** free space on C:, every reading: **7.00 GB** at Phase 0 → **6.36 GB**
+after the sixteen harness red-check runs → **6.44 GB** after K1 → **6.17 GB** after
+both `os:check` runs → **8.29 GB** at close. It went **up** across the two K1
+suite runs, which is the closed leak showing in the one number that had been
+falling; it dipped 270 MB across the two `os:check` runs and then **recovered to
+above the 7 GB precondition on its own, with no action taken**. So the dip was
+transient scratch — Postgres WAL and Windows temp being recycled — and **not a
+leak**: K5 was zero throughout, no scratch database survived on local Postgres,
+and the repo stayed clean. Recorded in full because the mid-session readings
+alone would have sent a later reader hunting something that is not there.
+
 ### Instrument repair — 2026-09-04 (ADMIN-S5)
 
 **Two instrument defects, both measured at ADMIN-S4 and both unfixed until now.**
@@ -5574,6 +5821,10 @@ profile dirs across both K1 runs.
   removes it. Four `portal-d5a-` dirs (61.7 MB) and one `f3-chrome-` (14.7 MB)
   were sitting in `%TEMP%` at Phase 0. Out of ADMIN-S5's scope and filed so the
   next reader does not think the class is closed; the fix is the same four lines.
+  **→ CLOSED at ADMIN-S6 (`cefa72c`) for every exit the process controls, and the
+  count here was wrong: there were TEN committed Chrome harnesses plus one
+  (`tests/design/contrast/web.js`) that no `mkdtemp` census can see. Still open on
+  the timeout-kill path — see F-A037.**
 
 - **F-A037 — a hard kill runs no `finally`, so C1 cannot cover the timeout path.**
   `portalLive.test.js` spawns shoot.js with `timeout: SWEEP_TIMEOUT_MS`, and a
