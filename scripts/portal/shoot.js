@@ -24,7 +24,7 @@
  * correct fix for the DEMO-01 "headless --window-size ignores mobile" lesson),
  * and Chrome runs with reduced-motion so the ring/pulse settle deterministically.
  *
- * Usage:  node scripts/portal/shoot.js
+ * Usage:  node scripts/portal/shoot.js [--allow-remote-host]
  * Output: scripts/portal/shots/*.png
  * ========================================================================== */
 
@@ -65,8 +65,67 @@ const { spawn } = require('child_process');
 const crypto = require('crypto');
 const { Client } = require('pg');
 
-const ADMIN = process.env.DATABASE_URL;
-if (!ADMIN) { console.error('DATABASE_URL required'); process.exit(1); }
+/* ── The control connection, and the two guards that keep it off production ──
+ *
+ * This script creates and drops databases (`zyon_shot_<hex>`) on whatever this
+ * connection names, and its default used to be DATABASE_URL — which on this
+ * machine is production Neon (ep-dry-bird-….neon.tech/neondb).  The suite's
+ * TEST_DATABASE_URL is localhost:5432/saas_crm_test.
+ *
+ * ⚠ WHAT JUSTIFIES THIS CHANGE IS THE MANUAL INVOCATION ON THE USAGE LINE
+ * ABOVE, NOT THE SUITE.  `tests/design/contrast/portalLive.test.js` spawns this
+ * file with `env: process.env` on every `npm test`, and it was filed at
+ * ADMIN-S6 that this therefore reached production Neon.  MEASURED at ADMIN-S7R,
+ * that is false: `tests/_support/testEnv.js` is a `--require` preload on the
+ * `test` script, it assigns `process.env.DATABASE_URL = TEST_DATABASE_URL`
+ * before any test module loads, and `env: process.env` hands the child the
+ * value it had already been repointed to.  Under the suite this script dialled
+ * localhost:5432/saas_crm_test at HEAD and dials it still.  Run by hand it
+ * dialled ep-dry-bird-….neon.tech/neondb, and that is the run this fixes.
+ *
+ * So: TEST_DATABASE_URL first, and both guards below, copied in shape from
+ * scripts/seed-portal-owner.js — the one script in scripts/ that already had
+ * them:
+ *   Guard 1  NODE_ENV=production.  Refused, with NO override.  Every other
+ *            guard here has an escape hatch; this is the one that makes
+ *            offering them safe.
+ *   Guard 2  the host, asserted on the target pg would really dial, parsed by
+ *            pg's own parser.  A regex over the URL text passes
+ *            `…?options=host%3Dlocalhost` and rejects a unix socket path;
+ *            this does neither.  Non-local requires --allow-remote-host.
+ *
+ * Both sit BELOW the `require('dotenv').config()` at the top of this file
+ * (F-A041).  This is the ELEVENTH of the twelve entry points that carried the
+ * production default: nine are at `f8504a8`, `acceptance.js` at `f599533`, and
+ * the twelfth — `scripts/seed_voice_test_customer.sql` — is psql with no JS
+ * entry point to put a guard in, and stays unguarded.
+ *
+ * pg-connection-string is not a new dependency: pg requires this exact module
+ * (node_modules/pg/lib/connection-parameters.js:7).
+ */
+const { parse: parseAdminCs } = require('pg-connection-string');
+const ADMIN = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
+if (!ADMIN) { console.error('✗ neither TEST_DATABASE_URL nor DATABASE_URL is set.'); process.exit(1); }
+if (process.env.NODE_ENV === 'production') {
+  console.error('✗ NODE_ENV=production. This script creates and drops databases and will not run against production.');
+  process.exit(1);
+}
+{
+  let adminHost;
+  try { adminHost = parseAdminCs(ADMIN).host || 'localhost'; } catch (err) {
+    console.error(`✗ the control connection string could not be parsed by pg's own parser: ${err.message}`);
+    process.exit(1);
+  }
+  const local = adminHost.startsWith('/')
+    || ['localhost', '127.0.0.1', '::1', '[::1]'].includes(adminHost.toLowerCase());
+  if (!local && !process.argv.includes('--allow-remote-host')) {
+    console.error(`✗ database host '${adminHost}' is not local.\n`
+      + '  This script creates and drops databases.\n'
+      + '  If that really is your dev database, re-run with --allow-remote-host.');
+    process.exit(1);
+  }
+  if (!local) console.warn(`⚠ Host '${adminHost}' is NOT local — proceeding only because --allow-remote-host was passed.`);
+}
 const SSL = process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false;
 const SILENT = { log() {}, error() {} };
 const OUT = path.join(__dirname, 'shots');
