@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 2fc0e8a9f4fb36b1b5f7d6cf0da604fb82a1944b
+Verified-at: 485bb95bf73f52585adba7f4e7959d8d899ad4bb
 Verified-on: 2026-09-04
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -171,8 +171,12 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1205 tests / 198 suites / 0 fail** (`npm test`, raw: `# tests 1205 /
-  # suites 198 / # pass 1205 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+- Test suite: **1207 tests / 199 suites / 0 fail** (`npm test`, raw: `# tests 1207 /
+  # suites 199 / # pass 1207 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  **+2 tests / +1 suite at ADMIN-S7R**: one `describe()` with two `it()`s in the new
+  `tests/infra/testEnvSeam.unit.test.js`, the seam guard. Predicted per BLOCK before
+  either run and hit exactly; run twice with identical counts and identical top-level
+  block sets.
   **+0 tests / +0 suites at ADMIN-S6**: this session touches no test file.
   Predicted per BLOCK as zero movement everywhere before either run, and met;
   the two runs' top-level block sets are identical.
@@ -5472,6 +5476,260 @@ Additions since the original 1–28, all in the plan's Phase 8:
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
 
+### The seam nothing tested, and the claim it let stand — 2026-09-04 (ADMIN-S7R)
+
+**Six commits, `f599533` → this one. Not pushed.** No route, no migration, no
+schema, no page. `git diff --stat e3eb509..HEAD -- . ':!docs/os/clocks.md'`
+carries two harness scripts, one test file, one **new** test file and this
+document, and nothing else. The sixth is a four-line correction to a comment the
+first one added; see C4b. `docs/os/clocks.md` was founder-modified throughout
+and was never opened, never staged, and excluded by explicit pathspec from every
+diff this session ran.
+
+**Test count 1205 → 1207 / 198 → 199 / 0 fail, twice, with identical top-level
+block sets (193 blocks).** Predicted per BLOCK before either run: +2/+1 from C4's
+new file, zero everywhere else. Hit exactly. The two `not ok` matches in each log
+are inside a passing test's *name*, not results.
+
+#### The headline: ADMIN-S6's filed claim was false, and nothing could have caught it
+
+S6 filed, in its commit message, in this document and — restated by the founder,
+untested — in the ADMIN-S7 brief:
+
+> `tests/design/contrast/portalLive.test.js` spawns `shoot.js` with
+> `env: process.env`, so **every `npm test` on this machine mints and drops a
+> scratch database on production Neon.**
+
+**It is false, and it was false at `e3eb509` before anything here changed.** The
+amendment sits in place at the S6 entry below, with the mechanism. In one line:
+`tests/_support/testEnv.js` is a `--require` preload on the `test` script and
+assigns `process.env.DATABASE_URL = TEST_DATABASE_URL` before any test module
+loads, so `env: process.env` hands the child a value that is **already** local.
+
+What makes this worth a section rather than a footnote is not the error. It is
+that **nothing in the repository could have settled it either way.** The spawn
+line says `env: process.env` and stops there; the resolution is two files away in
+a preload named only in `package.json`. A seam that nothing tests can be wrong in
+EITHER direction and read exactly the same — which is why one reading survived
+three documents and a session brief. `8f985b4` is the answer to that and is the
+durable commit here.
+
+#### How it was measured, since a second reading would have proved nothing
+
+A `--require` shim wraps `pg.Client.prototype.connect`, prints the parameters
+**pg itself** resolved, and exits before the socket is opened, so nothing is
+created on any host. The parent is loaded with the suite's own preload and
+reproduces `portalLive.test.js:227-236`'s spawn exactly — same `process.execPath`,
+same argv, same `env`. All four readings at `e3eb509`:
+
+| harness | as the suite spawns it | run by hand |
+|---|---|---|
+| `scripts/portal/shoot.js` | `localhost:5432/saas_crm_test` | `ep-dry-bird-….neon.tech/neondb` |
+| `scripts/portal/acceptance.js` | not spawned by the suite | `ep-dry-bird-….neon.tech/neondb` |
+
+The first cell is the one three documents got wrong. The second and third are the
+real defect, and are what C1 and C2 fix.
+
+#### C1 — `acceptance.js`, the one with proof it reached production (`f599533`)
+
+`ADMIN_DB = process.env.DATABASE_URL`, then `CREATE DATABASE zyon_acc_<hex>` on
+it. Nothing in `tests/` spawns this file, so no preload repoints it and the
+default was the whole of its safety. Guard shape **cut out of
+`scripts/portal/f1.js:82-104` with `sed`, not retyped** — F-A044 is a literal
+`\n` that reached a terminal from a template that interpreted its own escapes —
+and placed BELOW this file's `dotenv` load (F-A041). Red-checked four arms, and
+the refusal text was READ: remote host without the flag refuses naming the host
+over three real lines; `NODE_ENV=production` refuses even with the flag; the flag
+warns and proceeds to `ENOTFOUND`; **and reverted to `e3eb509` the same
+environment DIALS the host instead of refusing** (F-A039). The normal path was
+then driven end to end for real — PASSED, 17 steps, 2.9 s, scratch minted and
+dropped on localhost — which is the only check that can catch an F-A041.
+
+#### C2 — `shoot.js` (`82ac03d`), and the delta-0 that was measured rather than argued
+
+The eleventh of the twelve entry points carrying the production default. Guard
+cut from `shootWizard.js:58-80`. **Justified by the hand-run on its own usage
+line, not by the suite**, and the commit message says so rather than restating
+S6's claim. The suite delta was **measured, not reasoned**: the child's dial line
+is byte-identical before and after, because `TEST_DATABASE_URL || DATABASE_URL`
+resolves to exactly what the preload had already assigned to both. Same four
+red-check arms.
+
+#### C3 — the spawn states its target (`cb1a047`)
+
+`env: process.env` → `env: { ...process.env, DATABASE_URL: process.env.TEST_DATABASE_URL || process.env.DATABASE_URL }`,
+the shape `provisionCli.integration.test.js:149` already uses. Belt to the
+preload's braces: measured identical under both shapes. Its value is that the
+target is **stated where the spawn is**, which is the one place a reader looked
+and could not find it.
+
+#### C4 — the seam is guarded (`8f985b4`). THE DURABLE COMMIT.
+
+New file `tests/infra/testEnvSeam.unit.test.js`, one `describe()` with two
+`it()`s. It asserts that the suite's resolved DATABASE_URL parses **to a local
+host** — `resolveDbTarget` + `assertLocalHost` **reused** from
+`scripts/seed-turn-traces.js`, already unit-tested at
+`tracePageContract.integration.test.js:271-273`, so the host check is pg's own
+parser and not a regex — and that the repoint **actually happened**: the preload
+is still on the `test` script, `TEST_DATABASE_URL` is set, and DATABASE_URL *is*
+TEST_DATABASE_URL. It **fails rather than skips** on each of those, each named.
+No failure message carries a connection string; the comparison is an `assert.ok`
+on a boolean and the host guard prints host and database only, which is the rule
+`testEnv.js:34` already states for its own announce line.
+
+**Red-checked four ways, one per assertion:** the repoint deleted from
+`testEnv.js:45` → **both** tests red, naming
+`ep-dry-bird-….neon.tech / neondb` (only this one file was run in that state; it
+opens no connection); `TEST_DATABASE_URL` empty → 2 red; both variables empty →
+2 red; the preload removed from `package.json` while the environment was
+repointed on the command line anyway → 1 red, naming the script. `testEnv.js` and
+`package.json` were each restored byte-for-byte and re-run green.
+
+#### C4b — the same error, one iteration in, in this session's own work (`485bb95`)
+
+The comment `f599533` put in `acceptance.js` said *"Of the twelve harnesses that
+carried that default, this is the ONE with proof it reached production."* **False,
+and falsified by a census this session had already taken**: `zyon_d4_*` (two) and
+`zyon_d5b_*` (three) are on neondb too, so **three** entry points have that proof.
+`acceptance.js` is the only one of the three that was still carrying the default —
+narrower, true, and still the reason C1 led.
+
+The sentence came from this session's brief and was written into a source file
+without being checked against a list already on screen. It is worth its own
+subsection because it is the same shape as the claim the whole session exists to
+correct — inherited from an input, restated with confidence, put where the next
+reader would find it and carry it on — and it happened *while correcting that
+claim*, in the same afternoon, by the same reader.
+
+Fixed rather than filed, and the distinction is the point: a `state.md` entry can
+be amended in place with the correction under the original, which is what the S6
+entry below now carries. **A source comment has nowhere for a reader to find the
+correction** — they read the file, or they do not. So the comment is corrected and
+the false version survives only in `f599533`'s diff and in this paragraph. Comment
+only: no code, no guard, no behaviour, and `f599533`'s four red-check arms and its
+end-to-end run stand unaffected and were not re-run.
+
+#### The eight leftovers on Neon — REPORTED, NOT DROPPED
+
+A read-only `SELECT` on `pg_database`. **Nothing on that host was dropped by this
+session, and no session should drop on production without the founder saying so.**
+
+    zyon_acc_c6100d85e4   9320 kB   scripts/portal/acceptance.js   fixed f599533
+    zyon_d4_5ee7162b70    9368 kB   scripts/portal/shootD4.js      fixed f8504a8
+    zyon_d4_8efca58dc7    7952 kB   scripts/portal/shootD4.js      fixed f8504a8
+    zyon_d5b_688dde4097   9472 kB   scripts/portal/shootD5b.js     fixed f8504a8
+    zyon_d5b_6fa4a10f35   9488 kB   scripts/portal/shootD5b.js     fixed f8504a8
+    zyon_d5b_e7eb161505   9480 kB   scripts/portal/shootD5b.js     fixed f8504a8
+    zyon_p1_3ab19c2c30    9512 kB   no committed script uses this prefix
+    zyon_probe_e69a71d8   9168 kB   no committed script uses this prefix
+
+~74 MB, and every one of them a database `CREATE`d on the live company by a
+harness someone ran by hand. Two prefixes match **no committed script** — they
+are from throwaway probes earlier sessions wrote and did not commit, the same
+class as the uncommitted `%TEMP%` Chrome profiles S6 recorded, one host further
+out.
+
+**The absent prefixes are the finding.** There is no `zyon_shot_*` and no
+`zyon_test_*` anywhere on that host. Those are the two the suite would leave, and
+the census that first showed the eight was taken before this session changed
+anything. So the S6 claim was falsified twice over, by two instruments that share
+nothing: a dial probe, and a list of what a year of runs actually left behind.
+
+#### ADMIN-S7R findings — F-A046 … F-A049
+
+Carrying **F-A001 … F-A045** unchanged.
+
+- **F-A046 — a seam that nothing asserts is wrong in both directions at once.**
+  The preload/spawn seam decided whether `npm test` wrote to the live company, and
+  no test, gate or comment named it. Two sessions read the same two lines and
+  reached opposite conclusions; each was as evidenced as the other, which is to
+  say not at all. The rule this leaves behind, beside F-A020 and F-A039: **a
+  property nobody can make a run answer is not a fact about the repository, it is
+  a belief about it — and it will be restated with the confidence of a fact.**
+  Closed for this seam by `8f985b4`; the class is not closed anywhere else.
+
+- **F-A047 — an announce line reports the INTENT, not the act.** With
+  `process.env.DATABASE_URL = local;` deleted from `testEnv.js`, the very next
+  line still printed *"[tests] database: localhost:5432/saas_crm_test — via
+  TEST_DATABASE_URL"* on every run, while `process.env.DATABASE_URL` named Neon.
+  The message is computed from the INPUT (`target(local)`) and never from the
+  result, so it cannot witness the assignment above it and reads identically when
+  that assignment is gone. Observed live during C4's red-check. This is F-A020's
+  shape in a log line rather than in a test, and it is a large part of why the
+  seam read as safe: there was always a line on the console saying it was.
+
+- **F-A048 — leftovers on a remote host are an attribution instrument, and an
+  ABSENT prefix is evidence.** Every harness here names its scratch database after
+  itself, so eight rows on `pg_database` name three harnesses and two scripts that
+  were never committed. The rows that are NOT there did the real work: zero
+  `zyon_shot_*` and zero `zyon_test_*` corroborated the dial measurement from a
+  completely independent direction. Worth keeping as a habit — the census costs one
+  read-only `SELECT`, and it is the only record of what a hand-run actually did.
+
+- **F-A049 — stale premises in the ADMIN-S7R brief. Tenth consecutive session,
+  and one of them would have produced a vacuous red-check.**
+  (i) *"REVERT THE REPOINT at `testEnv.js:47`"* — the repoint is the **assignment
+  at `:45`**; `:47` is the announce line. Reverting `:47` literally deletes a
+  `console.log`, and C4 stays **green**, because the announce line is the one thing
+  in that block that changes nothing (F-A047). Followed to the letter, the brief's
+  own red-check would have been the vacuous gate it was written to prevent.
+  (ii) *"the ten honest copies"* — **eleven**, measured by requiring all three of
+  the production refusal, `pg-connection-string` and `--allow-remote-host` in the
+  file: `seed-portal-owner.js`, `seed-turn-traces.js`, `seed-schedules.js`,
+  `admin/trace-capture.js`, `shootWizard.js`, `shootD3/D4/D5a/D5b.js`, `f1.js`,
+  `f3.js`. Which one *"ten"* omits is not recoverable from the brief, and it
+  matters only because `seed-turn-traces.js` is the copy C4 reuses rather than
+  re-implements.
+  (iii) *"the only harness with proof it reached Neon"* — three harnesses have
+  that proof, not one: `shootD4.js` and `shootD5b.js` left five of the eight
+  leftovers between them. `acceptance.js` is the only one **still carrying the
+  default** with that proof, which is a narrower claim and the one that made it
+  lead. **Standing rule F-A024 held for the tenth time**: the brief's content
+  descriptions were right and its measured numbers were not.
+
+#### Line numbers this session moved — stamped, not chased
+
+Three files grew near the top, so every citation into them below is off by a fixed
+amount. Following S3c's rule (*37 of 41 citations stale ⇒ stamp, never
+half-chase*), and because the stale-text batch is explicitly out of this session's
+scope, the shift is recorded once here rather than applied ~40 times:
+
+| file | region inserted | citations at or after | add |
+|---|---|---|---|
+| `scripts/portal/shoot.js` | 68 | 69 | **+59** |
+| `scripts/portal/acceptance.js` | 56 | 58 | **+57** |
+| `tests/design/contrast/portalLive.test.js` | 231 | 235 | **+11** |
+
+So `shoot.js:406-417` in the entries below is `:465-476` at HEAD, `shoot.js:574`
+is `:633`, and `portalLive.test.js:229` in F-A037 is `:240`.
+
+#### Checks
+
+**K1** `npm test` twice: **1207 / 199 / 0 fail / 0 cancelled / 0 skipped**, both
+runs, 433.3 s and 432.5 s, top-level block sets **identical** (193 blocks each).
+Predicted +2/+1 per block before either run and met. **K2** `npm run os:check`
+**exit 0 twice**, foreground and alone, run immediately after this commit — it
+cannot run before it, because `Verified-at` must already name `485bb95`. Both runs
+report 1207 / 199 / 0 / 0 / 0. `.os-check-last.log` at
+`13:31:50.434Z / 391879 bytes` (md5 `93aafe92…`) and `13:40:14.539Z / 391493
+bytes` (md5 `739a5dff…`) — **the two logs differ in bytes**, which is what rules
+out one run having been read twice.
+**K3** isolation
+byte-identity unmoved: `tests/admin/conversations.test.js` `62d810e2039fb710` and
+`tests/traces/tracesRoutes.test.js` `d0102af06d48e4d1`, sha256 over
+CRLF-normalised bytes, first 16 hex; raw on-disk hashes still `b95b421f` and
+`0e5935e8`, `git diff` empty on both. **K4** stripped-byte identity outside the
+declared regions, on every tracked file touched, the regions taken from spec files
+authored before any diff existed; both halves red-checked — a stray undeclared
+edit was caught **and located by line, printing both sides**, and a zero-match
+region failed loudly on both the search and the replacement side. Re-verified
+after every revert, and the EOL re-read each time (`acceptance.js` went `w/lf` →
+`w/crlf` → `w/lf` across one `git checkout` cycle, F-A042 again). **K5** profile
+census by enumerated prefix — **0 across all eleven prefixes**, at Phase 0 and
+after both K1 runs and both `os:check` runs. **K6** free space on C: recorded at
+every stage in the session report; **8.27 GB at Phase 0**, above the 7 GB
+precondition without a waiver for the first time in three sessions.
+
 ### The harness leak closed, and the production default — 2026-09-04 (ADMIN-S6)
 
 **Four commits, `f8504a8` → `2fc0e8a` plus this one. Not pushed.** No route, no
@@ -5559,8 +5817,43 @@ carve-out pulls in (*"unless one is in C1's audit list"*).
   suite runs, which is exactly why it was not changed here: redirecting it moves
   suite behaviour, and K1's prediction did not cover that. It wants its own
   session and should get one before any other harness work.
-- `scripts/portal/acceptance.js` — same default, not in this session's file set.
+
+  ⚠️ **AMENDED AT ADMIN-S7R — THE SENTENCE IN BOLD ABOVE IS FALSE.** It is left
+  standing rather than deleted because it reached three documents and a reader who
+  meets it in one of them has to be able to find it corrected here.
+  - **What S6 filed:** that the suite itself already minted and dropped scratch
+    databases on production Neon, on every `npm test`, on this machine.
+  - **What observation showed, at `e3eb509`, before anything was changed:** driving
+    `shoot.js` through this test's exact spawn shape — same `process.execPath`,
+    same argv, same `env: process.env` — from a parent loaded with the suite's own
+    `--require ./tests/_support/testEnv.js`, and reading the parameters pg itself
+    resolved rather than an env var: `[dial] host=localhost port=5432
+    database=saas_crm_test`. A **hand-run** of the same script at the same commit
+    dialled `ep-dry-bird-….neon.tech/neondb`. Corroborated independently by the
+    Neon census below: of eight leftover scratch databases there, **none** is
+    `zyon_shot_*` and **none** is `zyon_test_*` — the two prefixes the suite
+    would leave. Every attributable one is from a harness run by hand.
+  - **The mechanism:** `tests/_support/testEnv.js` is a `--require` preload on the
+    `test` script. It assigns `process.env.DATABASE_URL = TEST_DATABASE_URL` before
+    any test module loads, so `env: process.env` hands the child a DATABASE_URL
+    that had already been repointed at localhost. The claim was inferred from the
+    spawn line **without reading the preload two files away**, and it propagated
+    into S6's commit message, this document and the ADMIN-S7 brief before anything
+    tested it.
+  - **What was true and stays true:** the default was wrong for the run
+    `shoot.js`'s own usage line documents — the hand-run — and that is what
+    `82ac03d` fixes. `cb1a047` makes the spawn state its target at the call site,
+    and `8f985b4` makes the seam itself assertable, so the next reader gets an
+    answer from a run rather than from a reading.
+- ~~`scripts/portal/acceptance.js` — same default, not in this session's file
+  set.~~ **FIXED at ADMIN-S7R (`f599533`, comment corrected at `485bb95`).** It is
+  one of **three** entry points with proof it reached production — `zyon_acc_*`,
+  `zyon_d4_*` and `zyon_d5b_*` are all on neondb — and the only one of the three
+  that still carried the default, the other two having been fixed at `f8504a8`.
+  Nothing in `tests/` spawns it, so no preload repointed it and the default was
+  the whole of its safety.
 - `scripts/seed_voice_test_customer.sql` — psql, no JS entry point to guard.
+  **Still unguarded at ADMIN-S7R**, and it is the twelfth and last of the class.
 
 The guard shape is **copied** from `scripts/seed-portal-owner.js:88-127`, not
 reinvented: Guard 1 refuses `NODE_ENV=production` with no override; Guard 2
