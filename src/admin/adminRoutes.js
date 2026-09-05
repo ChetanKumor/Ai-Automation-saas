@@ -10,6 +10,10 @@ const { CHECK_NAMES } = require('../modules/validation/validationService');
 const configService = require('../modules/config/configService');
 const conversationService = require('../modules/conversation/conversationService');
 const tracesQuery = require('../modules/traces/queryService');
+// Cross-tenant incidents read (INCIDENTS-B). Deliberately a SEPARATE module
+// from queryService above: that one's reads are tenant-scoped and this one has
+// no tenant predicate at all, and the two must not sit under one header.
+const incidentsQuery = require('../modules/traces/incidentsQuery');
 const { renderSystemPrompt, estimateTokens } = require('../modules/prompts');
 // Reuse the portal's scrypt hashing for operator-created owner accounts (S3) — the
 // single hashing path, never duplicated. auth.js lazy-requires db, so pulling it in
@@ -1027,6 +1031,54 @@ router.get('/api/traces/:turn_id', requireAuth, async (req, res) => {
   } catch (err) {
     logger.error({ err: err.message }, 'failed to fetch turn trace');
     res.status(500).json({ error: 'Failed to fetch trace' });
+  }
+});
+
+// ── API: Incidents (INCIDENTS-B) — what failed, ACROSS ALL TENANTS ───────────
+//
+// CROSS-TENANT BY DESIGN, and marked as such the way /api/tenants above is.
+// It takes NO tenant_id and must never grow one: the whole question is "what
+// failed anywhere", which a tenant-scoped read cannot answer and which a
+// client-side fan-out over /api/tenants answers only by asking N times.
+//
+// This does NOT relax the tenant-scoped traces routes above. Those keep
+// tenant_id mandatory (ADMIN-S3a), their deny tests are untouched, and this is
+// a separate route precisely so that contract survives intact.
+//
+// Scope is the admin session — the platform operator — exactly as /api/tenants
+// takes it. Scope is never taken from a row.
+//
+// The failure predicate lives inside the SQL WHERE, applied before ORDER BY and
+// before LIMIT (incidentsQuery.js explains why that placement is the point).
+// The route validates; the query filters; NEITHER classifies.
+//
+// `limit` semantics are the traces list's, read off it rather than chosen:
+// default 50, hard cap 200, and a value outside that is REFUSED rather than
+// clamped, in the identical 400 shape. Inventing a different contract for one
+// route is the same objection as bolting a rate limiter onto one GET.
+//
+// Note for whoever reads the number: the 200 on the traces list is per tenant;
+// this 200 is across all tenants, so the same figure means something different
+// here. Recorded, deliberately not changed — at zero rows it is not yet a
+// decision to make.
+//
+// requireAuth only, no apiLimiter: every GET in this router carries auth alone
+// (/api/tenants, /api/conversations, /api/traces); apiLimiter is on the
+// mutating routes. A limiter here would be a policy invented for one route.
+router.get('/api/incidents', requireAuth, async (req, res) => {
+  const { limit } = req.query;
+
+  const parsedLimit = limit === undefined ? 50 : Number(limit);
+  if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 200) {
+    return res.status(400).json({ error: 'limit must be an integer between 1 and 200' });
+  }
+
+  try {
+    const rows = await incidentsQuery.listIncidents({ limit: parsedLimit });
+    res.json(rows);
+  } catch (err) {
+    logger.error({ err: err.message }, 'failed to list incidents');
+    res.status(500).json({ error: 'Failed to list incidents' });
   }
 });
 
