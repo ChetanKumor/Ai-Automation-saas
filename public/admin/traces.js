@@ -35,12 +35,32 @@
 'use strict';
 
 (function (root, factory) {
-  const api = factory();
+  // ── The one dependency, resolved in BOTH environments ─────────────────────
+  //   node     the tests require THE EXACT FILE THE BROWSER LOADS, so the
+  //            `require` below is the real resolution path, not a shim.
+  //   browser  traces.html loads /admin/turn-status.js FIRST, and it publishes
+  //            window.AdminTurnStatus. SCRIPT ORDER IS LOAD-BEARING.
+  //
+  // The two environments fail differently and only one fails loudly by itself.
+  // In node an unresolvable require throws at require time and every block in
+  // tests/admin/tracePage.unit.test.js reddens at once — visible. In a browser
+  // an unresolved global would simply be `undefined` here, and the page would
+  // render a broken badge with no error reported anywhere; no test in this
+  // repository loads this page through a browser, so nothing would catch it.
+  // Hence the explicit throw — the browser branch refuses out loud instead of
+  // degrading silently.
+  const TS = (typeof module === 'object' && module.exports)
+    ? require('./turn-status.js')
+    : (root && root.AdminTurnStatus);
+  if (!TS) {
+    throw new Error('traces.js: /admin/turn-status.js must be loaded first');
+  }
+  const api = factory(TS);
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.AdminTraces = api;
   // The DOM half runs only in a browser, so `require` is side-effect free.
   if (root && typeof document !== 'undefined') api._wire(root, document);
-})(typeof window !== 'undefined' ? window : null, function () {
+})(typeof window !== 'undefined' ? window : null, function (TS) {
 
   const DASH = '—';
 
@@ -68,6 +88,19 @@
   }
 
   // ── Status ────────────────────────────────────────────────────────────────
+  // key → how THIS PAGE draws it. The derivation is turn-status.js's; the look
+  // is the panel's, and these `badge-` literals must stay in this file:
+  // tests/design/adminShell.test.js:263 scans a HAND-NAMED list of files for
+  // badge class literals and checks each resolves to a rule in style.css.
+  // traces.js is on that list and turn-status.js is not, so a badge string
+  // moved out of here would not fail that scan — it would quietly stop being
+  // scanned, which is the worse outcome.
+  const PRESENTATION = {
+    ok: { label: 'ok', badge: 'badge-green' },
+    aborted: { label: 'aborted', badge: 'badge-yellow' },
+    failed: { label: 'failed', badge: 'badge-red' },
+  };
+
   /**
    * The turn's outcome, derived from `error` AND NOTHING ELSE. `error` carries
    * two envelopes (writer.js documents both):
@@ -76,14 +109,17 @@
    *   { stage, message, status }                  → the turn failed
    * This is a reading of a column, not a fact invented for the column: a row
    * with no error column value is a row that recorded no error.
+   *
+   * THE LADDER ITSELF LIVES IN /admin/turn-status.js and is shared with the
+   * incidents read, which asks a DIFFERENT question of the same row (F-A054).
+   * A tool that reported an error is NOT an input here: that turn COMPLETED,
+   * and `ok` is the true answer to the question this page asks. Reaching the
+   * tool-error arm from this page would be a defect, and it is asserted against
+   * in tests/admin/turnStatus.unit.test.js.
    */
   function statusOf(row) {
-    const e = row ? row.error : null;
-    if (e == null) return { key: 'ok', label: 'ok', badge: 'badge-green' };
-    if (typeof e === 'object' && e.outcome === 'aborted') {
-      return { key: 'aborted', label: 'aborted', badge: 'badge-yellow' };
-    }
-    return { key: 'failed', label: 'failed', badge: 'badge-red' };
+    const key = TS.turnStatus(TS.fromError(row ? row.error : null));
+    return { key: key, label: PRESENTATION[key].label, badge: PRESENTATION[key].badge };
   }
 
   /** The turn's wall clock, or null. Never 0-for-missing. */
@@ -370,7 +406,12 @@
   function errorHtml(err) {
     const absent = absence(err, 'No error on this row — the turn completed.', '');
     if (absent) return absent;
-    const aborted = err.outcome === 'aborted';
+    // Was a SECOND derivation of the same fact, eight lines from statusOf
+    // (F-A060). `absence` above already returned for a null envelope, so this
+    // is the two-arm tail of the same ladder and it routes through the same
+    // module. The Outcome line below renders this value as VISIBLE TEXT, so
+    // turn-status.js's key vocabulary is load-bearing on rendered output here.
+    const aborted = TS.turnStatus(TS.fromError(err)) === 'aborted';
     return '<div class="kv">'
       + kv('Outcome', aborted ? 'aborted' : 'failed')
       + (aborted ? kv('Abort reason', err.abort_reason == null ? null : esc(String(err.abort_reason))) : '')
