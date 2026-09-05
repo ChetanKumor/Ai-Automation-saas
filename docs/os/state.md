@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: d57351bffbb740aa69bc3cf4cf55fc7dad9e9a05
+Verified-at: 9290509b5c77dcda0ea8151b7196b7264fd0e680
 Verified-on: 2026-09-05
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -171,8 +171,12 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1211 tests / 200 suites / 0 fail** (`npm test`, raw: `# tests 1211 /
-  # suites 200 / # pass 1211 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+- Test suite: **1219 tests / 201 suites / 0 fail** (`npm test`, raw: `# tests 1219 /
+  # suites 201 / # pass 1219 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  **+8 tests / +1 suite at INCIDENTS-B**: one `describe()` with eight `it()`s in the
+  new `tests/traces/incidents.test.js`. Predicted per BLOCK before any run and hit
+  exactly; run twice with identical counts and identical top-level block sets (195
+  both times, the 194 of INCIDENTS-A plus this one).
   **+4 tests / +1 suite at INCIDENTS-A**: two `it()`s into
   `tests/traces/traces.integration.test.js` for the two WhatsApp gaps, and one
   `describe()` with two `it()`s in the new
@@ -5481,6 +5485,209 @@ Additions since the original 1–28, all in the plan's Phase 8:
   **The capability was preserved, not removed** — `scripts/update-prompt.js` still sets a
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
+
+### The failure predicate moved inside the WHERE — 2026-09-05 (INCIDENTS-B)
+
+**Two commits, `9290509` → this one. Not pushed.** No page, no nav, no HTML, no
+column, no envelope, no migration, no index, no second classifier.
+`git diff --stat cda2e70..HEAD -- . ':!docs/os/clocks.md'` carries one changed
+source file, one **new** source file, one **new** test file and this document,
+and nothing else. The route commit is **pure insertion — 754 added lines, zero
+deleted**; not one existing line moved. `docs/os/clocks.md` was founder-modified
+throughout, was never opened, never staged, and was excluded by explicit
+pathspec from every diff and diffstat this session ran. It appears in **zero**
+commits.
+
+**Test count 1211 → 1219 / 200 → 201 / 0 fail, twice.** Predicted per BLOCK
+before any run (one new file, one `describe()`, eight `it()`s) and hit exactly.
+
+#### The headline: rank-then-truncate is the defect; filter-then-rank is the fix
+
+`GET /admin/api/incidents` applies the failure predicate **inside the SQL
+`WHERE`**, before `ORDER BY created_at DESC` and before `LIMIT`.
+
+The alternative — take the newest N rows, then filter them — can only ever mean
+*"the failures inside the newest N turns."* At the incumbent 200-row ceiling a
+clinic doing a turn a minute is covered for 3.3 hours; past that the route
+reports **zero incidents for a tenant that has many**, confidently and with no
+symptom. `turn_traces` has zero rows and will until the first production deploy,
+so at N=1 the wrong implementation is indistinguishable from the right one — it
+looks correct for exactly as long as it is untestable.
+
+The `limit + 1` fixture is what separates them, and it is the reason a fixture
+that fits inside one page of results is worthless here: **six clean turns newer
+than every failure, and a page of five.** Predicate in the `WHERE` → the failure
+returns. Predicate after the `LIMIT` → the body is `[]`. Red-checked by moving
+the predicate into a JS `.filter()` after the query; the assertion that reddened
+is the **presence** of the failure (`incidents.test.js:377`), not a count and not
+a shape, either of which would also move for unrelated reasons.
+
+#### The predicate, and why the third arm shipped
+
+Three failure levels, each a pure function of a closed set:
+
+```sql
+WHERE error IS NOT NULL                                   -- failed ∪ aborted
+   OR tool_calls @> '[{"outcome":{"status":"error"}}]'    -- tool error
+```
+
+`failed` and `aborted` both mean "the error envelope is a non-null object", so
+one scalar test is exactly their union. The second arm is `tool error` — `error`
+NULL, and a tool reported one.
+
+That arm ships **deliberately**. Without it the route omits the class where the
+**turn succeeded and the patient did not get their booking**: a
+`book_appointment` returning `{status:'error'}` on a turn that otherwise
+completed. Omitting it would have fixed the `LIMIT` placement and kept the same
+shape of silent omission one layer down.
+
+Verified before it was written, on all eight envelope shapes the closed sets
+allow, against local Postgres: `selected` is **false** for `error` NULL with
+tools ok / NULL / `[]`, and **true** for tool-error, failed, aborted with
+`aborted_after_commit` true and false, and failed-plus-tool-error. No expression
+can raise: `error->'aborted_after_commit'` returns a JS boolean through `pg`
+rather than a `::boolean` cast that could throw 22P02, and
+`COALESCE(… @> …, false)` keeps a three-valued boolean off the wire.
+
+#### A new route and a new module, both on purpose
+
+The tenant-scoped traces routes keep `tenant_id` mandatory (ADMIN-S3a). Relaxing
+`/admin/api/traces` would have required deleting the assertions at
+`tracesRoutes.test.js:197` and `:240-241` — weakening tests that pin a closed
+finding. That file is **byte-identical**, `d99e4642`.
+
+The read is a **separate module** rather than a third function in
+`queryService.js`. That file's header advertises the thin read layer behind the
+admin JSON routes and both its reads are emphatically tenant-scoped, because
+ADMIN-S3a found a scoped read hiding in a service with its predicate missing.
+An *intentionally* unscoped read filed alongside them becomes the thing someone
+copies as a template for a scoped one. Kept apart, the posture is in the
+filename, and `queryService.js` is **byte-identical**, `d61e0f92`.
+
+#### The projection, and the free text it leaves behind
+
+Not `SELECT *`. Two fields on a `turn_traces` row are unsanitised free text —
+`error.message`, which is a raw `err.message` from catches wrapping whole turn
+bodies and is unbounded, and `tool_calls[].outcome.error`, which
+`appointmentService.js:327` builds by interpolating the model's own `doctor`
+argument, **taken from the patient's utterance verbatim**.
+
+Measured on the repo's own canonical fixture rows, the projection is **40.7 % of
+`SELECT *`** (388 B vs 952 B mean). At today's client-side fan-out over
+`/admin/api/tenants` — 200 rows × 20 tenants — `SELECT *` would pull ~3.7 MiB
+carrying **~292 KiB of that free text** into one response, and the worst case is
+unbounded. The guard asserts on the **bytes that crossed the wire**, not on a
+re-serialised object, and carries its own non-vacuity: both needles are proven
+present in the table.
+
+#### The table-state precondition
+
+This is the first test here whose correctness depends on the contents of the
+**entire table**, because the route has no tenant predicate. Every other traces
+test is isolated by `tenant_id`; this one is isolated only by the scratch
+database. "No `ok` row is returned" is the exposed assertion: against a polluted
+database it does not become wrong, it becomes a **different assertion**, and it
+can go green while proving nothing.
+
+So every request is preceded by `assertTableState()`, which compares the whole
+table's row count to the fixture's and fails **by name**. Red-checked by
+inserting one unseeded row: all eight blocks redden on
+`PRECONDITION FAILED: turn_traces holds 15 rows, fixture seeded 14`, and the
+stack proves the main assertions were never reached
+(`assertTableState` at `:238`, called from each block's first line).
+
+#### What this read cannot see, and what it deliberately does not filter
+
+A request **refused before a turn began** is invisible to it. Those rows carry
+`error: null` and no closed-set column separates them from a clean success. The
+omission is at the **writer**; this read invents neither a level nor a column.
+See F-A055.
+
+Probe rows are **not** filtered out. The only thing marking one is a
+correlation-id *prefix*, which is a naming convention and not a closed set —
+predicating on it would be the open-set predicate the closed sets forbid, and it
+would rot silently the first time someone renamed a prefix. A failed probe is
+also a genuine operational signal. `correlation_id` and `channel` are returned;
+whoever needs the distinction has it. See F-A058.
+
+#### INCIDENTS-B findings — F-A054 … F-A059
+
+Carrying **F-A001 … F-A053** unchanged.
+
+- **F-A054 — the trace viewer and Incidents ask different questions of the same
+  column, and both answers are true.** `public/admin/traces.js:80-87` returns
+  `ok` the moment `error == null`, so a turn whose `book_appointment` returned
+  `{status:'error'}` renders **ok** on the trace page while this route selects it
+  as an incident. **This is not a defect in `statusOf`.** The viewer asks *did
+  this turn complete?* — it did. Incidents asks *did the patient get what they
+  came for?* — they did not. One table, two questions, two correct answers.
+  **The constraint on the shared-classifier session:** it must decide which
+  question the shared function answers and on what inputs, and it must **not**
+  treat the viewer's three-arm output as a bug to be fixed — that session carries
+  a byte-identity invariant over the viewer, and "fix statusOf" on the strength
+  of a finding would violate it. The design of that resolution is not scoped
+  here. Expected and intended today: this route returns rows the viewer labels
+  `ok`.
+
+- **F-A055 — `error IS NULL` covers TWO classes that share one on-disk shape,
+  and only one of them is a problem.** Eleven sites flush a `turn_traces` row
+  with `error: null` for a request that ran no turn — ten on the two voice
+  branches, plus the WhatsApp mode gate (`whatsapp/routes.js:161-179`, whose
+  `continue` runs the `finally` at `:297`). They are **not one class**:
+  **(a) Mode-gated** — `conversation.mode === 'human'` or `ai_enabled` false
+  (`internalVoice.js:227`, `:460-468`, `whatsapp/routes.js:161`). The clinic
+  switched the AI off. **The row is correct and there is nothing to fix**; it
+  should simply never be an incident, and today it never is.
+  **(b) Refused before hydration** — the 4xx exits after `setIds`
+  (`internalVoice.js:169/174/180/186` and `:414/419/424/430`). A tenant,
+  conversation or config the worker expected is **gone**. That is an operational
+  incident and it is **invisible to this predicate by construction**: no
+  closed-set column separates it from a clean success — `llm` and `prompt` would,
+  and neither is a closed set. A worker posting turns for a call session whose
+  tenant row was deleted produces 404 after 404, each traced as a success, while
+  the incidents route reports zero.
+  **A writer-side session fixes (b) and deliberately leaves (a) alone.** It
+  should not arrive believing it must fix both.
+
+- **F-A056 — no partial index, and the `OR` could not use one anyway.**
+  `turn_traces` carries exactly three indexes — `(tenant_id, created_at DESC)`,
+  `(conversation_id)`, `(correlation_id)` — in exactly two places, `schema.sql`
+  and `022_turn_traces.sql`, lockstep intact. Nothing partial, nothing on `error`
+  or `tool_calls`; no migration `002`–`031` adds one. Deliberately unchanged: the
+  table has zero rows so no `EXPLAIN` on a fixture can justify anything, an `OR`
+  of a scalar test and a JSONB test cannot take one partial index, and an index
+  whose predicate does not match the query costs writes and answers nothing.
+  **Reopens on real traffic volume**; the containment form chosen is the one a
+  GIN index could serve, which a `jsonb_array_elements` form could not.
+
+- **F-A057 — `CLAUDE.md` understates the migration range by twelve.** It says
+  ordered SQL is *"currently `002`–`019`"*. It is `002`–`031`. Out of scope here;
+  a reader trusting it would look for `turn_traces` in the wrong decade of files.
+
+- **F-A058 — probe and portal-test traces are indistinguishable from patient
+  turns by any closed set, and are deliberately not filtered.**
+  `scriptedTurnCheck.js:238` opens collectors with `channel:'voice'` and its rows
+  survive synthetic cleanup by FK design (`SET NULL`, not `CASCADE`);
+  `testTurnService.js:98` writes `channel:'test'`. A failed probe will therefore
+  appear beside a real patient failure, separated only by the `probe_`
+  correlation-id prefix. Not filtered, for two binding reasons — a prefix is an
+  open set, and a failed probe is a real signal. A **presentation** question for
+  the page session.
+
+- **F-A059 — a new file written LF-only manufactures a permanently-dirty
+  worktree entry, and this repo already has 92 of them.** Files authored by
+  tooling land LF while `core.autocrlf=true` checks tracked files out CRLF (159
+  `w/crlf` vs 92 `w/lf`, 1 mixed). An LF-only new file is flagged as pending
+  normalisation forever — it is exactly the condition behind the
+  `adminNav`/`adminShell` landmine that cost INCIDENTS-A a Phase 0 amendment and
+  a false STOP condition. Both files added here were converted to CRLF to match
+  every other file in the traces module **before** the first commit, and
+  `git status` after both commits is byte-for-byte what it was at session start.
+  `git hash-object` is unchanged by the conversion — it applies the autocrlf
+  clean filter, so the committed blob is identical either way and only the
+  worktree representation differs. **The rule: match the EOL of the directory you
+  are writing into, and check with `git ls-files --eol` after the first commit,
+  not with `grep -c $'\r'`.**
 
 ### The three turn paths that traced a failure as a success — 2026-09-05 (INCIDENTS-A)
 
