@@ -274,6 +274,26 @@ const handle = async (req, res) => {
 
               console.timeEnd(`${tl} total`);
               logger.info({ tenantId: envelope.tenantId, from: envelope.identifier, externalId: envelope.externalId }, 'message processed');
+            } catch (turnErr) {
+              // INCIDENTS-A: this inner try had a `finally` and no `catch`, so
+              // EVERY unguarded await in it — the mode check above, context
+              // assembly, the outbound INSERT — flushed a trace with
+              // `error: null` while the outer catch below logged a failure.
+              // statusOf then ranked the turn ok, correctly reading a column
+              // that was lying to it. A turn that fails records it on its row.
+              //
+              // No explicit stage: setErrorFromException falls back to the
+              // timer's in-flight stage (collector.js), which is exactly WHERE
+              // the turn died — `fetch_parallel` for assembly, `persist_outbound`
+              // for the INSERT. That distinction is the point here rather than a
+              // nicety: `persist_outbound` means the send at step 8 SUCCEEDED and
+              // the patient is already holding the reply; only its storage failed.
+              //
+              // Records; does not remediate. Synchronous (no await, no retry) so
+              // the hot path is untouched, and rethrows so the outer catch logs
+              // exactly the line it logged before.
+              trace.setErrorFromException(turnErr);
+              throw turnErr;
             } finally {
               trace.flush();
             }

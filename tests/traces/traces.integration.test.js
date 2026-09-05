@@ -20,6 +20,7 @@ const { encrypt }         = require('../../src/utils/encryption');
 const logger              = require('../../src/infra/logging/logger');
 const aiService           = require('../../src/modules/ai/aiService');
 const knowledgeService    = require('../../src/modules/knowledge/knowledgeService');
+const customerService     = require('../../src/modules/customer/customerService');
 const conversationService = require('../../src/modules/conversation/conversationService');
 const voiceAdapter        = require('../../src/modules/channels/voice/voiceChannelAdapter');
 const channelRegistry     = require('../../src/modules/channels');
@@ -393,6 +394,119 @@ describe('turn traces — capture + isolation + probe + retention (Issue 22)', {
       `SELECT 1 FROM messages WHERE tenant_id = $1 AND conversation_id = $2 AND direction = 'outbound'`,
       [TENANT_ID, rows[0].conversation_id]);
     assert.equal(outbound.length, 0, 'no outbound stored on AI failure');
+  });
+
+  // ── INCIDENTS-A: the two WhatsApp turn-path gaps ────────────────────────
+  // Both failed INSIDE routes.js's inner try, which carried a `finally` and no
+  // `catch`: the throw reached `trace.flush()` with `error` still null, the row
+  // said the turn succeeded, and statusOf ranked it ok while the pipeline logged
+  // a failure. Each block below forces the REAL throw on the REAL path — no
+  // stubbed db, no hand-called catch — and asserts the row records it.
+  //
+  // Both hold their mock until the trace row proves the turn is OVER. The
+  // webhook 200s before the reply pipeline runs, so restoring on the POST's
+  // resolution pulls the mock out from under the very call it exists to break —
+  // and the test then passes a turn that never failed.
+
+  it('a WhatsApp context-assembly failure records `fetch_parallel` on its trace row', async () => {
+    knowledgeChunksResult = [];
+    aiService._setModelProvider(scriptedTextModel('never reached'));
+
+    // The history leg of assembleConversationContext is NOT wrapped (only the
+    // RAG leg is — contextAssembler.js:67), so a failure there propagates out of
+    // the assembler into the route: the real gap, reached the real way.
+    const historyMock = mock.method(customerService, 'getRecentMessages', async () => {
+      const err = new Error('terminating connection due to administrator command');
+      err.code = '57P01';
+      throw err;
+    });
+
+    let rows;
+    try {
+      const { correlationId } = await postWebhookText({
+        from: '919000002206', text: 'are you open today?', wamid: 'wamid.asm.' + Date.now(),
+      });
+      rows = await eventually(async () => {
+        const r = await traceByCorrelation(correlationId);
+        return r.length ? r : null;
+      });
+    } finally {
+      historyMock.mock.restore();
+    }
+
+    assert.ok(rows, 'the failed turn still traces');
+    const trace = rows[0];
+
+    assert.notEqual(trace.error, null,
+      'a turn that died in context assembly must not trace as a clean success');
+    assert.equal(trace.error.stage, 'fetch_parallel',
+      "the timer's in-flight stage names WHERE the turn died");
+    assert.match(trace.error.message, /terminating connection/);
+    assert.equal(trace.error.status, null, 'a driver error carries no HTTP status');
+
+    // It records; it does not remediate — the turn still produced nothing.
+    assert.equal(trace.llm, null, 'the turn never reached the model');
+    const { rows: outbound } = await db.query(
+      `SELECT 1 FROM messages WHERE tenant_id = $1 AND conversation_id = $2 AND direction = 'outbound'`,
+      [TENANT_ID, trace.conversation_id]);
+    assert.equal(outbound.length, 0, 'nothing was sent, so nothing is stored');
+  });
+
+  it('a WhatsApp outbound-INSERT failure records `persist_outbound` — the reply is already with the patient', async () => {
+    knowledgeChunksResult = [];
+    aiService._setModelProvider(scriptedTextModel('Yes, we are open until six.'));
+
+    // A REAL unique violation, with no db stub: uniq_msg_external is
+    // (tenant_id, channel, external_id), so a sender returning the SAME wamid
+    // twice makes the second turn's step-9 INSERT raise 23505 — AFTER
+    // dispatchOutbound has already handed the reply to Meta. That ordering is
+    // what makes this gap worse than the one above: the patient is holding a
+    // reply the database has no record of.
+    const FIXED_WAMID = 'wamid.dup.' + Date.now();
+    const fixedSender = mock.method(waSender, 'sendMessage', async () => FIXED_WAMID);
+
+    let rows;
+    try {
+      const first = await postWebhookText({
+        from: '919000002207', text: 'are you open?', wamid: 'wamid.dup.in1.' + Date.now() });
+      const firstRows = await eventually(async () => {
+        const r = await traceByCorrelation(first.correlationId);
+        return r.length ? r : null;
+      });
+      assert.ok(firstRows, 'the first turn traces');
+      assert.equal(firstRows[0].error, null,
+        'the first turn is a clean success — the collision is the SECOND');
+
+      const second = await postWebhookText({
+        from: '919000002207', text: 'and tomorrow?', wamid: 'wamid.dup.in2.' + Date.now() });
+      rows = await eventually(async () => {
+        const r = await traceByCorrelation(second.correlationId);
+        return r.length ? r : null;
+      });
+    } finally {
+      fixedSender.mock.restore();
+    }
+
+    // The patient received BOTH replies: the send succeeded twice and never threw.
+    assert.equal(fixedSender.mock.callCount(), 2, 'both replies were dispatched');
+    assert.equal(fixedSender.mock.calls[1].arguments[2], 'Yes, we are open until six.',
+      'the second reply left the building with its full text');
+
+    assert.ok(rows, 'the failed turn still traces');
+    const trace = rows[0];
+
+    assert.notEqual(trace.error, null,
+      'a delivered-but-unstored reply is the last turn that may trace as a success');
+    assert.equal(trace.error.stage, 'persist_outbound',
+      'persist_outbound is what separates "reply sent, storage failed" from "reply never sent"');
+    assert.match(trace.error.message, /duplicate key value violates unique constraint/);
+
+    // And the damage the row now discloses: two replies dispatched, one stored.
+    const { rows: outbound } = await db.query(
+      `SELECT content FROM messages WHERE tenant_id = $1 AND conversation_id = $2 AND direction = 'outbound' ORDER BY created_at`,
+      [TENANT_ID, trace.conversation_id]);
+    assert.equal(outbound.length, 1,
+      'the second reply was delivered and NOT stored — exactly what the trace now says');
   });
 
   it('a poisoned trace insert never touches the turn: reply succeeds, WARN emitted, no throw', async () => {
