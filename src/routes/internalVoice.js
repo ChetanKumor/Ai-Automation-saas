@@ -517,6 +517,23 @@ async function handleTurnSSE(req, res) {
     if (aborted) {
       // Client went away mid-generation (barge-in / hangup). The Gemini stream
       // was aborted via the signal; persist what was forwarded so far.
+      //
+      // Record it (INCIDENTS-A). Both abort sites on this branch flushed with
+      // `error: null`, so an abandoned call traced as a clean success while the
+      // JSON branch's twin at the `signal.aborted` check has always recorded.
+      // `client_gone` is the only reason reachable here, not a guess: unlike the
+      // JSON branch this handler arms no budget timer, so the res 'close'
+      // listener above is its sole abort source.
+      //
+      // aborted_after_commit stays false, and on this branch that is a statement
+      // about the turn rather than a field we could not fill in.
+      // generateReplyStream has no point of no return (see its note in
+      // aiService.js) — `committed` is a JSON-branch concept — so no abort here
+      // ever took the "crossed the line and completed persistence anyway" path
+      // the JSON branch records with true. This turn persisted its PARTIAL reply
+      // and stopped. It is not a claim that no mutating tool ran; if the SSE
+      // branch ever grows a point of no return, this is one of the two sites.
+      trace.setAbort({ reason: 'client_gone' });
       await persistPartialOutbound(tenantScope, partialText.trim(), turn);
       return;
     }
@@ -556,6 +573,11 @@ async function handleTurnSSE(req, res) {
   } catch (err) {
     if (aborted) {
       // Disconnect abort surfaces as a stream-read error — expected teardown.
+      // The abort's OTHER shape: the same disconnect, surfacing as a throw from
+      // the stream read instead of a clean return. Recorded identically, for the
+      // same reasons spelled out at the site above — a turn abandoned here is
+      // the same abandoned turn.
+      trace.setAbort({ reason: 'client_gone' });
       logger.info({ err: err.message }, 'internal voice turn (sse): client disconnected, stream aborted');
       await persistPartialOutbound(tenantScope, partialText.trim(), turn);
       return;
