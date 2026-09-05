@@ -1,10 +1,10 @@
 'use strict';
 
-// ── The admin nav is five copies of one block (S5) ──────────────────────────
+// ── The admin nav is six copies of one block (S5) ───────────────────────────
 //
 // No DB, no server, no browser: the shipped files. The panel has no nav
 // COMPONENT — every page carries hand-written markup — so the only thing that
-// can hold five copies in agreement is a test that reads all five and compares
+// can hold six copies in agreement is a test that reads all six and compares
 // them to each other.
 //
 // This is the defect it exists to stop coming back, measured at S5's Phase A:
@@ -15,7 +15,7 @@
 // page was the one that offered the least. Tenants was never a nav item at all.
 //
 // THREE test() blocks, following tokenDrift.test.js's rule: a per-page test
-// would report the same fault five times and say nothing extra. It was TWO
+// would report the same fault six times and say nothing extra. It was TWO
 // until ADMIN-S5 added the registry-keying block below, which is a different
 // concern from either of the first two and names a different fault when it
 // fails. The block count and the page count are independent numbers that now
@@ -27,6 +27,13 @@
 // above a four-way one for three sessions. Corrected at ADMIN-S4, which takes
 // it to FIVE: `traces.html` (Issue 27) enters PAGES, CURRENT and
 // EXPECTED_HREFS as added entries, with no assertion weakened.
+//
+// INCIDENTS-C TAKES IT TO SIX. `incidents.html` enters the same three
+// registries as added entries, again with nothing weakened, and the Incidents
+// link goes FIRST in the bar — it is the first question an operator asks. All
+// six <nav> blocks were edited in one commit and hash identically modulo
+// aria-current; there is no nav component, so that hash is the only thing that
+// can hold them in agreement.
 //
 // A1 MADE IT NINE, and here is what that meant at the time.
 // `tenant-detail.html` was the last holdout: it still carried
@@ -63,13 +70,14 @@ const EXCLUDED = {
 // against it by the third block below — this array is a claim, not a source.
 const PAGES = [
   'tenants.html', 'tenant-new.html', 'tenant-detail.html', 'conversations.html',
-  'traces.html',
+  'traces.html', 'incidents.html',
 ];
 
 // aria-current marks a page that IS a nav destination. tenant-new.html and
 // tenant-detail.html are not, so they carry none: marking a link the operator
 // is not on would be a false claim to a screen reader.
 const CURRENT = {
+  'incidents.html': '/admin/incidents.html',
   'tenants.html': '/admin/tenants.html',
   'conversations.html': '/admin/conversations.html',
   'traces.html': '/admin/traces.html',
@@ -77,6 +85,7 @@ const CURRENT = {
 
 const EXPECTED_HREFS = [
   '/admin/tenants.html',        // the brand
+  '/admin/incidents.html',
   '/admin/tenants.html',
   '/admin/conversations.html',
   '/admin/traces.html',
@@ -128,11 +137,11 @@ describe('admin nav parity (S5)', () => {
         'The panel has no nav component; all copies must be edited together.');
     }
 
-    // And the block is the one we meant, not merely five copies of a wrong one.
+    // And the block is the one we meant, not merely six copies of a wrong one.
     const hrefs = [...navOf(first).matchAll(/<a href="([^"]+)"/g)].map((x) => x[1]);
     assert.deepStrictEqual(hrefs, EXPECTED_HREFS,
-      'the canonical nav must offer Tenants, Conversations and Logout, ' +
-      'behind a brand link to Tenants');
+      'the canonical nav must offer Incidents, Tenants, Conversations, Traces ' +
+      'and Logout, behind a brand link to Tenants');
     assert.ok(/class="brand">Veprio Admin</.test(navOf(first)),
       'the brand reads "Veprio Admin" — "WhatsApp CRM" is a retired product name');
   });

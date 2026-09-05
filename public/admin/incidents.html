@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Incidents — Veprio Admin</title>
+  <link rel="stylesheet" href="/portal/fonts/fonts.css">
+  <link rel="stylesheet" href="/admin/style.css">
+  <!-- LAST, deliberately. shell.css owns the ground, the bar, the page header
+       and the content column on all six admin pages, and overrides tokens.css
+       and style.css where they collide. See the file header. -->
+  <link rel="stylesheet" href="/admin/shell.css">
+  <style>
+    /* Channel chips reuse conversations.html's and traces.html's palette so one
+       channel reads the same on all three pages. This is a third copy of five
+       rules and it is knowing: the right home is /admin/style.css, which is
+       held byte-identical this session. Filed rather than smuggled. */
+    .chip { font-size:11px; padding:2px 7px; border-radius:10px; text-transform:capitalize; }
+    .chip-whatsapp { background:#e6f4ea; color:#137333; }
+    .chip-voice    { background:#e8f0fe; color:#1a56c4; }
+    .chip-test     { background:#f3e8fd; color:#6b21a8; }
+    .chip-other    { background:#eee; color:#555; }
+
+    /* Ids are the column that gets scanned, so they are monospace and ELIDED,
+       never reflowed — a wrapped uuid is unreadable at a glance. The full value
+       rides in title=. */
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; }
+
+    /* ── The standing scope note ────────────────────────────────────────────
+       Visible at EVERY volume, including zero, because what it says is true at
+       every volume. F-A055's class of failure never reaches this list however
+       much traffic there is, and F-A058's probe and owner-test rows sit beside
+       patient failures at every row count. Putting either in the empty state
+       alone would have made a permanent fact look like a property of emptiness. */
+    .scope-note { margin:0 0 16px; padding:10px 14px; font-size:12.5px; line-height:1.55;
+      color:#57524a; background:#f6f2ed; border:1px solid #d8d0c6; border-radius:6px; }
+
+    /* The one honest line, and the shape of the answer above it. */
+    .empty-note { text-align:center; padding:28px 16px; color:#57524a; font-size:13.5px; line-height:1.55; }
+    .empty-note strong { display:block; color:#17150f; font-size:14px; margin-bottom:4px; }
+
+    /* A refused request states the route's OWN reason. The page carries no
+       second copy of the route's validation, so it cannot drift out of step
+       with it — see the note in incidents.js. */
+    .page-note { margin:0 0 14px; font-size:13px; color:#721c24; background:#f8d7da;
+      border-radius:6px; padding:8px 12px; display:none; }
+
+    /* A response that fills the page it asked for is a window on the failures,
+       not the set, and the route has no cursor to widen it. */
+    .trunc-note { margin:14px 0 0; padding:10px 14px; font-size:12.5px; line-height:1.55;
+      color:#856404; background:#fff3cd; border-radius:6px; }
+    .trunc-note strong { color:#17150f; }
+
+    /* A row this page cannot read says so IN the table, by name. */
+    .contract-fail { padding:18px 16px; font-size:13px; line-height:1.55; color:#721c24; }
+    .contract-fail strong { display:block; color:#17150f; font-size:14px; margin-bottom:4px; }
+
+    tr.incident-row td a { color:#0f766e; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/admin/tenants.html" class="brand">Veprio Admin</a>
+    <a href="/admin/incidents.html" aria-current="page">Incidents</a>
+    <a href="/admin/tenants.html">Tenants</a>
+    <a href="/admin/conversations.html">Conversations</a>
+    <a href="/admin/traces.html">Traces</a>
+    <a href="/admin/logout">Logout</a>
+  </nav>
+
+  <div class="container">
+    <div class="page-head">
+      <h1 class="page-head__title">Incidents</h1>
+      <p class="page-head__sub">Every turn that failed, was aborted, or finished with a tool error — newest first, across every clinic.</p>
+      <div class="page-head__actions">
+        <button id="refreshBtn" class="btn" style="background:#eee; color:#333;">Refresh</button>
+      </div>
+    </div>
+
+    <p class="scope-note">This list is the record of failed turns, not a measure of health. A request refused
+      before its turn began records no error and never appears here, at any volume. Probe turns and owners' own
+      test turns are not filtered out — the channel and correlation id say which is which.</p>
+
+    <p id="pageNote" class="page-note" role="status"></p>
+
+    <!-- No filters, no search, no sort, no date range, no pagination and no
+         auto-refresh. The route offers `limit` and nothing else; a control the
+         route cannot honour is a control that lies. The trace viewer is where
+         a question gets narrowed, and every row links to it. -->
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Clinic</th>
+            <th>Channel</th>
+            <th>Level</th>
+            <th>Why</th>
+            <th class="hide-mobile">Correlation id</th>
+            <th>Trace</th>
+          </tr>
+        </thead>
+        <tbody id="incidentRows"></tbody>
+      </table>
+    </div>
+
+    <div id="truncNote"></div>
+  </div>
+
+  <!-- SCRIPT ORDER IS LOAD-BEARING. turn-status.js publishes the derivation on
+       window and incidents.js resolves it from there; a reorder leaves the page
+       with no derivation at all, and the wrapper throws rather than degrading to
+       a broken badge nothing reports. Asserted in incidentsPage.unit.test.js. -->
+  <script src="/admin/app.js"></script>
+  <script src="/admin/turn-status.js"></script>
+  <script src="/admin/incidents.js"></script>
+</body>
+</html>
