@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 9290509b5c77dcda0ea8151b7196b7264fd0e680
+Verified-at: c090376c997d64a8206f7486ab01694da987c992
 Verified-on: 2026-09-05
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -171,8 +171,14 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1219 tests / 201 suites / 0 fail** (`npm test`, raw: `# tests 1219 /
-  # suites 201 / # pass 1219 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+- Test suite: **1223 tests / 202 suites / 0 fail** (`npm test`, raw: `# tests 1223 /
+  # suites 202 / # pass 1223 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  **+4 tests / +1 suite at INCIDENTS-C0**: one `describe()` with four `it()`s in the
+  new `tests/admin/turnStatus.unit.test.js`. Predicted per BLOCK before any run and
+  hit exactly; run twice with identical counts. **No existing test file changed** —
+  extraction forces nothing on `tests/admin/tracePage.unit.test.js`, which reaches
+  `statusOf` through a plain `require` of the shipped page script rather than by
+  reading it off disk.
   **+8 tests / +1 suite at INCIDENTS-B**: one `describe()` with eight `it()`s in the
   new `tests/traces/incidents.test.js`. Predicted per BLOCK before any run and hit
   exactly; run twice with identical counts and identical top-level block sets (195
@@ -5485,6 +5491,135 @@ Additions since the original 1–28, all in the plan's Phase 8:
   **The capability was preserved, not removed** — `scripts/update-prompt.js` still sets a
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
+
+### One derivation of turn status, two questions asked of it — 2026-09-05 (INCIDENTS-C0)
+
+**Two commits, `31c824d` → this one. Not pushed.** No page, no nav, no route, no
+query, no migration, no schema change, no HTML beyond one `<script>` tag.
+`git diff --stat 31c824d..HEAD -- . ':!docs/os/clocks.md'` carries two changed
+source files, one **new** source file, one **new** test file and this document,
+and nothing else. `docs/os/clocks.md` was founder-modified throughout, was never
+opened, never staged, and was excluded by explicit pathspec from every diff and
+diffstat this session ran. It appears in **zero** commits. `incidents.md` stayed
+untracked.
+
+**Test count 1219 → 1223 / 201 → 202 / 0 fail, twice.** Predicted per BLOCK
+before any run (one new file, one `describe()`, four `it()`s) and hit exactly.
+
+#### The headline: one implementation, two entry points
+
+`public/admin/turn-status.js` holds the ladder once. `turnStatus({hasError,
+isAbort})` answers *did this turn complete?* and returns `ok | aborted | failed`.
+`incidentLevel({…, hasToolError})` answers *did the patient get what they came
+for?* and adds `tool_error` — by **calling** `turnStatus`, not by restating it.
+F-A054's ruling is now structural rather than documentary.
+
+The signature is **flattened primitives**, and that was measured rather than
+assumed: `GET /admin/api/incidents` already projects `has_error`,
+`error_outcome` and `has_tool_error` (`incidentsQuery.js:141-146`), so both
+surfaces satisfy it without either one lying. A raw-envelope signature would
+have forced the incidents page to rebuild a shape it is never sent.
+
+**Presentation stayed in the viewer, deliberately.** `traces.js` keeps the
+`key → {key, label, badge}` map because `adminShell.test.js:263` scans a
+**hand-named** list of files for `badge-` literals and checks each resolves in
+`style.css`. Moving those strings into an unlisted file would not have failed
+that scan — it would have silently stopped checking them, which is worse.
+
+#### F-A060: the second derivation eight lines away, closed
+
+`statusOf` was never the only site. `errorHtml` computed
+`err.outcome === 'aborted'` and rendered `'aborted' : 'failed'` itself — the same
+ladder minus its `ok` arm, which `absence()` had already handled above it. Those
+were the **only two** comparisons against `'aborted'` in the whole tree, and both
+now route through `fromError`, which is the single remaining site.
+
+**One consequence, stated so it is never discovered.** `errorHtml` renders a
+`turnStatus` return value as **visible text** in the detail panel's Outcome line.
+Today `'aborted'` and `'failed'` are byte-identical to the literals it used to
+render, so nothing moved — but the module's key vocabulary is now load-bearing
+on rendered output at that one point. **Renaming a key is not free.**
+
+#### The viewer's output is byte-identical, proven by running it
+
+A 44-render corpus — every envelope shape the closed sets allow, both abort
+reasons, both `aborted_after_commit` values, a plain failure, and the tool-error
+row — put through the real page script and hashed.
+**`04517c508c9de0d7…` before, and the same after.** The corpus is authored in
+the instrument and derives nothing from the change it checks.
+
+Red-checked in both directions before it was believed: changing one arm's label
+moved it and named `badge-green">ok` → `okay`; wiring the tool bit into the
+viewer moved exactly four renders, all on the tool-error row.
+
+#### The abort mutation now reddens TWO tests, and that is the consolidation
+
+At HEAD, mutating the abort branch reddened **exactly one** test
+(`tracePage.unit.test.js:77`). After extraction the same mutation reddens
+**two** — `:77` and `:212` — because both former derivation sites now share one
+line. **The attribution was proven, not asserted:** restoring `errorHtml`'s
+private copy (simulating option (a)) and re-running the mutation reddens exactly
+one test again. The count moved for one reason and it is the intended one.
+
+#### The browser branch is covered, and nothing covered it before
+
+`traces.js` had no dependencies; it has one now, and the two environments fail
+differently. In node an unresolvable `require` throws loudly. In a **browser** an
+unresolved global would have been `undefined` at factory time, rendering a broken
+badge with nothing logged — and **no test in this repository loads an admin page
+through a browser.** So the wrapper throws explicitly, and the branch is
+exercised by evaluating the shipped file in a `vm` context shaped like a browser
+(a `window`, no `module`, no `document`).
+
+Red-checked by breaking **only** the global-resolution branch: the node path
+stayed green at 12/12 while the browser assertion reddened with
+`traces.js: /admin/turn-status.js must be loaded first`. **The output-identity
+instrument is blind to that break** — its signature did not move — which is
+exactly why the branch needed a test of its own and not just the corpus.
+
+Script order is therefore load-bearing and asserted: reordering the two
+`<script>` tags reddens the same block.
+
+#### INCIDENTS-C0 findings — F-A060 … F-A063
+
+Carrying **F-A001 … F-A059** unchanged.
+
+- **F-A060 — `errorHtml` carried a second derivation of the abort test, eight
+  lines from `statusOf`. CLOSED this session.** Raised at Phase 0 and ruled on
+  before implementation: it was not pre-existing staleness but a live duplicate
+  of the exact fact the session existed to consolidate. Both sites now call
+  `fromError`. Shipping the narrow scope would have left the tree with two
+  copies of a ladder the session's own invariant forbids.
+
+- **F-A061 — "logs differing in bytes" is unsatisfiable against `os:check`'s
+  stdout, and three sessions satisfied it by measuring a different artefact.**
+  `os:check` prints four deterministic lines — no timing, no counts — so two
+  honest runs **must** hash identically; the only way to make stdout differ is
+  to manufacture a difference. The artefact that actually varies is
+  `.os-check-last.log` (~1400 `duration_ms` lines). **Amended standing rule:
+  snapshot `.os-check-last.log` after each run and compare those bytes.** Stdout
+  identity is evidence of nothing either way.
+
+- **F-A062 — the brief's EOL premise was wrong, and `public/admin/` is mixed.**
+  §8 asserted "every file in the traces module and its tests is CRLF."
+  `git ls-files --eol` says `traces.js`, `traces.html`,
+  `tracePage.unit.test.js` and `tracePageContract.integration.test.js` are all
+  `w/lf`; only `app.js`, `conversations.js` and `tenant-detail.js` are
+  `w/crlf`. F-A059's **rule** — match the EOL of what you are writing into — was
+  right; the measurement supplied with it was not. Both new files were written
+  **LF**, matching the files actually being edited, on an explicit founder
+  ruling.
+
+- **F-A063 — the LF landmine is latent here, not avoided.** `git add` on both new
+  files warns *"LF will be replaced by CRLF the next time Git touches it"*, which
+  is the precise condition behind the `adminNav`/`adminShell` entries that have
+  shown ` M` with empty `git diff` for four sessions. Neither new file is dirty
+  today and `git status` after both commits is byte-for-byte what it was at
+  session start. **LF-ness alone is not the discriminator** — `traces.js`,
+  `traces.html` and `tracePage.unit.test.js` are all `w/lf` and all clean, while
+  the two design tests are `w/lf` and flagged. The real fix is a
+  `.gitattributes`, which no session has been scoped to add; until then every
+  LF file in this repo carries the same latent flag.
 
 ### The failure predicate moved inside the WHERE — 2026-09-05 (INCIDENTS-B)
 
