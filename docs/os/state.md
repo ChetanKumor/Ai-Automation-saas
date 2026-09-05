@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: c090376c997d64a8206f7486ab01694da987c992
-Verified-on: 2026-09-05
+Verified-at: 674219a615c656529a0545f64b23b19ba40482e2
+Verified-on: 2026-09-06
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -171,8 +171,16 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1223 tests / 202 suites / 0 fail** (`npm test`, raw: `# tests 1223 /
-  # suites 202 / # pass 1223 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+- Test suite: **1234 tests / 204 suites / 0 fail** (`npm test`, raw: `# tests 1234 /
+  # suites 204 / # pass 1234 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  **+11 tests / +2 suites at INCIDENTS-C**: one `describe()` with eight `it()`s in
+  the new `tests/admin/incidentsPage.unit.test.js`, and one with three in the new
+  `tests/admin/incidentsPageContract.integration.test.js`. Predicted per BLOCK
+  before any run and hit exactly. **The registry work contributed ZERO blocks**,
+  measured rather than assumed: with a sixth page in both `PAGES` arrays the two
+  design suites still report `# tests 8 / # suites 2`, which is INCIDENTS-A's M1
+  result reproduced. No existing test file gained or lost a block; the two design
+  files changed registry literals and prose only.
   **+4 tests / +1 suite at INCIDENTS-C0**: one `describe()` with four `it()`s in the
   new `tests/admin/turnStatus.unit.test.js`. Predicted per BLOCK before any run and
   hit exactly; run twice with identical counts. **No existing test file changed** —
@@ -5491,6 +5499,269 @@ Additions since the original 1–28, all in the plan's Phase 8:
   **The capability was preserved, not removed** — `scripts/update-prompt.js` still sets a
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
+
+### The incidents page, and the silence it must not imply — 2026-09-06 (INCIDENTS-C)
+
+**Two commits, `674219a` → this one. Not pushed.** No route, no query, no
+classifier, no migration, no schema change, no second derivation of severity, no
+new design token. `git diff --stat d21369e..HEAD -- . ':!docs/os/clocks.md'`
+carries two **new** page files, two **new** test files, one **moved** audit doc,
+five one-line nav edits, two design registries and this document, and nothing
+else. `docs/os/clocks.md` was founder-modified throughout, was never opened,
+never staged, and appears in **zero** commits.
+
+**Test count 1223 → 1234 / 202 → 204 / 0 fail.** Predicted per BLOCK before any
+run (+11 / +2, against a +16 ceiling and a +13 authorisation) and hit exactly.
+
+#### The headline: the empty state is the shipping state
+
+`turn_traces` has zero rows and will until the first production deploy, so the
+empty list is the first thing anyone sees and for weeks the only thing. Two
+facts make *"no incidents"* a false reading of it — zero rows means zero
+**traffic**, not zero failures, and **F-A055**'s class (a request refused before
+its turn began writes `error: null`) is invisible to this route by construction,
+at any volume. The copy, verbatim:
+
+> **No failed turn has been recorded.**
+> An empty record is not the same as nothing having failed.
+
+It carries no date and no deploy that would date it — copy that self-falsifies
+on a known event is a defect with a timer on it, and an earlier draft naming
+*"the first production deploy"* was rejected for exactly that.
+
+The blind spot is a **standing** fact and not a property of emptiness, so it
+lives in page furniture visible at every row count, including with two hundred
+rows on screen:
+
+> This list is the record of failed turns, not a measure of health. A request
+> refused before its turn began records no error and never appears here, at any
+> volume. Probe turns and owners' own test turns are not filtered out — the
+> channel and correlation id say which is which.
+
+The second sentence is F-A055 and the third is **F-A058**, which INCIDENTS-B
+filed explicitly as *"a presentation question for the page session"*. Both
+columns it names are drawn.
+
+**Asserted on MEANING, not on a string.** A banned-phrase guard rejects any
+health claim. Its first red-check was **discarded for reddening for the wrong
+reason**: swapping the second sentence tripped the verbatim assertion for that
+sentence, which runs first, and proved only that the string guard works. The
+aim was corrected — both approved sentences left intact and `Everything is
+working normally.` **appended** — and then the guard that reddened was the one
+that matters, at `incidentsPage.unit.test.js:322`, `operator: doesNotMatch`:
+*"the empty state may not claim health. Zero rows means zero traffic, not zero
+failures…"*
+
+#### A window is disclosed as a window
+
+The route caps at 200 and has no cursor. A response that exactly fills the page
+it asked for is a window and not the set, and presenting it as the set is
+rank-then-truncate — the defect INCIDENTS-B existed to kill — reappearing one
+layer up where no SQL test can see it. The page asks for the ceiling explicitly
+(`limit=200`), because asking for less would discard rows it could show AND make
+truncation likelier, and because `rows.length === limit` is only a statement when
+the limit is known.
+
+Red-checked in **both** directions, which is the whole guard: suppressed
+(`incidentsPageContract.integration.test.js` reddens with *"a response that
+exactly fills the requested page is a WINDOW…"*) and made **unconditional**
+(*"one row short of the page it asked for, the list IS the set — without this the
+disclosure could fire always and disclose nothing"*). The boundary pair runs on
+REAL responses: six seeded failures, `limit=6` discloses, `limit=7` does not, the
+same six rows either way.
+
+#### The field contract, in three layers, because the failure is silent
+
+Rename a projected column and the page reads `undefined` → falsy →
+`{hasError:false}` → a **failed turn ranked `ok`**, with no exception, no log
+line and no visible symptom. Three layers, and they do not overlap:
+
+1. **Static, and the only one that always runs** — the integration suite skips
+   without `DATABASE_URL`. The page's field list is checked against a projection
+   **parsed out of `incidentsQuery.js`'s own `SELECT`**, never a second hand
+   list. It is separate from layer 2 on founder ruling: folding the
+   always-running check into the runtime one would make the block that never
+   skips the one whose failure is ambiguous.
+2. **Runtime** — `levelOf` refuses a row by name, and the table SAYS SO rather
+   than blanking. `ok` is deliberately **absent** from the presentation map, so
+   an impossible level is refused by the same guard: missing field and
+   unreachable level are one defence twice.
+3. **Integration** — the real response through the page's own render path.
+
+Red-checked by renaming `AS has_error` in the route itself. Layer 1 reddens with
+*"incidents.js reads `has_error` off every row and incidentsQuery.js no longer
+projects it"*; layer 3 with *"the payload has no has_error, and the page reads it
+off every row"*. `incidentsQuery.js` was reverted from a byte snapshot and is
+byte-identical, `w/crlf` intact.
+
+#### One derivation, proven by neutering it
+
+`turn-status.js`'s ladder was replaced with `return 'ok';`. **Six** blocks
+redden across the two new files and **six more** in the two pre-existing
+consumers (`turnStatus.unit.test.js`, `tracePage.unit.test.js`). The page keeps
+no copy. A separate red-check breaks the page's OWN `'aborted'` comparison while
+leaving the module untouched, and block two reddens with *"the page must not
+derive severity independently of turn-status.js"* — that block compares the
+page's flattening against `fromError`'s on every closed-set shape, which is what
+pins the two together (see F-A064).
+
+#### The nav: six blocks, one hash
+
+Incidents goes **first** in the bar, on founder ruling — it is the first question
+an operator asks. There is no nav component, so all six `<nav>` blocks were
+edited in one commit. Stripped of `aria-current` they hash identically:
+`4854479af6f5301612edfdbc7a61f369` → `5c52d31ed5cedec48dc5990c04827fe8` on every
+one of the six. Each of the five existing pages moved by exactly **+50 bytes**,
+and `diff` against the snapshot shows exactly the one inserted line.
+
+```
+EXPECTED_HREFS = [
+  '/admin/tenants.html',        // the brand
+  '/admin/incidents.html',
+  '/admin/tenants.html',
+  '/admin/conversations.html',
+  '/admin/traces.html',
+  '/admin/logout',
+];
+```
+
+**§8's byte-identity over `traces.html` was amended by founder ruling** after
+Phase 0 reported that §7 IN ("nav registration") and §8 ("traces.html
+byte-identical") cannot both hold in a panel with no nav component. The amended
+invariant is "identical except the single nav `<a>` line"; `traces.js`,
+`turn-status.js` and `style.css` stay byte-identical without exception.
+
+#### Byte identity, hashes before and after (sha256, first 20)
+
+| file | before | after |
+|---|---|---|
+| `public/admin/turn-status.js` | `71909af735c207158936` | `71909af735c207158936` |
+| `public/admin/traces.js` | `bcceb471ac3743876fc0` | `bcceb471ac3743876fc0` |
+| `public/admin/style.css` | `0adcb80b83f4e6740d0c` | `0adcb80b83f4e6740d0c` |
+| `public/admin/shell.css` | `77c0b5ad6898182f8203` | `77c0b5ad6898182f8203` |
+| `src/modules/traces/incidentsQuery.js` | `11f53b34cc2d10f18279` | `11f53b34cc2d10f18279` |
+| `src/admin/adminRoutes.js` | `d18bf76221d9d7f513c6` | `d18bf76221d9d7f513c6` |
+| `scripts/admin/measure.js` | `bc4ef073eea2b8783c7d` | `bc4ef073eea2b8783c7d` |
+| `tests/admin/tracePage.unit.test.js` | `26e6ac237bf0a2b87bc7` | `26e6ac237bf0a2b87bc7` |
+| `tests/admin/turnStatus.unit.test.js` | `bfaf47669a737ef19d81` | `bfaf47669a737ef19d81` |
+| `public/admin/traces.html` | `55882aefd2210ae9a253` | `767acfe4ad5ab88c5ace` (+50 B, the nav line) |
+
+That list is also the "tempted and did not" list. `style.css` is on it because
+the channel-chip palette is now a **third** copy of five CSS rules
+(`conversations.html`, `traces.html`, `incidents.html`); hoisting it into
+`style.css` is the right fix and was refused, so the refusal is a measurement.
+
+#### Presentation, and the token that was not added
+
+Three levels are reachable — `failed`, `aborted`, `tool_error`. `ok` cannot
+occur: the route's `WHERE` returns only rows carrying an error envelope or a
+failed tool. `failed` and `tool error` share `badge-red` and are separated by
+their **label**, which SC 1.4.1 requires regardless — colour may never be the
+only carrier of meaning. **No new badge class and no new design token** (D-016);
+`style.css` is untouched.
+
+Levels are never ranked against each other. `aborted_after_commit` is REPORTED
+(`client_gone · after commit`), never scored: which of "crossed the point of no
+return and finished anyway" and "generation stopped" is worse is a judgement
+about patient impact that no column states. Recency inside a level, and nothing
+else. No rates, no trends, no per-tenant verdicts — a rate needs a denominator
+this route does not return.
+
+#### Tenant identity, and its degradation
+
+One call to the existing cross-tenant `GET /admin/api/tenants`, mapped
+client-side. No fan-out, no join, `incidentsQuery.js` untouched. A row whose
+tenant is missing from the map shows the **id** — elided in the column, whole in
+`title=` — and never a blank: a blank cell where a clinic belongs reads as "no
+clinic", which is a claim the row does not make. A failed clinic-list call is
+not fatal; the list still loads and every row falls back to its id.
+
+#### No free text, and none fetched
+
+`error.message` and `tool_calls[].outcome.error` are not projected, not fetched,
+not rendered, and not worked around. Asserted on the BYTES that crossed the wire
+and on the rendered HTML, with non-vacuity proven by counting both needles in the
+seeded table. The full row stays one click away at the tenant-scoped trace
+viewer.
+
+#### The audit doc is now in the repository
+
+`docs/audit/2026-09-incidents.md` is INCIDENTS-A's Phase 0 audit, moved in from
+an **untracked working-tree file** on founder ruling. It is the cited authority
+for this session's block-count gate, the registry probe (M1) and the nav
+anticipation, and it was one `git clean` from non-existence. Normalised to LF;
+the committed blob is identical either way under git's autocrlf clean filter, so
+no content changed — proven by hashing both forms to `5db496e3`.
+
+#### EOL, and a landmine not laid
+
+All five new files are **LF**, matching every `.html` in `public/admin/` and the
+`traces.js`/`turn-status.js` family they sit beside, per F-A062's ruling. After
+commit 1 every one is `i/lf w/lf` and **clean** — no permanently-dirty entry was
+manufactured (F-A059, F-A063).
+
+⚠ **The `adminNav`/`adminShell` false positives are GONE, and that is a change to
+the session-start baseline.** Both had shown ` M` with an empty `git diff` for
+four sessions because the stat cache expected a CRLF copy `git checkout --` had
+written (F-A042). Committing them refreshed that cache from the real LF bytes.
+Post-commit `git status --porcelain` is therefore **` M docs/os/clocks.md` alone**,
+not the session-start four lines. Fewer lines, all of them accounted for: two
+false positives cleared and `incidents.md` now tracked.
+
+#### INCIDENTS-C findings — F-A064 … F-A067
+
+Carrying **F-A001 … F-A063** unchanged.
+
+- **F-A064 — `turn-status.js` is no longer the only site comparing against
+  `'aborted'`, and its own header still says it is.** The module's docstring
+  claims `fromError` is *"the ONLY place in the tree that compares against the
+  string 'aborted'"*. That was already untrue of `turnStatus.unit.test.js:207`,
+  which writes the adapter it labels *"the adapter the incidents surface will
+  use"*, and `incidents.js` now writes the same comparison in shipped code —
+  necessarily, because the route hands it a flattened COLUMN and not an envelope,
+  a signature `turn-status.js:28-31` chose deliberately. **Stated, not fixed** on
+  founder ruling: the page calls `incidentLevel` and restates no ladder, the
+  duplicate in the test file is a fixture concern, and `turn-status.js` is
+  byte-identical this session. The drift is pinned instead — the page's
+  flattening is asserted equal to `fromError`'s on every closed-set shape, and
+  breaking either one reddens.
+
+- **F-A065 — `scripts/admin/measure.js`'s `ALL_PAGES` is hand-enumerated, and
+  that is the defect; the two missing entries are only the symptom.** The array
+  at `:68` lists FOUR pages and has not included `traces.html` since ADMIN-S4
+  added it; it now also misses `incidents.html`. Nothing in `npm test` reads it,
+  so it fails silently and the panel's only committed instrument cannot measure
+  two of its six pages. **Deliberately not touched here** — half-updating a hand
+  list whose own header says "four" is worse than leaving a stale one.
+  **The prescribed fix is DERIVATION, not enumeration**: `adminNav.test.js:171`
+  already derives the page set from `readdirSync`, and the instrument should do
+  the same. Filed this way on founder ruling, because *"add the two missing
+  pages"* would be closed by a session that re-creates the defect. Its own
+  session.
+
+- **F-A066 — the trace viewer has no correlation-id deep link, so the handoff is
+  two steps.** `traces.js:451-453` honours `?tenant_id=` and nothing else, so a
+  row's link opens the viewer on the right CLINIC and the operator narrows with
+  the correlation id, which is on the row for that reason. Deep-linking is a
+  `traces.js` change and `traces.js` is byte-identical this session. Accepted as
+  the shipping behaviour; reopens whenever the viewer is next opened.
+
+- **F-A067 — a source-reading parser in this repo must normalise EOL, and this
+  one did not.** The static projection check parsed **zero** columns on its first
+  run and reported *"must open exactly one `SELECT` template literal; found 0"*.
+  Cause: `public/admin/` is `w/lf` and `src/modules/traces/` is `w/crlf`
+  (F-A062), so an anchor written with a bare `\n` finds nothing in the file being
+  read. **A broken parser reported itself as a broken projection** — the same
+  shape as F-A034, one layer down. Caught only because the green direction was
+  run first and disbelieved. The mutation appliers used for the red-checks carry
+  the same normalisation, and write back in the file's own EOL.
+
+**Standing rule F-A030 was broken once, in this session, and cost a file.** A
+patch built from an inline `node -e` string collapsed its `\n` escapes into real
+newlines and left `incidentsPage.unit.test.js` unparseable. It was repaired from
+a file-based applier, which is what the rule says to use. Reported rather than
+quietly fixed: the rule exists because this keeps happening, and it happened
+again here.
 
 ### One derivation of turn status, two questions asked of it — 2026-09-05 (INCIDENTS-C0)
 
