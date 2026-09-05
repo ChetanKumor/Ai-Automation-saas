@@ -2,8 +2,8 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 485bb95bf73f52585adba7f4e7959d8d899ad4bb
-Verified-on: 2026-09-04
+Verified-at: d57351bffbb740aa69bc3cf4cf55fc7dad9e9a05
+Verified-on: 2026-09-05
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
 ⚠️ marks a line this session could **not** evidence from the repository. The reason is
@@ -171,8 +171,14 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1207 tests / 199 suites / 0 fail** (`npm test`, raw: `# tests 1207 /
-  # suites 199 / # pass 1207 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+- Test suite: **1211 tests / 200 suites / 0 fail** (`npm test`, raw: `# tests 1211 /
+  # suites 200 / # pass 1211 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  **+4 tests / +1 suite at INCIDENTS-A**: two `it()`s into
+  `tests/traces/traces.integration.test.js` for the two WhatsApp gaps, and one
+  `describe()` with two `it()`s in the new
+  `tests/voice/voiceStreamAbortTrace.integration.test.js` for the two SSE abort
+  sites. Predicted per BLOCK before either run and hit exactly; run twice with
+  identical counts (194 top-level blocks both times).
   **+2 tests / +1 suite at ADMIN-S7R**: one `describe()` with two `it()`s in the new
   `tests/infra/testEnvSeam.unit.test.js`, the seam guard. Predicted per BLOCK before
   either run and hit exactly; run twice with identical counts and identical top-level
@@ -5475,6 +5481,250 @@ Additions since the original 1–28, all in the plan's Phase 8:
   **The capability was preserved, not removed** — `scripts/update-prompt.js` still sets a
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
+
+### The three turn paths that traced a failure as a success — 2026-09-05 (INCIDENTS-A)
+
+**Three commits, `8b2060f` → this one. Not pushed.** No route, no page, no
+column, no envelope, no migration, no index. `git diff --stat 9cb5316..HEAD --
+. ':!docs/os/clocks.md'` carries two turn-path source files, one changed test
+file, one **new** test file and this document, and nothing else. Both source
+commits are **pure insertion — 42 added lines, zero deleted**.
+`docs/os/clocks.md` was founder-modified throughout and was never opened, never
+staged, and excluded by explicit pathspec from every diff this session ran.
+
+**Test count 1207 → 1211 / 199 → 200 / 0 fail, twice.** Predicted per BLOCK
+before either run (+2 into an existing describe, +2/+1 from one new file) and
+hit exactly.
+
+#### The headline: three live paths wrote `error: NULL` after the turn had already failed
+
+`turn_traces.error` is the column Incidents is built on, and the premise of an
+incident list is that an empty one means nothing failed. Three paths made that
+false — not by failing to write a row, which is honest silence, but by writing a
+row that **said the turn succeeded**. `statusOf` then ranked all three ok,
+correctly reading a column that was lying to it.
+
+| # | path | mechanism | now records |
+|---|---|---|---|
+| a | WhatsApp context assembly | inner `try` with `finally` and **no `catch`** | `{stage:'fetch_parallel', …}` |
+| b | WhatsApp outbound INSERT | same `try`, same missing `catch` | `{stage:'persist_outbound', …}` |
+| c | Voice SSE, both abort sites | `setAbort` never called on this branch | `{outcome:'aborted', abort_reason:'client_gone', …}` |
+
+(b) is the one worth waking up for. It throws at **step 9**, after
+`dispatchOutbound` has already handed the reply to Meta: the patient is holding
+an answer the database has no record of, and before this session the trace said
+the turn went fine. Nothing about the reply changed here — it records, it does
+not remediate — but the row now says which of the two things happened, because
+`fetch_parallel` means nothing was sent and `persist_outbound` means it was.
+
+#### (a) and (b) are ONE defect with two symptoms, so they are one commit
+
+The brief scoped them as C1 and C2, one commit each. They are not two gaps: the
+inner `try` at `routes.js` had a `finally` and no `catch`, and **every**
+unguarded await inside it reached `trace.flush()` with `error` still null. The
+correct fix is one `catch`, which closes both named symptoms, closes the
+mode-check `Promise.all` above them that the brief did not name, and closes every
+await added to that block in future. Two commits editing the same three lines
+would have been ceremony. Both symptoms are still red-checked independently, in
+both directions.
+
+No explicit stage is passed. `setErrorFromException` falls back to
+`timer.currentStage()`, and `openStage` is a single slot set by `start()` and
+cleared by its end-closure — so a throw between `start('fetch_parallel')` and
+`endFetch()` attributes to `fetch_parallel`, and one between
+`start('persist_outbound')` and `endPersistOut()` attributes to
+`persist_outbound`, with no bookkeeping of its own. That is the whole reason the
+two symptoms need no separate handling.
+
+#### (c) The SSE branch is NOT dark code, and the flag does not gate it
+
+The brief expected `VOICE_STREAM_TURNS=false` to make the SSE handler
+unreachable at HEAD, which would have made its red-check an F-A039 in a new
+file. It does not. **`VOICE_STREAM_TURNS` is read in exactly one place in the
+repository — `voice-agent/agent.py:63`, the Python worker.** Node never reads it.
+`internalVoice.js`'s `wantsStream` selects the branch purely on request shape:
+`Accept: text/event-stream` **and** `body.stream === true`. The handler is
+therefore live code at HEAD, reachable by any client that sends those two things,
+which is exactly how both new tests reach it — no flag set anywhere. The flag
+decides only whether the *worker* opts in, and production sets it true at deploy
+(`ARCHITECTURE.md:90`), at which point this becomes the branch every live call
+takes.
+
+`abort_reason` is the literal `'client_gone'` rather than the JSON branch's
+`clientGone ? … : 'deadline'` helper, and that is derived rather than copied:
+`turnBudgetMs()` is called once in the whole file, at the JSON branch's
+`setTimeout`. **The SSE handler arms no budget timer**, so `res.on('close')` is
+its only abort source and `deadline` is unreachable there.
+
+`aborted_after_commit` stays `false`, which is exact rather than an unfilled
+default. `generateReplyStream` has no point-of-no-return concept at all — no
+`committed` flag, no `isMutatingTool` check, no `onCommitted` — and its abort
+check runs before every tool unconditionally. So no abort on this branch ever
+took the "crossed the line and completed persistence anyway" path the JSON branch
+records with `true`. It is **not** a claim that no mutating tool ran, and the
+comment at the site says so; if the SSE branch ever grows a point of no return,
+these are the two sites to wire.
+
+#### What was enumerated, and why the count is three and not more
+
+Five paths open a collector: WhatsApp, voice unary, voice SSE, the test turn, and
+the scripted validation probe. Fifteen `open`/`setError`/`setAbort`/`flush` call
+sites, read rather than grepped. The discriminator that yields exactly three is
+**not** "is there an unguarded await" — it is **does a throw there still reach a
+flush**:
+
+- `testTurnService.js` and `scriptedTurnCheck.js` have **no `finally`**. A throw
+  outside their one `try` escapes with no flush at all, so no row is written.
+  That is honest silence, and it is the documented best-effort contract
+  (`collector.js`: *"a collector opened but never flushed simply leaves no
+  row"*). Coverage gap, not a lying row — out of scope for an objective stated as
+  *rows that claim success*.
+- The **unary** branch returns 4xx at five hydration/validation exits after
+  `setIds`, each writing a row with `error: null`. Those are requests refused
+  before a turn begins, answered with a status code the worker reads, and the SSE
+  branch has the identical five. Counting them would make the number eleven and
+  would contradict the brief's own (correct) statement that the unary path is
+  right. They are not failed turns.
+
+WhatsApp and SSE are the only two paths carrying `finally { trace.flush() }`, and
+they are exactly the two paths that could lie. That is the whole selection rule.
+
+#### F-A031 is not widened
+
+Both new WhatsApp sites write `err.message` through the existing
+`setErrorFromException`, the same carrier the four incumbent sites already use,
+read by the same page — `public/admin/traces.js`'s *"CONTENT-CLASS:FREE-TEXT —
+error.message, site 2 of 2"*, disclosed and truncated at 240 characters. The text
+that can land is a pg driver message (`duplicate key value violates unique
+constraint "uniq_msg_external"`, `terminating connection due to administrator
+command`) — node-postgres sets `err.message` from the server's primary message
+only, never the values or the SQL. The SSE sites add **no** free text at all:
+`setAbort` writes the fixed string `'voice turn aborted'`, asserted as such.
+No new write class, no widening, and F-A031's writer-side fix is untouched.
+
+#### Every red-check, both directions
+
+Each gap was proven by forcing the **real** throw on the **real** path and then
+reverting the fix from a byte snapshot (never `git checkout` — F-A042) to watch
+the row go back to `null`.
+
+| gap | forced how | fix in | fix out |
+|---|---|---|---|
+| a | the history leg of `assembleConversationContext` rejects (the RAG leg is caught, the history leg is not) | green, `stage:'fetch_parallel'` | **red on `trace.error !== null`** |
+| b | a real `23505` from `uniq_msg_external` — the sender returns the same wamid twice; **no db stub anywhere** | green, `stage:'persist_outbound'` | **red on `trace.error !== null`** |
+| c | a real client hang-up mid-stream, twice: model returns cleanly, and model rejects | green, `outcome:'aborted'` | **red on `trace.error !== null`** |
+
+(c) is red-checked **per site**, which is stronger than per gap: removing only
+the post-generation `setAbort` reds only test (A); removing only the catch-side
+one reds only test (B). Each test additionally pins its own site two independent
+ways — whether the model returned or threw, and whether the catch's
+*"client disconnected, stream aborted"* line was logged. Both sites write the
+identical envelope, so without that pinning two tests could both have landed on
+one site and left the other uncovered while looking like coverage.
+
+#### K7 / I1 — reply behaviour is byte-identical, proved by running it
+
+A probe drives three real successful turns through the real routers and captures
+what the patient and the worker receive as bytes: the text handed to
+`sender.sendMessage`, the stored outbound row, the webhook status, the
+**complete raw SSE event-stream body**, and the unary JSON body. Run against the
+patched tree and again with both source files reverted to their HEAD bytes:
+
+```
+comparable sha256 = 40386f9a478763ecd5e18eddcbdb2798b65d3f2f73ea2178e58fb6c1c2287188   (both)
+```
+
+Identical. Timing 623/645 ms (WA), 102/104 (SSE), 49/50 (unary) — noise, and
+structurally so: every line added runs only on a failure or abort path, and none
+of these three turns touches one. **I2** holds by construction — both fixes are
+synchronous assignments with no `await`, no retry and no I/O, and the WhatsApp
+`catch` rethrows so the outer log line is unchanged.
+
+**I3** — the unary voice path is untouched: `git diff -U0` on `internalVoice.js`
+reports two hunks and git names the enclosing function for both,
+`handleTurnSSE`. `handleTurn` has zero hunks, and the probe above drives it live
+to the same bytes. **I5** holds untouched: the skip-when-no-tenant guard is in
+`writer.js` and no site added here runs before `setIds`.
+
+#### INCIDENTS-A findings — F-A050 … F-A053
+
+Carrying **F-A001 … F-A049** unchanged.
+
+- **F-A050 — two symptoms of a missing `catch` are not two defects, and pricing
+  them separately buys a worse fix.** The brief's C1 and C2 named the two throw
+  sites that had been observed; the defect is the `try` that has a `finally` and
+  no `catch`, which is a property of the block and not of either site. Fixing the
+  two named sites individually would have left the mode-check `Promise.all` above
+  them still writing `error: null` — a third symptom nobody had listed, closed
+  for free by the correct fix. **The rule: when two findings share a mechanism,
+  locate the mechanism before scoping the commits, or the commit boundary
+  silently becomes the fix boundary.** One residual is worth stating: no stage is
+  started before that `Promise.all`, so a throw there attributes to
+  `generate_reply` via `setErrorFromException`'s final fallback rather than to a
+  stage of its own. It records the failure honestly and mis-names where; giving
+  it a stage would add a timing to every successful WhatsApp trace, which is a
+  hot-path change and was not in scope.
+
+- **F-A051 — a mock restored when the request returns is restored before the work
+  it exists to break.** The first draft of both WhatsApp tests installed a mock,
+  posted the webhook, and restored in a `finally` on the POST's resolution. The
+  webhook 200s *before* the reply pipeline runs, so the mock was gone by the time
+  the turn reached the line it was meant to break; both turns then **succeeded**,
+  both traces were legitimately `null`, and both tests failed **with the fix
+  correctly in place**. Caught only because the green direction was run first and
+  disbelieved. The fix is to hold the mock until the trace row proves the turn is
+  over. This is F-A020's shape at the fixture rather than the assertion: the
+  instrument was measuring a turn that never entered the state under test, and
+  had the assertion been `equal(error, null)` instead of `notEqual`, it would
+  have passed for exactly the wrong reason and shipped.
+
+- **F-A052 — a flag named in the architecture doc gates the worker, not the
+  branch.** `VOICE_STREAM_TURNS` appears in twelve documents describing the SSE
+  turn path as dark-shipped, and it is read in exactly one place in the code:
+  `voice-agent/agent.py:63`. Node's `internalVoice.js` never reads it — the
+  branch is chosen by request shape. So "dark-shipped behind a flag" is true of
+  the *deployment* and false of the *reachability*: the handler is live code at
+  HEAD and any client sending two headers reaches it. A brief that reasoned from
+  the doc concluded the red-check might be unable to reach the code; the opposite
+  was true and no flag manipulation was needed. **Where a flag is read decides
+  what it gates, and only the code says where.**
+
+- **F-A053 — stale premises in the INCIDENTS-A brief. Eleventh consecutive
+  session.**
+  (i) **P0-1's STOP condition would have fired on a false positive.** It said if
+  either design test *"still shows modified, the content genuinely differs →
+  STOP"*. After `git update-index --refresh` both still showed ` M` — and both are
+  **byte-identical to their index blobs** (10576 and 20105 bytes, zero CR, empty
+  `git diff`). `core.autocrlf=true` with no `.gitattributes` flags an LF-only
+  worktree file as pending *normalisation*; the refresh cannot clear it, which is
+  the opposite of what the brief predicted, and following it would have stopped
+  the session at Phase 0 over nothing.
+  (ii) *"the voice SSE handler — `setAbort` is never called; both call sites live
+  in the unary handler"* — right about the defect, and it undercounts the fix:
+  the SSE handler has **two** abort sites, not one, and they need separate
+  recording and separate red-checks. Three gaps, **four** sites.
+  (iii) **I4's floor is wrong.** It requires a cross-tenant negative count
+  `≥ 13`; the last recorded value is **12** (ADMIN-S3c, unmoved through
+  ADMIN-S3a), and no session since recorded 13. Proved the strong way instead, as
+  S3c prescribes: both files byte-identical, so the count cannot have moved.
+  (iv) *"`tracePage.unit.test.js:18`'s ELEVEN blocks (twelve since `088bb95`)"* —
+  the brief asked for this to be filed and it is **correct**: the header says
+  eleven, the file has **twelve** `it()` blocks across the four describes it also
+  names. Left standing, in scope for the stale-text batch.
+  **Standing rule F-A024 held for the eleventh time**: the brief's content
+  descriptions were right and its numbers were not.
+
+#### What a trace row now proves that it did not before
+
+Before: an empty Incidents list meant *no turn wrote a failure*, which included
+every turn that failed in WhatsApp context assembly, every WhatsApp reply that
+reached the patient but not the database, and every caller who hung up mid-answer
+on the SSE branch. During a 48-hour live watch those turns are unrecoverable
+afterwards — the row is written once, at the end of the turn, and nothing else
+retains what happened. After: on the three paths that carried `finally
+{ trace.flush() }`, **`error IS NULL` means the turn actually finished**, and a
+turn that failed or aborted says which and where. That is the property Incidents
+has to be built on, and it is now true rather than assumed.
 
 ### The seam nothing tested, and the claim it let stand — 2026-09-04 (ADMIN-S7R)
 
