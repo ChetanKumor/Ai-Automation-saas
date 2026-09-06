@@ -2,7 +2,7 @@
 
 The company as of a commit. Amend whenever reality diverges. A stale line here is a defect, not a detail.
 
-Verified-at: 674219a615c656529a0545f64b23b19ba40482e2
+Verified-at: ae1a6e06977225043d0c35d51452a654fac21b48
 Verified-on: 2026-09-06
 Rule: when Verified-at != HEAD, every line below is unverified. Re-run `npm run os:check`.
 
@@ -171,8 +171,16 @@ audit's own verdict, and the verdict at this commit. **The audit says 3/7. At HE
   pins every variable `agent.py` reads, and the verdict is now identical with and
   without the gitignored `voice-agent/.env`. Before that commit a developer's `.env`
   set the verdict — see the V1a note below for the mechanism and the red-check.
-- Test suite: **1234 tests / 204 suites / 0 fail** (`npm test`, raw: `# tests 1234 /
-  # suites 204 / # pass 1234 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+- Test suite: **1235 tests / 204 suites / 0 fail** (`npm test`, raw: `# tests 1235 /
+  # suites 204 / # pass 1235 / # fail 0 / # cancelled 0 / # skipped 0 / # todo 0`)
+  **+1 test / +0 suites at INCIDENTS-D**: one `it()` added to the existing
+  `seed-turn-traces guards` describe in
+  `tests/admin/tracePageContract.integration.test.js`, pinning the `--bulk`
+  generator's channel set and the pre-write refusal. Predicted per BLOCK before
+  any run and hit exactly. The two new shape fixtures and the twelve bulk shapes
+  contributed **zero** blocks: every count in that file is derived from
+  `seed.fixtures(…)` rather than written down, which is why eight fixtures pass
+  assertions written for six.
   **+11 tests / +2 suites at INCIDENTS-C**: one `describe()` with eight `it()`s in
   the new `tests/admin/incidentsPage.unit.test.js`, and one with three in the new
   `tests/admin/incidentsPageContract.integration.test.js`. Predicted per BLOCK
@@ -5499,6 +5507,226 @@ Additions since the original 1–28, all in the plan's Phase 8:
   **The capability was preserved, not removed** — `scripts/update-prompt.js` still sets a
   legacy prompt deliberately, and the F-F001 notice still fires for a tenant it creates
   (both proven by live run this session). `aiService.js`'s legacy precedence is unchanged.
+
+### The seed reaches every incident shape, and the page was looked at — 2026-09-06 (INCIDENTS-D)
+
+**Two commits, `ae1a6e0` → this one. Not pushed.** No page, no route, no query,
+no classifier, no migration, no schema change, no design token, no registry.
+`git diff --stat 837fa00..HEAD -- . ':!docs/os/clocks.md'` carries one seed
+script, one comment word in one harness, one test file and this document, and
+nothing else. `docs/os/clocks.md` was founder-modified throughout, was never
+opened, never staged, and appears in **zero** commits.
+
+**Test count 1234 → 1235 / 204 / 0 fail.** Predicted per BLOCK before any run
+(+1 / +0, against a +2 ceiling) and hit exactly.
+
+#### The headline: five sessions of Incidents had never been seen by a human
+
+The writer gaps, the predicate, the classifier and the page were built across
+INCIDENTS-A…C and verified end to end by tests. Portal v1 got an acceptance run
+on a real phone before it was called done; this stage had had no equivalent, and
+a page whose only reader is a test suite is a page nobody has read. The seed was
+the means. **Acceptance is the founder's and has not happened** — this session
+ends with the seed landed and three artefacts produced.
+
+#### What the seed could not show, and now can
+
+Three of its six fixtures were incidents. `abort_reason: 'client_gone'` and
+`aborted_after_commit: true` had no row anywhere in the tree, and neither did
+enough rows to reach the page's own truncation notice.
+
+**Fixture 7** is the abort that crossed the point of no return — `client_gone`
+with `aborted_after_commit: true` and `stage: null`, which is what
+`internalVoice.js:300` writes: `setAbort` takes `t.currentStage() ?? null`, and
+past `persist_outbound` nothing is open. The ok `book_appointment` on the row is
+the mutating tool whose execution the envelope's claim refers to.
+
+**Fixture 8 is the find of the sequence.** An error envelope AND a failed tool,
+on one row. Both arms of `incidentsQuery.js:148-149`'s `OR` select it and it
+ranks `failed`, by its envelope — a precedence `turn-status.js:118` states in
+prose and the query depends on in fact, and which **nothing in the tree had ever
+rendered**. It was written in two files and exercised in none, which is the
+"guard never seen to fire" class one layer up. It is also the worst single row
+this system produces: `whatsapp/routes.js:228`, where the booking failed and then
+the apology never sent, so the patient heard nothing at all.
+
+#### `--bulk`, and why volume may never live in `fixtures()`
+
+`public/admin/incidents.js:97` asks for `limit=200` — the route's hard cap — and
+discloses truncation when the response fills the page it asked for, so the notice
+needs **200 rows matching the route's predicate**, not 200 rows.
+
+Volume cannot go in the shape catalogue.
+`tests/admin/tracePageContract.integration.test.js:146` requests `limit: 50` and
+`:148` compares the response length against `seed.fixtures(null).length`; a
+catalogue past fifty rows compares a **capped** response with an **uncapped**
+array and reddens. The reason is written into the file beside `BULK_SHAPES`, so
+the next person to simplify the two paths into one finds out before they try.
+
+Twelve bulk shapes, all incidents, all producible by the writer: six failure
+stages taken from the `timer.start()` names each channel actually uses, all four
+combinations of abort reason and after-commit, and two tool-error-on-a-clean-turn
+rows. **Every abort is `voice`** — `setAbort` is only ever called from
+`internalVoice.js`, so an aborted WhatsApp turn is not a thing and manufacturing
+one would put a row on this page that production can never put there.
+
+#### The channel prohibition became a guard, and the difference was measured
+
+`assertNoForbiddenChannel` refuses **before the first INSERT**, over the fixtures
+and the bulk rows together. The brief asked for a post-run query; that is a
+DETECTOR, and `testTurnService` counts today's `channel='test'` rows as a clinic
+owner's daily "Test your receptionist" allowance — by the time a detector speaks,
+the allowance is spent.
+
+Red-checked by moving fixture 6 onto that channel and running the seed for real,
+with `--bulk 5`, against the local database: it refused `1 of 13 row(s)` and
+**the table still held zero rows afterwards**. A detector would have left
+thirteen. That census is the whole proof and it is why the check is where it is.
+
+#### The truncation boundary, from both sides, on real responses
+
+| incidents in the table | route returns | `truncationHtml` |
+|---|---|---|
+| 199 (tenant A: 8 shape + 194 bulk) | 199 | **silent** |
+| 204 (tenant B's 8 added) | 200 | **fires** |
+
+Asked through the page's own `listUrl()` against the real router, and answered by
+the page's own `truncationHtml`. Two table states, not two arguments.
+
+#### Both production guards, red-checked in both directions
+
+| # | direction | how | what happened |
+|---|---|---|---|
+| G1 | green | `NODE_ENV=test`, local target | ran, printed `Database : localhost/saas_crm_test`, queried |
+| G1 | red | `NODE_ENV=production`, target still local | `✗ NODE_ENV=production…`, exit 1 |
+| G1 | aim | `=== 'production'` → `!== 'production'` | `NODE_ENV=test` now refuses — the flip is that line's |
+| G2 | green | local target, no flag | ran |
+| G2 | red | `postgres://…@db.invalid.example:5432/zyon_scratch_absent` | `✗ database host 'db.invalid.example' is not local.`, exit 1 |
+| G2 | aim | `if (target.isLocal) return;` → `if (!target.isLocal) return;` | **`localhost` now refuses, and the message names it** |
+
+Each mutation was `node --check`ed before any red was believed and reverted from
+a byte snapshot, never `git checkout --` (F-A042). Both aims were observed on a
+target that is **local either way**: nothing non-local was ever dialled to prove
+a guard about non-local targets. `--allow-remote-host` was not passed once.
+
+**A bare `node scripts/seed-turn-traces.js` still resolves to production Neon.**
+Measured read-only at Phase 0, no socket opened: `.env`'s `DATABASE_URL` parses
+to `ep-dry-bird-….neon.tech/neondb`, and Guard 2 stops it. That is the fact the
+whole session was written around and it is now established rather than assumed.
+
+#### `--clear` is tenant-scoped, proven by clearing one
+
+Both tenants seeded (8 rows each). `--clear` on tenant A removed exactly A's
+eight; B's eight were untouched; A was restored. Two invocations, independently
+undoable, which is why the second tenant is a second invocation and not a loop
+inside one run.
+
+#### The three states, captured
+
+At 1440px, against the local database, with the real admin router on a bare
+express app — never `server.js`, whose `reminderCron.start()` at `:183` sends
+real WhatsApp messages. Content interlock on every shot: the browser re-fetched
+`/admin/incidents.html` and its sha256 matched the file on disk
+(`2608ffb9cd655603`) all three times. State interlock on every shot: a condition
+true only in the named state, which throws rather than saving a shot of something
+else.
+
+| state | rows | size | what it shows |
+|---|---|---|---|
+| empty | 0 | 1440×900 | the shipping state, and the sentence that refuses the inference |
+| populated | 10 | 1440×900 | three levels, two clinics, both abort reasons, both after-commit values |
+| truncated | 200 | 1440×9232 | the disclosure firing under a full page |
+
+**Not committed**, and deliberately: `git ls-files '*.png'` returns two files,
+both under `web/public/`, and none under `scripts/`. There is no precedent in
+this repository for committing a captured artefact.
+
+**The local database was left as found**: 0 `turn_traces` rows, the same two
+tenants, 0 conversations. Zero rows on `channel='test'` at every census.
+
+#### The unpushed count, reconciled — the 88 is historical
+
+INCIDENTS-A recorded an 88-commit unpushed stack; INCIDENTS-C reported 6 ahead.
+**Both were right. Origin advanced.** The reflog settles it:
+
+```
+cda2e70 refs/remotes/origin/main@{2026-09-05 18:06:34}: update by push
+55833c9 refs/remotes/origin/main@{2026-08-29 10:00:22}: pull --ff-only origin main
+```
+
+`git rev-list --count 55833c9..cda2e70` is exactly **88**, so A's number was
+exact at the time. A push at 18:06:34 moved `origin/main` to `cda2e70` — A's own
+provenance commit — retiring all 88, and the six since are B's and C's. The push
+landed **between** A's last commit (10:03:44) and B's first (19:19:33), inside no
+session's window; the never-push rule binds the sessions, not the founder.
+Recorded here so the 88 stops being carried forward as a live number. Nothing was
+pushed by this session.
+
+#### INCIDENTS-D findings — F-A068 … F-A073
+
+Carrying **F-A001 … F-A067** unchanged.
+
+- **F-A068 — the seed script IS in the test suite, and the INCIDENTS-D brief said
+  it was not.** *"Route and page tests seed inline. The script is for looking at
+  the page, not for the suite"* is false:
+  `tests/admin/tracePageContract.integration.test.js:31` requires it and asserts
+  on `fixtures()` at `:148`, `:170` and `:285`, and
+  `tests/infra/testEnvSeam.unit.test.js:65` requires it for the guards. The
+  *incidents* page tests do seed inline; that half is true. Ratified on founder
+  ruling as a **constraint, not a detail**: volume goes in `--bulk`, never in
+  `fixtures()`, because `tracePageContract:146` requests `limit: 50`. The reason
+  now lives in the script.
+
+- **F-A069 — one fixture carries an abort shape the writer cannot produce.**
+  Seed fixture 3's envelope is `{outcome:'aborted', …, stage:'generate_reply'}`,
+  and `collector.js:85-93`'s `setAbort` can only write `t.currentStage() ?? null`
+  — `'generate_reply'` is `setErrorFromException`'s explicit arg and fallback
+  (`:73`), never a `timer.start()` name (those are `hydrate_validate`,
+  `persist_inbound`, `fetch_parallel`, `dispatch`, `persist_outbound`).
+  `incidentsPageContract.integration.test.js:114` inherited the same shape.
+  **Deliberately not fixed**, on founder ruling, with the reopening condition
+  stated: it is fixed in the same session that touches that file's own `FIXTURE`,
+  so the two move together. Fixture 7 uses `stage: null` and is correct, so the
+  corpus now holds one real abort shape and one impossible one. **It is invisible
+  on Incidents** — `whyHtml` renders `abort_reason` and the commit state, not the
+  stage — and visible only in the trace viewer's detail panel.
+
+- **F-A070 — a byte-delta assertion is the wrong instrument for a same-length
+  mutation.** The Guard 1 red-check changes `===` to `!==`: 32917 bytes before,
+  32917 after. An applier refusing on zero byte delta would have refused a
+  legitimate mutation; one treating byte delta as proof of application would have
+  believed a no-op. The discriminator is the **content hash**
+  (`ec9fd45ad108c3fc` → `e7a66297f585c6e0`), and the applier used here asserts
+  match count and text delta, then reports both hashes.
+
+- **F-A071 — `cssContentSize.height` is the layout box, not the page, and a
+  capture sized from it silently crops.** The first truncated capture would have
+  been saved at 1440×900 with **10 of 200 rows** in it, under a filename saying
+  `truncated`. The DOM-state interlock could not catch it: it asserts on the
+  document, and the document was correct — the crop is in the pixels.
+  `Math.max(cssContentSize.height, documentElement.scrollHeight)` is the
+  measurement, and the corrected shot is 1440×9232. **This bears on a committed
+  instrument**: `scripts/admin/trace-capture.js:445-446` uses exactly the
+  uncorrected formula, so any capture it has taken of a page taller than its
+  viewport is suspect. Filed, not fixed — that file is a comment-only change this
+  session.
+
+- **F-A072 — the seed guards assert the HOST, never the DATABASE NAME.** Measured:
+  `postgres://…@localhost:5432/zyon_scratch_absent` passes `assertNotProduction`
+  and `assertLocalHost`, prints `Database : localhost/zyon_scratch_absent`, and
+  fails only when Postgres says the database does not exist. On a machine holding
+  a second local database — a scratch DB, or a restored production dump — the
+  guards would not object to writing fabricated rows into it. The database-name
+  assertion this session ran before every invocation lives at the **call site**,
+  not in the script. Filed rather than fixed: adding an expected-database flag is
+  a guard change and this session's invariant holds both guards byte-identical.
+
+- **F-A073 — every admin page 404s on `/favicon.ico`.** `public/` carries no
+  favicon, so all three captures logged exactly one console error and it is that
+  one. Pre-existing, repo-wide, unrelated to Incidents. Named here only so the
+  next person to open devtools on an admin page does not chase it.
+
+---
 
 ### The incidents page, and the silence it must not imply — 2026-09-06 (INCIDENTS-C)
 
