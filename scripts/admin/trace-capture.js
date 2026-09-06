@@ -180,7 +180,7 @@ async function dropScratch(name) {
   } finally { await c.end(); }
 }
 
-/** Two tenants and the seed's OWN six fixtures on the first. One fixture set,
+/** Two tenants and the seed's OWN fixtures on the first. One fixture set,
  * one home: `scripts/seed-turn-traces.js` exports them. */
 async function seed(url) {
   const { fixtures, SEED_PREFIX } = require('../seed-turn-traces');

@@ -286,4 +286,47 @@ describe('seed-turn-traces guards', () => {
     assert.deepEqual([...channels].sort(), ['voice', 'whatsapp']);
     assert.ok(!channels.has('test'));
   });
+
+  it('nor on the BULK path, which is the one that writes hundreds of rows', () => {
+    // The block above pins `fixtures()`, which is eight rows. `--bulk` is the
+    // path that reaches two hundred — the volume the incidents page needs
+    // before its truncation notice can fire. Guarding the eight-row path and
+    // leaving the two-hundred-row path unguarded is backwards, so both are
+    // pinned and the guard itself is exercised below.
+    const shapes = seed.BULK_SHAPES.length;
+    const bulk = seed.bulkFixtures(shapes * 3, null);
+    assert.equal(bulk.length, shapes * 3);
+
+    const channels = new Set(bulk.map((f) => f.channel));
+    assert.deepEqual([...channels].sort(), ['voice', 'whatsapp']);
+    assert.ok(!channels.has(seed.FORBIDDEN_CHANNEL));
+
+    // Non-vacuity: the generator really did cycle EVERY shape, so the channel
+    // set above is a statement about all of them rather than about the first
+    // one repeated `shapes * 3` times.
+    assert.equal(
+      new Set(bulk.map((f) => JSON.stringify([f.channel, f.error, f.tool_calls]))).size,
+      shapes, 'bulkFixtures did not visit every shape');
+
+    // And the refusal is a GUARD, not a detector. It takes the whole row set
+    // and answers BEFORE the first INSERT, so a forbidden row never reaches
+    // the table — a query run afterwards would only name the damage.
+    const realExit = process.exit;
+    const realErr = console.error;
+    const said = [];
+    process.exit = (code) => { throw new Error('EXIT:' + code); };
+    console.error = (m) => said.push(String(m));
+    try {
+      assert.equal(seed.assertNoForbiddenChannel(bulk), bulk.length,
+        'the guard must pass the clean set, or the refusal below proves nothing');
+      assert.throws(
+        () => seed.assertNoForbiddenChannel(bulk.concat([{ channel: seed.FORBIDDEN_CHANNEL }])),
+        /EXIT:1/);
+      assert.ok(said.some((c) => /NOTHING WAS WRITTEN/.test(c)),
+        'the refusal must say that nothing was written, because nothing was');
+    } finally {
+      process.exit = realExit;
+      console.error = realErr;
+    }
+  });
 });
