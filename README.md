@@ -1,15 +1,3 @@
-# Project Zyon
-
-> AI Voice Receptionist • AI WhatsApp Receptionist • Customer Operations Platform
-
-Rovenad is an AI-powered Customer Operations Platform that enables businesses to automate customer communication across voice calls and WhatsApp while maintaining a unified customer memory.
-
-The platform is designed for Indian SMBs and initially targets dental clinics, providing multilingual AI receptionists capable of answering calls, booking appointments, responding on WhatsApp, and seamlessly handing conversations over to human operators when needed.
-
----
-
-## Features
-
 ### AI Voice Receptionist
 - Answer incoming calls automatically
 - Multilingual conversations (English, Telugu, Hindi)
